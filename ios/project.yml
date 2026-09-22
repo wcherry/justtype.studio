@@ -1,0 +1,40 @@
+# Generate Scriptorium.xcodeproj with:  xcodegen generate
+# (brew install xcodegen). The project file itself is not checked in — the
+# generator is the source of truth, which keeps merge conflicts out of it.
+name: Scriptorium
+options:
+  bundleIdPrefix: app.scriptorium
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+
+packages:
+  ScriptoriumKit:
+    path: ScriptoriumKit
+
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    API_BASE_URL: http://127.0.0.1:8080/api
+  configs:
+    Release:
+      API_BASE_URL: https://api.scriptorium.app/api
+
+targets:
+  Scriptorium:
+    type: application
+    platform: iOS
+    sources:
+      - path: Scriptorium/Sources
+    info:
+      path: Scriptorium/Info.plist
+    dependencies:
+      - package: ScriptoriumKit
+        product: ScriptoriumUI
+      - package: ScriptoriumKit
+        product: ScriptoriumKit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.scriptorium.ios
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        TARGETED_DEVICE_FAMILY: "1,2"

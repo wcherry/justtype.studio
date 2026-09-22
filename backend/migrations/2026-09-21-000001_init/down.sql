@@ -1,0 +1,13 @@
+DROP TABLE IF EXISTS comment_votes;
+DROP TABLE IF EXISTS comments;
+DROP TABLE IF EXISTS publications;
+DROP TABLE IF EXISTS version_entries;
+DROP TABLE IF EXISTS versions;
+DROP TABLE IF EXISTS tracked_changes;
+DROP TABLE IF EXISTS scene_revisions;
+DROP TABLE IF EXISTS scenes;
+DROP TABLE IF EXISTS chapters;
+DROP TABLE IF EXISTS works;
+DROP TABLE IF EXISTS templates;
+DROP TABLE IF EXISTS refresh_tokens;
+DROP TABLE IF EXISTS users;
