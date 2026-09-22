@@ -34,3 +34,4 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 dotenvy = "0.15"
 utoipa = { version = "5", features = ["axum_extras"] }
 utoipa-axum = "0.2"
+zip = { version = "2", default-features = false, features = ["deflate"] }

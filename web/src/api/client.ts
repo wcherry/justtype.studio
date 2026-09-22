@@ -103,6 +103,59 @@ const patch = <T>(path: string, body: unknown) => request<T>('PATCH', path, body
 const put = <T>(path: string, body: unknown) => request<T>('PUT', path, body)
 const del = <T>(path: string) => request<T>('DELETE', path)
 
+/**
+ * Downloads an export.
+ *
+ * Fetched with the access token in the Authorization header and handed to the
+ * browser as a blob, rather than opened as a plain link. A link would need the
+ * token in the query string, and URLs end up in server logs, browser history
+ * and referrer headers — none of which should ever hold a credential.
+ *
+ * The cost is holding the file in memory briefly, which for a manuscript is a
+ * few megabytes at most.
+ */
+export async function downloadExport(
+  versionId: string,
+  format: string,
+  style: string,
+): Promise<void> {
+  const params = new URLSearchParams({ format, style })
+  const headers: Record<string, string> = {}
+  const access = tokens.access()
+  if (access) headers.authorization = `Bearer ${access}`
+
+  let res = await fetch(`${BASE}/versions/${versionId}/export?${params}`, { headers })
+  if (res.status === 401 && (await tryRefresh())) {
+    const retry = tokens.access()
+    if (retry) headers.authorization = `Bearer ${retry}`
+    res = await fetch(`${BASE}/versions/${versionId}/export?${params}`, { headers })
+  }
+  if (!res.ok) {
+    const payload = await res.json().catch(() => null)
+    throw new ApiError(
+      res.status,
+      payload?.error?.code ?? 'unknown',
+      payload?.error?.message ?? res.statusText,
+    )
+  }
+
+  // The server already decided what this file should be called; reading it back
+  // keeps one source of truth for the name.
+  const disposition = res.headers.get('content-disposition') ?? ''
+  const named = /filename="([^"]+)"/.exec(disposition)
+  const filename = named?.[1] ?? `manuscript.${format}`
+
+  const url = URL.createObjectURL(await res.blob())
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  // Revoked on the next tick: revoking synchronously can beat the download.
+  setTimeout(() => URL.revokeObjectURL(url), 10_000)
+}
+
 export const api = {
   goals: {
     /** `today` is the writer's local date; only the client knows it. */
@@ -130,8 +183,17 @@ export const api = {
     outline: (workId: string) => get<Outline>(`/works/${workId}/outline`),
     create: (input: { title: string; kind: WorkKind; templateId?: string; synopsis?: string }) =>
       post<Outline>('/works', input),
-    update: (workId: string, input: Partial<Pick<Work, 'title' | 'subtitle' | 'synopsis' | 'status'>>) =>
-      patch<Work>(`/works/${workId}`, input),
+    update: (
+      workId: string,
+      input: Partial<
+        Pick<
+          Work,
+          | 'title' | 'subtitle' | 'synopsis' | 'status'
+          | 'penName' | 'shortTitle' | 'dedication' | 'epigraph'
+          | 'epigraphSource' | 'copyrightLine'
+        >
+      >,
+    ) => patch<Work>(`/works/${workId}`, input),
     remove: (workId: string) => del<{ ok: boolean }>(`/works/${workId}`),
   },
 

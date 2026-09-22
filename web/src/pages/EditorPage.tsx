@@ -8,6 +8,7 @@ import Placeholder from '@tiptap/extension-placeholder'
 import { api } from '../api/client'
 import type { Outline as OutlineType, Scene, SceneWithContent, Version } from '../api/types'
 import { ConflictBanner } from '../components/ConflictBanner'
+import { FrontMatter } from '../components/FrontMatter'
 import { GoalBar } from '../components/GoalBar'
 import { Outline } from '../components/Outline'
 import { RevisionPanel } from '../components/RevisionPanel'
@@ -16,6 +17,7 @@ import { WritingPreferencesPanel } from '../components/WritingPreferences'
 import { VersionPanel } from '../components/VersionPanel'
 import { FocusMode } from '../editor/focusMode'
 import { useWritingPreferences } from '../editor/preferences'
+import { ProseTypography } from '../editor/typography'
 import { TypewriterScrolling } from '../editor/typewriter'
 import { useAutosave } from '../editor/useAutosave'
 import { useSessionGoals } from '../editor/useSessionGoals'
@@ -39,7 +41,7 @@ export function EditorPage() {
   const [versions, setVersions] = useState<Version[]>([])
   const [scene, setScene] = useState<Scene | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [panel, setPanel] = useState<'none' | 'versions' | 'history' | 'prefs'>('none')
+  const [panel, setPanel] = useState<'none' | 'versions' | 'history' | 'prefs' | 'front'>('none')
   const [online, setOnline] = useState(() => navigator.onLine)
   /** Bumped after every accepted save, so the history list stays current. */
   const [savedAt, setSavedAt] = useState(0)
@@ -54,6 +56,7 @@ export function EditorPage() {
       Placeholder.configure({ placeholder: 'Begin where it is already happening…' }),
       FocusMode,
       TypewriterScrolling,
+      ProseTypography,
     ],
     content: '',
   })
@@ -255,6 +258,12 @@ export function EditorPage() {
             </button>
             <button
               type="button"
+              onClick={() => setPanel((p) => (p === 'front' ? 'none' : 'front'))}
+            >
+              Front matter
+            </button>
+            <button
+              type="button"
               onClick={() => setPanel((p) => (p === 'history' ? 'none' : 'history'))}
             >
               History
@@ -327,6 +336,20 @@ export function EditorPage() {
             preferences={preferences}
             onChange={setPreference}
             onReset={resetPreferences}
+          />
+        </aside>
+      )}
+
+      {panel === 'front' && outline && (
+        <aside className="versions">
+          <header className="versions__header">
+            <h3>Front matter</h3>
+          </header>
+          <FrontMatter
+            work={outline}
+            onSaved={(work) =>
+              setOutline((current) => (current ? { ...current, ...work } : current))
+            }
           />
         </aside>
       )}

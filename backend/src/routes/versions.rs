@@ -257,7 +257,10 @@ pub async fn create(
     Ok(Json(detail))
 }
 
-fn load_detail(conn: &mut crate::db::Conn, version_id: &str) -> ApiResult<VersionDetail> {
+pub(crate) fn load_detail(
+    conn: &mut crate::db::Conn,
+    version_id: &str,
+) -> ApiResult<VersionDetail> {
     let version: Version = versions::table
         .find(version_id)
         .select(Version::as_select())

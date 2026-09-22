@@ -221,11 +221,19 @@ export interface OutlineChapter {
 }
 
 export interface OutlineResponse {
+  copyrightLine?: string | null
   createdAt: string
   currentVersionId?: string | null
+  dedication?: string | null
+  epigraph?: string | null
+  epigraphSource?: string | null
   id: string
   kind: WorkKind
   ownerId: string
+  // The name on the byline, when it is not the writer's own.
+  penName?: string | null
+  // Short form for a running header; a long title wraps and ruins it.
+  shortTitle?: string | null
   status: WorkStatus
   subtitle?: string | null
   synopsis?: string | null
@@ -480,6 +488,14 @@ export interface UpdateSceneRequest {
 }
 
 export interface UpdateWorkRequest {
+  copyrightLine?: string | null
+  dedication?: string | null
+  epigraph?: string | null
+  epigraphSource?: string | null
+  // Front matter. Each is sent only when it changes; an empty string clears
+  // one, which is what a writer emptying the field in the UI means.
+  penName?: string | null
+  shortTitle?: string | null
   status?: WorkStatus | null
   subtitle?: string | null
   synopsis?: string | null
@@ -494,6 +510,11 @@ export interface User {
   displayName: string
   email: string
   id: string
+  // Contact details for a submission's first page. Kept on the writer rather
+  // than the work, since they are the same for every submission.
+  legalName?: string | null
+  mailingAddress?: string | null
+  phone?: string | null
   updatedAt: string
 }
 
@@ -573,11 +594,19 @@ export interface VoteResponse {
 }
 
 export interface Work {
+  copyrightLine?: string | null
   createdAt: string
   currentVersionId?: string | null
+  dedication?: string | null
+  epigraph?: string | null
+  epigraphSource?: string | null
   id: string
   kind: WorkKind
   ownerId: string
+  // The name on the byline, when it is not the writer's own.
+  penName?: string | null
+  // Short form for a running header; a long title wraps and ruins it.
+  shortTitle?: string | null
   status: WorkStatus
   subtitle?: string | null
   synopsis?: string | null

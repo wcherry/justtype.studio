@@ -10,6 +10,9 @@ diesel::table! {
         created_at -> Text,
         updated_at -> Text,
         daily_word_goal -> Nullable<Integer>,
+        legal_name -> Nullable<Text>,
+        mailing_address -> Nullable<Text>,
+        phone -> Nullable<Text>,
     }
 }
 
@@ -50,6 +53,12 @@ diesel::table! {
         word_count -> Integer,
         created_at -> Text,
         updated_at -> Text,
+        pen_name -> Nullable<Text>,
+        short_title -> Nullable<Text>,
+        dedication -> Nullable<Text>,
+        epigraph -> Nullable<Text>,
+        epigraph_source -> Nullable<Text>,
+        copyright_line -> Nullable<Text>,
     }
 }
 

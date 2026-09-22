@@ -1,6 +1,7 @@
 pub mod auth;
 pub mod changes;
 pub mod comments;
+pub mod export;
 pub mod goals;
 pub mod openapi;
 pub mod publications;
@@ -56,6 +57,7 @@ fn api_router() -> OpenApiRouter<AppState> {
         .routes(routes!(versions::diff))
         .routes(routes!(versions::get_one))
         .routes(routes!(versions::content))
+        .routes(routes!(export::export_version))
         .routes(routes!(versions::publish))
         .routes(routes!(versions::finalize))
         .routes(routes!(publications::create))

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { api } from '../api/client'
 import type { DiffResponse, Version, Visibility } from '../api/types'
 import { DiffView } from './DiffView'
+import { ExportDialog } from './ExportDialog'
 
 interface Props {
   workId: string
@@ -25,6 +26,7 @@ export function VersionPanel({ workId, versions, onChanged }: Props) {
   const [diff, setDiff] = useState<DiffResponse | null>(null)
   const [compare, setCompare] = useState<{ from?: string; to?: string }>({})
   const [offering, setOffering] = useState<string | null>(null)
+  const [exporting, setExporting] = useState<string | null>(null)
 
   const run = async (fn: () => Promise<unknown>) => {
     setBusy(true)
@@ -91,6 +93,9 @@ export function VersionPanel({ workId, versions, onChanged }: Props) {
                   </button>
                 </>
               )}
+              <button type="button" onClick={() => setExporting(exporting === version.id ? null : version.id)}>
+                Export
+              </button>
               <label className="versions__pick">
                 <input
                   type="radio"
@@ -110,6 +115,10 @@ export function VersionPanel({ workId, versions, onChanged }: Props) {
                 to
               </label>
             </div>
+
+            {exporting === version.id && (
+              <ExportDialog version={version} onClose={() => setExporting(null)} />
+            )}
 
             {offering === version.id && (
               <OfferForm

@@ -28,6 +28,11 @@ row!(User, users, {
     updated_at: String,
     /// The writer's daily target in words, when they have set one.
     daily_word_goal: Option<i32>,
+    /// Contact details for a submission's first page. Kept on the writer rather
+    /// than the work, since they are the same for every submission.
+    legal_name: Option<String>,
+    mailing_address: Option<String>,
+    phone: Option<String>,
 });
 
 row!(RefreshToken, refresh_tokens, {
@@ -64,6 +69,14 @@ row!(Work, works, {
     word_count: i32,
     created_at: String,
     updated_at: String,
+    /// The name on the byline, when it is not the writer's own.
+    pen_name: Option<String>,
+    /// Short form for a running header; a long title wraps and ruins it.
+    short_title: Option<String>,
+    dedication: Option<String>,
+    epigraph: Option<String>,
+    epigraph_source: Option<String>,
+    copyright_line: Option<String>,
 });
 
 row!(Chapter, chapters, {
@@ -221,7 +234,8 @@ macro_rules! new_row {
 new_row!(NewUser, users, {
     id: String, email: String, display_name: String, password_hash: String,
     bio: Option<String>, created_at: String, updated_at: String,
-    daily_word_goal: Option<i32>,
+    daily_word_goal: Option<i32>, legal_name: Option<String>,
+    mailing_address: Option<String>, phone: Option<String>,
 });
 
 new_row!(NewWritingDay, writing_days, {
@@ -243,7 +257,9 @@ new_row!(NewWork, works, {
     id: String, owner_id: String, title: String, subtitle: Option<String>,
     kind: String, synopsis: Option<String>, template_id: Option<String>,
     status: String, current_version_id: Option<String>, word_count: i32,
-    created_at: String, updated_at: String,
+    created_at: String, updated_at: String, pen_name: Option<String>,
+    short_title: Option<String>, dedication: Option<String>, epigraph: Option<String>,
+    epigraph_source: Option<String>, copyright_line: Option<String>,
 });
 
 new_row!(NewChapter, chapters, {

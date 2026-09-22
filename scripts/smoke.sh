@@ -150,4 +150,15 @@ for c in json.load(sys.stdin):
     for r in c['replies']:
         print(f\"      ↳ {r['author']['displayName']}: {r['body']}\")"
 
+step "Exporting the published version"
+for fmt in txt docx epub pdf; do
+  out="$TMP/export.$fmt"
+  code=$(curl -s -o "$out" -w '%{http_code}' "$API/versions/$V2/export?format=$fmt&style=manuscript" -H "$AUTH")
+  [ "$code" = "200" ] || { echo "  $fmt: HTTP $code"; exit 1; }
+  printf '  %-5s %7s bytes  %s\n' "$fmt" "$(wc -c < "$out" | tr -d ' ')" "$(python3 "$ROOT/scripts/check_export.py" "$out")"
+done
+# A style the server does not know has to be refused, not quietly ignored.
+bad=$(curl -s -o /dev/null -w '%{http_code}' "$API/versions/$V2/export?format=docx&style=fancy" -H "$AUTH")
+[ "$bad" = "400" ] && echo "  unknown style rejected with 400" || { echo "  EXPECTED 400, got $bad"; exit 1; }
+
 printf '\n\033[32mAll good.\033[0m\n'

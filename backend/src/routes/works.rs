@@ -43,6 +43,20 @@ pub struct UpdateWorkRequest {
     #[serde(default)]
     #[schema(value_type = Option<crate::domain::enums::WorkStatus>)]
     pub status: Option<String>,
+    /// Front matter. Each is sent only when it changes; an empty string clears
+    /// one, which is what a writer emptying the field in the UI means.
+    #[serde(default)]
+    pub pen_name: Option<String>,
+    #[serde(default)]
+    pub short_title: Option<String>,
+    #[serde(default)]
+    pub dedication: Option<String>,
+    #[serde(default)]
+    pub epigraph: Option<String>,
+    #[serde(default)]
+    pub epigraph_source: Option<String>,
+    #[serde(default)]
+    pub copyright_line: Option<String>,
 }
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
@@ -190,6 +204,12 @@ pub async fn create(
                     word_count: 0,
                     created_at: now.clone(),
                     updated_at: now.clone(),
+                    pen_name: None,
+                    short_title: None,
+                    dedication: None,
+                    epigraph: None,
+                    epigraph_source: None,
+                    copyright_line: None,
                 })
                 .execute(conn)?;
 
@@ -305,6 +325,43 @@ pub async fn update(
             }
             diesel::update(works::table.find(&work_id))
                 .set(works::status.eq(status))
+                .execute(conn)?;
+        }
+        // Blank means "clear it", so a writer can take a pen name off again.
+        let text = |value: &Option<String>| -> Option<Option<String>> {
+            value.as_ref().map(|v| {
+                let trimmed = v.trim();
+                (!trimmed.is_empty()).then(|| trimmed.to_string())
+            })
+        };
+        if let Some(value) = text(&body.pen_name) {
+            diesel::update(works::table.find(&work_id))
+                .set(works::pen_name.eq(value))
+                .execute(conn)?;
+        }
+        if let Some(value) = text(&body.short_title) {
+            diesel::update(works::table.find(&work_id))
+                .set(works::short_title.eq(value))
+                .execute(conn)?;
+        }
+        if let Some(value) = text(&body.dedication) {
+            diesel::update(works::table.find(&work_id))
+                .set(works::dedication.eq(value))
+                .execute(conn)?;
+        }
+        if let Some(value) = text(&body.epigraph) {
+            diesel::update(works::table.find(&work_id))
+                .set(works::epigraph.eq(value))
+                .execute(conn)?;
+        }
+        if let Some(value) = text(&body.epigraph_source) {
+            diesel::update(works::table.find(&work_id))
+                .set(works::epigraph_source.eq(value))
+                .execute(conn)?;
+        }
+        if let Some(value) = text(&body.copyright_line) {
+            diesel::update(works::table.find(&work_id))
+                .set(works::copyright_line.eq(value))
                 .execute(conn)?;
         }
         diesel::update(works::table.find(&work_id))

@@ -105,10 +105,35 @@ Deliberately not done here: none of this reaches iOS, whose editor is still
 plain text. Focus mode and typewriter scrolling only mean something once *4.1*
 gives it a real editor.
 
-### 1.3 Manuscript formatting
-- Smart quotes, em-dashes, ellipses as you type.
-- Scene-break glyphs, chapter title pages, front matter.
-- Export to DOCX, EPUB, PDF and standard manuscript format (Shunn).
+### 1.3 Manuscript formatting · **Done**
+- ✅ Smart quotes, em dashes and ellipses as you type, narrowed to the
+  punctuation a typesetter would fix anyway. The rules aimed at technical
+  writing are off: `1/2` becoming ½ is actively wrong in fiction, where a
+  character might say "half past".
+- ✅ Scene-break glyphs (`#` in manuscript format, `⁂` in a book), chapter
+  openings on a fresh page, and front matter — byline, short title, dedication,
+  epigraph, copyright line — with contact details on the writer rather than the
+  work, since they are the same for every submission.
+- ✅ Export to DOCX, EPUB, PDF and plain text, in either standard manuscript
+  format (Shunn) or a book layout. One assembled model feeds every writer, so
+  the formats cannot disagree about what the book says — only about how it
+  looks.
+- **Done when** a writer can hand the file to an agent without reformatting it.
+  *Verified by generating all four: the DOCX and EPUB unzip with every XML part
+  well-formed, and macOS's own PDF engine renders the title page in Courier with
+  the contact block, rounded word count and `Surname / TITLE / page` header
+  exactly where Shunn puts them.*
+
+The PDF writer is hand-rolled and Courier-only, which sounds like a limitation
+and is really the same decision twice: Courier is a base-14 font, so it never
+needs embedding, and it is monospaced, so line breaking is arithmetic rather
+than font metrics — and it is exactly what standard manuscript format asks for.
+A book-styled PDF would need proportional type, and therefore real metrics; that
+is the one export shape still missing, and DOCX covers it in the meantime.
+
+Two bugs this surfaced: a template's empty scenes exported as pages of lone `#`
+marks, and the front-matter fields had nowhere to be set from — the work's PATCH
+handler knew nothing about them, so a pen name saved silently did nothing.
 
 ### 1.4 Structure tools
 - Corkboard / index-card view over scenes; drag to reorder across chapters.

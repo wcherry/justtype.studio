@@ -125,6 +125,9 @@ pub async fn register(
         created_at: now.clone(),
         updated_at: now,
         daily_word_goal: None,
+        legal_name: None,
+        mailing_address: None,
+        phone: None,
     };
 
     let inner_state = state.clone();

@@ -27,6 +27,29 @@ back as `{"error": {"code": "...", "message": "..."}}` with a matching status.
 A session is `{user, accessToken, refreshToken, expiresIn}`. Refresh tokens are
 single-use: refreshing revokes the one you presented.
 
+## Export
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/versions/{id}/export?format=&style=` | the version as a file |
+
+`format` is `docx`, `epub`, `pdf` or `txt`. `style` is `manuscript` (the
+default) or `book`, and applies to DOCX only — EPUB has no pages, and the PDF
+writer is Courier-only, which is what standard manuscript format asks for
+anyway. The response carries a `Content-Disposition` filename derived from the
+title.
+
+Exports come from a frozen version, never the working copy: a file you send an
+agent has to be a thing that stays the same. Scenes with no text are skipped, so
+a template's empty beats do not print as pages of lone `#` marks, and a chapter
+that is nothing but scaffolding is skipped with them.
+
+Front matter — `penName`, `shortTitle`, `dedication`, `epigraph`,
+`epigraphSource`, `copyrightLine` — is set on the work; contact details for a
+submission's first page (`legalName`, `mailingAddress`, `phone`) belong to the
+writer, since they are the same for every submission. Sending an empty string
+clears a front-matter field; omitting it leaves it alone.
+
 ## Writing goals
 
 | Method | Path | Notes |
@@ -60,7 +83,7 @@ recovering, not writing.
 | `POST` | `/works` | `title`, `kind`, optional `templateId`; returns the outline |
 | `GET` | `/works/{id}` | |
 | `GET` | `/works/{id}/outline` | work with chapters and scenes nested |
-| `PATCH` | `/works/{id}` | `title`, `subtitle`, `synopsis`, `status` (`draft`/`archived` only) |
+| `PATCH` | `/works/{id}` | `title`, `subtitle`, `synopsis`, `status` (`draft`/`archived` only), front matter |
 | `DELETE` | `/works/{id}` | removes the manuscript tree too |
 | `POST` | `/works/{id}/chapters` | `title` |
 | `POST` | `/works/{id}/chapters/reorder` | `ids` in the order you want |

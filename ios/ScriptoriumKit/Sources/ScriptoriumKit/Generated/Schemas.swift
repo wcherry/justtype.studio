@@ -576,11 +576,19 @@ public enum API {
     }
 
     public struct OutlineResponse: Codable, Hashable, Sendable {
+        public var copyrightLine: String?
         public var createdAt: String
         public var currentVersionId: String?
+        public var dedication: String?
+        public var epigraph: String?
+        public var epigraphSource: String?
         public var id: String
         public var kind: WorkKind
         public var ownerId: String
+        /// The name on the byline, when it is not the writer's own.
+        public var penName: String?
+        /// Short form for a running header; a long title wraps and ruins it.
+        public var shortTitle: String?
         public var status: WorkStatus
         public var subtitle: String?
         public var synopsis: String?
@@ -591,11 +599,17 @@ public enum API {
         public var chapters: [OutlineChapter]
 
         public init(
+            copyrightLine: String? = nil,
             createdAt: String,
             currentVersionId: String? = nil,
+            dedication: String? = nil,
+            epigraph: String? = nil,
+            epigraphSource: String? = nil,
             id: String,
             kind: WorkKind,
             ownerId: String,
+            penName: String? = nil,
+            shortTitle: String? = nil,
             status: WorkStatus,
             subtitle: String? = nil,
             synopsis: String? = nil,
@@ -605,11 +619,17 @@ public enum API {
             wordCount: Int,
             chapters: [OutlineChapter]
         ) {
+            self.copyrightLine = copyrightLine
             self.createdAt = createdAt
             self.currentVersionId = currentVersionId
+            self.dedication = dedication
+            self.epigraph = epigraph
+            self.epigraphSource = epigraphSource
             self.id = id
             self.kind = kind
             self.ownerId = ownerId
+            self.penName = penName
+            self.shortTitle = shortTitle
             self.status = status
             self.subtitle = subtitle
             self.synopsis = synopsis
@@ -1252,17 +1272,37 @@ public enum API {
     }
 
     public struct UpdateWorkRequest: Codable, Hashable, Sendable {
+        public var copyrightLine: String?
+        public var dedication: String?
+        public var epigraph: String?
+        public var epigraphSource: String?
+        /// Front matter. Each is sent only when it changes; an empty string clears
+        /// one, which is what a writer emptying the field in the UI means.
+        public var penName: String?
+        public var shortTitle: String?
         public var status: WorkStatus?
         public var subtitle: String?
         public var synopsis: String?
         public var title: String?
 
         public init(
+            copyrightLine: String? = nil,
+            dedication: String? = nil,
+            epigraph: String? = nil,
+            epigraphSource: String? = nil,
+            penName: String? = nil,
+            shortTitle: String? = nil,
             status: WorkStatus? = nil,
             subtitle: String? = nil,
             synopsis: String? = nil,
             title: String? = nil
         ) {
+            self.copyrightLine = copyrightLine
+            self.dedication = dedication
+            self.epigraph = epigraph
+            self.epigraphSource = epigraphSource
+            self.penName = penName
+            self.shortTitle = shortTitle
             self.status = status
             self.subtitle = subtitle
             self.synopsis = synopsis
@@ -1278,6 +1318,11 @@ public enum API {
         public var displayName: String
         public var email: String
         public var id: String
+        /// Contact details for a submission's first page. Kept on the writer rather
+        /// than the work, since they are the same for every submission.
+        public var legalName: String?
+        public var mailingAddress: String?
+        public var phone: String?
         public var updatedAt: String
 
         public init(
@@ -1287,6 +1332,9 @@ public enum API {
             displayName: String,
             email: String,
             id: String,
+            legalName: String? = nil,
+            mailingAddress: String? = nil,
+            phone: String? = nil,
             updatedAt: String
         ) {
             self.bio = bio
@@ -1295,6 +1343,9 @@ public enum API {
             self.displayName = displayName
             self.email = email
             self.id = id
+            self.legalName = legalName
+            self.mailingAddress = mailingAddress
+            self.phone = phone
             self.updatedAt = updatedAt
         }
     }
@@ -1511,11 +1562,19 @@ public enum API {
     }
 
     public struct Work: Codable, Hashable, Sendable {
+        public var copyrightLine: String?
         public var createdAt: String
         public var currentVersionId: String?
+        public var dedication: String?
+        public var epigraph: String?
+        public var epigraphSource: String?
         public var id: String
         public var kind: WorkKind
         public var ownerId: String
+        /// The name on the byline, when it is not the writer's own.
+        public var penName: String?
+        /// Short form for a running header; a long title wraps and ruins it.
+        public var shortTitle: String?
         public var status: WorkStatus
         public var subtitle: String?
         public var synopsis: String?
@@ -1525,11 +1584,17 @@ public enum API {
         public var wordCount: Int
 
         public init(
+            copyrightLine: String? = nil,
             createdAt: String,
             currentVersionId: String? = nil,
+            dedication: String? = nil,
+            epigraph: String? = nil,
+            epigraphSource: String? = nil,
             id: String,
             kind: WorkKind,
             ownerId: String,
+            penName: String? = nil,
+            shortTitle: String? = nil,
             status: WorkStatus,
             subtitle: String? = nil,
             synopsis: String? = nil,
@@ -1538,11 +1603,17 @@ public enum API {
             updatedAt: String,
             wordCount: Int
         ) {
+            self.copyrightLine = copyrightLine
             self.createdAt = createdAt
             self.currentVersionId = currentVersionId
+            self.dedication = dedication
+            self.epigraph = epigraph
+            self.epigraphSource = epigraphSource
             self.id = id
             self.kind = kind
             self.ownerId = ownerId
+            self.penName = penName
+            self.shortTitle = shortTitle
             self.status = status
             self.subtitle = subtitle
             self.synopsis = synopsis

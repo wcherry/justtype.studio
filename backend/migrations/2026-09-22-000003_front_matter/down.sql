@@ -1,0 +1,9 @@
+ALTER TABLE users DROP COLUMN legal_name;
+ALTER TABLE users DROP COLUMN mailing_address;
+ALTER TABLE users DROP COLUMN phone;
+ALTER TABLE works DROP COLUMN pen_name;
+ALTER TABLE works DROP COLUMN short_title;
+ALTER TABLE works DROP COLUMN dedication;
+ALTER TABLE works DROP COLUMN epigraph;
+ALTER TABLE works DROP COLUMN epigraph_source;
+ALTER TABLE works DROP COLUMN copyright_line;

@@ -1462,6 +1462,43 @@
       },
       "UpdateWorkRequest": {
         "properties": {
+          "copyrightLine": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "dedication": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "epigraph": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "epigraphSource": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "penName": {
+            "description": "Front matter. Each is sent only when it changes; an empty string clears\none, which is what a writer emptying the field in the UI means.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "shortTitle": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "status": {
             "oneOf": [
               {
@@ -1520,6 +1557,25 @@
           },
           "id": {
             "type": "string"
+          },
+          "legalName": {
+            "description": "Contact details for a submission's first page. Kept on the writer rather\nthan the work, since they are the same for every submission.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "mailingAddress": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "phone": {
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "updatedAt": {
             "type": "string"
@@ -1743,10 +1799,34 @@
       },
       "Work": {
         "properties": {
+          "copyrightLine": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "createdAt": {
             "type": "string"
           },
           "currentVersionId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "dedication": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "epigraph": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "epigraphSource": {
             "type": [
               "string",
               "null"
@@ -1760,6 +1840,20 @@
           },
           "ownerId": {
             "type": "string"
+          },
+          "penName": {
+            "description": "The name on the byline, when it is not the writer's own.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "shortTitle": {
+            "description": "Short form for a running header; a long title wraps and ruins it.",
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "status": {
             "$ref": "#/components/schemas/WorkStatus"
@@ -3426,6 +3520,42 @@
           }
         },
         "summary": "The whole frozen manuscript. Authors always get their own; readers reach a\nversion through a publication instead.",
+        "tags": [
+          "versions"
+        ]
+      }
+    },
+    "/api/versions/{version_id}/export": {
+      "get": {
+        "operationId": "export_version",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {}
+            },
+            "description": "The manuscript as a file"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
         "tags": [
           "versions"
         ]
