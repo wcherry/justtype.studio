@@ -34,7 +34,25 @@ make ios                      # generates the Xcode project and opens it
 
 `make test` runs the Rust unit tests, the Swift package tests, and the web
 type-check. `make smoke` exercises the whole API end to end against a throwaway
-database.
+database. Every target is a thin wrapper over `cargo xtask` — run `cargo xtask`
+with no arguments for the full list.
+
+### The iOS app
+
+```bash
+cargo sim                              # build, install and launch on a simulator
+cargo sim --device "iPad Pro 13-inch (M4)"
+cargo sim --reset --screenshot         # fresh install, then a PNG
+cargo sim --physical --console         # a paired iPhone, attached to its output
+cargo xtask testflight                 # bump the build number, archive, upload
+cargo xtask testflight 7 1.1.0         # build 7, marketing version 1.1.0
+cargo xtask testflight --no-upload     # archive and verify the .ipa, stop there
+```
+
+`ios/project.yml` is the source of truth for the bundle id, the signing team and
+both version numbers; the scripts read and rewrite it there and regenerate the
+Xcode project. TestFlight uploads need App Store Connect credentials — copy
+`scripts/.env.example` to `scripts/.env` and fill in one of the two blocks.
 
 ## The shape of the thing
 

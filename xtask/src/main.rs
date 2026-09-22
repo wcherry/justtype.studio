@@ -48,6 +48,8 @@ Tasks:
   dev                Backend and web dev server together
   build-web          Production build of the web client
   ios                Generate the Xcode project and open it
+  sim [args...]      Build and run the iOS app (scripts/run_simulator.sh)
+  testflight [args]  Build, sign and upload to TestFlight
   test               Rust, Swift and web test suites
   check              fmt, clippy, and the web type-check
   smoke              End-to-end API walkthrough on a throwaway database
@@ -67,6 +69,11 @@ fn main() {
         "dev" => run_dev(&cfg),
         "build-web" => build_web(&cfg.web_dir),
         "ios" => open_ios(&cfg),
+        // Both are shell scripts: they are long, macOS-specific, and deal in
+        // xcodebuild/simctl/devicectl invocations that read far better as
+        // shell than as Rust building argv vectors. The xtask just forwards.
+        "sim" => run_script(&cfg.workspace_root, "scripts/run_simulator.sh", &extra),
+        "testflight" => run_script(&cfg.workspace_root, "scripts/deploy_testflight.sh", &extra),
         "test" => run_tests(&cfg),
         "check" => run_checks(&cfg),
         "smoke" => run_smoke(&cfg.workspace_root, &extra),
@@ -392,10 +399,14 @@ fn run_checks(cfg: &Config) {
     run("pnpm", &["typecheck"], &cfg.web_dir);
 }
 
-/// Everything after the task name is handed to the script, so
-/// `cargo smoke --help` reaches `scripts/smoke.sh --help`.
 fn run_smoke(root: &Path, extra: &[String]) {
-    let mut args = vec!["scripts/smoke.sh".to_string()];
+    run_script(root, "scripts/smoke.sh", extra);
+}
+
+/// Everything after the task name is handed to the script, so
+/// `cargo sim --physical --console` reaches the script with both flags.
+fn run_script(root: &Path, script: &str, extra: &[String]) {
+    let mut args = vec![script.to_string()];
     args.extend_from_slice(extra);
     let args: Vec<&str> = args.iter().map(String::as_str).collect();
     run("bash", &args, root);

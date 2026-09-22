@@ -16,6 +16,14 @@ settings:
   base:
     SWIFT_VERSION: "5.9"
     API_BASE_URL: http://127.0.0.1:8088/api
+    # scripts/deploy_testflight.sh rewrites these two and regenerates the
+    # project, so this file is the source of truth for both. The Info.plist
+    # below refers to them rather than repeating the numbers.
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    # The Apple Developer team that signs the app. Change this if Scriptorium
+    # ships under a different team than your other apps.
+    DEVELOPMENT_TEAM: 46KWJJ63FU
   configs:
     Release:
       API_BASE_URL: https://api.scriptorium.app/api
@@ -32,8 +40,8 @@ targets:
       path: Scriptorium/Info.plist
       properties:
         CFBundleDisplayName: Scriptorium
-        CFBundleShortVersionString: "0.1.0"
-        CFBundleVersion: "1"
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         API_BASE_URL: $(API_BASE_URL)
         UILaunchScreen: {}
         # Development only: the local backend is plain HTTP. Drop this before

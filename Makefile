@@ -2,7 +2,7 @@
 # Everything here has a shorter cargo alias — see .cargo/config.toml.
 SHELL := /bin/bash
 
-.PHONY: help setup backend web ios dev test check smoke fmt clean
+.PHONY: help setup backend web ios sim testflight dev test check smoke fmt clean
 
 help:
 	@grep -E '^[a-z-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-10s\033[0m %s\n", $$1, $$2}'
@@ -21,6 +21,12 @@ web: ## Production build of the web client  (cargo web)
 
 ios: ## Generate and open the Xcode project  (cargo ios)
 	cargo xtask ios
+
+sim: ## Build and run the iOS app on a simulator  (cargo sim)
+	cargo xtask sim
+
+testflight: ## Build, sign and upload to TestFlight
+	cargo xtask testflight
 
 test: ## Rust, Swift and web test suites
 	cargo xtask test
