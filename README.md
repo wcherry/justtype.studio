@@ -49,10 +49,24 @@ cargo xtask testflight 7 1.1.0         # build 7, marketing version 1.1.0
 cargo xtask testflight --no-upload     # archive and verify the .ipa, stop there
 ```
 
-`ios/project.yml` is the source of truth for the bundle id, the signing team and
-both version numbers; the scripts read and rewrite it there and regenerate the
-Xcode project. TestFlight uploads need App Store Connect credentials — copy
-`scripts/.env.example` to `scripts/.env` and fill in one of the two blocks.
+`ios/project.yml` is the source of truth for the bundle id and both version
+numbers; the scripts read and rewrite it there and regenerate the Xcode project.
+
+Signing is not in the repo. The Apple Developer team is a property of whoever is
+building, so it lives in `scripts/.env` (gitignored) alongside the App Store
+Connect credentials — copy `scripts/.env.example` and fill it in:
+
+| Variable | Needed for |
+|---|---|
+| `DEVELOPMENT_TEAM` | device builds, archives, uploads |
+| `ASC_KEY_ID` / `ASC_ISSUER_ID` / `ASC_KEY_PATH` | uploading (preferred) |
+| `ASC_APPLE_ID` / `ASC_APP_PASSWORD` | uploading (alternative) |
+
+`scripts/ios_signing.sh` turns `DEVELOPMENT_TEAM` into `ios/Signing.xcconfig`,
+which the generated project points both build configurations at — so xcodebuild
+and Xcode-opened-by-hand read the same value. Anything that runs `xcodegen`
+writes it first. A simulator build needs no team at all; the paths that do say
+so plainly rather than failing inside xcodebuild.
 
 ## The shape of the thing
 

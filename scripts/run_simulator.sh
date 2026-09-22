@@ -121,6 +121,14 @@ command -v xcrun >/dev/null      || die "xcrun not found — install Xcode"
 BUNDLE_ID="$(awk -F': ' '/PRODUCT_BUNDLE_IDENTIFIER:/ { gsub(/[[:space:]]/, "", $2); print $2; exit }' project.yml)"
 [[ -n "$BUNDLE_ID" ]] || die "could not read PRODUCT_BUNDLE_IDENTIFIER from ios/project.yml"
 
+# Written before xcodegen runs: the generated project points its build
+# configurations at this file, and xcodegen refuses to generate if it is absent.
+# A simulator build needs no team, so only a device build insists on one.
+# shellcheck source=scripts/ios_signing.sh
+source "$REPO_ROOT/scripts/ios_signing.sh"
+ios_write_signing_xcconfig
+[[ "$TARGET" != "device" ]] || ios_require_team "a device build" "A simulator build needs no team — drop --physical to use one."
+
 # --- device ------------------------------------------------------------------
 
 # Resolves a simulator name to a UDID.
@@ -306,8 +314,11 @@ if [[ $DO_BUILD -eq 1 ]]; then
   )
   # A device build has to be signed. -allowProvisioningUpdates lets Xcode
   # register the device and fetch a development profile the first time round;
-  # the team comes from DEVELOPMENT_TEAM in project.yml.
-  [[ "$TARGET" == "device" ]] && build_args+=(-allowProvisioningUpdates)
+  # the team comes from ios/Signing.xcconfig, passed again on the command line
+  # so a stale generated project cannot quietly win.
+  if [[ "$TARGET" == "device" ]]; then
+    build_args+=(-allowProvisioningUpdates "DEVELOPMENT_TEAM=$DEVELOPMENT_TEAM")
+  fi
 
   # The full transcript goes to a log and only the interesting lines to the
   # terminal. No `|| true` on the end: it would run in place of the failing
@@ -321,7 +332,7 @@ if [[ $DO_BUILD -eq 1 ]]; then
   set -e
   if [[ "$build_status" -ne 0 ]]; then
     [[ "$TARGET" == "device" ]] && warn "a device build must be code-signed: check that Xcode is signed
-  in under Settings > Accounts with access to team DEVELOPMENT_TEAM from project.yml."
+  in under Settings > Accounts with access to team $DEVELOPMENT_TEAM."
     die "build failed — full output in ${BUILD_DIR#$REPO_ROOT/}/xcodebuild.log"
   fi
 fi

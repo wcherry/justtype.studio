@@ -21,9 +21,6 @@ settings:
     # below refers to them rather than repeating the numbers.
     MARKETING_VERSION: "0.1.0"
     CURRENT_PROJECT_VERSION: "1"
-    # The Apple Developer team that signs the app. Change this if Scriptorium
-    # ships under a different team than your other apps.
-    DEVELOPMENT_TEAM: 46KWJJ63FU
   configs:
     Release:
       API_BASE_URL: https://api.scriptorium.app/api
@@ -53,6 +50,13 @@ targets:
         product: ScriptoriumUI
       - package: ScriptoriumKit
         product: ScriptoriumKit
+    # DEVELOPMENT_TEAM lives here rather than in this file: it is a property of
+    # whoever is building, not of the project. scripts/ios_signing.sh writes it
+    # from scripts/.env before anything runs xcodegen, and Xcode reads the same
+    # file when the project is opened by hand.
+    configFiles:
+      Debug: Signing.xcconfig
+      Release: Signing.xcconfig
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.scriptorium.ios

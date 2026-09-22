@@ -13,8 +13,12 @@
 # disagree with the app's — which App Store Connect rejects, ten minutes into
 # an upload.
 #
-# App Store Connect credentials are read from the environment, or from a
-# scripts/.env file (gitignored). Two options, API key preferred:
+# The signing team and the App Store Connect credentials are read from the
+# environment, or from a scripts/.env file (gitignored):
+#
+#   DEVELOPMENT_TEAM=XXXXXXXXXX
+#
+# Two credential options, API key preferred:
 #
 #   ASC_KEY_ID=XXXXXXXXXX
 #   ASC_ISSUER_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
@@ -110,13 +114,15 @@ fi
 command -v xcodegen >/dev/null || die "xcodegen not found — brew install xcodegen"
 command -v xcodebuild >/dev/null || die "xcodebuild not found — install Xcode"
 
-# Read rather than hard-coded: project.yml is what actually decides which team
-# signs the build, and a second copy here would be one more thing to forget.
-# ASC_TEAM_ID overrides it for a one-off build under a different team.
-TEAM_ID="${ASC_TEAM_ID:-$(awk -F': ' '/DEVELOPMENT_TEAM:/ { gsub(/[[:space:]]/, "", $2); print $2; exit }' project.yml)}"
-[[ -n "$TEAM_ID" ]] || die "could not read DEVELOPMENT_TEAM from ios/project.yml.
-  Set it there (Apple Developer > Membership > Team ID), or export ASC_TEAM_ID."
-readonly TEAM_ID
+# The signing team comes from scripts/.env alongside the App Store Connect
+# credentials, and is written into ios/Signing.xcconfig for xcodebuild and Xcode
+# both. Neither the team nor the credentials are in the repo.
+# shellcheck source=scripts/ios_signing.sh
+source "$REPO_ROOT/scripts/ios_signing.sh"
+ios_write_signing_xcconfig
+ios_require_team "an App Store archive" "Run scripts/run_simulator.sh instead to build for a simulator."
+readonly TEAM_ID="$DEVELOPMENT_TEAM"
+log "Signing team: $TEAM_ID"
 
 # Note: don't preflight the Apple Distribution certificate with `security
 # find-identity`. Xcode 26 keeps automatic-signing certificates in the

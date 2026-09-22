@@ -104,6 +104,7 @@ fn setup(cfg: &Config) {
     // Optional: the Swift package builds and tests without it, and only the app
     // target needs a generated project.
     if have_tool("xcodegen") {
+        write_signing_xcconfig(root);
         run("xcodegen", &["generate"], &cfg.ios_dir);
         println!(
             "generated {}",
@@ -358,6 +359,7 @@ fn build_web(web_dir: &Path) {
 /// having to remember the extra step.
 fn open_ios(cfg: &Config) {
     require_tools(&["xcodegen"]);
+    write_signing_xcconfig(&cfg.workspace_root);
     run("xcodegen", &["generate"], &cfg.ios_dir);
     run("open", &[cfg.xcode_project.as_str()], &cfg.ios_dir);
 }
@@ -397,6 +399,13 @@ fn run_checks(cfg: &Config) {
     section("Web types");
     run("pnpm", &["install", "--prefer-offline"], &cfg.web_dir);
     run("pnpm", &["typecheck"], &cfg.web_dir);
+}
+
+/// The signing team lives in scripts/.env, not in project.yml, and reaches
+/// xcodebuild and Xcode through a generated xcconfig. xcodegen refuses to
+/// generate a project whose configFiles path is missing, so this runs first.
+fn write_signing_xcconfig(root: &Path) {
+    run("bash", &["scripts/ios_signing.sh"], root);
 }
 
 fn run_smoke(root: &Path, extra: &[String]) {
