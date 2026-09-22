@@ -18,7 +18,7 @@ fn env_or(key: &str, default: &str) -> String {
 
 impl Config {
     pub fn from_env() -> anyhow::Result<Self> {
-        let bind_addr = env_or("SCRIPTORIUM_BIND_ADDR", "127.0.0.1:8080").parse()?;
+        let bind_addr = env_or("SCRIPTORIUM_BIND_ADDR", "127.0.0.1:8088").parse()?;
         let jwt_secret = env_or("SCRIPTORIUM_JWT_SECRET", "");
         if jwt_secret.len() < 16 {
             anyhow::bail!("SCRIPTORIUM_JWT_SECRET must be set to at least 16 characters");
@@ -30,7 +30,7 @@ impl Config {
             jwt_secret,
             access_ttl_minutes: env_or("SCRIPTORIUM_ACCESS_TTL_MINUTES", "30").parse()?,
             refresh_ttl_days: env_or("SCRIPTORIUM_REFRESH_TTL_DAYS", "30").parse()?,
-            cors_origins: env_or("SCRIPTORIUM_CORS_ORIGINS", "http://localhost:5173")
+            cors_origins: env_or("SCRIPTORIUM_CORS_ORIGINS", "http://localhost:5183")
                 .split(',')
                 .map(|s| s.trim().to_string())
                 .filter(|s| !s.is_empty())

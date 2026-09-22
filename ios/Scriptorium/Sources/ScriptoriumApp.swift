@@ -22,6 +22,6 @@ enum AppConfig {
             return url
         }
         // Simulator default: the backend running on the host machine.
-        return URL(string: "http://127.0.0.1:8080/api")!
+        return URL(string: "http://127.0.0.1:8088/api")!
     }
 }

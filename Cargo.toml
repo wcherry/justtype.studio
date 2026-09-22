@@ -1,6 +1,17 @@
 [workspace]
-members = ["backend"]
+members = ["backend", "xtask"]
 resolver = "2"
+
+# Consumed by `cargo xtask`. A virtual workspace has no root package, so this
+# lives under [workspace.metadata] rather than [package.metadata].
+[workspace.metadata.scriptorium]
+backend_package = "scriptorium-backend"
+web_dir = "web"
+ios_dir = "ios"
+ios_package_dir = "ios/ScriptoriumKit"
+xcode_project = "Scriptorium.xcodeproj"
+default_bind_addr = "127.0.0.1:8088"
+health_path = "/api/health"
 
 [workspace.package]
 version = "0.1.0"

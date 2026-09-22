@@ -15,7 +15,7 @@ packages:
 settings:
   base:
     SWIFT_VERSION: "5.9"
-    API_BASE_URL: http://127.0.0.1:8080/api
+    API_BASE_URL: http://127.0.0.1:8088/api
   configs:
     Release:
       API_BASE_URL: https://api.scriptorium.app/api
@@ -27,7 +27,19 @@ targets:
     sources:
       - path: Scriptorium/Sources
     info:
+      # XcodeGen generates this file, so these keys live here rather than in the
+      # plist — anything hand-edited there is lost on the next `xcodegen generate`.
       path: Scriptorium/Info.plist
+      properties:
+        CFBundleDisplayName: Scriptorium
+        CFBundleShortVersionString: "0.1.0"
+        CFBundleVersion: "1"
+        API_BASE_URL: $(API_BASE_URL)
+        UILaunchScreen: {}
+        # Development only: the local backend is plain HTTP. Drop this before
+        # shipping anything that talks to a real host.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
     dependencies:
       - package: ScriptoriumKit
         product: ScriptoriumUI

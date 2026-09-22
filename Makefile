@@ -1,40 +1,39 @@
+# Thin wrapper over `cargo xtask`, which is where the logic actually lives.
+# Everything here has a shorter cargo alias — see .cargo/config.toml.
 SHELL := /bin/bash
-SCRATCH := $(CURDIR)/.tmp
 
-.PHONY: help backend web ios test test-rust test-swift test-web fmt lint smoke clean
+.PHONY: help setup backend web ios dev test check smoke fmt clean
 
 help:
-	@grep -E '^[a-z-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
+	@grep -E '^[a-z-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-10s\033[0m %s\n", $$1, $$2}'
 
-backend: ## Run the API server
+setup: ## Everything a fresh clone needs  (cargo setup)
+	cargo xtask setup
+
+dev: ## Backend and web dev server together  (cargo dev)
+	cargo xtask dev
+
+backend: ## Run just the API server
 	cargo run -p scriptorium-backend
 
-web: ## Run the web client (proxies /api to the backend)
-	cd web && pnpm install --prefer-offline && pnpm dev
+web: ## Production build of the web client  (cargo web)
+	cargo xtask build-web
 
-ios: ## Generate and open the Xcode project (needs xcodegen)
-	cd ios && xcodegen generate && open Scriptorium.xcodeproj
+ios: ## Generate and open the Xcode project  (cargo ios)
+	cargo xtask ios
 
-test: test-rust test-swift test-web ## Run every test suite
+test: ## Rust, Swift and web test suites
+	cargo xtask test
 
-test-rust: ## Backend unit tests
-	cargo test -p scriptorium-backend
+check: ## What CI enforces: fmt, clippy, web types  (cargo checks)
+	cargo xtask check
 
-test-swift: ## Shared iOS package tests
-	cd ios/ScriptoriumKit && swift test
+smoke: ## End-to-end API walkthrough  (cargo smoke)
+	cargo xtask smoke
 
-test-web: ## Web type-check
-	cd web && pnpm install --prefer-offline && pnpm typecheck
-
-fmt: ## Format Rust
-	cargo fmt --all
-
-lint: ## Clippy, denying warnings
-	cargo clippy --all-targets -- -D warnings
-
-smoke: ## End-to-end API walkthrough against a throwaway database
-	@./scripts/smoke.sh
+fmt: ## Format the Rust sources
+	cargo xtask fmt
 
 clean:
 	cargo clean
-	rm -rf web/dist web/node_modules ios/ScriptoriumKit/.build $(SCRATCH)
+	rm -rf web/dist web/node_modules ios/ScriptoriumKit/.build ios/Scriptorium.xcodeproj

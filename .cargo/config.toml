@@ -1,0 +1,10 @@
+# `cargo xtask <task>` is the long form; the rest are shorthands for the tasks
+# used often enough to deserve one.
+[alias]
+xtask = "run --quiet --manifest-path xtask/Cargo.toml --"
+setup = "run --quiet --manifest-path xtask/Cargo.toml -- setup"
+dev = "run --quiet --manifest-path xtask/Cargo.toml -- dev"
+web = "run --quiet --manifest-path xtask/Cargo.toml -- build-web"
+ios = "run --quiet --manifest-path xtask/Cargo.toml -- ios"
+smoke = "run --quiet --manifest-path xtask/Cargo.toml -- smoke"
+checks = "run --quiet --manifest-path xtask/Cargo.toml -- check"

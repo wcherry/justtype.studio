@@ -27,8 +27,8 @@ Prerequisites: Rust 1.75+, Node 20+ with pnpm, Xcode 15+ for iOS.
 
 ```bash
 cp .env.example .env          # then set SCRIPTORIUM_JWT_SECRET
-make backend                  # http://127.0.0.1:8080
-make web                      # http://localhost:5173, proxies /api to the backend
+make backend                  # http://127.0.0.1:8088
+make web                      # http://localhost:5183, proxies /api to the backend
 make ios                      # generates the Xcode project and opens it
 ```
 
@@ -55,10 +55,10 @@ the whole reason comments attach to versions rather than to the working copy.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `SCRIPTORIUM_BIND_ADDR` | `127.0.0.1:8080` | Listen address |
+| `SCRIPTORIUM_BIND_ADDR` | `127.0.0.1:8088` | Listen address |
 | `SCRIPTORIUM_DATABASE_URL` | `./data/scriptorium.db` | SQLite file |
 | `SCRIPTORIUM_DATA_DIR` | `./data/works` | Manuscript tree |
 | `SCRIPTORIUM_JWT_SECRET` | *(required, 16+ chars)* | Access-token signing key |
 | `SCRIPTORIUM_ACCESS_TTL_MINUTES` | `30` | Access-token lifetime |
 | `SCRIPTORIUM_REFRESH_TTL_DAYS` | `30` | Refresh-token lifetime |
-| `SCRIPTORIUM_CORS_ORIGINS` | `http://localhost:5173` | Comma-separated allowed origins |
+| `SCRIPTORIUM_CORS_ORIGINS` | `http://localhost:5183` | Comma-separated allowed origins |
