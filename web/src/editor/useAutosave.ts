@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Editor } from '@tiptap/react'
 import type { DocNode, Scene } from '../api/types'
 import type { ConflictDetails } from '../offline/queue'
+import { localDay } from './useSessionGoals'
 import { flushQueue, onQueueEvent, pendingCount, saveScene } from '../offline/queue'
 
 export type SaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'queued' | 'conflict' | 'error'
@@ -63,6 +64,7 @@ export function useAutosave({ scene, editor, onSaved }: Options) {
             sceneTitle: current.title,
             content: editor.getJSON() as DocNode,
             baseHash: baseHash.current,
+            localDay: localDay(),
             queuedAt: Date.now(),
           },
           createRevision,

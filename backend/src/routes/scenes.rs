@@ -41,6 +41,12 @@ pub struct UpdateSceneRequest {
     #[serde(default)]
     #[schema(value_type = Option<crate::domain::enums::SceneStatus>)]
     pub status: Option<String>,
+    /// A word target for this scene. Omit to leave it alone; send `null` to
+    /// clear it. The nesting is what distinguishes those two — see
+    /// `present_or_absent`.
+    #[serde(default, deserialize_with = "present_or_absent")]
+    #[schema(value_type = Option<i32>)]
+    pub target_words: Option<Option<i32>>,
     /// Move the scene into a different chapter of the same work.
     #[serde(default)]
     pub chapter_id: Option<String>,
@@ -65,10 +71,30 @@ pub struct PutContentRequest {
     /// this".
     #[serde(default)]
     pub base_hash: Option<String>,
+    /// The writer's local date, `YYYY-MM-DD`, so this save counts toward the
+    /// right day. Omitted, it is not recorded against any day at all: skipping
+    /// a tally is better than crediting the wrong one.
+    #[serde(default)]
+    pub local_day: Option<String>,
 }
 
 fn default_true() -> bool {
     true
+}
+
+/// Distinguishes "the client sent null" from "the client did not mention it".
+///
+/// A plain `Option<Option<T>>` cannot: serde collapses an explicit `null` to
+/// the outer `None`, which is the same thing absence produces. Running a
+/// deserializer only when the key is present, and wrapping whatever it yields,
+/// keeps the two apart — which is what lets a PATCH clear a nullable field
+/// instead of only ever setting one.
+fn present_or_absent<'de, D, T>(deserializer: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: serde::Deserialize<'de>,
+{
+    serde::Deserialize::deserialize(deserializer).map(Some)
 }
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
@@ -125,6 +151,7 @@ pub async fn create(
             content_hash: doc::content_hash(&content_for_db),
             created_at: now.clone(),
             updated_at: now.clone(),
+            target_words: None,
         };
         diesel::insert_into(scenes::table)
             .values(&row)
@@ -217,6 +244,16 @@ pub async fn update(
         if let Some(status) = &body.status {
             diesel::update(scenes::table.find(&scene.id))
                 .set(scenes::status.eq(status))
+                .execute(conn)?;
+        }
+        if let Some(target) = body.target_words {
+            if target.is_some_and(|words| words <= 0) {
+                return Err(ApiError::BadRequest(
+                    "a scene target has to be a positive number of words".into(),
+                ));
+            }
+            diesel::update(scenes::table.find(&scene.id))
+                .set(scenes::target_words.eq(target))
                 .execute(conn)?;
         }
         if let Some(target_chapter) = &body.chapter_id {
@@ -313,11 +350,18 @@ pub async fn put_content(
     };
 
     let work_id = scene.work_id.clone();
+    let previous_words = scene.word_count;
     let scene_id_db = scene.id.clone();
     let revision_for_db = revision_id.clone();
     let author_id = user.id.clone();
+    let local_day = body.local_day.clone();
     let (scene, work_word_count) = blocking(&state.pool, move |conn| {
         let now = now_iso();
+        // Recorded inside the same closure as the word count it came from, so a
+        // day's tally and the save that produced it cannot disagree.
+        if let Some(day) = &local_day {
+            super::goals::record_save(conn, &author_id, day, words - previous_words)?;
+        }
         diesel::update(scenes::table.find(&scene_id_db))
             .set((
                 scenes::content_hash.eq(&hash),
@@ -568,6 +612,9 @@ pub async fn restore_revision(
             content,
             create_revision: true,
             base_hash: Some(scene.content_hash.clone()),
+            // Deliberately uncounted: restoring is recovering, not writing, and
+            // rolling back to a longer draft should not read as a day's work.
+            local_day: None,
         }),
     )
     .await

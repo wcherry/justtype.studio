@@ -46,6 +46,8 @@ export type {
   WorkKind,
   WorkStatus,
   Work,
+  WritingDay,
+  WritingSummary,
 } from './schema'
 
 import type { Anchor, OutlineResponse, SessionResponse, TemplateView } from './schema'

@@ -22,6 +22,8 @@ export interface PendingSave {
   content: DocNode
   /** Hash the queued edit was made on top of, carried so a replay is still conflict-checked. */
   baseHash: string | null
+  /** The writer's local date when they wrote it — not when it finally syncs. */
+  localDay: string
   queuedAt: number
 }
 
@@ -122,6 +124,7 @@ export async function saveScene(save: PendingSave, createRevision: boolean): Pro
       save.content,
       createRevision,
       save.baseHash,
+      save.localDay,
     )
     await idb.delete(save.sceneId)
     return result
@@ -169,6 +172,7 @@ export async function flushQueue(): Promise<void> {
           // disconnection, so it is worth a revision of its own.
           true,
           save.baseHash,
+          save.localDay,
         )
         await idb.delete(save.sceneId)
         emit({ type: 'flushed', sceneId: save.sceneId, result, pending: await pendingCount() })

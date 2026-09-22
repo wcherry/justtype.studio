@@ -92,6 +92,19 @@ REV_BACK="$(pick_revision 10)"
 curl -s -X POST "$API/scenes/$SCENE/revisions/$REV_BACK/restore" -H "$AUTH" \
   | python3 -c "import sys,json;d=json.load(sys.stdin);print('  and forward again:', d['scene']['wordCount'], 'words')"
 
+step "Daily goal and streak"
+TODAY=$(date +%F)
+curl -s -X PATCH "$API/me/goals" -H "$AUTH" -H 'content-type: application/json' \
+  -d '{"dailyWordGoal":50}' | field dailyWordGoal | sed 's/^/  daily goal: /'
+# The save above carried no localDay, so nothing is counted yet; one that does
+# gets recorded against the writer's own day.
+curl -s -X PUT "$API/scenes/$SCENE/content" -H "$AUTH" -H 'content-type: application/json' \
+  -d "{\"content\":{\"type\":\"doc\",\"content\":[{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"The field went on past where the light gave out, and she went on with it.\"}]}]},\"localDay\":\"$TODAY\"}" >/dev/null
+curl -s "$API/me/writing?today=$TODAY" -H "$AUTH" | python3 -c "
+import sys,json
+d=json.load(sys.stdin)
+print(f\"  today: {d['wordsToday']} words over {d['savesToday']} save(s), goal {d['dailyWordGoal']}, streak {d['streak']}\")"
+
 step "Snapshotting, revising, snapshotting again"
 V1=$(curl -s -X POST "$API/works/$WID/versions" -H "$AUTH" -H 'content-type: application/json' -d '{"label":"First pass"}' | field id)
 curl -s -X PUT "$API/scenes/$SCENE/content" -H "$AUTH" -H 'content-type: application/json' \

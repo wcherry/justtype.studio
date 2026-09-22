@@ -745,15 +745,21 @@ public enum API {
         public var content: DocNode
         /// Autosaves pass `false`; explicit saves and idle-flushes pass `true`.
         public var createRevision: Bool?
+        /// The writer's local date, `YYYY-MM-DD`, so this save counts toward the
+        /// right day. Omitted, it is not recorded against any day at all: skipping
+        /// a tally is better than crediting the wrong one.
+        public var localDay: String?
 
         public init(
             baseHash: String? = nil,
             content: DocNode,
-            createRevision: Bool? = nil
+            createRevision: Bool? = nil,
+            localDay: String? = nil
         ) {
             self.baseHash = baseHash
             self.content = content
             self.createRevision = createRevision
+            self.localDay = localDay
         }
     }
 
@@ -854,6 +860,8 @@ public enum API {
         public var pov: String?
         public var status: SceneStatus
         public var summary: String?
+        /// A target for this scene, for writers who plan at that level.
+        public var targetWords: Int?
         public var title: String
         public var updatedAt: String
         public var wordCount: Int
@@ -868,6 +876,7 @@ public enum API {
             pov: String? = nil,
             status: SceneStatus,
             summary: String? = nil,
+            targetWords: Int? = nil,
             title: String,
             updatedAt: String,
             wordCount: Int,
@@ -881,6 +890,7 @@ public enum API {
             self.pov = pov
             self.status = status
             self.summary = summary
+            self.targetWords = targetWords
             self.title = title
             self.updatedAt = updatedAt
             self.wordCount = wordCount
@@ -968,6 +978,8 @@ public enum API {
         public var pov: String?
         public var status: SceneStatus
         public var summary: String?
+        /// A target for this scene, for writers who plan at that level.
+        public var targetWords: Int?
         public var title: String
         public var updatedAt: String
         public var wordCount: Int
@@ -983,6 +995,7 @@ public enum API {
             pov: String? = nil,
             status: SceneStatus,
             summary: String? = nil,
+            targetWords: Int? = nil,
             title: String,
             updatedAt: String,
             wordCount: Int,
@@ -997,6 +1010,7 @@ public enum API {
             self.pov = pov
             self.status = status
             self.summary = summary
+            self.targetWords = targetWords
             self.title = title
             self.updatedAt = updatedAt
             self.wordCount = wordCount
@@ -1181,6 +1195,17 @@ public enum API {
         }
     }
 
+    public struct UpdateGoalsRequest: Codable, Hashable, Sendable {
+        /// `null` clears the target.
+        public var dailyWordGoal: Int?
+
+        public init(
+            dailyWordGoal: Int? = nil
+        ) {
+            self.dailyWordGoal = dailyWordGoal
+        }
+    }
+
     public struct UpdatePublicationRequest: Codable, Hashable, Sendable {
         public var closesAt: String?
         public var reviewPrompt: String?
@@ -1203,6 +1228,10 @@ public enum API {
         public var pov: String?
         public var status: SceneStatus?
         public var summary: String?
+        /// A word target for this scene. Omit to leave it alone; send `null` to
+        /// clear it. The nesting is what distinguishes those two — see
+        /// `present_or_absent`.
+        public var targetWords: Int?
         public var title: String?
 
         public init(
@@ -1210,12 +1239,14 @@ public enum API {
             pov: String? = nil,
             status: SceneStatus? = nil,
             summary: String? = nil,
+            targetWords: Int? = nil,
             title: String? = nil
         ) {
             self.chapterId = chapterId
             self.pov = pov
             self.status = status
             self.summary = summary
+            self.targetWords = targetWords
             self.title = title
         }
     }
@@ -1242,6 +1273,8 @@ public enum API {
     public struct User: Codable, Hashable, Sendable {
         public var bio: String?
         public var createdAt: String
+        /// The writer's daily target in words, when they have set one.
+        public var dailyWordGoal: Int?
         public var displayName: String
         public var email: String
         public var id: String
@@ -1250,6 +1283,7 @@ public enum API {
         public init(
             bio: String? = nil,
             createdAt: String,
+            dailyWordGoal: Int? = nil,
             displayName: String,
             email: String,
             id: String,
@@ -1257,6 +1291,7 @@ public enum API {
         ) {
             self.bio = bio
             self.createdAt = createdAt
+            self.dailyWordGoal = dailyWordGoal
             self.displayName = displayName
             self.email = email
             self.id = id
@@ -1530,5 +1565,63 @@ public enum API {
         case published = "published"
         case final = "final"
         case archived = "archived"
+    }
+
+    public struct WritingDay: Codable, Hashable, Sendable {
+        public var createdAt: String
+        /// The writer's local date, `YYYY-MM-DD`.
+        public var day: String
+        public var id: String
+        public var netWords: Int
+        public var saves: Int
+        public var updatedAt: String
+        public var userId: String
+
+        public init(
+            createdAt: String,
+            day: String,
+            id: String,
+            netWords: Int,
+            saves: Int,
+            updatedAt: String,
+            userId: String
+        ) {
+            self.createdAt = createdAt
+            self.day = day
+            self.id = id
+            self.netWords = netWords
+            self.saves = saves
+            self.updatedAt = updatedAt
+            self.userId = userId
+        }
+    }
+
+    public struct WritingSummary: Codable, Hashable, Sendable {
+        /// The writer's target, if they have set one.
+        public var dailyWordGoal: Int?
+        /// Most recent first, one entry per day the writer showed up.
+        public var history: [WritingDay]
+        public var savesToday: Int
+        /// Consecutive days up to and including today on which they wrote.
+        public var streak: Int
+        public var today: String
+        /// Net words on `today`, which may be negative on a day spent cutting.
+        public var wordsToday: Int
+
+        public init(
+            dailyWordGoal: Int? = nil,
+            history: [WritingDay],
+            savesToday: Int,
+            streak: Int,
+            today: String,
+            wordsToday: Int
+        ) {
+            self.dailyWordGoal = dailyWordGoal
+            self.history = history
+            self.savesToday = savesToday
+            self.streak = streak
+            self.today = today
+            self.wordsToday = wordsToday
+        }
     }
 }

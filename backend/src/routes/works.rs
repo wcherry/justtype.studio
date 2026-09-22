@@ -227,6 +227,7 @@ pub async fn create(
                             content_hash: doc::content_hash(&body_doc),
                             created_at: now.clone(),
                             updated_at: now.clone(),
+                            target_words: None,
                         })
                         .execute(conn)?;
                     pending.push(PendingScene {

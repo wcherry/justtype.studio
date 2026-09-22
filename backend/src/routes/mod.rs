@@ -1,6 +1,7 @@
 pub mod auth;
 pub mod changes;
 pub mod comments;
+pub mod goals;
 pub mod openapi;
 pub mod publications;
 pub mod scenes;
@@ -27,6 +28,8 @@ fn api_router() -> OpenApiRouter<AppState> {
         .routes(routes!(auth::refresh))
         .routes(routes!(auth::logout))
         .routes(routes!(auth::me))
+        .routes(routes!(goals::writing))
+        .routes(routes!(goals::update_goals))
         .routes(routes!(templates::list))
         .routes(routes!(templates::get_one))
         .routes(routes!(works::list, works::create))

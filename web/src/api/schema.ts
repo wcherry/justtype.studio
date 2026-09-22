@@ -290,6 +290,10 @@ export interface PutContentRequest {
   content: DocNode
   // Autosaves pass `false`; explicit saves and idle-flushes pass `true`.
   createRevision?: boolean
+  // The writer's local date, `YYYY-MM-DD`, so this save counts toward the
+  // right day. Omitted, it is not recorded against any day at all: skipping
+  // a tally is better than crediting the wrong one.
+  localDay?: string | null
 }
 
 export interface RefreshRequest {
@@ -335,6 +339,8 @@ export interface Scene {
   pov?: string | null
   status: SceneStatus
   summary?: string | null
+  // A target for this scene, for writers who plan at that level.
+  targetWords?: number | null
   title: string
   updatedAt: string
   wordCount: number
@@ -374,6 +380,8 @@ export interface SceneWithContent {
   pov?: string | null
   status: SceneStatus
   summary?: string | null
+  // A target for this scene, for writers who plan at that level.
+  targetWords?: number | null
   title: string
   updatedAt: string
   wordCount: number
@@ -447,6 +455,11 @@ export interface UpdateCommentRequest {
   state?: string | null
 }
 
+export interface UpdateGoalsRequest {
+  // `null` clears the target.
+  dailyWordGoal?: number | null
+}
+
 export interface UpdatePublicationRequest {
   closesAt?: string | null
   reviewPrompt?: string | null
@@ -459,6 +472,10 @@ export interface UpdateSceneRequest {
   pov?: string | null
   status?: SceneStatus | null
   summary?: string | null
+  // A word target for this scene. Omit to leave it alone; send `null` to
+  // clear it. The nesting is what distinguishes those two — see
+  // `present_or_absent`.
+  targetWords?: number | null
   title?: string | null
 }
 
@@ -472,6 +489,8 @@ export interface UpdateWorkRequest {
 export interface User {
   bio?: string | null
   createdAt: string
+  // The writer's daily target in words, when they have set one.
+  dailyWordGoal?: number | null
   displayName: string
   email: string
   id: string
@@ -571,3 +590,27 @@ export interface Work {
 export type WorkKind = 'novel' | 'novella' | 'short_story' | 'serial'
 
 export type WorkStatus = 'draft' | 'published' | 'final' | 'archived'
+
+export interface WritingDay {
+  createdAt: string
+  // The writer's local date, `YYYY-MM-DD`.
+  day: string
+  id: string
+  netWords: number
+  saves: number
+  updatedAt: string
+  userId: string
+}
+
+export interface WritingSummary {
+  // The writer's target, if they have set one.
+  dailyWordGoal?: number | null
+  // Most recent first, one entry per day the writer showed up.
+  history: WritingDay[]
+  savesToday: number
+  // Consecutive days up to and including today on which they wrote.
+  streak: number
+  today: string
+  // Net words on `today`, which may be negative on a day spent cutting.
+  wordsToday: number
+}

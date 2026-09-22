@@ -26,6 +26,8 @@ row!(User, users, {
     bio: Option<String>,
     created_at: String,
     updated_at: String,
+    /// The writer's daily target in words, when they have set one.
+    daily_word_goal: Option<i32>,
 });
 
 row!(RefreshToken, refresh_tokens, {
@@ -86,6 +88,19 @@ row!(Scene, scenes, {
     position: i32,
     word_count: i32,
     content_hash: String,
+    created_at: String,
+    updated_at: String,
+    /// A target for this scene, for writers who plan at that level.
+    target_words: Option<i32>,
+});
+
+row!(WritingDay, writing_days, {
+    id: String,
+    user_id: String,
+    /// The writer's local date, `YYYY-MM-DD`.
+    day: String,
+    net_words: i32,
+    saves: i32,
     created_at: String,
     updated_at: String,
 });
@@ -206,6 +221,12 @@ macro_rules! new_row {
 new_row!(NewUser, users, {
     id: String, email: String, display_name: String, password_hash: String,
     bio: Option<String>, created_at: String, updated_at: String,
+    daily_word_goal: Option<i32>,
+});
+
+new_row!(NewWritingDay, writing_days, {
+    id: String, user_id: String, day: String, net_words: i32, saves: i32,
+    created_at: String, updated_at: String,
 });
 
 new_row!(NewRefreshToken, refresh_tokens, {
@@ -234,6 +255,7 @@ new_row!(NewScene, scenes, {
     id: String, work_id: String, chapter_id: String, title: String,
     summary: Option<String>, pov: Option<String>, status: String, position: i32,
     word_count: i32, content_hash: String, created_at: String, updated_at: String,
+    target_words: Option<i32>,
 });
 
 new_row!(NewSceneRevision, scene_revisions, {

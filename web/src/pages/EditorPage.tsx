@@ -8,11 +8,17 @@ import Placeholder from '@tiptap/extension-placeholder'
 import { api } from '../api/client'
 import type { Outline as OutlineType, Scene, SceneWithContent, Version } from '../api/types'
 import { ConflictBanner } from '../components/ConflictBanner'
+import { GoalBar } from '../components/GoalBar'
 import { Outline } from '../components/Outline'
 import { RevisionPanel } from '../components/RevisionPanel'
 import { Toolbar } from '../components/Toolbar'
+import { WritingPreferencesPanel } from '../components/WritingPreferences'
 import { VersionPanel } from '../components/VersionPanel'
+import { FocusMode } from '../editor/focusMode'
+import { useWritingPreferences } from '../editor/preferences'
+import { TypewriterScrolling } from '../editor/typewriter'
 import { useAutosave } from '../editor/useAutosave'
+import { useSessionGoals } from '../editor/useSessionGoals'
 import { cache } from '../offline/cache'
 import { pendingFor, startQueueReplay } from '../offline/queue'
 
@@ -33,19 +39,35 @@ export function EditorPage() {
   const [versions, setVersions] = useState<Version[]>([])
   const [scene, setScene] = useState<Scene | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [panel, setPanel] = useState<'none' | 'versions' | 'history'>('none')
+  const [panel, setPanel] = useState<'none' | 'versions' | 'history' | 'prefs'>('none')
   const [online, setOnline] = useState(() => navigator.onLine)
   /** Bumped after every accepted save, so the history list stays current. */
   const [savedAt, setSavedAt] = useState(0)
+
+  const { preferences, update: setPreference, reset: resetPreferences, style: proseStyle } =
+    useWritingPreferences()
 
   const editor = useEditor({
     extensions: [
       StarterKit,
       Underline,
       Placeholder.configure({ placeholder: 'Begin where it is already happening…' }),
+      FocusMode,
+      TypewriterScrolling,
     ],
     content: '',
   })
+
+  // Both read their options off the extension rather than from React state, so
+  // toggling one has to nudge the view into recomputing.
+  useEffect(() => {
+    if (!editor) return
+    const focus = editor.extensionManager.extensions.find((e) => e.name === 'focusMode')
+    const typewriter = editor.extensionManager.extensions.find((e) => e.name === 'typewriterScrolling')
+    if (focus) focus.options.enabled = preferences.focusMode
+    if (typewriter) typewriter.options.enabled = preferences.typewriter
+    editor.view.dispatch(editor.state.tr)
+  }, [editor, preferences.focusMode, preferences.typewriter])
 
   const onSaved = useCallback((workWordCount: number) => {
     setSavedAt(Date.now())
@@ -55,6 +77,16 @@ export function EditorPage() {
   const {
     state: saveState, wordCount, setWordCount, pending, conflict, schedule, flush, resolveWith,
   } = useAutosave({ scene, editor, onSaved })
+
+  const { summary, sessionWords, refresh: refreshGoals, setDailyGoal } = useSessionGoals(
+    outline?.wordCount ?? null,
+    workId,
+  )
+
+  // Today's total moves with every accepted save, so the bar has to follow.
+  useEffect(() => {
+    if (saveState === 'saved') void refreshGoals()
+  }, [saveState, refreshGoals])
 
   // Replay anything queued from a previous session as soon as the editor opens,
   // and again whenever the network returns.
@@ -209,6 +241,20 @@ export function EditorPage() {
             )}
             <button
               type="button"
+              className={preferences.focusMode ? 'is-active' : undefined}
+              title="Dim everything but the paragraph you are in"
+              onClick={() => setPreference('focusMode', !preferences.focusMode)}
+            >
+              Focus
+            </button>
+            <button
+              type="button"
+              onClick={() => setPanel((p) => (p === 'prefs' ? 'none' : 'prefs'))}
+            >
+              Aa
+            </button>
+            <button
+              type="button"
               onClick={() => setPanel((p) => (p === 'history' ? 'none' : 'history'))}
             >
               History
@@ -244,12 +290,46 @@ export function EditorPage() {
 
         <Toolbar editor={editor} />
 
+        <GoalBar
+          summary={summary}
+          sessionWords={sessionWords}
+          sceneWords={wordCount}
+          sceneTarget={scene?.targetWords ?? null}
+          onSetDailyGoal={setDailyGoal}
+          onSetSceneTarget={async (target) => {
+            if (!scene) return
+            const updated = await api.scenes.update(scene.id, { targetWords: target })
+            setScene((current) => (current ? { ...current, targetWords: updated.targetWords } : current))
+          }}
+        />
+
         {scene ? (
-          <EditorContent editor={editor} className="prose prose--editable" />
+          // The scroll container is what typewriter scrolling drives; the
+          // typography lands as custom properties on the prose itself.
+          <div className="prose-scroll">
+            <EditorContent
+              editor={editor}
+              className="prose prose--editable"
+              style={proseStyle}
+            />
+          </div>
         ) : (
           <p className="empty">Add a scene on the left to start writing.</p>
         )}
       </section>
+
+      {panel === 'prefs' && (
+        <aside className="versions">
+          <header className="versions__header">
+            <h3>Writing</h3>
+          </header>
+          <WritingPreferencesPanel
+            preferences={preferences}
+            onChange={setPreference}
+            onReset={resetPreferences}
+          />
+        </aside>
+      )}
 
       {panel === 'versions' && (
         <VersionPanel

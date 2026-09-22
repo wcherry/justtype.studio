@@ -848,6 +848,13 @@
           "createRevision": {
             "description": "Autosaves pass `false`; explicit saves and idle-flushes pass `true`.",
             "type": "boolean"
+          },
+          "localDay": {
+            "description": "The writer's local date, `YYYY-MM-DD`, so this save counts toward the\nright day. Omitted, it is not recorded against any day at all: skipping\na tally is better than crediting the wrong one.",
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -978,6 +985,14 @@
           "summary": {
             "type": [
               "string",
+              "null"
+            ]
+          },
+          "targetWords": {
+            "description": "A target for this scene, for writers who plan at that level.",
+            "format": "int32",
+            "type": [
+              "integer",
               "null"
             ]
           },
@@ -1357,6 +1372,19 @@
         },
         "type": "object"
       },
+      "UpdateGoalsRequest": {
+        "properties": {
+          "dailyWordGoal": {
+            "description": "`null` clears the target.",
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
       "UpdatePublicationRequest": {
         "properties": {
           "closesAt": {
@@ -1415,6 +1443,14 @@
               "null"
             ]
           },
+          "targetWords": {
+            "description": "A word target for this scene. Omit to leave it alone; send `null` to\nclear it. The nesting is what distinguishes those two — see\n`present_or_absent`.",
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
           "title": {
             "type": [
               "string",
@@ -1467,6 +1503,14 @@
           },
           "createdAt": {
             "type": "string"
+          },
+          "dailyWordGoal": {
+            "description": "The writer's daily target in words, when they have set one.",
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "displayName": {
             "type": "string"
@@ -1778,6 +1822,88 @@
           "archived"
         ],
         "type": "string"
+      },
+      "WritingDay": {
+        "properties": {
+          "createdAt": {
+            "type": "string"
+          },
+          "day": {
+            "description": "The writer's local date, `YYYY-MM-DD`.",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "netWords": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "saves": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "updatedAt": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "userId",
+          "day",
+          "netWords",
+          "saves",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "WritingSummary": {
+        "properties": {
+          "dailyWordGoal": {
+            "description": "The writer's target, if they have set one.",
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "history": {
+            "description": "Most recent first, one entry per day the writer showed up.",
+            "items": {
+              "$ref": "#/components/schemas/WritingDay"
+            },
+            "type": "array"
+          },
+          "savesToday": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "streak": {
+            "description": "Consecutive days up to and including today on which they wrote.",
+            "format": "int32",
+            "type": "integer"
+          },
+          "today": {
+            "type": "string"
+          },
+          "wordsToday": {
+            "description": "Net words on `today`, which may be negative on a day spent cutting.",
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "today",
+          "wordsToday",
+          "savesToday",
+          "streak",
+          "history"
+        ],
+        "type": "object"
       }
     }
   },
@@ -2389,6 +2515,76 @@
         },
         "tags": [
           "health"
+        ]
+      }
+    },
+    "/api/me/goals": {
+      "patch": {
+        "operationId": "update_goals",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateGoalsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            },
+            "description": "The updated profile"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "goals"
+        ]
+      }
+    },
+    "/api/me/writing": {
+      "get": {
+        "operationId": "writing",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WritingSummary"
+                }
+              }
+            },
+            "description": "Today, the streak, and recent history"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "goals"
         ]
       }
     },

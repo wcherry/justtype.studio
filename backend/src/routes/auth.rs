@@ -124,6 +124,7 @@ pub async fn register(
         bio: None,
         created_at: now.clone(),
         updated_at: now,
+        daily_word_goal: None,
     };
 
     let inner_state = state.clone();

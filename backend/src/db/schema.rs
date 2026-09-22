@@ -9,6 +9,7 @@ diesel::table! {
         bio -> Nullable<Text>,
         created_at -> Text,
         updated_at -> Text,
+        daily_word_goal -> Nullable<Integer>,
     }
 }
 
@@ -78,6 +79,7 @@ diesel::table! {
         content_hash -> Text,
         created_at -> Text,
         updated_at -> Text,
+        target_words -> Nullable<Integer>,
     }
 }
 
@@ -90,6 +92,18 @@ diesel::table! {
         content_hash -> Text,
         word_count -> Integer,
         created_at -> Text,
+    }
+}
+
+diesel::table! {
+    writing_days (id) {
+        id -> Text,
+        user_id -> Text,
+        day -> Text,
+        net_words -> Integer,
+        saves -> Integer,
+        created_at -> Text,
+        updated_at -> Text,
     }
 }
 
@@ -190,6 +204,7 @@ diesel::table! {
 }
 
 diesel::joinable!(refresh_tokens -> users (user_id));
+diesel::joinable!(writing_days -> users (user_id));
 diesel::joinable!(works -> users (owner_id));
 diesel::joinable!(chapters -> works (work_id));
 diesel::joinable!(scenes -> chapters (chapter_id));
@@ -216,4 +231,5 @@ diesel::allow_tables_to_appear_in_same_query!(
     version_entries,
     versions,
     works,
+    writing_days,
 );

@@ -17,6 +17,15 @@
   --radius: 8px;
   --serif: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
   --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  /* Families the writing preferences can choose between. */
+  --family-serif: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
+  --family-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --family-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
+  /* Defaults; the editor overrides these per writer. */
+  --measure: 34em;
+  --prose-size: 18px;
+  --prose-leading: 1.7;
+  --prose-family: var(--family-serif);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -160,10 +169,14 @@ a { color: inherit; text-decoration: none; }
 
 /* --- editor ------------------------------------------------------------- */
 
+/* A fixed height, not a minimum: the panes scroll independently, and the prose
+   column has to be a real scroll container or typewriter scrolling has nothing
+   to drive — the window would scroll instead and the caret would walk off. */
 .editor {
   display: grid;
   grid-template-columns: 260px minmax(0, 1fr);
-  min-height: calc(100vh - 49px);
+  height: calc(100vh - 49px);
+  overflow: hidden;
 }
 .editor:has(.versions) { grid-template-columns: 260px minmax(0, 1fr) 340px; }
 
@@ -198,7 +211,13 @@ a { color: inherit; text-decoration: none; }
 }
 .outline__add-btn--chapter { margin-top: 20px; }
 
-.editor__main { display: flex; flex-direction: column; min-width: 0; }
+.editor__main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  /* Lets the prose scroller shrink inside the grid instead of growing the row. */
+  min-height: 0;
+}
 .editor__header {
   display: flex; align-items: flex-start; justify-content: space-between;
   gap: 16px; padding: 20px 28px 10px;
@@ -215,7 +234,7 @@ a { color: inherit; text-decoration: none; }
 .toolbar {
   display: flex; align-items: center; gap: 2px;
   padding: 6px 24px; border-block: 1px solid var(--line);
-  position: sticky; top: 0; background: var(--surface); z-index: 2;
+  background: var(--surface); flex-shrink: 0;
 }
 .toolbar__btn {
   border: none; background: none; min-width: 30px; height: 28px;
@@ -228,13 +247,33 @@ a { color: inherit; text-decoration: none; }
 /* --- prose -------------------------------------------------------------- */
 
 .prose {
-  font-family: var(--serif);
-  font-size: 18px;
-  line-height: 1.7;
-  max-width: 34em;
+  font-family: var(--prose-family);
+  font-size: var(--prose-size);
+  line-height: var(--prose-leading);
+  max-width: var(--measure);
   margin: 0 auto;
   padding: 32px 24px 120px;
   width: 100%;
+}
+
+/* The element typewriter scrolling drives. It has to be the scroller, not the
+   page, or the caret's position in the viewport is not ours to control. */
+.prose-scroll {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+/* Room to hold the last line at the typewriter anchor rather than the bottom. */
+.prose-scroll .prose { padding-bottom: 55vh; }
+
+/* Focus mode. A transition, because an instant swap between paragraphs reads as
+   a flicker at typing speed. */
+.prose .is-dimmed {
+  opacity: 0.28;
+  transition: opacity 180ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .prose .is-dimmed { transition: none; }
 }
 .prose .ProseMirror { outline: none; min-height: 50vh; }
 .prose p { margin: 0 0 1.1em; }
@@ -257,6 +296,58 @@ a { color: inherit; text-decoration: none; }
 .anchor { background: var(--accent-soft); border-bottom: 1px solid var(--accent); cursor: pointer; }
 .anchor--resolved { background: none; border-bottom: 1px dotted var(--ink-faint); }
 .anchor--active { background: var(--accent); color: var(--surface); }
+
+/* --- goals and preferences ----------------------------------------------- */
+
+.goals {
+  padding: 6px 24px 8px;
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+.goals__row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.goals__spacer { flex: 1; }
+.goals__stat strong { color: var(--ink-soft); font-weight: 600; }
+.goals__button {
+  border: none; background: none; padding: 0; font: inherit; color: inherit;
+  border-bottom: 1px dotted transparent;
+}
+.goals__button:hover { border-bottom-color: var(--ink-faint); }
+.goals__streak { color: var(--accent); }
+.goals__meter {
+  height: 3px; margin-top: 6px; border-radius: 99px;
+  background: var(--line); overflow: hidden;
+}
+.goals__fill {
+  height: 100%; background: var(--accent);
+  transition: width 300ms ease-out;
+}
+.goals__meter.is-met .goals__fill { background: var(--add); }
+.goals__met { margin: 6px 0 0; color: var(--add); font-size: 12px; }
+.goals__form {
+  display: flex; align-items: flex-end; gap: 10px; margin-top: 8px;
+  padding: 10px 12px; background: var(--surface);
+  border: 1px solid var(--line); border-radius: var(--radius);
+}
+.goals__form label { margin: 0; flex: 1; max-width: 220px; }
+.goals__form-actions { display: flex; gap: 6px; }
+
+.prefs { padding-top: 4px; }
+.prefs__toggle {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 8px;
+  align-items: center;
+  margin-bottom: 14px;
+  color: var(--ink);
+  font-size: 14px;
+}
+.prefs__toggle input { width: auto; }
+.prefs__hint {
+  grid-column: 2; font-size: 12px; color: var(--ink-faint);
+}
+.prefs__value { float: right; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+.prefs input[type='range'] { padding: 0; }
 
 /* --- durability: offline, conflicts, history ----------------------------- */
 
@@ -399,5 +490,10 @@ a { color: inherit; text-decoration: none; }
 
 @media (max-width: 900px) {
   .editor, .editor:has(.versions), .review { grid-template-columns: minmax(0, 1fr); }
+  /* Narrow screens go back to one long page; there is no room for side-by-side
+     panes, and a nested scroller inside a scrolling page is miserable. */
+  .editor { height: auto; overflow: visible; }
+  .prose-scroll { overflow-y: visible; }
+  .prose-scroll .prose { padding-bottom: 120px; }
   .outline, .versions, .comments { max-height: none; border: none; border-top: 1px solid var(--line); }
 }

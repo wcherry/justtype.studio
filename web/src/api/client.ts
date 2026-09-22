@@ -2,7 +2,8 @@ import type {
   Comment, CommentView, DiffResponse, DocNode, Outline, Publication, PublicationCard,
   RevisionWithContent, SaveResult, Scene, SceneRevision, SceneWithContent, Session, Template,
   TrackedChange,
-  Version, VersionContent, VersionDetail, Work, WorkKind, Visibility, CommentCategory,
+  User, Version, VersionContent, VersionDetail, Work, WorkKind, Visibility, CommentCategory,
+  WritingSummary,
 } from './types'
 
 const BASE = '/api'
@@ -103,6 +104,13 @@ const put = <T>(path: string, body: unknown) => request<T>('PUT', path, body)
 const del = <T>(path: string) => request<T>('DELETE', path)
 
 export const api = {
+  goals: {
+    /** `today` is the writer's local date; only the client knows it. */
+    writing: (today: string, days?: number) =>
+      get<WritingSummary>(`/me/writing?today=${today}${days ? `&days=${days}` : ''}`),
+    update: (dailyWordGoal: number | null) => patch<User>('/me/goals', { dailyWordGoal }),
+  },
+
   auth: {
     register: (email: string, password: string, displayName: string) =>
       post<Session>('/auth/register', { email, password, displayName }),
@@ -141,12 +149,22 @@ export const api = {
     create: (chapterId: string, title: string) =>
       post<Scene>(`/chapters/${chapterId}/scenes`, { title }),
     get: (sceneId: string) => get<SceneWithContent>(`/scenes/${sceneId}`),
-    update: (sceneId: string, input: Partial<Pick<Scene, 'title' | 'summary' | 'pov' | 'status' | 'chapterId'>>) =>
-      patch<Scene>(`/scenes/${sceneId}`, input),
+    update: (
+      sceneId: string,
+      input: Partial<Pick<Scene, 'title' | 'summary' | 'pov' | 'status' | 'chapterId'>> & {
+        /** `null` clears the target; omitting leaves it alone. */
+        targetWords?: number | null
+      },
+    ) => patch<Scene>(`/scenes/${sceneId}`, input),
     /** `baseHash` is the contentHash this edit was made on top of; the server
      *  refuses the write if it no longer matches. */
-    saveContent: (sceneId: string, content: DocNode, createRevision = true, baseHash?: string | null) =>
-      put<SaveResult>(`/scenes/${sceneId}/content`, { content, createRevision, baseHash }),
+    saveContent: (
+      sceneId: string,
+      content: DocNode,
+      createRevision = true,
+      baseHash?: string | null,
+      localDay?: string,
+    ) => put<SaveResult>(`/scenes/${sceneId}/content`, { content, createRevision, baseHash, localDay }),
     restoreRevision: (sceneId: string, revisionId: string) =>
       post<SaveResult>(`/scenes/${sceneId}/revisions/${revisionId}/restore`),
     remove: (sceneId: string) => del<{ ok: boolean }>(`/scenes/${sceneId}`),

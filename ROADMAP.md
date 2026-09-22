@@ -77,10 +77,33 @@ clearing the tokens and bouncing the writer to sign-in; reopening a scene showed
 the stale server copy over unsynced queued work; and a blocked IndexedDB `open`
 fires no event at all, so the editor hung forever waiting on a cache lookup.
 
-### 1.2 Distraction-free writing
-- Focus mode: current paragraph lit, the rest dimmed.
-- Typewriter scrolling; adjustable measure, line height and font.
-- Session goals: words this session, streaks, a target per scene or per day.
+### 1.2 Distraction-free writing · **Done**
+- ✅ Focus mode: the paragraph the caret is in stays lit, the rest dim. A
+  ProseMirror decoration, never a mark, so the author's document carries no
+  record of where their cursor was.
+- ✅ Typewriter scrolling: the caret holds a fixed height (45% — slightly above
+  centre, where the eye rests) instead of walking to the bottom edge.
+- ✅ Adjustable typeface, size, measure and line height, stored per device
+  because the right measure depends on the screen in front of you.
+- ✅ Session goals: words this sitting, words today against a daily target, a
+  per-scene target, and a streak. Today and the streak are server-side, so they
+  survive a reload and follow the writer between devices.
+- **Done when** a writer can dim everything but the line they are on, keep the
+  caret at a fixed height, tune the page to their eyes, and see today's words
+  against a target — with the settings surviving a reload. *Verified in the
+  browser: focus mode dims correctly, the caret held its anchor to within 6px
+  after typing five paragraphs, and the goal bar went from "+0 this sitting" to
+  "+12 this sitting · 244 of 200 today · Target met".*
+
+Two bugs this surfaced, both fixed. The prose column was not a scroll container
+at all — the window scrolled instead, so typewriter scrolling had nothing to
+drive. And "this sitting" was held in a ref, which any remount reset, silently
+restarting the count at whatever the total happened to be; the baseline now
+lives in sessionStorage, which is scoped to the tab exactly like a sitting.
+
+Deliberately not done here: none of this reaches iOS, whose editor is still
+plain text. Focus mode and typewriter scrolling only mean something once *4.1*
+gives it a real editor.
 
 ### 1.3 Manuscript formatting
 - Smart quotes, em-dashes, ellipses as you type.

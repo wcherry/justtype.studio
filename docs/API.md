@@ -27,6 +27,24 @@ back as `{"error": {"code": "...", "message": "..."}}` with a matching status.
 A session is `{user, accessToken, refreshToken, expiresIn}`. Refresh tokens are
 single-use: refreshing revokes the one you presented.
 
+## Writing goals
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/me/writing?today=YYYY-MM-DD&days=30` | today's words, the streak, recent history |
+| `PATCH` | `/me/goals` | `dailyWordGoal`; `null` clears it |
+
+`today` and the `localDay` on a scene save are the writer's **local** date. Only
+the client knows what day it is where the writer is, and a UTC day would break a
+streak for anyone writing in the evening west of Greenwich — precisely the
+writer the feature exists to encourage. A save with no `localDay` is not counted
+against any day at all: skipping a tally beats crediting the wrong one.
+
+Words are counted **net**, so a day spent cutting reads as the negative number it
+is. A day counts toward a streak because the writer showed up, not because the
+total went up. Restoring a revision is deliberately not counted — that is
+recovering, not writing.
+
 ## Templates
 
 | Method | Path | Returns |
@@ -51,8 +69,8 @@ single-use: refreshing revokes the one you presented.
 | `POST` | `/chapters/{id}/scenes` | `title`, optional `content` |
 | `POST` | `/chapters/{id}/scenes/reorder` | `ids` |
 | `GET` | `/scenes/{id}` | scene plus its content |
-| `PATCH` | `/scenes/{id}` | `title`, `summary`, `pov`, `status`, `chapterId` (to move it) |
-| `PUT` | `/scenes/{id}/content` | `content` (a TipTap doc), `createRevision`, `baseHash` |
+| `PATCH` | `/scenes/{id}` | `title`, `summary`, `pov`, `status`, `chapterId` (to move it), `targetWords` |
+| `PUT` | `/scenes/{id}/content` | `content` (a TipTap doc), `createRevision`, `baseHash`, `localDay` |
 | `DELETE` | `/scenes/{id}` | |
 | `GET` | `/scenes/{id}/revisions` | newest first |
 | `GET` | `/scenes/{id}/revisions/{revisionId}` | content plus a diff against the current draft |
