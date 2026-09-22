@@ -17,9 +17,13 @@ struct SceneEditorView: View {
     @State private var readOnly = false
     @State private var saveState: SaveState = .idle
     @State private var saveTask: Task<Void, Never>?
+    /// The hash this text was built on top of, sent with every save so the
+    /// server can refuse a write whose base has moved.
+    @State private var baseHash: String?
+    @State private var showConflict = false
 
     enum SaveState {
-        case idle, dirty, saving, saved, failed
+        case idle, dirty, saving, saved, failed, conflict
 
         var label: String {
             switch self {
@@ -28,6 +32,7 @@ struct SceneEditorView: View {
             case .saving: "Saving…"
             case .saved: "Saved"
             case .failed: "Save failed"
+            case .conflict: "Changed elsewhere"
             }
         }
     }
@@ -53,6 +58,21 @@ struct SceneEditorView: View {
                 .onChange(of: text) { _, _ in scheduleSave() }
         }
         .navigationTitle(scene?.title ?? title)
+        .alert("This scene changed somewhere else", isPresented: $showConflict) {
+            Button("Reload it") { Task { await load() } }
+            Button("Keep mine", role: .destructive) {
+                Task {
+                    // Adopt the server's current hash, which is how a client
+                    // says "I have seen theirs and still mean this".
+                    if let latest = try? await session.client.scene(id: sceneId) {
+                        baseHash = latest.contentHash
+                        await save(createRevision: true)
+                    }
+                }
+            }
+        } message: {
+            Text("Another device saved this scene while you were editing. Your text is still here until you choose.")
+        }
         .toolbar {
             ToolbarItem(placement: .automatic) {
                 HStack(spacing: 10) {
@@ -78,6 +98,7 @@ struct SceneEditorView: View {
     private func load() async {
         guard let loaded = try? await session.client.scene(id: sceneId) else { return }
         scene = loaded
+        baseHash = loaded.contentHash
         readOnly = loaded.content.hasRichFormatting
         text = loaded.content.plainText
         saveState = .idle
@@ -102,12 +123,18 @@ struct SceneEditorView: View {
         guard let scene else { return }
         saveState = .saving
         do {
-            _ = try await session.client.saveScene(
+            let result = try await session.client.saveScene(
                 id: scene.id,
                 content: DocNode.fromPlainText(text),
-                createRevision: createRevision
+                createRevision: createRevision,
+                baseHash: baseHash
             )
+            baseHash = result.scene.contentHash
             saveState = .saved
+        } catch APIError.conflict {
+            // Not a failure to retry: retrying unchanged can only fail again.
+            saveState = .conflict
+            showConflict = true
         } catch {
             saveState = .failed
         }

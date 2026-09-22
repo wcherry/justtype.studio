@@ -107,6 +107,12 @@ export interface SceneRevision {
   createdAt: string
 }
 
+export interface RevisionWithContent extends SceneRevision {
+  content: DocNode
+  /** Word diff against the scene as it stands now: what restoring would change. */
+  changes: TextChange[]
+}
+
 export interface TrackedChange {
   id: string
   sceneId: string

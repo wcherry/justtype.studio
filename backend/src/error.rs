@@ -15,6 +15,13 @@ pub enum ApiError {
     NotFound(String),
     #[error("{0}")]
     Conflict(String),
+    /// A conflict the client is expected to act on rather than just report, so
+    /// it carries the state needed to resolve it.
+    #[error("{message}")]
+    ConflictWith {
+        message: String,
+        details: serde_json::Value,
+    },
     #[error("{0}")]
     Internal(String),
 }
@@ -31,6 +38,7 @@ impl ApiError {
             ApiError::Forbidden(_) => (StatusCode::FORBIDDEN, "forbidden"),
             ApiError::NotFound(_) => (StatusCode::NOT_FOUND, "not_found"),
             ApiError::Conflict(_) => (StatusCode::CONFLICT, "conflict"),
+            ApiError::ConflictWith { .. } => (StatusCode::CONFLICT, "conflict"),
             ApiError::Internal(_) => (StatusCode::INTERNAL_SERVER_ERROR, "internal"),
         }
     }
@@ -42,8 +50,11 @@ impl IntoResponse for ApiError {
         if status == StatusCode::INTERNAL_SERVER_ERROR {
             tracing::error!(error = %self, "request failed");
         }
-        let body = Json(json!({ "error": { "code": code, "message": self.to_string() } }));
-        (status, body).into_response()
+        let mut error = json!({ "code": code, "message": self.to_string() });
+        if let ApiError::ConflictWith { details, .. } = &self {
+            error["details"] = details.clone();
+        }
+        (status, Json(json!({ "error": error }))).into_response()
     }
 }
 

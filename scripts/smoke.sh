@@ -58,6 +58,40 @@ curl -s -X PUT "$API/scenes/$SCENE/content" -H "$AUTH" -H 'content-type: applica
   -d '{"content":{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"The field went on past where the light gave out."}]}]}}' \
   | python3 -c "import sys,json;d=json.load(sys.stdin);print(' ', d['scene']['wordCount'],'words, revision kept:', bool(d['revisionId']))"
 
+step "Refusing a save whose base has moved"
+# Two writers on one scene: the second one's base hash is stale, so the save is
+# refused rather than quietly overwriting the first.
+STALE="$(curl -s "$API/scenes/$SCENE" -H "$AUTH" | field contentHash)"
+curl -s -X PUT "$API/scenes/$SCENE/content" -H "$AUTH" -H 'content-type: application/json' \
+  -d "{\"content\":{\"type\":\"doc\",\"content\":[{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"Someone else got here first.\"}]}]},\"baseHash\":\"$STALE\"}" >/dev/null
+CONFLICT=$(curl -s -o /dev/null -w '%{http_code}' -X PUT "$API/scenes/$SCENE/content" -H "$AUTH" -H 'content-type: application/json' \
+  -d "{\"content\":{\"type\":\"doc\",\"content\":[{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"And I clobbered them.\"}]}]},\"baseHash\":\"$STALE\"}")
+[ "$CONFLICT" = "409" ] && echo "  stale save rejected with 409" || { echo "  EXPECTED 409, got $CONFLICT"; exit 1; }
+# Re-sending with the hash the 409 reported is how a client says "I have seen
+# theirs and still mean this".
+CURRENT="$(curl -s "$API/scenes/$SCENE" -H "$AUTH" | field contentHash)"
+curl -s -X PUT "$API/scenes/$SCENE/content" -H "$AUTH" -H 'content-type: application/json' \
+  -d "{\"content\":{\"type\":\"doc\",\"content\":[{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"The field went on past where the light gave out.\"}]}]},\"baseHash\":\"$CURRENT\"}" >/dev/null
+echo "  resolved save accepted"
+
+step "Restoring an earlier revision"
+# Pick a revision whose text actually differs from what is on screen now, so the
+# restore has something to do. Newest first.
+pick_revision() { curl -s "$API/scenes/$SCENE/revisions" -H "$AUTH" \
+  | python3 -c "import sys,json
+revs=json.load(sys.stdin)
+print(next(r['id'] for r in revs if r['wordCount']==int('$1')))"; }
+
+REV_OTHER="$(pick_revision 5)"
+curl -s -X POST "$API/scenes/$SCENE/revisions/$REV_OTHER/restore" -H "$AUTH" \
+  | python3 -c "import sys,json;d=json.load(sys.stdin);print('  rolled back to:', d['scene']['wordCount'], 'words, superseded text kept as a revision:', bool(d['revisionId']))"
+
+# ... and back again, which is the point of writing a revision on the way in:
+# a restore is itself undoable, and the history is never rewritten.
+REV_BACK="$(pick_revision 10)"
+curl -s -X POST "$API/scenes/$SCENE/revisions/$REV_BACK/restore" -H "$AUTH" \
+  | python3 -c "import sys,json;d=json.load(sys.stdin);print('  and forward again:', d['scene']['wordCount'], 'words')"
+
 step "Snapshotting, revising, snapshotting again"
 V1=$(curl -s -X POST "$API/works/$WID/versions" -H "$AUTH" -H 'content-type: application/json' -d '{"label":"First pass"}' | field id)
 curl -s -X PUT "$API/scenes/$SCENE/content" -H "$AUTH" -H 'content-type: application/json' \

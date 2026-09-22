@@ -1,6 +1,8 @@
 import Foundation
 
 public enum APIError: LocalizedError, Equatable {
+    /// The scene changed elsewhere since it was loaded. Reload before saving.
+    case conflict(message: String)
     case http(status: Int, code: String, message: String)
     case transport(String)
     case decoding(String)
@@ -8,6 +10,7 @@ public enum APIError: LocalizedError, Equatable {
 
     public var errorDescription: String? {
         switch self {
+        case .conflict(let message): message
         case .http(_, _, let message): message
         case .transport(let message): message
         case .decoding(let message): "Unexpected response: \(message)"
@@ -131,6 +134,10 @@ public struct APIClient: Sendable {
         }
 
         guard (200..<300).contains(http.statusCode) else {
+            if http.statusCode == 409,
+               let envelope = try? JSONDecoder().decode(ErrorEnvelope.self, from: data) {
+                throw APIError.conflict(message: envelope.error.message)
+            }
             if let envelope = try? JSONDecoder().decode(ErrorEnvelope.self, from: data) {
                 throw APIError.http(
                     status: http.statusCode,
@@ -233,12 +240,28 @@ public struct APIClient: Sendable {
         try await send("POST", "works/\(workId)/chapters", body: ["title": title])
     }
 
-    public func saveScene(id: String, content: DocNode, createRevision: Bool = true) async throws -> SaveResult {
+    /// `baseHash` is the `contentHash` this edit was made on top of. A mismatch
+    /// comes back as `APIError.conflict`, which the caller resolves by reloading
+    /// and re-sending — never by retrying blindly.
+    public func saveScene(
+        id: String,
+        content: DocNode,
+        createRevision: Bool = true,
+        baseHash: String? = nil
+    ) async throws -> SaveResult {
         struct Body: Encodable {
             let content: DocNode
             let createRevision: Bool
+            let baseHash: String?
         }
-        return try await send("PUT", "scenes/\(id)/content", body: Body(content: content, createRevision: createRevision))
+        return try await send(
+            "PUT", "scenes/\(id)/content",
+            body: Body(content: content, createRevision: createRevision, baseHash: baseHash)
+        )
+    }
+
+    public func restoreRevision(sceneId: String, revisionId: String) async throws -> SaveResult {
+        try await send("POST", "scenes/\(sceneId)/revisions/\(revisionId)/restore", body: [String: String]())
     }
 
     public func updateScene(id: String, title: String? = nil, status: String? = nil) async throws -> SceneSummary {

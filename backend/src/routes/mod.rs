@@ -62,6 +62,10 @@ pub fn router(state: AppState) -> Router {
             "/scenes/{scene_id}/revisions/{revision_id}",
             get(scenes::get_revision),
         )
+        .route(
+            "/scenes/{scene_id}/revisions/{revision_id}/restore",
+            post(scenes::restore_revision),
+        )
         // --- tracked changes ----------------------------------------------
         .route(
             "/scenes/{scene_id}/changes",

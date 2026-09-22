@@ -1,6 +1,7 @@
 import type {
   Comment, CommentView, DiffResponse, DocNode, Outline, Publication, PublicationCard,
-  SaveResult, Scene, SceneRevision, SceneWithContent, Session, Template, TrackedChange,
+  RevisionWithContent, SaveResult, Scene, SceneRevision, SceneWithContent, Session, Template,
+  TrackedChange,
   Version, VersionContent, VersionDetail, Work, WorkKind, Visibility, CommentCategory,
 } from './types'
 
@@ -9,7 +10,13 @@ const ACCESS_KEY = 'scriptorium.access'
 const REFRESH_KEY = 'scriptorium.refresh'
 
 export class ApiError extends Error {
-  constructor(readonly status: number, readonly code: string, message: string) {
+  constructor(
+    readonly status: number,
+    readonly code: string,
+    message: string,
+    /** Structured state a client is expected to act on — see the 409 from a scene save. */
+    readonly details?: unknown,
+  ) {
     super(message)
   }
 }
@@ -78,7 +85,12 @@ async function request<T>(
   if (!res.ok) {
     const payload = await res.json().catch(() => null)
     const error = payload?.error
-    throw new ApiError(res.status, error?.code ?? 'unknown', error?.message ?? res.statusText)
+    throw new ApiError(
+      res.status,
+      error?.code ?? 'unknown',
+      error?.message ?? res.statusText,
+      error?.details,
+    )
   }
   if (res.status === 204) return undefined as T
   return (await res.json()) as T
@@ -131,12 +143,18 @@ export const api = {
     get: (sceneId: string) => get<SceneWithContent>(`/scenes/${sceneId}`),
     update: (sceneId: string, input: Partial<Pick<Scene, 'title' | 'summary' | 'pov' | 'status' | 'chapterId'>>) =>
       patch<Scene>(`/scenes/${sceneId}`, input),
-    saveContent: (sceneId: string, content: DocNode, createRevision = true) =>
-      put<SaveResult>(`/scenes/${sceneId}/content`, { content, createRevision }),
+    /** `baseHash` is the contentHash this edit was made on top of; the server
+     *  refuses the write if it no longer matches. */
+    saveContent: (sceneId: string, content: DocNode, createRevision = true, baseHash?: string | null) =>
+      put<SaveResult>(`/scenes/${sceneId}/content`, { content, createRevision, baseHash }),
+    restoreRevision: (sceneId: string, revisionId: string) =>
+      post<SaveResult>(`/scenes/${sceneId}/revisions/${revisionId}/restore`),
     remove: (sceneId: string) => del<{ ok: boolean }>(`/scenes/${sceneId}`),
     reorder: (chapterId: string, ids: string[]) =>
       post<Scene[]>(`/chapters/${chapterId}/scenes/reorder`, { ids }),
     revisions: (sceneId: string) => get<SceneRevision[]>(`/scenes/${sceneId}/revisions`),
+    revision: (sceneId: string, revisionId: string) =>
+      get<RevisionWithContent>(`/scenes/${sceneId}/revisions/${revisionId}`),
   },
 
   changes: {

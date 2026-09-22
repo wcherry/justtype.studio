@@ -51,6 +51,17 @@ pub struct PutContentRequest {
     /// Autosaves pass `false`; explicit saves and idle-flushes pass `true`.
     #[serde(default = "default_true")]
     pub create_revision: bool,
+    /// The `contentHash` the client believes it is editing on top of. When it
+    /// no longer matches, someone else — another tab, another device, a queued
+    /// offline save — has written in the meantime, and this save is refused
+    /// rather than silently overwriting their work.
+    ///
+    /// Omitted only when there is nothing to protect: a scene the client has
+    /// not read yet. To resolve a conflict deliberately, re-send with the hash
+    /// the 409 reported, which says "I have seen their version and still mean
+    /// this".
+    #[serde(default)]
+    pub base_hash: Option<String>,
 }
 
 fn default_true() -> bool {
@@ -219,6 +230,23 @@ pub async fn put_content(
         Ok(scene)
     })
     .await?;
+
+    if let Some(base) = &body.base_hash {
+        // Equal hashes mean this save is a no-op against whatever is stored, so
+        // it cannot be clobbering anything and is allowed through regardless.
+        if base != &scene.content_hash && hash != scene.content_hash {
+            return Err(ApiError::ConflictWith {
+                message: "this scene changed somewhere else since you last loaded it".into(),
+                details: serde_json::json!({
+                    "sceneId": scene.id,
+                    "currentHash": scene.content_hash,
+                    "currentWordCount": scene.word_count,
+                    "updatedAt": scene.updated_at,
+                    "yourHash": hash,
+                }),
+            });
+        }
+    }
 
     let unchanged = scene.content_hash == hash;
     state
@@ -395,4 +423,53 @@ pub async fn get_revision(
         content,
         changes,
     }))
+}
+
+/// Put an earlier revision back as the working copy.
+///
+/// The restore is itself a save: it writes a fresh revision first, so the text
+/// being replaced stays reachable and restoring is undoable. Nothing in the
+/// revision history is ever rewritten or removed.
+pub async fn restore_revision(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path((scene_id, revision_id)): Path<(String, String)>,
+) -> ApiResult<Json<SaveResult>> {
+    let lookup_user = user.clone();
+    let lookup_revision = revision_id.clone();
+    let (scene, revision) = blocking(&state.pool, move |conn| {
+        let (scene, _) = support::scene_for_owner(conn, &scene_id, &lookup_user)?;
+        let revision: SceneRevision = scene_revisions::table
+            .find(&lookup_revision)
+            .filter(scene_revisions::scene_id.eq(&scene.id))
+            .select(SceneRevision::as_select())
+            .first(conn)
+            .optional()?
+            .ok_or_else(|| ApiError::NotFound("revision not found".into()))?;
+        Ok((scene, revision))
+    })
+    .await?;
+
+    let content = state
+        .store
+        .read_revision(&scene.work_id, &scene.id, &revision.id)
+        .await?;
+    doc::validate(&content)
+        .map_err(|e| ApiError::internal(format!("stored revision is invalid: {e}")))?;
+
+    // Routed back through the ordinary save path so restoring cannot drift from
+    // saving: same hashing, same revision bookkeeping, same word recount. The
+    // base hash is the scene as it stands, because a restore is a deliberate
+    // replacement of exactly that.
+    put_content(
+        State(state),
+        user,
+        Path(scene.id.clone()),
+        Json(PutContentRequest {
+            content,
+            create_revision: true,
+            base_hash: Some(scene.content_hash.clone()),
+        }),
+    )
+    .await
 }

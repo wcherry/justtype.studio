@@ -52,13 +52,35 @@ single-use: refreshing revokes the one you presented.
 | `POST` | `/chapters/{id}/scenes/reorder` | `ids` |
 | `GET` | `/scenes/{id}` | scene plus its content |
 | `PATCH` | `/scenes/{id}` | `title`, `summary`, `pov`, `status`, `chapterId` (to move it) |
-| `PUT` | `/scenes/{id}/content` | `content` (a TipTap doc), `createRevision` |
+| `PUT` | `/scenes/{id}/content` | `content` (a TipTap doc), `createRevision`, `baseHash` |
 | `DELETE` | `/scenes/{id}` | |
 | `GET` | `/scenes/{id}/revisions` | newest first |
 | `GET` | `/scenes/{id}/revisions/{revisionId}` | content plus a diff against the current draft |
+| `POST` | `/scenes/{id}/revisions/{revisionId}/restore` | put that revision back as the working copy |
 
 `kind` is one of `novel`, `novella`, `short_story`, `serial`.
 Scene `status` is one of `outline`, `drafting`, `revised`, `done`.
+
+### Save conflicts
+
+`baseHash` is the `contentHash` the client believes it is editing on top of.
+When it no longer matches, the save is refused with `409` rather than
+overwriting whoever wrote in the meantime:
+
+```json
+{ "error": { "code": "conflict", "message": "…", "details": {
+  "sceneId": "…", "currentHash": "…", "currentWordCount": 412,
+  "updatedAt": "2026-09-21T22:42:15.004Z", "yourHash": "…"
+} } }
+```
+
+Resolve by re-sending with the `currentHash` the 409 reported — that says "I
+have seen their version and still mean this". Omitting `baseHash` skips the
+check, which is only right for a scene the client has not read.
+
+A restore is an ordinary save under the hood: it writes a revision of the text
+being replaced first, so restoring is itself undoable and history is never
+rewritten.
 
 ## Tracked changes
 

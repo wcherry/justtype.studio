@@ -6,17 +6,24 @@ import Underline from '@tiptap/extension-underline'
 import Placeholder from '@tiptap/extension-placeholder'
 
 import { api } from '../api/client'
-import type { Outline as OutlineType, Scene, Version } from '../api/types'
+import type { Outline as OutlineType, Scene, SceneWithContent, Version } from '../api/types'
+import { ConflictBanner } from '../components/ConflictBanner'
 import { Outline } from '../components/Outline'
+import { RevisionPanel } from '../components/RevisionPanel'
 import { Toolbar } from '../components/Toolbar'
 import { VersionPanel } from '../components/VersionPanel'
 import { useAutosave } from '../editor/useAutosave'
+import { cache } from '../offline/cache'
+import { pendingFor, startQueueReplay } from '../offline/queue'
 
 const SAVE_LABEL: Record<string, string> = {
   idle: '',
   dirty: 'Unsaved changes',
   saving: 'Saving…',
   saved: 'Saved',
+  // Not an error: the text is on this device and goes up on reconnect.
+  queued: 'Saved on this device',
+  conflict: 'Needs your decision',
   error: 'Save failed — retrying on next edit',
 }
 
@@ -26,7 +33,10 @@ export function EditorPage() {
   const [versions, setVersions] = useState<Version[]>([])
   const [scene, setScene] = useState<Scene | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [showVersions, setShowVersions] = useState(false)
+  const [panel, setPanel] = useState<'none' | 'versions' | 'history'>('none')
+  const [online, setOnline] = useState(() => navigator.onLine)
+  /** Bumped after every accepted save, so the history list stays current. */
+  const [savedAt, setSavedAt] = useState(0)
 
   const editor = useEditor({
     extensions: [
@@ -37,17 +47,44 @@ export function EditorPage() {
     content: '',
   })
 
-  const { state: saveState, wordCount, setWordCount, schedule, flush } = useAutosave(
-    scene?.id ?? null,
-    editor,
-  )
+  const onSaved = useCallback((workWordCount: number) => {
+    setSavedAt(Date.now())
+    setOutline((current) => (current ? { ...current, wordCount: workWordCount } : current))
+  }, [])
+
+  const {
+    state: saveState, wordCount, setWordCount, pending, conflict, schedule, flush, resolveWith,
+  } = useAutosave({ scene, editor, onSaved })
+
+  // Replay anything queued from a previous session as soon as the editor opens,
+  // and again whenever the network returns.
+  useEffect(() => {
+    const stop = startQueueReplay()
+    const sync = () => setOnline(navigator.onLine)
+    window.addEventListener('online', sync)
+    window.addEventListener('offline', sync)
+    return () => {
+      stop()
+      window.removeEventListener('online', sync)
+      window.removeEventListener('offline', sync)
+    }
+  }, [])
 
   const loadOutline = useCallback(async () => {
     try {
       const next = await api.works.outline(workId)
       setOutline(next)
+      cache.putOutline(workId, next)
+      setError(null)
       return next
     } catch (e) {
+      // Offline: the cached structure is enough to get the writer back to the
+      // scene they were in, where their queued text is waiting.
+      const fallback = cache.outline(workId)
+      if (fallback) {
+        setOutline(fallback)
+        return fallback
+      }
       setError(e instanceof Error ? e.message : 'Could not open that work')
       return null
     }
@@ -71,10 +108,29 @@ export function EditorPage() {
   const openScene = useCallback(
     async (target: Scene) => {
       if (saveState === 'dirty') await flush(true)
-      const full = await api.scenes.get(target.id)
+      let full: SceneWithContent
+      try {
+        full = await api.scenes.get(target.id)
+        cache.putScene(full)
+      } catch (e) {
+        const fallback = cache.scene(target.id)
+        if (!fallback) {
+          setError(
+            'That scene has not been opened on this device yet, so it is not available offline.',
+          )
+          return
+        }
+        full = fallback
+      }
+      // Unsynced work outranks both the server copy and the cache. Without this,
+      // reopening a scene edited offline would show the older text, and the next
+      // keystroke would be based on it — quietly undoing the recovered writing
+      // the moment the queue flushed.
+      const queued = await pendingFor(target.id)
+      const content = queued?.content ?? full.content ?? { type: 'doc', content: [] }
       setScene(full)
       setWordCount(full.wordCount)
-      editor?.commands.setContent((full.content ?? { type: 'doc', content: [] }) as never, false)
+      editor?.commands.setContent(content as never, false)
     },
     [editor, flush, saveState, setWordCount],
   )
@@ -127,7 +183,14 @@ export function EditorPage() {
             </p>
           </div>
           <div className="editor__header-actions">
-            <span className={`save save--${saveState}`}>{SAVE_LABEL[saveState]}</span>
+            <span className={`save save--${saveState}`}>
+              {SAVE_LABEL[saveState]}
+              {pending > 0 && saveState !== 'conflict' && (
+                <span className="save__pending" title="waiting to reach the server">
+                  {' '}· {pending} queued
+                </span>
+              )}
+            </span>
             {scene && (
               <select
                 value={scene.status}
@@ -144,11 +207,40 @@ export function EditorPage() {
                 <option value="done">Done</option>
               </select>
             )}
-            <button type="button" onClick={() => setShowVersions((v) => !v)}>
-              {showVersions ? 'Hide versions' : 'Versions'}
+            <button
+              type="button"
+              onClick={() => setPanel((p) => (p === 'history' ? 'none' : 'history'))}
+            >
+              History
+            </button>
+            <button
+              type="button"
+              onClick={() => setPanel((p) => (p === 'versions' ? 'none' : 'versions'))}
+            >
+              {panel === 'versions' ? 'Hide versions' : 'Versions'}
             </button>
           </div>
         </header>
+
+        {(!online || pending > 0) && saveState !== 'conflict' && (
+          <p className="offline-note">
+            {online
+              ? `Can’t reach the server — ${pending} scene${pending === 1 ? '' : 's'} saved on this device, and going up as soon as it answers.`
+              : 'Offline — your writing is being saved on this device and will go up when the connection returns.'}
+          </p>
+        )}
+
+        {conflict && (
+          <ConflictBanner
+            conflict={conflict}
+            onKeepMine={resolveWith}
+            onTakeTheirs={(content, contentHash, words) => {
+              editor?.commands.setContent(content as never, false)
+              setScene((s) => (s ? { ...s, contentHash, wordCount: words } : s))
+              setWordCount(words)
+            }}
+          />
+        )}
 
         <Toolbar editor={editor} />
 
@@ -159,7 +251,7 @@ export function EditorPage() {
         )}
       </section>
 
-      {showVersions && (
+      {panel === 'versions' && (
         <VersionPanel
           workId={workId}
           versions={versions}
@@ -168,6 +260,22 @@ export function EditorPage() {
             void loadOutline()
           }}
         />
+      )}
+
+      {panel === 'history' && scene && (
+        <aside className="versions">
+          <header className="versions__header">
+            <h3>This scene</h3>
+          </header>
+          <RevisionPanel
+            sceneId={scene.id}
+            refreshKey={savedAt}
+            onRestored={() => {
+              void openScene(scene)
+              void loadOutline()
+            }}
+          />
+        </aside>
       )}
     </main>
   )

@@ -1,7 +1,29 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { api, tokens } from '../api/client'
+import { ApiError, api, tokens } from '../api/client'
 import type { User } from '../api/types'
+
+/** Last known profile, so the app opens offline instead of bouncing to sign-in. */
+const USER_KEY = 'scriptorium.user'
+
+function cachedUser(): User | null {
+  try {
+    const raw = localStorage.getItem(USER_KEY)
+    return raw ? (JSON.parse(raw) as User) : null
+  } catch {
+    return null
+  }
+}
+
+function cacheUser(user: User | null) {
+  try {
+    if (user) localStorage.setItem(USER_KEY, JSON.stringify(user))
+    else localStorage.removeItem(USER_KEY)
+  } catch {
+    // Private browsing or blocked site data: the session still works, it just
+    // cannot be restored without the network.
+  }
+}
 
 interface AuthContextValue {
   user: User | null
@@ -14,10 +36,11 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
+  // Start from the cached profile so a reload with no network opens the editor
+  // rather than the sign-in page, then confirm it against the server.
+  const [user, setUser] = useState<User | null>(() => (tokens.refresh() ? cachedUser() : null))
   const [loading, setLoading] = useState(true)
 
-  // A stored token may be stale; `me` is the cheapest way to find out.
   useEffect(() => {
     let cancelled = false
     if (!tokens.access()) {
@@ -26,8 +49,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     api.auth
       .me()
-      .then((me) => !cancelled && setUser(me))
-      .catch(() => tokens.clear())
+      .then((me) => {
+        if (cancelled) return
+        setUser(me)
+        cacheUser(me)
+      })
+      .catch((error) => {
+        // Only a real rejection ends the session. A network failure means the
+        // server could not be asked, and signing the writer out over it would
+        // strand unsynced work behind a login screen.
+        if (error instanceof ApiError && error.status === 401) {
+          tokens.clear()
+          cacheUser(null)
+          if (!cancelled) setUser(null)
+        }
+      })
       .finally(() => !cancelled && setLoading(false))
     return () => {
       cancelled = true
@@ -37,18 +73,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (email: string, password: string) => {
     const session = await api.auth.login(email, password)
     tokens.set(session)
+    cacheUser(session.user)
     setUser(session.user)
   }, [])
 
   const register = useCallback(async (email: string, password: string, displayName: string) => {
     const session = await api.auth.register(email, password, displayName)
     tokens.set(session)
+    cacheUser(session.user)
     setUser(session.user)
   }, [])
 
   const logout = useCallback(async () => {
     await api.auth.logout().catch(() => undefined)
     tokens.clear()
+    cacheUser(null)
     setUser(null)
   }, [])
 

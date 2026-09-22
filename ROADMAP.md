@@ -56,13 +56,26 @@ These are deliberate, not oversights. Each has a home below.
 The editor has to be good enough that a novelist stops using Scrivener. That is
 the bar for this phase.
 
-### 1.1 Editor durability
-- Offline buffer in IndexedDB; replay queued saves on reconnect.
-- Conflict detection: send the scene's `contentHash` with every save and reject
-  a write whose base has moved, instead of overwriting another tab's work.
-- "Restore this revision" in the UI, wired to the existing revision endpoints.
+### 1.1 Editor durability · **Done**
+- ✅ Offline buffer in IndexedDB, one entry per scene, replayed on reconnect and
+  on load. Backoff retry as well as the `online` event, because a server that
+  cannot be reached does not fire one.
+- ✅ Conflict detection: `baseHash` on every save, refused with `409` and the
+  state needed to resolve it. Both clients send it; the web offers keep-mine /
+  use-theirs, iOS offers reload / keep-mine.
+- ✅ "Restore this revision" in the UI, with a diff of what restoring would
+  change. A restore writes a revision of the text it replaces, so it is undoable.
+- ✅ Read cache of the outline and opened scenes, so the editor still opens with
+  no network and the writer can reach their queued words.
 - **Done when** a writer can lose the network mid-sentence, keep typing for ten
-  minutes, and lose nothing on reconnect.
+  minutes, and lose nothing on reconnect. *Verified in the browser: killed the
+  backend mid-sentence, kept typing, reloaded the tab twice, restarted the
+  server, and the text arrived with no user action.*
+
+Three bugs this surfaced, all fixed: a network failure on `/auth/me` was
+clearing the tokens and bouncing the writer to sign-in; reopening a scene showed
+the stale server copy over unsynced queued work; and a blocked IndexedDB `open`
+fires no event at all, so the editor hung forever waiting on a cache lookup.
 
 ### 1.2 Distraction-free writing
 - Focus mode: current paragraph lit, the rest dimmed.

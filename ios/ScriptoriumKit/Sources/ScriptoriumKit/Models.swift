@@ -99,6 +99,9 @@ public struct SceneWithContent: Codable, Identifiable, Equatable, Sendable {
     public let title: String
     public let status: String
     public let wordCount: Int
+    /// Carried back on the next save so the server can refuse a write whose
+    /// base has moved, rather than silently overwriting another device.
+    public let contentHash: String
     public let content: DocNode
 }
 
