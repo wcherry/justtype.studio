@@ -4,7 +4,7 @@ import ScriptoriumKit
 /// Owns the signed-in user and the single `APIClient` every view reaches for.
 @MainActor
 public final class SessionStore: ObservableObject {
-    @Published public private(set) var user: User?
+    @Published public private(set) var user: API.User?
     @Published public private(set) var isLoading = true
     @Published public var errorMessage: String?
 
@@ -37,7 +37,7 @@ public final class SessionStore: ObservableObject {
         user = nil
     }
 
-    private func attempt(_ work: @escaping () async throws -> User) async {
+    private func attempt(_ work: @escaping () async throws -> API.User) async {
         errorMessage = nil
         do {
             user = try await work()

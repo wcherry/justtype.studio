@@ -1,5 +1,6 @@
 pub mod diff;
 pub mod doc;
+pub mod enums;
 pub mod templates;
 
 use chrono::SecondsFormat;

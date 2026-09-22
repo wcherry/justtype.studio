@@ -3,13 +3,13 @@ import ScriptoriumKit
 
 struct CommentsView: View {
     let publicationId: String
-    let comments: [CommentView]
+    let comments: [API.CommentView]
     let isAuthor: Bool
     let onChange: () async -> Void
 
     @EnvironmentObject private var session: SessionStore
     @Environment(\.dismiss) private var dismiss
-    @State private var replyingTo: CommentView?
+    @State private var replyingTo: API.CommentView?
 
     var body: some View {
         NavigationStack {
@@ -49,10 +49,10 @@ struct CommentsView: View {
 }
 
 struct CommentRow: View {
-    let comment: CommentView
+    let comment: API.CommentView
     let isAuthor: Bool
     let depth: Int
-    let onReply: (CommentView) -> Void
+    let onReply: (API.CommentView) -> Void
     let onChange: () async -> Void
 
     @EnvironmentObject private var session: SessionStore
@@ -84,7 +84,7 @@ struct CommentRow: View {
                             .font(.caption2)
                             .padding(.horizontal, 6).padding(.vertical, 1)
                             .background(.quaternary, in: Capsule())
-                        if comment.state == "resolved" {
+                        if comment.state == .resolved {
                             Text("resolved").font(.caption2).foregroundStyle(.secondary)
                         }
                     }
@@ -102,7 +102,7 @@ struct CommentRow: View {
 
                     HStack(spacing: 14) {
                         Button("Reply") { onReply(comment) }
-                        if isAuthor, comment.state == "open" {
+                        if isAuthor, comment.state == .open {
                             Button("Resolve") {
                                 Task {
                                     _ = try? await session.client.resolve(commentId: comment.id)

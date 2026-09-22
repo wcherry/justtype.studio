@@ -11,21 +11,21 @@ use crate::auth::{AuthUser, MaybeAuthUser};
 use crate::db::blocking;
 use crate::db::models::*;
 use crate::db::schema::{comments, publications, users, versions, works};
+use crate::domain::enums::{PublicationScope, Visibility};
 use crate::domain::{new_id, now_iso};
-use crate::error::{ApiError, ApiResult};
+use crate::error::{ApiError, ApiResult, ErrorEnvelope};
 use crate::state::AppState;
 
 use super::support::{self, Page};
 use super::versions::{VersionContent, VersionDetail};
 
-const VISIBILITIES: &[&str] = &["unlisted", "platform", "public"];
-const SCOPES: &[&str] = &["work", "chapter", "scene"];
-
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CreatePublicationRequest {
+    #[schema(value_type = crate::domain::enums::Visibility)]
     pub visibility: String,
     #[serde(default = "default_scope")]
+    #[schema(value_type = crate::domain::enums::PublicationScope)]
     pub scope: String,
     /// Chapter or scene id when `scope` is narrower than the whole work.
     #[serde(default)]
@@ -42,10 +42,11 @@ fn default_scope() -> String {
     "work".into()
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdatePublicationRequest {
     #[serde(default)]
+    #[schema(value_type = Option<crate::domain::enums::Visibility>)]
     pub visibility: Option<String>,
     #[serde(default)]
     pub review_prompt: Option<String>,
@@ -53,7 +54,7 @@ pub struct UpdatePublicationRequest {
     pub closes_at: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct PublicationCard {
     #[serde(flatten)]
@@ -65,27 +66,38 @@ pub struct PublicationCard {
     pub word_count: i32,
     pub comment_count: i64,
     /// First lines of the published slice, for the feed. Filled in after the
-    /// database round trip because it comes off disk.
-    #[serde(default)]
+    /// database round trip because it comes off disk — always sent, even when
+    /// empty, so clients do not have to treat it as optional.
     pub excerpt: String,
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/versions/{version_id}/publications",
+    tag = "publications",
+    params(("version_id" = String, Path)),
+    request_body = CreatePublicationRequest,
+    responses(
+        (status = 200, description = "Success", body = PublicationCard),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
 pub async fn create(
     State(state): State<AppState>,
     user: AuthUser,
     Path(version_id): Path<String>,
     Json(body): Json<CreatePublicationRequest>,
 ) -> ApiResult<Json<PublicationCard>> {
-    if !VISIBILITIES.contains(&body.visibility.as_str()) {
+    if !Visibility::accepts(&body.visibility) {
         return Err(ApiError::BadRequest(format!(
             "visibility must be one of {}",
-            VISIBILITIES.join(", ")
+            Visibility::options()
         )));
     }
-    if !SCOPES.contains(&body.scope.as_str()) {
+    if !PublicationScope::accepts(&body.scope) {
         return Err(ApiError::BadRequest(format!(
             "scope must be one of {}",
-            SCOPES.join(", ")
+            PublicationScope::options()
         )));
     }
     if body.scope != "work" && body.scope_ref_id.is_none() {
@@ -206,7 +218,7 @@ async fn first_scene_id(state: &AppState, version_id: &str) -> Option<String> {
     .flatten()
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct FeedQuery {
     // Deliberately not `#[serde(flatten)] Page`: the urlencoded deserializer
@@ -224,6 +236,15 @@ pub struct FeedQuery {
 }
 
 /// The review feed. Signed-out readers see only `public` publications.
+#[utoipa::path(
+    get,
+    path = "/api/publications",
+    tag = "publications",
+    responses(
+        (status = 200, description = "Success", body = Vec<PublicationCard>),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
 pub async fn feed(
     State(state): State<AppState>,
     MaybeAuthUser(user): MaybeAuthUser,
@@ -276,6 +297,16 @@ pub async fn feed(
     Ok(Json(cards))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/publications/{publication_id}",
+    tag = "publications",
+    params(("publication_id" = String, Path)),
+    responses(
+        (status = 200, description = "Success", body = PublicationCard),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
 pub async fn get_one(
     State(state): State<AppState>,
     MaybeAuthUser(user): MaybeAuthUser,
@@ -293,6 +324,16 @@ pub async fn get_one(
 
 /// The manuscript as reviewers see it: the frozen snapshot, narrowed to the
 /// slice the author published.
+#[utoipa::path(
+    get,
+    path = "/api/publications/{publication_id}/content",
+    tag = "publications",
+    params(("publication_id" = String, Path)),
+    responses(
+        (status = 200, description = "Success", body = VersionContent),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
 pub async fn content(
     State(state): State<AppState>,
     MaybeAuthUser(user): MaybeAuthUser,
@@ -338,6 +379,17 @@ fn narrow_to_scope(publication: &Publication, mut detail: VersionDetail) -> Vers
     detail
 }
 
+#[utoipa::path(
+    patch,
+    path = "/api/publications/{publication_id}",
+    tag = "publications",
+    params(("publication_id" = String, Path)),
+    request_body = UpdatePublicationRequest,
+    responses(
+        (status = 200, description = "Success", body = PublicationCard),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
 pub async fn update(
     State(state): State<AppState>,
     user: AuthUser,
@@ -345,10 +397,10 @@ pub async fn update(
     Json(body): Json<UpdatePublicationRequest>,
 ) -> ApiResult<Json<PublicationCard>> {
     if let Some(visibility) = &body.visibility {
-        if !VISIBILITIES.contains(&visibility.as_str()) {
+        if !Visibility::accepts(visibility) {
             return Err(ApiError::BadRequest(format!(
                 "visibility must be one of {}",
-                VISIBILITIES.join(", ")
+                Visibility::options()
             )));
         }
     }
@@ -381,6 +433,16 @@ pub async fn update(
 
 /// Withdrawing a publication takes its comments with it; the snapshot itself
 /// is untouched.
+#[utoipa::path(
+    delete,
+    path = "/api/publications/{publication_id}",
+    tag = "publications",
+    params(("publication_id" = String, Path)),
+    responses(
+        (status = 200, description = "Success"),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
 pub async fn delete_publication(
     State(state): State<AppState>,
     user: AuthUser,

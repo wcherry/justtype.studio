@@ -93,10 +93,27 @@ fires no event at all, so the editor hung forever waiting on a cache lookup.
 - Split and merge scenes with positions preserved.
 - Story bible: characters, places, and continuity notes linked from scenes.
 
-### 1.5 One source of truth for types
-- Generate an OpenAPI document from the Axum routes (`utoipa`).
-- Generate `web/src/api/types.ts` and the Swift models from it in CI.
+### 1.5 One source of truth for types · **Done**
+- ✅ `docs/openapi.json` is generated from the handlers themselves: the axum
+  routes and the document come from the same `#[utoipa::path]` annotations, so
+  a handler cannot be routed without being documented.
+- ✅ `cargo xtask codegen` emits `web/src/api/schema.ts` and the Swift
+  `API` namespace from that document. One generator, two emitters, and it
+  errors on any schema shape it does not understand rather than emitting `any`.
+- ✅ `cargo xtask codegen --check` runs in CI and in `cargo xtask check`, so
+  types that were not regenerated cannot merge.
+- ✅ The closed string sets (work kind, scene status, visibility, comment
+  category, …) are declared once in `domain::enums` and drive both the
+  generated unions and the handlers' own validation.
 - **Done when** a field renamed in Rust breaks the web and iOS builds.
+  *Verified by renaming `Scene.word_count` to `words` on the wire — a change the
+  Rust compiler is happy with — regenerating, and watching both client builds
+  fail.*
+
+One caveat worth knowing: the web errors name the field precisely, while
+SwiftUI often reports a missing member inside a view body as "unable to
+type-check this expression in reasonable time". The build fails either way, but
+the iOS diagnostic can be misleading. Regenerate first when it appears.
 
 ---
 

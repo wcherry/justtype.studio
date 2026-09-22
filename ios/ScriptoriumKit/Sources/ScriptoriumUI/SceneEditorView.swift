@@ -12,7 +12,7 @@ struct SceneEditorView: View {
     let title: String
 
     @EnvironmentObject private var session: SessionStore
-    @State private var scene: SceneWithContent?
+    @State private var scene: API.SceneWithContent?
     @State private var text = ""
     @State private var readOnly = false
     @State private var saveState: SaveState = .idle
@@ -125,7 +125,7 @@ struct SceneEditorView: View {
         do {
             let result = try await session.client.saveScene(
                 id: scene.id,
-                content: DocNode.fromPlainText(text),
+                content: API.DocNode.fromPlainText(text),
                 createRevision: createRevision,
                 baseHash: baseHash
             )

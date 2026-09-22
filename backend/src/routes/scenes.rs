@@ -8,15 +8,15 @@ use crate::auth::AuthUser;
 use crate::db::blocking;
 use crate::db::models::*;
 use crate::db::schema::{scene_revisions, scenes};
+use crate::domain::enums::SceneStatus;
 use crate::domain::{doc, new_id, now_iso};
-use crate::error::{ApiError, ApiResult};
+use crate::error::{ApiError, ApiResult, ErrorEnvelope};
 use crate::state::AppState;
 
 use super::support::{self, Page};
+use super::works::ReorderRequest;
 
-const SCENE_STATUSES: &[&str] = &["outline", "drafting", "revised", "done"];
-
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateSceneRequest {
     pub title: String,
@@ -25,10 +25,11 @@ pub struct CreateSceneRequest {
     #[serde(default)]
     pub pov: Option<String>,
     #[serde(default)]
+    #[schema(value_type = Option<crate::domain::doc::DocNode>)]
     pub content: Option<Value>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateSceneRequest {
     #[serde(default)]
@@ -38,15 +39,17 @@ pub struct UpdateSceneRequest {
     #[serde(default)]
     pub pov: Option<String>,
     #[serde(default)]
+    #[schema(value_type = Option<crate::domain::enums::SceneStatus>)]
     pub status: Option<String>,
     /// Move the scene into a different chapter of the same work.
     #[serde(default)]
     pub chapter_id: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct PutContentRequest {
+    #[schema(value_type = crate::domain::doc::DocNode)]
     pub content: Value,
     /// Autosaves pass `false`; explicit saves and idle-flushes pass `true`.
     #[serde(default = "default_true")]
@@ -68,15 +71,16 @@ fn default_true() -> bool {
     true
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SceneWithContent {
     #[serde(flatten)]
     pub scene: Scene,
+    #[schema(value_type = crate::domain::doc::DocNode)]
     pub content: Value,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SaveResult {
     pub scene: Scene,
@@ -84,6 +88,17 @@ pub struct SaveResult {
     pub work_word_count: i32,
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/chapters/{chapter_id}/scenes",
+    tag = "scenes",
+    params(("chapter_id" = String, Path)),
+    request_body = CreateSceneRequest,
+    responses(
+        (status = 200, description = "Success", body = Scene),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
 pub async fn create(
     State(state): State<AppState>,
     user: AuthUser,
@@ -129,6 +144,16 @@ pub async fn create(
     Ok(Json(scene))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/scenes/{scene_id}",
+    tag = "scenes",
+    params(("scene_id" = String, Path)),
+    responses(
+        (status = 200, description = "Success", body = SceneWithContent),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
 pub async fn get_one(
     State(state): State<AppState>,
     user: AuthUser,
@@ -146,6 +171,17 @@ pub async fn get_one(
     Ok(Json(SceneWithContent { scene, content }))
 }
 
+#[utoipa::path(
+    patch,
+    path = "/api/scenes/{scene_id}",
+    tag = "scenes",
+    params(("scene_id" = String, Path)),
+    request_body = UpdateSceneRequest,
+    responses(
+        (status = 200, description = "Success", body = Scene),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
 pub async fn update(
     State(state): State<AppState>,
     user: AuthUser,
@@ -153,10 +189,10 @@ pub async fn update(
     Json(body): Json<UpdateSceneRequest>,
 ) -> ApiResult<Json<Scene>> {
     if let Some(status) = &body.status {
-        if !SCENE_STATUSES.contains(&status.as_str()) {
+        if !SceneStatus::accepts(status) {
             return Err(ApiError::BadRequest(format!(
                 "status must be one of {}",
-                SCENE_STATUSES.join(", ")
+                SceneStatus::options()
             )));
         }
     }
@@ -213,6 +249,17 @@ pub async fn update(
 /// The hot path: the editor PUTs the whole scene document. Content goes to
 /// disk, counts and hashes go to SQLite, and an optional revision is kept so
 /// the author can walk back through their own drafting history.
+#[utoipa::path(
+    put,
+    path = "/api/scenes/{scene_id}/content",
+    tag = "scenes",
+    params(("scene_id" = String, Path)),
+    request_body = PutContentRequest,
+    responses(
+        (status = 200, description = "Success", body = SaveResult),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
 pub async fn put_content(
     State(state): State<AppState>,
     user: AuthUser,
@@ -307,6 +354,16 @@ pub async fn put_content(
     }))
 }
 
+#[utoipa::path(
+    delete,
+    path = "/api/scenes/{scene_id}",
+    tag = "scenes",
+    params(("scene_id" = String, Path)),
+    responses(
+        (status = 200, description = "Success"),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
 pub async fn delete_scene(
     State(state): State<AppState>,
     user: AuthUser,
@@ -323,11 +380,22 @@ pub async fn delete_scene(
     Ok(Json(serde_json::json!({ "ok": true })))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/chapters/{chapter_id}/scenes/reorder",
+    tag = "scenes",
+    params(("chapter_id" = String, Path)),
+    request_body = ReorderRequest,
+    responses(
+        (status = 200, description = "Success", body = Vec<Scene>),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
 pub async fn reorder(
     State(state): State<AppState>,
     user: AuthUser,
     Path(chapter_id): Path<String>,
-    Json(body): Json<super::works::ReorderRequest>,
+    Json(body): Json<ReorderRequest>,
 ) -> ApiResult<Json<Vec<Scene>>> {
     let rows = blocking(&state.pool, move |conn| {
         let (chapter, _) = support::chapter_for_owner(conn, &chapter_id, &user)?;
@@ -357,6 +425,16 @@ pub async fn reorder(
     Ok(Json(rows))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/scenes/{scene_id}/revisions",
+    tag = "scenes",
+    params(("scene_id" = String, Path)),
+    responses(
+        (status = 200, description = "Success", body = Vec<SceneRevision>),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
 pub async fn list_revisions(
     State(state): State<AppState>,
     user: AuthUser,
@@ -378,16 +456,27 @@ pub async fn list_revisions(
     Ok(Json(rows))
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct RevisionWithContent {
     #[serde(flatten)]
     pub revision: SceneRevision,
+    #[schema(value_type = crate::domain::doc::DocNode)]
     pub content: Value,
     /// Word diff against the scene as it stands now.
     pub changes: Vec<crate::domain::diff::TextChange>,
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/scenes/{scene_id}/revisions/{revision_id}",
+    tag = "scenes",
+    params(("scene_id" = String, Path), ("revision_id" = String, Path)),
+    responses(
+        (status = 200, description = "Success", body = RevisionWithContent),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
 pub async fn get_revision(
     State(state): State<AppState>,
     user: AuthUser,
@@ -430,6 +519,16 @@ pub async fn get_revision(
 /// The restore is itself a save: it writes a fresh revision first, so the text
 /// being replaced stays reachable and restoring is undoable. Nothing in the
 /// revision history is ever rewritten or removed.
+#[utoipa::path(
+    post,
+    path = "/api/scenes/{scene_id}/revisions/{revision_id}/restore",
+    tag = "scenes",
+    params(("scene_id" = String, Path), ("revision_id" = String, Path)),
+    responses(
+        (status = 200, description = "Success", body = SaveResult),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
 pub async fn restore_revision(
     State(state): State<AppState>,
     user: AuthUser,

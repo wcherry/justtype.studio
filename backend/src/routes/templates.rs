@@ -7,10 +7,10 @@ use crate::auth::MaybeAuthUser;
 use crate::db::blocking;
 use crate::db::models::Template;
 use crate::db::schema::templates;
-use crate::error::{ApiError, ApiResult};
+use crate::error::{ApiError, ApiResult, ErrorEnvelope};
 use crate::state::AppState;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct TemplateView {
     pub id: String,
@@ -18,6 +18,7 @@ pub struct TemplateView {
     pub kind: String,
     pub description: String,
     pub built_in: bool,
+    #[schema(value_type = crate::domain::templates::TemplateStructure)]
     pub structure: serde_json::Value,
 }
 
@@ -37,6 +38,15 @@ impl TryFrom<Template> for TemplateView {
 }
 
 /// Built-ins plus anything the caller has saved as their own template.
+#[utoipa::path(
+    get,
+    path = "/api/templates",
+    tag = "templates",
+    responses(
+        (status = 200, description = "Success", body = Vec<TemplateView>),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
 pub async fn list(
     State(state): State<AppState>,
     MaybeAuthUser(user): MaybeAuthUser,
@@ -65,6 +75,16 @@ pub async fn list(
         .map(Json)
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/templates/{template_id}",
+    tag = "templates",
+    params(("template_id" = String, Path)),
+    responses(
+        (status = 200, description = "Success", body = TemplateView),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
 pub async fn get_one(
     State(state): State<AppState>,
     Path(template_id): Path<String>,

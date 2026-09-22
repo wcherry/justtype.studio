@@ -1,0 +1,3873 @@
+{
+  "components": {
+    "schemas": {
+      "Anchor": {
+        "properties": {
+          "from": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "to": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "from",
+          "to"
+        ],
+        "type": "object"
+      },
+      "AuthorCard": {
+        "description": "Author cards attached to comments so the clients need no second round trip.",
+        "properties": {
+          "displayName": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "displayName"
+        ],
+        "type": "object"
+      },
+      "ChangeKind": {
+        "enum": [
+          "insert",
+          "delete",
+          "replace",
+          "format"
+        ],
+        "type": "string"
+      },
+      "ChangeState": {
+        "enum": [
+          "pending",
+          "accepted",
+          "rejected"
+        ],
+        "type": "string"
+      },
+      "Chapter": {
+        "properties": {
+          "createdAt": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "position": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "summary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          },
+          "workId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "workId",
+          "title",
+          "position",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "Comment": {
+        "properties": {
+          "anchor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "anchorQuote": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "authorId": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "category": {
+            "$ref": "#/components/schemas/CommentCategory"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "parentId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "publicationId": {
+            "type": "string"
+          },
+          "sceneId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "score": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "state": {
+            "$ref": "#/components/schemas/CommentState"
+          },
+          "updatedAt": {
+            "type": "string"
+          },
+          "versionId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "publicationId",
+          "versionId",
+          "authorId",
+          "body",
+          "category",
+          "state",
+          "score",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "CommentCategory": {
+        "enum": [
+          "general",
+          "praise",
+          "plot",
+          "pacing",
+          "prose",
+          "character",
+          "typo"
+        ],
+        "type": "string"
+      },
+      "CommentState": {
+        "enum": [
+          "open",
+          "resolved",
+          "deleted"
+        ],
+        "type": "string"
+      },
+      "CommentView": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Comment"
+          },
+          {
+            "properties": {
+              "author": {
+                "$ref": "#/components/schemas/AuthorCard"
+              },
+              "replies": {
+                "description": "Threads nest arbitrarily deep, which makes this type self-referential.\nSchema generation has to be told to stop, or it recurses until the stack\ngives out.",
+                "items": {
+                  "$ref": "#/components/schemas/CommentView"
+                },
+                "type": "array"
+              },
+              "viewerVote": {
+                "format": "int32",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "author",
+              "viewerVote",
+              "replies"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "ContentChapter": {
+        "properties": {
+          "chapterId": {
+            "type": "string"
+          },
+          "position": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "scenes": {
+            "items": {
+              "$ref": "#/components/schemas/ContentScene"
+            },
+            "type": "array"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "chapterId",
+          "title",
+          "position",
+          "scenes"
+        ],
+        "type": "object"
+      },
+      "ContentScene": {
+        "properties": {
+          "content": {
+            "$ref": "#/components/schemas/DocNode"
+          },
+          "position": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "sceneId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "wordCount": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "sceneId",
+          "title",
+          "position",
+          "wordCount",
+          "content"
+        ],
+        "type": "object"
+      },
+      "CreateChangeRequest": {
+        "properties": {
+          "anchorFrom": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "anchorTo": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "payload": {
+            "description": "Editor-defined slice or mark spec; opaque to the server."
+          },
+          "quote": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "anchorFrom",
+          "anchorTo"
+        ],
+        "type": "object"
+      },
+      "CreateChapterRequest": {
+        "properties": {
+          "summary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "type": "object"
+      },
+      "CreateCommentRequest": {
+        "properties": {
+          "anchor": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Anchor",
+                "description": "Present for highlight-to-comment; absent for a general note."
+              }
+            ]
+          },
+          "anchorQuote": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "body": {
+            "type": "string"
+          },
+          "category": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CommentCategory"
+              }
+            ]
+          },
+          "parentId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sceneId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "body"
+        ],
+        "type": "object"
+      },
+      "CreatePublicationRequest": {
+        "properties": {
+          "closesAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "opensAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reviewPrompt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "scope": {
+            "$ref": "#/components/schemas/PublicationScope"
+          },
+          "scopeRefId": {
+            "description": "Chapter or scene id when `scope` is narrower than the whole work.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "visibility": {
+            "$ref": "#/components/schemas/Visibility"
+          }
+        },
+        "required": [
+          "visibility"
+        ],
+        "type": "object"
+      },
+      "CreateSceneRequest": {
+        "properties": {
+          "content": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DocNode"
+              }
+            ]
+          },
+          "pov": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "summary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "type": "object"
+      },
+      "CreateVersionRequest": {
+        "properties": {
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "CreateWorkRequest": {
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/WorkKind"
+          },
+          "subtitle": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "synopsis": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "templateId": {
+            "description": "Omit for a single empty chapter and scene.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "kind"
+        ],
+        "type": "object"
+      },
+      "DiffResponse": {
+        "properties": {
+          "from": {
+            "$ref": "#/components/schemas/Version"
+          },
+          "scenes": {
+            "items": {
+              "$ref": "#/components/schemas/SceneDiff"
+            },
+            "type": "array"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/DiffSummary"
+          },
+          "to": {
+            "$ref": "#/components/schemas/Version"
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "summary",
+          "scenes"
+        ],
+        "type": "object"
+      },
+      "DiffSummary": {
+        "properties": {
+          "scenesAdded": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "scenesModified": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "scenesMoved": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "scenesRemoved": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "wordsAdded": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "wordsRemoved": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "scenesAdded",
+          "scenesRemoved",
+          "scenesModified",
+          "scenesMoved",
+          "wordsAdded",
+          "wordsRemoved"
+        ],
+        "type": "object"
+      },
+      "DocMark": {
+        "properties": {
+          "attrs": {},
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "DocNode": {
+        "description": "The document shape, declared for the generated schema.\n\nThe server stores and forwards scene bodies as opaque `serde_json::Value` —\nthe editor owns the schema, and the server has no reason to validate beyond\n`validate()` above. But \"opaque\" would generate as `unknown` in the clients,\nwhich is exactly the kind of untyped hole this contract exists to close, so\nthe fields carrying a document declare this type instead.",
+        "properties": {
+          "attrs": {},
+          "content": {
+            "items": {
+              "$ref": "#/components/schemas/DocNode"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "marks": {
+            "items": {
+              "$ref": "#/components/schemas/DocMark"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "text": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "ErrorBody": {
+        "properties": {
+          "code": {
+            "description": "`bad_request`, `unauthorized`, `forbidden`, `not_found`, `conflict`, `internal`.",
+            "type": "string"
+          },
+          "details": {
+            "description": "Present when the client is expected to act on it — see a scene save conflict."
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "type": "object"
+      },
+      "ErrorEnvelope": {
+        "description": "The shape every failure comes back as. Declared for the generated schema so\nclients can type their error handling instead of guessing.",
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ErrorBody"
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "type": "object"
+      },
+      "HealthResponse": {
+        "properties": {
+          "service": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "service",
+          "version"
+        ],
+        "type": "object"
+      },
+      "LoginRequest": {
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ],
+        "type": "object"
+      },
+      "Op": {
+        "enum": [
+          "equal",
+          "insert",
+          "delete"
+        ],
+        "type": "string"
+      },
+      "OutlineChapter": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Chapter"
+          },
+          {
+            "properties": {
+              "scenes": {
+                "items": {
+                  "$ref": "#/components/schemas/Scene"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "scenes"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "OutlineResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Work"
+          },
+          {
+            "properties": {
+              "chapters": {
+                "items": {
+                  "$ref": "#/components/schemas/OutlineChapter"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "chapters"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "Publication": {
+        "properties": {
+          "closesAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "opensAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reviewPrompt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "scope": {
+            "$ref": "#/components/schemas/PublicationScope"
+          },
+          "scopeRefId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updatedAt": {
+            "type": "string"
+          },
+          "versionId": {
+            "type": "string"
+          },
+          "visibility": {
+            "$ref": "#/components/schemas/Visibility"
+          },
+          "workId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "workId",
+          "versionId",
+          "visibility",
+          "scope",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "PublicationCard": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Publication"
+          },
+          {
+            "properties": {
+              "author": {
+                "$ref": "#/components/schemas/AuthorCard"
+              },
+              "commentCount": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "excerpt": {
+                "description": "First lines of the published slice, for the feed. Filled in after the\ndatabase round trip because it comes off disk — always sent, even when\nempty, so clients do not have to treat it as optional.",
+                "type": "string"
+              },
+              "versionLabel": {
+                "type": "string"
+              },
+              "wordCount": {
+                "format": "int32",
+                "type": "integer"
+              },
+              "workKind": {
+                "type": "string"
+              },
+              "workTitle": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "workTitle",
+              "workKind",
+              "author",
+              "versionLabel",
+              "wordCount",
+              "commentCount",
+              "excerpt"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "PublicationScope": {
+        "enum": [
+          "work",
+          "chapter",
+          "scene"
+        ],
+        "type": "string"
+      },
+      "PutContentRequest": {
+        "properties": {
+          "baseHash": {
+            "description": "The `contentHash` the client believes it is editing on top of. When it\nno longer matches, someone else — another tab, another device, a queued\noffline save — has written in the meantime, and this save is refused\nrather than silently overwriting their work.\n\nOmitted only when there is nothing to protect: a scene the client has\nnot read yet. To resolve a conflict deliberately, re-send with the hash\nthe 409 reported, which says \"I have seen their version and still mean\nthis\".",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "content": {
+            "$ref": "#/components/schemas/DocNode"
+          },
+          "createRevision": {
+            "description": "Autosaves pass `false`; explicit saves and idle-flushes pass `true`.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "content"
+        ],
+        "type": "object"
+      },
+      "RefreshRequest": {
+        "properties": {
+          "refreshToken": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "refreshToken"
+        ],
+        "type": "object"
+      },
+      "RegisterRequest": {
+        "properties": {
+          "displayName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "password",
+          "displayName"
+        ],
+        "type": "object"
+      },
+      "ReorderRequest": {
+        "properties": {
+          "ids": {
+            "description": "Complete ordered list of ids; anything missing keeps its current slot.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "ids"
+        ],
+        "type": "object"
+      },
+      "RevisionWithContent": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SceneRevision"
+          },
+          {
+            "properties": {
+              "changes": {
+                "description": "Word diff against the scene as it stands now.",
+                "items": {
+                  "$ref": "#/components/schemas/TextChange"
+                },
+                "type": "array"
+              },
+              "content": {
+                "$ref": "#/components/schemas/DocNode"
+              }
+            },
+            "required": [
+              "content",
+              "changes"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "SaveResult": {
+        "properties": {
+          "revisionId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "scene": {
+            "$ref": "#/components/schemas/Scene"
+          },
+          "workWordCount": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "scene",
+          "workWordCount"
+        ],
+        "type": "object"
+      },
+      "Scene": {
+        "properties": {
+          "chapterId": {
+            "type": "string"
+          },
+          "contentHash": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "position": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "pov": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/SceneStatus"
+          },
+          "summary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          },
+          "wordCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "workId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "workId",
+          "chapterId",
+          "title",
+          "status",
+          "position",
+          "wordCount",
+          "contentHash",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "SceneChangeKind": {
+        "enum": [
+          "added",
+          "removed",
+          "modified",
+          "moved",
+          "unchanged"
+        ],
+        "type": "string"
+      },
+      "SceneDiff": {
+        "properties": {
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/TextChange"
+            },
+            "type": "array"
+          },
+          "chapterTitle": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/SceneChangeKind"
+          },
+          "sceneId": {
+            "type": "string"
+          },
+          "sceneTitle": {
+            "type": "string"
+          },
+          "wordsAfter": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "wordsBefore": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "sceneId",
+          "sceneTitle",
+          "chapterTitle",
+          "kind",
+          "wordsBefore",
+          "wordsAfter"
+        ],
+        "type": "object"
+      },
+      "SceneRevision": {
+        "properties": {
+          "authorId": {
+            "type": "string"
+          },
+          "contentHash": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "sceneId": {
+            "type": "string"
+          },
+          "wordCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "workId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "sceneId",
+          "workId",
+          "authorId",
+          "contentHash",
+          "wordCount",
+          "createdAt"
+        ],
+        "type": "object"
+      },
+      "SceneStatus": {
+        "enum": [
+          "outline",
+          "drafting",
+          "revised",
+          "done"
+        ],
+        "type": "string"
+      },
+      "SceneWithContent": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Scene"
+          },
+          {
+            "properties": {
+              "content": {
+                "$ref": "#/components/schemas/DocNode"
+              }
+            },
+            "required": [
+              "content"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "SessionResponse": {
+        "properties": {
+          "accessToken": {
+            "type": "string"
+          },
+          "expiresIn": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "refreshToken": {
+            "type": "string"
+          },
+          "user": {
+            "$ref": "#/components/schemas/User"
+          }
+        },
+        "required": [
+          "user",
+          "accessToken",
+          "refreshToken",
+          "expiresIn"
+        ],
+        "type": "object"
+      },
+      "TemplateChapter": {
+        "properties": {
+          "scenes": {
+            "items": {
+              "$ref": "#/components/schemas/TemplateScene"
+            },
+            "type": "array"
+          },
+          "summary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "type": "object"
+      },
+      "TemplateScene": {
+        "properties": {
+          "body": {
+            "description": "Prefilled prose, if the template wants to seed the scene with a prompt.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "summary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "type": "object"
+      },
+      "TemplateStructure": {
+        "properties": {
+          "chapters": {
+            "items": {
+              "$ref": "#/components/schemas/TemplateChapter"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "TemplateView": {
+        "properties": {
+          "builtIn": {
+            "type": "boolean"
+          },
+          "description": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "structure": {
+            "$ref": "#/components/schemas/TemplateStructure"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "description",
+          "builtIn",
+          "structure"
+        ],
+        "type": "object"
+      },
+      "TextChange": {
+        "properties": {
+          "op": {
+            "$ref": "#/components/schemas/Op"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "op",
+          "value"
+        ],
+        "type": "object"
+      },
+      "TrackedChange": {
+        "properties": {
+          "anchorFrom": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "anchorTo": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "authorId": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ChangeKind"
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "payload": {
+            "type": "string"
+          },
+          "quote": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "resolvedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "resolvedBy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sceneId": {
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/components/schemas/ChangeState"
+          },
+          "workId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "sceneId",
+          "workId",
+          "authorId",
+          "kind",
+          "anchorFrom",
+          "anchorTo",
+          "payload",
+          "state",
+          "createdAt"
+        ],
+        "type": "object"
+      },
+      "UpdateChapterRequest": {
+        "properties": {
+          "summary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "UpdateCommentRequest": {
+        "properties": {
+          "body": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "description": "`open` or `resolved`; only the author of the work may resolve.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "UpdatePublicationRequest": {
+        "properties": {
+          "closesAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reviewPrompt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "visibility": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Visibility"
+              }
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "UpdateSceneRequest": {
+        "properties": {
+          "chapterId": {
+            "description": "Move the scene into a different chapter of the same work.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pov": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SceneStatus"
+              }
+            ]
+          },
+          "summary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "UpdateWorkRequest": {
+        "properties": {
+          "status": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WorkStatus"
+              }
+            ]
+          },
+          "subtitle": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "synopsis": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "User": {
+        "properties": {
+          "bio": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "displayName",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "Version": {
+        "properties": {
+          "createdAt": {
+            "type": "string"
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "finalizedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "number": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "parentVersionId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "publishedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "$ref": "#/components/schemas/VersionState"
+          },
+          "wordCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "workId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "workId",
+          "number",
+          "label",
+          "state",
+          "createdBy",
+          "wordCount",
+          "createdAt"
+        ],
+        "type": "object"
+      },
+      "VersionContent": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Version"
+          },
+          {
+            "properties": {
+              "chapters": {
+                "items": {
+                  "$ref": "#/components/schemas/ContentChapter"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "chapters"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "VersionDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Version"
+          },
+          {
+            "properties": {
+              "entries": {
+                "items": {
+                  "$ref": "#/components/schemas/VersionEntry"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "entries"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "VersionEntry": {
+        "properties": {
+          "chapterId": {
+            "type": "string"
+          },
+          "chapterPosition": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "chapterTitle": {
+            "type": "string"
+          },
+          "contentHash": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "sceneId": {
+            "type": "string"
+          },
+          "scenePosition": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "sceneTitle": {
+            "type": "string"
+          },
+          "versionId": {
+            "type": "string"
+          },
+          "wordCount": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "versionId",
+          "chapterId",
+          "chapterTitle",
+          "chapterPosition",
+          "sceneId",
+          "sceneTitle",
+          "scenePosition",
+          "contentHash",
+          "wordCount"
+        ],
+        "type": "object"
+      },
+      "VersionState": {
+        "enum": [
+          "draft",
+          "published",
+          "final"
+        ],
+        "type": "string"
+      },
+      "Visibility": {
+        "enum": [
+          "unlisted",
+          "platform",
+          "public"
+        ],
+        "type": "string"
+      },
+      "VoteRequest": {
+        "properties": {
+          "value": {
+            "description": "`1` upvote, `-1` downvote, `0` clears the caller's vote.",
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "value"
+        ],
+        "type": "object"
+      },
+      "VoteResponse": {
+        "properties": {
+          "commentId": {
+            "type": "string"
+          },
+          "score": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "viewerVote": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "commentId",
+          "score",
+          "viewerVote"
+        ],
+        "type": "object"
+      },
+      "Work": {
+        "properties": {
+          "createdAt": {
+            "type": "string"
+          },
+          "currentVersionId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/WorkKind"
+          },
+          "ownerId": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/WorkStatus"
+          },
+          "subtitle": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "synopsis": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "templateId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          },
+          "wordCount": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "ownerId",
+          "title",
+          "kind",
+          "status",
+          "wordCount",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "WorkKind": {
+        "enum": [
+          "novel",
+          "novella",
+          "short_story",
+          "serial"
+        ],
+        "type": "string"
+      },
+      "WorkStatus": {
+        "enum": [
+          "draft",
+          "published",
+          "final",
+          "archived"
+        ],
+        "type": "string"
+      }
+    }
+  },
+  "info": {
+    "description": "A writing tool for long-form fiction, and a review surface for readers.",
+    "license": {
+      "identifier": "UNLICENSED",
+      "name": "UNLICENSED"
+    },
+    "title": "Scriptorium",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/auth/login": {
+      "post": {
+        "operationId": "login",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "operationId": "logout",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/me": {
+      "get": {
+        "operationId": "me",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/refresh": {
+      "post": {
+        "operationId": "refresh",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/register": {
+      "post": {
+        "operationId": "register",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/changes/{change_id}/accept": {
+      "post": {
+        "operationId": "accept",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "change_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrackedChange"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "changes"
+        ]
+      }
+    },
+    "/api/changes/{change_id}/reject": {
+      "post": {
+        "operationId": "reject",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "change_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrackedChange"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "changes"
+        ]
+      }
+    },
+    "/api/chapters/{chapter_id}": {
+      "delete": {
+        "operationId": "delete_chapter",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "chapter_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "chapters"
+        ]
+      },
+      "patch": {
+        "operationId": "update_chapter",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "chapter_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateChapterRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Chapter"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "chapters"
+        ]
+      }
+    },
+    "/api/chapters/{chapter_id}/scenes": {
+      "post": {
+        "operationId": "create",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "chapter_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSceneRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Scene"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "scenes"
+        ]
+      }
+    },
+    "/api/chapters/{chapter_id}/scenes/reorder": {
+      "post": {
+        "operationId": "reorder",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "chapter_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReorderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Scene"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "scenes"
+        ]
+      }
+    },
+    "/api/comments/{comment_id}": {
+      "delete": {
+        "operationId": "delete_comment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "comment_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "Soft delete: threads keep their shape, and the work's author can remove\nabusive feedback from their own publication.",
+        "tags": [
+          "comments"
+        ]
+      },
+      "patch": {
+        "operationId": "update",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "comment_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCommentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Comment"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "comments"
+        ]
+      }
+    },
+    "/api/comments/{comment_id}/vote": {
+      "post": {
+        "operationId": "vote",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "comment_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VoteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VoteResponse"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "Votes surface the feedback other reviewers agree with. One vote per person\nper comment; sending the same value again clears it.",
+        "tags": [
+          "comments"
+        ]
+      }
+    },
+    "/api/health": {
+      "get": {
+        "operationId": "health",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            },
+            "description": "The service is up"
+          }
+        },
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/api/publications": {
+      "get": {
+        "operationId": "feed",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PublicationCard"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "The review feed. Signed-out readers see only `public` publications.",
+        "tags": [
+          "publications"
+        ]
+      }
+    },
+    "/api/publications/{publication_id}": {
+      "delete": {
+        "operationId": "delete_publication",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "publication_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "Withdrawing a publication takes its comments with it; the snapshot itself\nis untouched.",
+        "tags": [
+          "publications"
+        ]
+      },
+      "get": {
+        "operationId": "get_one",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "publication_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicationCard"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "publications"
+        ]
+      },
+      "patch": {
+        "operationId": "update",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "publication_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePublicationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicationCard"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "publications"
+        ]
+      }
+    },
+    "/api/publications/{publication_id}/comments": {
+      "get": {
+        "operationId": "list",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "publication_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CommentView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "comments"
+        ]
+      },
+      "post": {
+        "operationId": "create",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "publication_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCommentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommentView"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "comments"
+        ]
+      }
+    },
+    "/api/publications/{publication_id}/content": {
+      "get": {
+        "operationId": "content",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "publication_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionContent"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "The manuscript as reviewers see it: the frozen snapshot, narrowed to the\nslice the author published.",
+        "tags": [
+          "publications"
+        ]
+      }
+    },
+    "/api/scenes/{scene_id}": {
+      "delete": {
+        "operationId": "delete_scene",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scene_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "scenes"
+        ]
+      },
+      "get": {
+        "operationId": "get_one",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scene_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SceneWithContent"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "scenes"
+        ]
+      },
+      "patch": {
+        "operationId": "update",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scene_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSceneRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Scene"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "scenes"
+        ]
+      }
+    },
+    "/api/scenes/{scene_id}/changes": {
+      "get": {
+        "operationId": "list",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scene_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TrackedChange"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "changes"
+        ]
+      },
+      "post": {
+        "operationId": "create",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scene_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateChangeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrackedChange"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "changes"
+        ]
+      }
+    },
+    "/api/scenes/{scene_id}/content": {
+      "put": {
+        "operationId": "put_content",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scene_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PutContentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SaveResult"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "The hot path: the editor PUTs the whole scene document. Content goes to\ndisk, counts and hashes go to SQLite, and an optional revision is kept so\nthe author can walk back through their own drafting history.",
+        "tags": [
+          "scenes"
+        ]
+      }
+    },
+    "/api/scenes/{scene_id}/revisions": {
+      "get": {
+        "operationId": "list_revisions",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scene_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SceneRevision"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "scenes"
+        ]
+      }
+    },
+    "/api/scenes/{scene_id}/revisions/{revision_id}": {
+      "get": {
+        "operationId": "get_revision",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scene_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "revision_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevisionWithContent"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "scenes"
+        ]
+      }
+    },
+    "/api/scenes/{scene_id}/revisions/{revision_id}/restore": {
+      "post": {
+        "description": "The restore is itself a save: it writes a fresh revision first, so the text\nbeing replaced stays reachable and restoring is undoable. Nothing in the\nrevision history is ever rewritten or removed.",
+        "operationId": "restore_revision",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scene_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "revision_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SaveResult"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "Put an earlier revision back as the working copy.",
+        "tags": [
+          "scenes"
+        ]
+      }
+    },
+    "/api/templates": {
+      "get": {
+        "operationId": "list",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TemplateView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "Built-ins plus anything the caller has saved as their own template.",
+        "tags": [
+          "templates"
+        ]
+      }
+    },
+    "/api/templates/{template_id}": {
+      "get": {
+        "operationId": "get_one",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "template_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TemplateView"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "templates"
+        ]
+      }
+    },
+    "/api/versions/{version_id}": {
+      "get": {
+        "operationId": "get_one",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionDetail"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "versions"
+        ]
+      }
+    },
+    "/api/versions/{version_id}/content": {
+      "get": {
+        "operationId": "content",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionContent"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "The whole frozen manuscript. Authors always get their own; readers reach a\nversion through a publication instead.",
+        "tags": [
+          "versions"
+        ]
+      }
+    },
+    "/api/versions/{version_id}/finalize": {
+      "post": {
+        "operationId": "finalize",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Version"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "versions"
+        ]
+      }
+    },
+    "/api/versions/{version_id}/publications": {
+      "post": {
+        "operationId": "create",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePublicationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicationCard"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "publications"
+        ]
+      }
+    },
+    "/api/versions/{version_id}/publish": {
+      "post": {
+        "operationId": "publish",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Version"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "versions"
+        ]
+      }
+    },
+    "/api/works": {
+      "get": {
+        "operationId": "list",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Work"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "works"
+        ]
+      },
+      "post": {
+        "operationId": "create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWorkRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutlineResponse"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "works"
+        ]
+      }
+    },
+    "/api/works/{work_id}": {
+      "delete": {
+        "operationId": "delete_work",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "works"
+        ]
+      },
+      "get": {
+        "operationId": "get_one",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Work"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "works"
+        ]
+      },
+      "patch": {
+        "operationId": "update",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateWorkRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Work"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "works"
+        ]
+      }
+    },
+    "/api/works/{work_id}/chapters": {
+      "post": {
+        "operationId": "create_chapter",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateChapterRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Chapter"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "chapters"
+        ]
+      }
+    },
+    "/api/works/{work_id}/chapters/reorder": {
+      "post": {
+        "operationId": "reorder_chapters",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReorderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Chapter"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "chapters"
+        ]
+      }
+    },
+    "/api/works/{work_id}/outline": {
+      "get": {
+        "operationId": "outline",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutlineResponse"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "works"
+        ]
+      }
+    },
+    "/api/works/{work_id}/versions": {
+      "get": {
+        "operationId": "list",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Version"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "versions"
+        ]
+      },
+      "post": {
+        "operationId": "create",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateVersionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionDetail"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "Freeze the current working copy. Files are copied before any row is written\nso a half-copied snapshot never becomes visible.",
+        "tags": [
+          "versions"
+        ]
+      }
+    },
+    "/api/works/{work_id}/versions/diff": {
+      "get": {
+        "operationId": "diff",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiffResponse"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "Scene-level comparison of two snapshots of the same work.",
+        "tags": [
+          "versions"
+        ]
+      }
+    }
+  },
+  "tags": [
+    {
+      "description": "Accounts and sessions",
+      "name": "auth"
+    },
+    {
+      "description": "Structural skeletons for new works",
+      "name": "templates"
+    },
+    {
+      "description": "Novels, novellas, short stories, serials",
+      "name": "works"
+    },
+    {
+      "description": "Ordered divisions of a work",
+      "name": "chapters"
+    },
+    {
+      "description": "The unit of writing",
+      "name": "scenes"
+    },
+    {
+      "description": "Proposed edits, accepted or rejected",
+      "name": "changes"
+    },
+    {
+      "description": "Immutable snapshots",
+      "name": "versions"
+    },
+    {
+      "description": "A version offered for review",
+      "name": "publications"
+    },
+    {
+      "description": "Anchored, threaded, votable feedback",
+      "name": "comments"
+    }
+  ]
+}

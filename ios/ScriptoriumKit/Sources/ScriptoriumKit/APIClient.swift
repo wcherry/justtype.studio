@@ -19,13 +19,6 @@ public enum APIError: LocalizedError, Equatable {
     }
 }
 
-private struct ErrorEnvelope: Decodable {
-    struct Inner: Decodable {
-        let code: String
-        let message: String
-    }
-    let error: Inner
-}
 
 /// Holds the token pair and makes sure only one refresh is ever in flight.
 public actor TokenManager {
@@ -45,7 +38,7 @@ public actor TokenManager {
     public var refreshToken: String? { store.read(Key.refresh) }
     public var isSignedIn: Bool { store.read(Key.refresh) != nil }
 
-    public func save(_ session: Session) {
+    public func save(_ session: API.SessionResponse) {
         store.write(session.accessToken, for: Key.access)
         store.write(session.refreshToken, for: Key.refresh)
     }
@@ -56,7 +49,7 @@ public actor TokenManager {
     }
 
     /// Coalesces concurrent refreshes: a burst of 401s produces one new pair.
-    func refresh(using perform: @escaping @Sendable (String) async -> Session?) async -> Bool {
+    func refresh(using perform: @escaping @Sendable (String) async -> API.SessionResponse?) async -> Bool {
         if let refreshTask { return await refreshTask.value }
         guard let token = refreshToken else { return false }
         let task = Task<Bool, Never> { [weak self] in
@@ -135,10 +128,10 @@ public struct APIClient: Sendable {
 
         guard (200..<300).contains(http.statusCode) else {
             if http.statusCode == 409,
-               let envelope = try? JSONDecoder().decode(ErrorEnvelope.self, from: data) {
+               let envelope = try? JSONDecoder().decode(API.ErrorEnvelope.self, from: data) {
                 throw APIError.conflict(message: envelope.error.message)
             }
-            if let envelope = try? JSONDecoder().decode(ErrorEnvelope.self, from: data) {
+            if let envelope = try? JSONDecoder().decode(API.ErrorEnvelope.self, from: data) {
                 throw APIError.http(
                     status: http.statusCode,
                     code: envelope.error.code,
@@ -164,7 +157,7 @@ public struct APIClient: Sendable {
 
     // MARK: - Auth
 
-    private func refreshSession(refreshToken: String) async throws -> Session {
+    private func refreshSession(refreshToken: String) async throws -> API.SessionResponse {
         var request = URLRequest(url: baseURL.appendingPathComponent("auth/refresh"))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -173,11 +166,11 @@ public struct APIClient: Sendable {
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
             throw APIError.notAuthenticated
         }
-        return try JSONDecoder().decode(Session.self, from: data)
+        return try JSONDecoder().decode(API.SessionResponse.self, from: data)
     }
 
-    public func register(email: String, password: String, displayName: String) async throws -> Session {
-        let session: Session = try await send(
+    public func register(email: String, password: String, displayName: String) async throws -> API.SessionResponse {
+        let session: API.SessionResponse = try await send(
             "POST", "auth/register",
             body: ["email": email, "password": password, "displayName": displayName]
         )
@@ -185,8 +178,8 @@ public struct APIClient: Sendable {
         return session
     }
 
-    public func signIn(email: String, password: String) async throws -> Session {
-        let session: Session = try await send(
+    public func signIn(email: String, password: String) async throws -> API.SessionResponse {
+        let session: API.SessionResponse = try await send(
             "POST", "auth/login",
             body: ["email": email, "password": password]
         )
@@ -201,21 +194,21 @@ public struct APIClient: Sendable {
         await tokens.clear()
     }
 
-    public func me() async throws -> User {
+    public func me() async throws -> API.User {
         try await send("GET", "auth/me")
     }
 
     // MARK: - Writing
 
-    public func templates() async throws -> [Template] {
+    public func templates() async throws -> [API.TemplateView] {
         try await send("GET", "templates")
     }
 
-    public func works() async throws -> [Work] {
+    public func works() async throws -> [API.Work] {
         try await send("GET", "works")
     }
 
-    public func createWork(title: String, kind: WorkKind, templateId: String?) async throws -> Outline {
+    public func createWork(title: String, kind: API.WorkKind, templateId: String?) async throws -> API.OutlineResponse {
         struct Body: Encodable {
             let title: String
             let kind: String
@@ -224,19 +217,19 @@ public struct APIClient: Sendable {
         return try await send("POST", "works", body: Body(title: title, kind: kind.rawValue, templateId: templateId))
     }
 
-    public func outline(workId: String) async throws -> Outline {
+    public func outline(workId: String) async throws -> API.OutlineResponse {
         try await send("GET", "works/\(workId)/outline")
     }
 
-    public func scene(id: String) async throws -> SceneWithContent {
+    public func scene(id: String) async throws -> API.SceneWithContent {
         try await send("GET", "scenes/\(id)")
     }
 
-    public func createScene(chapterId: String, title: String) async throws -> SceneSummary {
+    public func createScene(chapterId: String, title: String) async throws -> API.Scene {
         try await send("POST", "chapters/\(chapterId)/scenes", body: ["title": title])
     }
 
-    public func createChapter(workId: String, title: String) async throws -> Chapter {
+    public func createChapter(workId: String, title: String) async throws -> API.Chapter {
         try await send("POST", "works/\(workId)/chapters", body: ["title": title])
     }
 
@@ -245,12 +238,12 @@ public struct APIClient: Sendable {
     /// and re-sending — never by retrying blindly.
     public func saveScene(
         id: String,
-        content: DocNode,
+        content: API.DocNode,
         createRevision: Bool = true,
         baseHash: String? = nil
-    ) async throws -> SaveResult {
+    ) async throws -> API.SaveResult {
         struct Body: Encodable {
-            let content: DocNode
+            let content: API.DocNode
             let createRevision: Bool
             let baseHash: String?
         }
@@ -260,11 +253,11 @@ public struct APIClient: Sendable {
         )
     }
 
-    public func restoreRevision(sceneId: String, revisionId: String) async throws -> SaveResult {
+    public func restoreRevision(sceneId: String, revisionId: String) async throws -> API.SaveResult {
         try await send("POST", "scenes/\(sceneId)/revisions/\(revisionId)/restore", body: [String: String]())
     }
 
-    public func updateScene(id: String, title: String? = nil, status: String? = nil) async throws -> SceneSummary {
+    public func updateScene(id: String, title: String? = nil, status: String? = nil) async throws -> API.Scene {
         struct Body: Encodable {
             let title: String?
             let status: String?
@@ -274,24 +267,24 @@ public struct APIClient: Sendable {
 
     // MARK: - Versions
 
-    public func versions(workId: String) async throws -> [Version] {
+    public func versions(workId: String) async throws -> [API.Version] {
         try await send("GET", "works/\(workId)/versions")
     }
 
-    public func snapshot(workId: String, label: String?) async throws -> VersionDetail {
+    public func snapshot(workId: String, label: String?) async throws -> API.VersionDetail {
         struct Body: Encodable { let label: String? }
         return try await send("POST", "works/\(workId)/versions", body: Body(label: label))
     }
 
-    public func publish(versionId: String) async throws -> Version {
+    public func publish(versionId: String) async throws -> API.Version {
         try await send("POST", "versions/\(versionId)/publish", body: [String: String]())
     }
 
-    public func finalize(versionId: String) async throws -> Version {
+    public func finalize(versionId: String) async throws -> API.Version {
         try await send("POST", "versions/\(versionId)/finalize", body: [String: String]())
     }
 
-    public func diff(workId: String, from: String, to: String) async throws -> DiffResponse {
+    public func diff(workId: String, from: String, to: String) async throws -> API.DiffResponse {
         try await send("GET", "works/\(workId)/versions/diff?from=\(from)&to=\(to)")
     }
 
@@ -299,9 +292,9 @@ public struct APIClient: Sendable {
 
     public func offerForReview(
         versionId: String,
-        visibility: ReviewVisibility,
+        visibility: API.Visibility,
         reviewPrompt: String?
-    ) async throws -> PublicationCard {
+    ) async throws -> API.PublicationCard {
         struct Body: Encodable {
             let visibility: String
             let scope: String
@@ -313,21 +306,21 @@ public struct APIClient: Sendable {
         )
     }
 
-    public func feed(mine: Bool = false) async throws -> [PublicationCard] {
+    public func feed(mine: Bool = false) async throws -> [API.PublicationCard] {
         try await send("GET", "publications\(mine ? "?mine=true" : "")")
     }
 
-    public func publication(id: String) async throws -> PublicationCard {
+    public func publication(id: String) async throws -> API.PublicationCard {
         try await send("GET", "publications/\(id)")
     }
 
-    public func publicationContent(id: String) async throws -> VersionContent {
+    public func publicationContent(id: String) async throws -> API.VersionContent {
         try await send("GET", "publications/\(id)/content")
     }
 
     // MARK: - Comments
 
-    public func comments(publicationId: String, sceneId: String? = nil) async throws -> [CommentView] {
+    public func comments(publicationId: String, sceneId: String? = nil) async throws -> [API.CommentView] {
         var path = "publications/\(publicationId)/comments"
         if let sceneId { path += "?sceneId=\(sceneId)" }
         return try await send("GET", path)
@@ -340,17 +333,13 @@ public struct APIClient: Sendable {
         parentId: String? = nil,
         anchor: (from: Int, to: Int)? = nil,
         anchorQuote: String? = nil,
-        category: CommentCategory = .general
-    ) async throws -> CommentView {
-        struct Anchor: Encodable {
-            let from: Int
-            let to: Int
-        }
+        category: API.CommentCategory = .general
+    ) async throws -> API.CommentView {
         struct Body: Encodable {
             let body: String
             let sceneId: String?
             let parentId: String?
-            let anchor: Anchor?
+            let anchor: API.Anchor?
             let anchorQuote: String?
             let category: String
         }
@@ -360,18 +349,18 @@ public struct APIClient: Sendable {
                 body: body,
                 sceneId: sceneId,
                 parentId: parentId,
-                anchor: anchor.map { Anchor(from: $0.from, to: $0.to) },
+                anchor: anchor.map { API.Anchor(from: $0.from, to: $0.to) },
                 anchorQuote: anchorQuote,
                 category: category.rawValue
             )
         )
     }
 
-    public func vote(commentId: String, value: Int) async throws -> VoteResult {
+    public func vote(commentId: String, value: Int) async throws -> API.VoteResponse {
         try await send("POST", "comments/\(commentId)/vote", body: ["value": value])
     }
 
-    public func resolve(commentId: String) async throws -> Comment {
+    public func resolve(commentId: String) async throws -> API.Comment {
         try await send("PATCH", "comments/\(commentId)", body: ["state": "resolved"])
     }
 }

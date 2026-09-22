@@ -4,8 +4,8 @@ import XCTest
 /// These lock down the one piece of shared arithmetic that has to match the
 /// Rust server and the web editor exactly: ProseMirror positions.
 final class DocNodeTests: XCTestCase {
-    private func doc(_ json: String) throws -> DocNode {
-        try JSONDecoder().decode(DocNode.self, from: Data(json.utf8))
+    private func doc(_ json: String) throws -> API.DocNode {
+        try JSONDecoder().decode(API.DocNode.self, from: Data(json.utf8))
     }
 
     func testPlainTextFlattensBlocksOntoLines() throws {
@@ -72,7 +72,7 @@ final class DocNodeTests: XCTestCase {
     }
 
     func testRoundTripThroughPlainTextPreservesParagraphs() {
-        let node = DocNode.fromPlainText("First para.\n\nSecond para.")
+        let node = API.DocNode.fromPlainText("First para.\n\nSecond para.")
         XCTAssertEqual(node.content?.count, 2)
         XCTAssertEqual(node.plainText, "First para.\nSecond para.")
     }

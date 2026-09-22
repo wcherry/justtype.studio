@@ -12,6 +12,9 @@ ios_package_dir = "ios/ScriptoriumKit"
 xcode_project = "Scriptorium.xcodeproj"
 default_bind_addr = "127.0.0.1:8088"
 health_path = "/api/health"
+openapi_path = "docs/openapi.json"
+ts_types_path = "web/src/api/schema.ts"
+swift_types_path = "ios/ScriptoriumKit/Sources/ScriptoriumKit/Generated/Schemas.swift"
 
 [workspace.package]
 version = "0.1.0"

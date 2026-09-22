@@ -1,59 +1,33 @@
 import Foundation
 
-/// A TipTap / ProseMirror document node.
-public struct DocNode: Codable, Equatable, Sendable {
-    public var type: String
-    public var content: [DocNode]?
-    public var text: String?
-    public var marks: [Mark]?
-    public var attrs: [String: JSONValue]?
+/// Document behaviour, on the generated `API.DocNode`.
+///
+/// The shape is generated from the Rust contract; everything here is the
+/// arithmetic and flattening the clients need, which no schema can express.
 
-    public struct Mark: Codable, Equatable, Sendable {
-        public var type: String
-        public var attrs: [String: JSONValue]?
-
-        public init(type: String, attrs: [String: JSONValue]? = nil) {
-            self.type = type
-            self.attrs = attrs
-        }
-    }
-
-    public init(
-        type: String,
-        content: [DocNode]? = nil,
-        text: String? = nil,
-        marks: [Mark]? = nil,
-        attrs: [String: JSONValue]? = nil
-    ) {
-        self.type = type
-        self.content = content
-        self.text = text
-        self.marks = marks
-        self.attrs = attrs
-    }
-
-    public static let empty = DocNode(type: "doc", content: [DocNode(type: "paragraph")])
+public extension API.DocNode {
+    static let empty = API.DocNode(content: [API.DocNode(type: "paragraph")], type: "doc")
 
     /// Nodes that hold no content of their own and occupy exactly one position.
     static let leafTypes: Set<String> = ["horizontalRule", "hardBreak", "image"]
 
-    public var isLeaf: Bool { DocNode.leafTypes.contains(type) }
+    var isLeaf: Bool { API.DocNode.leafTypes.contains(type) }
 
     /// ProseMirror node size. Text nodes measure in UTF-16 code units, which is
     /// what the web editor counts, so anchors agree across clients.
-    public var nodeSize: Int {
+    var nodeSize: Int {
         if type == "text" { return text?.utf16.count ?? 0 }
         if isLeaf { return 1 }
         return contentSize + 2
     }
 
-    public var contentSize: Int {
+    var contentSize: Int {
         (content ?? []).reduce(0) { $0 + $1.nodeSize }
     }
 
     /// Flattened text, with one line per block, matching the server's
     /// `domain::doc::plain_text`.
-    public var plainText: String {
+    var plainText: String {
         var out = ""
         appendPlainText(into: &out)
         return out.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -75,22 +49,54 @@ public struct DocNode: Codable, Equatable, Sendable {
         for child in content ?? [] {
             child.appendPlainText(into: &out)
         }
-        if DocNode.blockTypes.contains(type), !out.hasSuffix("\n") {
+        if API.DocNode.blockTypes.contains(type), !out.hasSuffix("\n") {
             out += "\n"
         }
     }
 
-    public var wordCount: Int {
+    var wordCount: Int {
         plainText.split(whereSeparator: { $0.isWhitespace }).count
     }
 
-    public static func fromPlainText(_ text: String) -> DocNode {
-        let paragraphs = text.components(separatedBy: "\n\n").map { paragraph -> DocNode in
+    static func fromPlainText(_ text: String) -> API.DocNode {
+        let paragraphs = text.components(separatedBy: "\n\n").map { paragraph -> API.DocNode in
             paragraph.trimmingCharacters(in: .whitespaces).isEmpty
-                ? DocNode(type: "paragraph")
-                : DocNode(type: "paragraph", content: [DocNode(type: "text", text: paragraph)])
+                ? API.DocNode(type: "paragraph")
+                : API.DocNode(content: [API.DocNode(text: paragraph, type: "text")], type: "paragraph")
         }
-        return DocNode(type: "doc", content: paragraphs.isEmpty ? [DocNode(type: "paragraph")] : paragraphs)
+        return API.DocNode(content: paragraphs.isEmpty ? [API.DocNode(type: "paragraph")] : paragraphs, type: "doc")
+    }
+
+    /// True when the document carries formatting a plain-text editor cannot
+    /// represent. The iOS editor refuses to open such a scene for editing
+    /// rather than silently flattening the author's italics away.
+    var hasRichFormatting: Bool {
+        if let marks, !marks.isEmpty { return true }
+        if type != "doc", type != "paragraph", type != "text" { return true }
+        return (content ?? []).contains { $0.hasRichFormatting }
+    }
+
+    /// Walks the top level of a document and records where each block sits.
+    func blocks() -> [DocBlock] {
+        var result: [DocBlock] = []
+        // Positions inside the doc node start at 0.
+        var pos = 0
+        for (index, child) in (content ?? []).enumerated() {
+            let contentStart = child.isLeaf ? pos : pos + 1
+            let contentEnd = child.isLeaf ? pos + 1 : contentStart + child.contentSize
+            result.append(
+                DocBlock(
+                    id: index,
+                    type: child.type,
+                    level: child.attrs?.objectValue?["level"]?.intValue ?? 0,
+                    text: child.plainText,
+                    from: contentStart,
+                    to: contentEnd
+                )
+            )
+            pos += child.nodeSize
+        }
+        return result
     }
 }
 
@@ -110,40 +116,4 @@ public struct DocBlock: Identifiable, Equatable, Sendable {
     public let to: Int
 
     public var isEmpty: Bool { text.trimmingCharacters(in: .whitespaces).isEmpty }
-}
-
-public extension DocNode {
-    /// Walks the top level of a document and records where each block sits.
-    func blocks() -> [DocBlock] {
-        var result: [DocBlock] = []
-        // Positions inside the doc node start at 0.
-        var pos = 0
-        for (index, child) in (content ?? []).enumerated() {
-            let contentStart = child.isLeaf ? pos : pos + 1
-            let contentEnd = child.isLeaf ? pos + 1 : contentStart + child.contentSize
-            result.append(
-                DocBlock(
-                    id: index,
-                    type: child.type,
-                    level: child.attrs?["level"]?.intValue ?? 0,
-                    text: child.plainText,
-                    from: contentStart,
-                    to: contentEnd
-                )
-            )
-            pos += child.nodeSize
-        }
-        return result
-    }
-}
-
-public extension DocNode {
-    /// True when the document carries formatting a plain-text editor cannot
-    /// represent. The iOS editor refuses to open such a scene for editing
-    /// rather than silently flattening the author's italics away.
-    var hasRichFormatting: Bool {
-        if let marks, !marks.isEmpty { return true }
-        if type != "doc", type != "paragraph", type != "text" { return true }
-        return (content ?? []).contains { $0.hasRichFormatting }
-    }
 }

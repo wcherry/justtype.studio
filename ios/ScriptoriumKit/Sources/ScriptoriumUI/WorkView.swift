@@ -6,7 +6,7 @@ struct WorkView: View {
     let title: String
 
     @EnvironmentObject private var session: SessionStore
-    @State private var outline: Outline?
+    @State private var outline: API.OutlineResponse?
     @State private var addingScene: String?
     @State private var newSceneTitle = ""
 
@@ -41,7 +41,7 @@ struct WorkView: View {
             }
         }
         .navigationTitle(outline?.title ?? title)
-        .navigationDestination(for: SceneSummary.self) { scene in
+        .navigationDestination(for: API.Scene.self) { scene in
             SceneEditorView(sceneId: scene.id, title: scene.title)
         }
         .toolbar {

@@ -10,7 +10,7 @@ use crate::db::schema::*;
 use crate::db::Conn;
 use crate::error::{ApiError, ApiResult};
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Page {
     #[serde(default = "default_limit")]
@@ -183,7 +183,7 @@ pub fn next_chapter_position(conn: &mut Conn, work_id: &str) -> ApiResult<i32> {
 }
 
 /// Author cards attached to comments so the clients need no second round trip.
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct AuthorCard {
     pub id: String,

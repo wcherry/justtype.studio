@@ -8,11 +8,11 @@ import ScriptoriumKit
 /// same passage. Sub-paragraph selection needs a text-view bridge and is on the
 /// roadmap; paragraph-level anchoring is exact today.
 struct ReviewView: View {
-    let card: PublicationCard
+    let card: API.PublicationCard
 
     @EnvironmentObject private var session: SessionStore
-    @State private var content: VersionContent?
-    @State private var comments: [CommentView] = []
+    @State private var content: API.VersionContent?
+    @State private var comments: [API.CommentView] = []
     @State private var pending: PendingAnchor?
     @State private var showingComments = false
 
@@ -133,10 +133,10 @@ struct ParagraphView: View {
 
 struct NewCommentSheet: View {
     let quote: String
-    let onSubmit: (String, CommentCategory) -> Void
+    let onSubmit: (String, API.CommentCategory) -> Void
 
     @State private var body_ = ""
-    @State private var category: CommentCategory = .general
+    @State private var category: API.CommentCategory = .general
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -149,13 +149,13 @@ struct NewCommentSheet: View {
                     TextField("What about this passage?", text: $body_, axis: .vertical)
                         .lineLimit(3...8)
                     Picker("Kind", selection: $category) {
-                        ForEach(CommentCategory.allCases, id: \.self) {
+                        ForEach(API.CommentCategory.allCases, id: \.self) {
                             Text($0.rawValue.capitalized).tag($0)
                         }
                     }
                 }
             }
-            .navigationTitle("Comment")
+            .navigationTitle("API.Comment")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Post") { onSubmit(body_, category) }

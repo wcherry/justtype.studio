@@ -9,14 +9,14 @@ use crate::db::schema::templates;
 use crate::db::Conn;
 use crate::error::ApiResult;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct TemplateStructure {
     #[serde(default)]
     pub chapters: Vec<TemplateChapter>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct TemplateChapter {
     pub title: String,
@@ -26,7 +26,7 @@ pub struct TemplateChapter {
     pub scenes: Vec<TemplateScene>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct TemplateScene {
     pub title: String,

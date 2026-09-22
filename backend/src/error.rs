@@ -90,3 +90,21 @@ impl From<anyhow::Error> for ApiError {
 }
 
 pub type ApiResult<T> = Result<T, ApiError>;
+
+/// The shape every failure comes back as. Declared for the generated schema so
+/// clients can type their error handling instead of guessing.
+#[derive(Debug, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+pub struct ErrorEnvelope {
+    pub error: ErrorBody,
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ErrorBody {
+    /// `bad_request`, `unauthorized`, `forbidden`, `not_found`, `conflict`, `internal`.
+    pub code: String,
+    pub message: String,
+    /// Present when the client is expected to act on it — see a scene save conflict.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub details: Option<serde_json::Value>,
+}

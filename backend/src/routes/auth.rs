@@ -8,12 +8,12 @@ use crate::db::models::{NewRefreshToken, NewUser, RefreshToken, User};
 use crate::db::schema::{refresh_tokens, users};
 use crate::db::{blocking, Conn};
 use crate::domain::{new_id, now_iso};
-use crate::error::{ApiError, ApiResult};
+use crate::error::{ApiError, ApiResult, ErrorEnvelope};
 use crate::state::AppState;
 
 use super::support::find_user;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct RegisterRequest {
     pub email: String,
@@ -21,20 +21,20 @@ pub struct RegisterRequest {
     pub display_name: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct LoginRequest {
     pub email: String,
     pub password: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct RefreshRequest {
     pub refresh_token: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionResponse {
     pub user: User,
@@ -94,6 +94,16 @@ fn start_session(state: &AppState, conn: &mut Conn, user: User) -> ApiResult<Ses
     })
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/auth/register",
+    tag = "auth",
+    request_body = RegisterRequest,
+    responses(
+        (status = 200, description = "Success", body = SessionResponse),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
 pub async fn register(
     State(state): State<AppState>,
     Json(body): Json<RegisterRequest>,
@@ -142,6 +152,16 @@ pub async fn register(
     Ok(Json(session))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/auth/login",
+    tag = "auth",
+    request_body = LoginRequest,
+    responses(
+        (status = 200, description = "Success", body = SessionResponse),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
 pub async fn login(
     State(state): State<AppState>,
     Json(body): Json<LoginRequest>,
@@ -169,6 +189,16 @@ pub async fn login(
     Ok(Json(session))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/auth/refresh",
+    tag = "auth",
+    request_body = RefreshRequest,
+    responses(
+        (status = 200, description = "Success", body = SessionResponse),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
 pub async fn refresh(
     State(state): State<AppState>,
     Json(body): Json<RefreshRequest>,
@@ -206,6 +236,16 @@ pub async fn refresh(
     Ok(Json(session))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/auth/logout",
+    tag = "auth",
+    request_body = RefreshRequest,
+    responses(
+        (status = 200, description = "Success"),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
 pub async fn logout(
     State(state): State<AppState>,
     Json(body): Json<RefreshRequest>,
@@ -221,6 +261,15 @@ pub async fn logout(
     Ok(Json(serde_json::json!({ "ok": true })))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/auth/me",
+    tag = "auth",
+    responses(
+        (status = 200, description = "Success", body = User),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
 pub async fn me(State(state): State<AppState>, user: AuthUser) -> ApiResult<Json<User>> {
     let found = blocking(&state.pool, move |conn| find_user(conn, &user.id)).await?;
     Ok(Json(found))

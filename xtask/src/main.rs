@@ -4,6 +4,8 @@
 //! Everything here is idempotent: no task overwrites a file that already has a
 //! real value in it, so re-running after a half-finished setup is safe.
 
+mod codegen;
+
 use std::{
     env, fs,
     io::{Read, Write},
@@ -38,6 +40,9 @@ struct Config {
     xcode_project: String,
     default_bind_addr: String,
     health_path: String,
+    openapi_path: PathBuf,
+    ts_types_path: PathBuf,
+    swift_types_path: PathBuf,
 }
 
 const USAGE: &str = "\
@@ -47,6 +52,8 @@ Tasks:
   setup              Everything a fresh clone needs before dev, test or smoke
   dev                Backend and web dev server together
   build-web          Production build of the web client
+  openapi            Write docs/openapi.json from the backend's routes
+  codegen [--check]  Regenerate the client types; --check fails on any drift
   ios                Generate the Xcode project and open it
   sim [args...]      Build and run the iOS app (scripts/run_simulator.sh)
   testflight [args]  Build, sign and upload to TestFlight
@@ -68,6 +75,11 @@ fn main() {
         "setup" => setup(&cfg),
         "dev" => run_dev(&cfg),
         "build-web" => build_web(&cfg.web_dir),
+        "openapi" => {
+            write_openapi(&cfg);
+            println!("wrote {}", rel(&cfg.workspace_root, &cfg.openapi_path));
+        }
+        "codegen" => run_codegen(&cfg, extra.iter().any(|a| a == "--check")),
         "ios" => open_ios(&cfg),
         // Both are shell scripts: they are long, macOS-specific, and deal in
         // xcodebuild/simctl/devicectl invocations that read far better as
@@ -349,6 +361,86 @@ fn unquote(value: &str) -> &str {
 
 // --- the rest ------------------------------------------------------------
 
+/// The document comes from the backend binary itself rather than a running
+/// server: generating it needs no database, no data directory and no port.
+fn write_openapi(cfg: &Config) -> serde_json::Value {
+    let out = Command::new("cargo")
+        .args([
+            "run",
+            "--quiet",
+            "-p",
+            &cfg.backend_package,
+            "--",
+            "--openapi",
+        ])
+        .current_dir(&cfg.workspace_root)
+        .output()
+        .unwrap_or_else(|e| panic!("failed to run the backend: {e}"));
+    if !out.status.success() {
+        eprintln!("{}", String::from_utf8_lossy(&out.stderr));
+        process::exit(out.status.code().unwrap_or(1));
+    }
+    let document: serde_json::Value = serde_json::from_slice(&out.stdout)
+        .unwrap_or_else(|e| panic!("the backend did not print valid JSON: {e}"));
+    let mut text = serde_json::to_string_pretty(&document).expect("failed to format the document");
+    text.push('\n');
+    if let Some(parent) = cfg.openapi_path.parent() {
+        fs::create_dir_all(parent).ok();
+    }
+    fs::write(&cfg.openapi_path, text)
+        .unwrap_or_else(|e| panic!("failed to write {}: {e}", cfg.openapi_path.display()));
+    document
+}
+
+/// Regenerates both clients' model types from the document.
+///
+/// `--check` is what CI runs: it regenerates into memory and fails if anything
+/// on disk differs, so a schema change that was not regenerated cannot merge.
+fn run_codegen(cfg: &Config, check_only: bool) {
+    let document = write_openapi(cfg);
+    let schemas = codegen::load(&document).unwrap_or_else(|e| {
+        eprintln!("error: {e}");
+        process::exit(1);
+    });
+
+    let outputs = [
+        (cfg.ts_types_path.clone(), codegen::typescript(&schemas)),
+        (cfg.swift_types_path.clone(), codegen::swift(&schemas)),
+    ];
+
+    let mut stale = Vec::new();
+    for (path, generated) in outputs {
+        let generated = generated.unwrap_or_else(|e| {
+            eprintln!("error: {e}");
+            process::exit(1);
+        });
+        let current = fs::read_to_string(&path).unwrap_or_default();
+        let name = rel(&cfg.workspace_root, &path);
+        if current == generated {
+            println!("unchanged  {name}");
+            continue;
+        }
+        if check_only {
+            stale.push(name);
+            continue;
+        }
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).ok();
+        }
+        fs::write(&path, generated)
+            .unwrap_or_else(|e| panic!("failed to write {}: {e}", path.display()));
+        println!("wrote      {name}");
+    }
+
+    if !stale.is_empty() {
+        eprintln!(
+            "\nerror: generated types are out of date:\n  {}\n\nRun `cargo xtask codegen` and commit the result.",
+            stale.join("\n  ")
+        );
+        process::exit(1);
+    }
+}
+
 fn build_web(web_dir: &Path) {
     run("pnpm", &["install", "--prefer-offline"], web_dir);
     run("pnpm", &["build"], web_dir);
@@ -395,6 +487,9 @@ fn run_checks(cfg: &Config) {
         &["clippy", "--all-targets", "--", "-D", "warnings"],
         root,
     );
+
+    section("Generated types");
+    run_codegen(cfg, true);
 
     section("Web types");
     run("pnpm", &["install", "--prefer-offline"], &cfg.web_dir);
@@ -448,6 +543,9 @@ fn config_from_metadata() -> Config {
         xcode_project: get("xcode_project"),
         default_bind_addr: get("default_bind_addr"),
         health_path: get("health_path"),
+        openapi_path: root.join(get("openapi_path")),
+        ts_types_path: root.join(get("ts_types_path")),
+        swift_types_path: root.join(get("swift_types_path")),
         workspace_root: root,
     }
 }

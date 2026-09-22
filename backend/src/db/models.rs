@@ -7,7 +7,7 @@ use super::schema::*;
 
 macro_rules! row {
     ($name:ident, $table:ident, { $($(#[$fattr:meta])* $field:ident : $ty:ty),* $(,)? }) => {
-        #[derive(Debug, Clone, Queryable, Selectable, Identifiable, Serialize, Deserialize)]
+        #[derive(Debug, Clone, Queryable, Selectable, Identifiable, Serialize, Deserialize, utoipa::ToSchema)]
         #[diesel(table_name = $table)]
         #[diesel(check_for_backend(diesel::sqlite::Sqlite))]
         #[serde(rename_all = "camelCase")]
@@ -52,9 +52,11 @@ row!(Work, works, {
     owner_id: String,
     title: String,
     subtitle: Option<String>,
+    #[schema(value_type = crate::domain::enums::WorkKind)]
     kind: String,
     synopsis: Option<String>,
     template_id: Option<String>,
+    #[schema(value_type = crate::domain::enums::WorkStatus)]
     status: String,
     current_version_id: Option<String>,
     word_count: i32,
@@ -79,6 +81,7 @@ row!(Scene, scenes, {
     title: String,
     summary: Option<String>,
     pov: Option<String>,
+    #[schema(value_type = crate::domain::enums::SceneStatus)]
     status: String,
     position: i32,
     word_count: i32,
@@ -102,12 +105,14 @@ row!(TrackedChange, tracked_changes, {
     scene_id: String,
     work_id: String,
     author_id: String,
+    #[schema(value_type = crate::domain::enums::ChangeKind)]
     kind: String,
     anchor_from: i32,
     anchor_to: i32,
     quote: Option<String>,
     payload: String,
     note: Option<String>,
+    #[schema(value_type = crate::domain::enums::ChangeState)]
     state: String,
     resolved_by: Option<String>,
     resolved_at: Option<String>,
@@ -119,6 +124,7 @@ row!(Version, versions, {
     work_id: String,
     number: i32,
     label: String,
+    #[schema(value_type = crate::domain::enums::VersionState)]
     state: String,
     parent_version_id: Option<String>,
     created_by: String,
@@ -146,7 +152,9 @@ row!(Publication, publications, {
     id: String,
     work_id: String,
     version_id: String,
+    #[schema(value_type = crate::domain::enums::Visibility)]
     visibility: String,
+    #[schema(value_type = crate::domain::enums::PublicationScope)]
     scope: String,
     scope_ref_id: Option<String>,
     review_prompt: Option<String>,
@@ -166,7 +174,9 @@ row!(Comment, comments, {
     body: String,
     anchor: Option<String>,
     anchor_quote: Option<String>,
+    #[schema(value_type = crate::domain::enums::CommentCategory)]
     category: String,
+    #[schema(value_type = crate::domain::enums::CommentState)]
     state: String,
     score: i32,
     created_at: String,

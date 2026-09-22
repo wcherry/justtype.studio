@@ -15,15 +15,14 @@ use crate::auth::AuthUser;
 use crate::db::blocking;
 use crate::db::models::{NewTrackedChange, TrackedChange};
 use crate::db::schema::tracked_changes;
+use crate::domain::enums::ChangeKind;
 use crate::domain::{new_id, now_iso};
-use crate::error::{ApiError, ApiResult};
+use crate::error::{ApiError, ApiResult, ErrorEnvelope};
 use crate::state::AppState;
 
 use super::support;
 
-const CHANGE_KINDS: &[&str] = &["insert", "delete", "replace", "format"];
-
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ListQuery {
     /// `pending` (default), `accepted`, `rejected`, or `all`.
@@ -31,7 +30,7 @@ pub struct ListQuery {
     pub state: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateChangeRequest {
     pub kind: String,
@@ -46,6 +45,16 @@ pub struct CreateChangeRequest {
     pub note: Option<String>,
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/scenes/{scene_id}/changes",
+    tag = "changes",
+    params(("scene_id" = String, Path)),
+    responses(
+        (status = 200, description = "Success", body = Vec<TrackedChange>),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
 pub async fn list(
     State(state): State<AppState>,
     user: AuthUser,
@@ -69,16 +78,27 @@ pub async fn list(
     Ok(Json(rows))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/scenes/{scene_id}/changes",
+    tag = "changes",
+    params(("scene_id" = String, Path)),
+    request_body = CreateChangeRequest,
+    responses(
+        (status = 200, description = "Success", body = TrackedChange),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
 pub async fn create(
     State(state): State<AppState>,
     user: AuthUser,
     Path(scene_id): Path<String>,
     Json(body): Json<CreateChangeRequest>,
 ) -> ApiResult<Json<TrackedChange>> {
-    if !CHANGE_KINDS.contains(&body.kind.as_str()) {
+    if !ChangeKind::accepts(&body.kind) {
         return Err(ApiError::BadRequest(format!(
             "kind must be one of {}",
-            CHANGE_KINDS.join(", ")
+            ChangeKind::options()
         )));
     }
     if body.anchor_to < body.anchor_from {
@@ -117,6 +137,16 @@ pub async fn create(
     Ok(Json(change))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/changes/{change_id}/accept",
+    tag = "changes",
+    params(("change_id" = String, Path)),
+    responses(
+        (status = 200, description = "Success", body = TrackedChange),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
 pub async fn accept(
     State(state): State<AppState>,
     user: AuthUser,
@@ -125,6 +155,16 @@ pub async fn accept(
     resolve(state, user, change_id, "accepted").await
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/changes/{change_id}/reject",
+    tag = "changes",
+    params(("change_id" = String, Path)),
+    responses(
+        (status = 200, description = "Success", body = TrackedChange),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
 pub async fn reject(
     State(state): State<AppState>,
     user: AuthUser,

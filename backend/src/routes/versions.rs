@@ -16,12 +16,12 @@ use crate::db::models::*;
 use crate::db::schema::{version_entries, versions, works};
 use crate::domain::diff::{self, DiffSummary, SceneChangeKind, SceneDiff};
 use crate::domain::{doc, new_id, now_iso};
-use crate::error::{ApiError, ApiResult};
+use crate::error::{ApiError, ApiResult, ErrorEnvelope};
 use crate::state::AppState;
 
 use super::support::{self, Page};
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateVersionRequest {
     #[serde(default)]
@@ -30,14 +30,14 @@ pub struct CreateVersionRequest {
     pub notes: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct DiffQuery {
     pub from: String,
     pub to: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct VersionDetail {
     #[serde(flatten)]
@@ -45,7 +45,7 @@ pub struct VersionDetail {
     pub entries: Vec<VersionEntry>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct VersionContent {
     #[serde(flatten)]
@@ -53,7 +53,7 @@ pub struct VersionContent {
     pub chapters: Vec<ContentChapter>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ContentChapter {
     pub chapter_id: String,
@@ -62,17 +62,18 @@ pub struct ContentChapter {
     pub scenes: Vec<ContentScene>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ContentScene {
     pub scene_id: String,
     pub title: String,
     pub position: i32,
     pub word_count: i32,
+    #[schema(value_type = crate::domain::doc::DocNode)]
     pub content: Value,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct DiffResponse {
     pub from: Version,
@@ -81,6 +82,16 @@ pub struct DiffResponse {
     pub scenes: Vec<SceneDiff>,
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/works/{work_id}/versions",
+    tag = "versions",
+    params(("work_id" = String, Path)),
+    responses(
+        (status = 200, description = "Success", body = Vec<Version>),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
 pub async fn list(
     State(state): State<AppState>,
     user: AuthUser,
@@ -104,6 +115,17 @@ pub async fn list(
 
 /// Freeze the current working copy. Files are copied before any row is written
 /// so a half-copied snapshot never becomes visible.
+#[utoipa::path(
+    post,
+    path = "/api/works/{work_id}/versions",
+    tag = "versions",
+    params(("work_id" = String, Path)),
+    request_body = CreateVersionRequest,
+    responses(
+        (status = 200, description = "Success", body = VersionDetail),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
 pub async fn create(
     State(state): State<AppState>,
     user: AuthUser,
@@ -251,6 +273,16 @@ fn load_detail(conn: &mut crate::db::Conn, version_id: &str) -> ApiResult<Versio
     Ok(VersionDetail { version, entries })
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/versions/{version_id}",
+    tag = "versions",
+    params(("version_id" = String, Path)),
+    responses(
+        (status = 200, description = "Success", body = VersionDetail),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
 pub async fn get_one(
     State(state): State<AppState>,
     user: AuthUser,
@@ -266,6 +298,16 @@ pub async fn get_one(
 
 /// The whole frozen manuscript. Authors always get their own; readers reach a
 /// version through a publication instead.
+#[utoipa::path(
+    get,
+    path = "/api/versions/{version_id}/content",
+    tag = "versions",
+    params(("version_id" = String, Path)),
+    responses(
+        (status = 200, description = "Success", body = VersionContent),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
 pub async fn content(
     State(state): State<AppState>,
     MaybeAuthUser(user): MaybeAuthUser,
@@ -319,6 +361,16 @@ pub(crate) async fn assemble_content(
     })
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/versions/{version_id}/publish",
+    tag = "versions",
+    params(("version_id" = String, Path)),
+    responses(
+        (status = 200, description = "Success", body = Version),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
 pub async fn publish(
     State(state): State<AppState>,
     user: AuthUser,
@@ -327,6 +379,16 @@ pub async fn publish(
     transition(state, user, version_id, "published").await
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/versions/{version_id}/finalize",
+    tag = "versions",
+    params(("version_id" = String, Path)),
+    responses(
+        (status = 200, description = "Success", body = Version),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
 pub async fn finalize(
     State(state): State<AppState>,
     user: AuthUser,
@@ -397,6 +459,16 @@ async fn transition(
 }
 
 /// Scene-level comparison of two snapshots of the same work.
+#[utoipa::path(
+    get,
+    path = "/api/works/{work_id}/versions/diff",
+    tag = "versions",
+    params(("work_id" = String, Path)),
+    responses(
+        (status = 200, description = "Success", body = DiffResponse),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
 pub async fn diff(
     State(state): State<AppState>,
     user: AuthUser,

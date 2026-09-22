@@ -15,23 +15,14 @@ use crate::auth::{AuthUser, MaybeAuthUser};
 use crate::db::blocking;
 use crate::db::models::*;
 use crate::db::schema::{comment_votes, comments};
+use crate::domain::enums::CommentCategory;
 use crate::domain::{new_id, now_iso};
-use crate::error::{ApiError, ApiResult};
+use crate::error::{ApiError, ApiResult, ErrorEnvelope};
 use crate::state::AppState;
 
 use super::support::{self, AuthorCard};
 
-const CATEGORIES: &[&str] = &[
-    "general",
-    "praise",
-    "plot",
-    "pacing",
-    "prose",
-    "character",
-    "typo",
-];
-
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ListQuery {
     /// Narrow to one scene, for the reader's sidebar.
@@ -42,14 +33,14 @@ pub struct ListQuery {
     pub sort: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Anchor {
     pub from: i32,
     pub to: i32,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateCommentRequest {
     pub body: String,
@@ -63,10 +54,11 @@ pub struct CreateCommentRequest {
     #[serde(default)]
     pub anchor_quote: Option<String>,
     #[serde(default)]
+    #[schema(value_type = Option<crate::domain::enums::CommentCategory>)]
     pub category: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateCommentRequest {
     #[serde(default)]
@@ -76,24 +68,28 @@ pub struct UpdateCommentRequest {
     pub state: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct VoteRequest {
     /// `1` upvote, `-1` downvote, `0` clears the caller's vote.
     pub value: i32,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CommentView {
     #[serde(flatten)]
     pub comment: Comment,
     pub author: AuthorCard,
     pub viewer_vote: i32,
+    /// Threads nest arbitrarily deep, which makes this type self-referential.
+    /// Schema generation has to be told to stop, or it recurses until the stack
+    /// gives out.
+    #[schema(no_recursion)]
     pub replies: Vec<CommentView>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct VoteResponse {
     pub comment_id: String,
@@ -101,6 +97,16 @@ pub struct VoteResponse {
     pub viewer_vote: i32,
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/publications/{publication_id}/comments",
+    tag = "comments",
+    params(("publication_id" = String, Path)),
+    responses(
+        (status = 200, description = "Success", body = Vec<CommentView>),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
 pub async fn list(
     State(state): State<AppState>,
     MaybeAuthUser(user): MaybeAuthUser,
@@ -196,6 +202,17 @@ fn build_threads(
         .collect()
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/publications/{publication_id}/comments",
+    tag = "comments",
+    params(("publication_id" = String, Path)),
+    request_body = CreateCommentRequest,
+    responses(
+        (status = 200, description = "Success", body = CommentView),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
 pub async fn create(
     State(state): State<AppState>,
     user: AuthUser,
@@ -207,10 +224,10 @@ pub async fn create(
         return Err(ApiError::BadRequest("a comment needs a body".into()));
     }
     let category = body.category.clone().unwrap_or_else(|| "general".into());
-    if !CATEGORIES.contains(&category.as_str()) {
+    if !CommentCategory::accepts(&category) {
         return Err(ApiError::BadRequest(format!(
             "category must be one of {}",
-            CATEGORIES.join(", ")
+            CommentCategory::options()
         )));
     }
 
@@ -282,6 +299,17 @@ pub async fn create(
     Ok(Json(view))
 }
 
+#[utoipa::path(
+    patch,
+    path = "/api/comments/{comment_id}",
+    tag = "comments",
+    params(("comment_id" = String, Path)),
+    request_body = UpdateCommentRequest,
+    responses(
+        (status = 200, description = "Success", body = Comment),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
 pub async fn update(
     State(state): State<AppState>,
     user: AuthUser,
@@ -336,6 +364,16 @@ pub async fn update(
 
 /// Soft delete: threads keep their shape, and the work's author can remove
 /// abusive feedback from their own publication.
+#[utoipa::path(
+    delete,
+    path = "/api/comments/{comment_id}",
+    tag = "comments",
+    params(("comment_id" = String, Path)),
+    responses(
+        (status = 200, description = "Success"),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
 pub async fn delete_comment(
     State(state): State<AppState>,
     user: AuthUser,
@@ -369,6 +407,17 @@ pub async fn delete_comment(
 
 /// Votes surface the feedback other reviewers agree with. One vote per person
 /// per comment; sending the same value again clears it.
+#[utoipa::path(
+    post,
+    path = "/api/comments/{comment_id}/vote",
+    tag = "comments",
+    params(("comment_id" = String, Path)),
+    request_body = VoteRequest,
+    responses(
+        (status = 200, description = "Success", body = VoteResponse),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
 pub async fn vote(
     State(state): State<AppState>,
     user: AuthUser,

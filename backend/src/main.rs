@@ -20,6 +20,13 @@ use crate::storage::FileStore;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    // `--openapi` prints the document and exits, so generating it needs no
+    // database, no data directory and no port.
+    if std::env::args().any(|a| a == "--openapi") {
+        println!("{}", routes::openapi_document().to_pretty_json()?);
+        return Ok(());
+    }
+
     dotenvy::dotenv().ok();
 
     tracing_subscriber::registry()

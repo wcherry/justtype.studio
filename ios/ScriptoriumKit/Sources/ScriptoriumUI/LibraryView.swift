@@ -3,8 +3,8 @@ import ScriptoriumKit
 
 struct LibraryView: View {
     @EnvironmentObject private var session: SessionStore
-    @State private var works: [Work] = []
-    @State private var templates: [Template] = []
+    @State private var works: [API.Work] = []
+    @State private var templates: [API.TemplateView] = []
     @State private var creating = false
     @State private var error: String?
 
@@ -22,7 +22,7 @@ struct LibraryView: View {
                     NavigationLink(value: work) {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(work.title).font(.system(.headline, design: .serif))
-                            Text("\(work.kind.label) · \(work.wordCount.formatted()) words · \(work.status)")
+                            Text("\(work.kind.label) · \(work.wordCount.formatted()) words · \(work.status.rawValue)")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -31,7 +31,7 @@ struct LibraryView: View {
                 }
             }
             .navigationTitle("Your desk")
-            .navigationDestination(for: Work.self) { work in
+            .navigationDestination(for: API.Work.self) { work in
                 WorkView(workId: work.id, title: work.title)
             }
             .toolbar {
@@ -67,11 +67,11 @@ struct LibraryView: View {
 }
 
 struct NewWorkSheet: View {
-    let templates: [Template]
-    let onCreate: (String, WorkKind, String?) -> Void
+    let templates: [API.TemplateView]
+    let onCreate: (String, API.WorkKind, String?) -> Void
 
     @State private var title = ""
-    @State private var kind: WorkKind = .novel
+    @State private var kind: API.WorkKind = .novel
     @State private var templateId: String = "tpl-blank"
     @Environment(\.dismiss) private var dismiss
 
@@ -80,9 +80,9 @@ struct NewWorkSheet: View {
             Form {
                 TextField("Title", text: $title)
                 Picker("Form", selection: $kind) {
-                    ForEach(WorkKind.allCases, id: \.self) { Text($0.label).tag($0) }
+                    ForEach(API.WorkKind.allCases, id: \.self) { Text($0.label).tag($0) }
                 }
-                Picker("Template", selection: $templateId) {
+                Picker("API.TemplateView", selection: $templateId) {
                     ForEach(templates) { Text($0.name).tag($0.id) }
                 }
                 if let chosen = templates.first(where: { $0.id == templateId }) {

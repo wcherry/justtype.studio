@@ -83,6 +83,24 @@ the slice of the work on offer, and the question the author wants answered.
 position. Because a snapshot never changes, an anchor can never drift — which is
 the whole reason comments attach to versions rather than to the working copy.
 
+## The API contract
+
+`docs/openapi.json` is generated from the Rust handlers, and the client model
+types are generated from it:
+
+```bash
+cargo xtask codegen          # regenerate after any change to a handler or DTO
+cargo xtask codegen --check  # what CI runs; fails if anything is stale
+```
+
+Generated files — `web/src/api/schema.ts` and
+`ios/ScriptoriumKit/Sources/ScriptoriumKit/Generated/Schemas.swift` — are
+checked in and must not be hand-edited. Behaviour that hangs off those types
+lives beside them, in `web/src/api/types.ts` and
+`ios/.../Model+Helpers.swift`, so regenerating never clobbers hand-written code.
+
+A running server also serves the document at `/api/openapi.json`.
+
 ## Configuration
 
 | Variable | Default | Meaning |

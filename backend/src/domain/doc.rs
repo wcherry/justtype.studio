@@ -161,3 +161,33 @@ mod tests {
         assert_eq!(plain_text(&value), "First para.\nSecond para.");
     }
 }
+
+/// The document shape, declared for the generated schema.
+///
+/// The server stores and forwards scene bodies as opaque `serde_json::Value` —
+/// the editor owns the schema, and the server has no reason to validate beyond
+/// `validate()` above. But "opaque" would generate as `unknown` in the clients,
+/// which is exactly the kind of untyped hole this contract exists to close, so
+/// the fields carrying a document declare this type instead.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+pub struct DocNode {
+    #[serde(rename = "type")]
+    pub r#type: String,
+    #[schema(no_recursion)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content: Option<Vec<DocNode>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub marks: Option<Vec<DocMark>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attrs: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+pub struct DocMark {
+    #[serde(rename = "type")]
+    pub r#type: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attrs: Option<serde_json::Value>,
+}

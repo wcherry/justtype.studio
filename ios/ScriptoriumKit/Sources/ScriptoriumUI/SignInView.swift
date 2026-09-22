@@ -13,7 +13,7 @@ struct SignInView: View {
             VStack(spacing: 4) {
                 Text("Scriptorium")
                     .font(.system(.largeTitle, design: .serif))
-                Text("Write it. Version it. Put it in front of readers.")
+                Text("Write it. API.Version it. Put it in front of readers.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }

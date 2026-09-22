@@ -8,19 +8,19 @@ use crate::auth::AuthUser;
 use crate::db::blocking;
 use crate::db::models::*;
 use crate::db::schema::{chapters, scenes, templates, works};
+use crate::domain::enums::WorkKind;
 use crate::domain::templates::TemplateStructure;
 use crate::domain::{doc, new_id, now_iso};
-use crate::error::{ApiError, ApiResult};
+use crate::error::{ApiError, ApiResult, ErrorEnvelope};
 use crate::state::AppState;
 
 use super::support::{self, Page};
 
-const WORK_KINDS: &[&str] = &["novel", "novella", "short_story", "serial"];
-
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateWorkRequest {
     pub title: String,
+    #[schema(value_type = crate::domain::enums::WorkKind)]
     pub kind: String,
     #[serde(default)]
     pub subtitle: Option<String>,
@@ -31,7 +31,7 @@ pub struct CreateWorkRequest {
     pub template_id: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateWorkRequest {
     #[serde(default)]
@@ -41,10 +41,11 @@ pub struct UpdateWorkRequest {
     #[serde(default)]
     pub synopsis: Option<String>,
     #[serde(default)]
+    #[schema(value_type = Option<crate::domain::enums::WorkStatus>)]
     pub status: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct OutlineResponse {
     #[serde(flatten)]
@@ -52,7 +53,7 @@ pub struct OutlineResponse {
     pub chapters: Vec<OutlineChapter>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct OutlineChapter {
     #[serde(flatten)]
@@ -67,6 +68,15 @@ struct PendingScene {
     body: Value,
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/works",
+    tag = "works",
+    responses(
+        (status = 200, description = "Success", body = Vec<Work>),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
 pub async fn list(
     State(state): State<AppState>,
     user: AuthUser,
@@ -86,6 +96,16 @@ pub async fn list(
     Ok(Json(rows))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/works/{work_id}",
+    tag = "works",
+    params(("work_id" = String, Path)),
+    responses(
+        (status = 200, description = "Success", body = Work),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
 pub async fn get_one(
     State(state): State<AppState>,
     user: AuthUser,
@@ -98,6 +118,16 @@ pub async fn get_one(
     Ok(Json(work))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/works",
+    tag = "works",
+    request_body = CreateWorkRequest,
+    responses(
+        (status = 200, description = "Success", body = OutlineResponse),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
 pub async fn create(
     State(state): State<AppState>,
     user: AuthUser,
@@ -107,10 +137,10 @@ pub async fn create(
     if title.is_empty() {
         return Err(ApiError::BadRequest("title is required".into()));
     }
-    if !WORK_KINDS.contains(&body.kind.as_str()) {
+    if !WorkKind::accepts(&body.kind) {
         return Err(ApiError::BadRequest(format!(
             "kind must be one of {}",
-            WORK_KINDS.join(", ")
+            WorkKind::options()
         )));
     }
 
@@ -225,6 +255,17 @@ pub async fn create(
     Ok(Json(outline))
 }
 
+#[utoipa::path(
+    patch,
+    path = "/api/works/{work_id}",
+    tag = "works",
+    params(("work_id" = String, Path)),
+    request_body = UpdateWorkRequest,
+    responses(
+        (status = 200, description = "Success", body = Work),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
 pub async fn update(
     State(state): State<AppState>,
     user: AuthUser,
@@ -277,6 +318,16 @@ pub async fn update(
     Ok(Json(work))
 }
 
+#[utoipa::path(
+    delete,
+    path = "/api/works/{work_id}",
+    tag = "works",
+    params(("work_id" = String, Path)),
+    responses(
+        (status = 200, description = "Success"),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
 pub async fn delete_work(
     State(state): State<AppState>,
     user: AuthUser,
@@ -293,6 +344,16 @@ pub async fn delete_work(
     Ok(Json(serde_json::json!({ "ok": true })))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/works/{work_id}/outline",
+    tag = "works",
+    params(("work_id" = String, Path)),
+    responses(
+        (status = 200, description = "Success", body = OutlineResponse),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
 pub async fn outline(
     State(state): State<AppState>,
     user: AuthUser,
@@ -345,7 +406,7 @@ pub(crate) fn load_outline(
 
 // --- chapters ------------------------------------------------------------
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateChapterRequest {
     pub title: String,
@@ -353,7 +414,7 @@ pub struct CreateChapterRequest {
     pub summary: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateChapterRequest {
     #[serde(default)]
@@ -362,13 +423,24 @@ pub struct UpdateChapterRequest {
     pub summary: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ReorderRequest {
     /// Complete ordered list of ids; anything missing keeps its current slot.
     pub ids: Vec<String>,
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/works/{work_id}/chapters",
+    tag = "chapters",
+    params(("work_id" = String, Path)),
+    request_body = CreateChapterRequest,
+    responses(
+        (status = 200, description = "Success", body = Chapter),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
 pub async fn create_chapter(
     State(state): State<AppState>,
     user: AuthUser,
@@ -399,6 +471,17 @@ pub async fn create_chapter(
     Ok(Json(chapter))
 }
 
+#[utoipa::path(
+    patch,
+    path = "/api/chapters/{chapter_id}",
+    tag = "chapters",
+    params(("chapter_id" = String, Path)),
+    request_body = UpdateChapterRequest,
+    responses(
+        (status = 200, description = "Success", body = Chapter),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
 pub async fn update_chapter(
     State(state): State<AppState>,
     user: AuthUser,
@@ -430,6 +513,16 @@ pub async fn update_chapter(
     Ok(Json(chapter))
 }
 
+#[utoipa::path(
+    delete,
+    path = "/api/chapters/{chapter_id}",
+    tag = "chapters",
+    params(("chapter_id" = String, Path)),
+    responses(
+        (status = 200, description = "Success"),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
 pub async fn delete_chapter(
     State(state): State<AppState>,
     user: AuthUser,
@@ -453,6 +546,17 @@ pub async fn delete_chapter(
     Ok(Json(serde_json::json!({ "ok": true })))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/works/{work_id}/chapters/reorder",
+    tag = "chapters",
+    params(("work_id" = String, Path)),
+    request_body = ReorderRequest,
+    responses(
+        (status = 200, description = "Success", body = Vec<Chapter>),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
 pub async fn reorder_chapters(
     State(state): State<AppState>,
     user: AuthUser,

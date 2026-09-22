@@ -3,7 +3,7 @@ import ScriptoriumKit
 
 struct FeedView: View {
     @EnvironmentObject private var session: SessionStore
-    @State private var cards: [PublicationCard] = []
+    @State private var cards: [API.PublicationCard] = []
     @State private var mine = false
 
     var body: some View {
@@ -37,7 +37,7 @@ struct FeedView: View {
                 }
             }
             .navigationTitle(mine ? "Your publications" : "Looking for readers")
-            .navigationDestination(for: PublicationCard.self) { card in
+            .navigationDestination(for: API.PublicationCard.self) { card in
                 ReviewView(card: card)
             }
             .toolbar {

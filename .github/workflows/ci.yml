@@ -17,6 +17,8 @@ jobs:
       - run: cargo fmt --all -- --check
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo test -p scriptorium-backend
+      # Fails if the checked-in client types no longer match the handlers.
+      - run: cargo xtask codegen --check
 
   smoke:
     runs-on: ubuntu-latest

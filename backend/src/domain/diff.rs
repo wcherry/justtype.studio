@@ -4,7 +4,7 @@
 use serde::Serialize;
 use similar::{ChangeTag, TextDiff};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, utoipa::ToSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum Op {
     Equal,
@@ -12,14 +12,14 @@ pub enum Op {
     Delete,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct TextChange {
     pub op: Op,
     pub value: String,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub enum SceneChangeKind {
     Added,
@@ -29,7 +29,7 @@ pub enum SceneChangeKind {
     Unchanged,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SceneDiff {
     pub scene_id: String,
@@ -42,7 +42,7 @@ pub struct SceneDiff {
     pub changes: Vec<TextChange>,
 }
 
-#[derive(Debug, Clone, Serialize, Default)]
+#[derive(Debug, Clone, Serialize, Default, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct DiffSummary {
     pub scenes_added: usize,

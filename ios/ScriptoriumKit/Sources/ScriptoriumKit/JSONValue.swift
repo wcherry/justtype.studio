@@ -1,9 +1,9 @@
 import Foundation
 
-/// A minimal JSON tree. Scene documents carry editor-defined attributes the
+/// A minimal JSON tree. API.Scene documents carry editor-defined attributes the
 /// client has no reason to understand, so they round-trip through this rather
 /// than being modelled field by field.
-public enum JSONValue: Codable, Equatable, Sendable {
+public enum JSONValue: Codable, Hashable, Sendable {
     case string(String)
     case number(Double)
     case bool(Bool)
@@ -49,6 +49,11 @@ public enum JSONValue: Codable, Equatable, Sendable {
 
     public var intValue: Int? {
         if case .number(let value) = self { return Int(value) }
+        return nil
+    }
+
+    public var objectValue: [String: JSONValue]? {
+        if case .object(let value) = self { return value }
         return nil
     }
 }

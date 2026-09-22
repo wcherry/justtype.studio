@@ -98,7 +98,7 @@ export function ReviewPage() {
         pending={pending}
         isAuthor={isAuthor}
         activeCommentId={activeCommentId}
-        reviewPrompt={card.reviewPrompt}
+        reviewPrompt={card.reviewPrompt ?? null}
         onRefresh={loadComments}
         onActivate={setActiveCommentId}
         onClearPending={() => setPending(null)}
