@@ -182,10 +182,25 @@ the iOS diagnostic can be misleading. Regenerate first when it appears.
 
 ## Phase 2 — Versioning and change tracking
 
-### 2.1 Version ergonomics
-- Name, annotate and tag snapshots; pin a "last submitted" version.
-- Restore a version into the working copy as a new draft, never in place.
-- Chapter- and scene-level snapshots, not just whole-work.
+### 2.1 Version ergonomics · **Done**
+- ✅ Rename and annotate a snapshot after the fact. Its text is immutable; what
+  you call it should not be, because "v3" is rarely the name that helps six
+  months later.
+- ✅ Tags, case-folded and idempotent, plus a singular pin for the one snapshot
+  a writer wants to find without looking — usually what they last sent out.
+- ✅ Restore into the working copy, never in place: the draft being replaced is
+  snapshotted first, automatically, so a restore is itself undoable.
+- ✅ Chapter- and scene-level snapshots, for checkpointing one chapter before
+  rewriting it without implying anything about the rest.
+- **Done when** a writer can find the version they sent out, put it back, and
+  still have the draft it replaced. *Verified through the UI: renamed, tagged
+  and pinned a version, restored it over a diverged draft, and found the
+  replaced draft waiting on the shelf as "Before restoring …".*
+
+The safety snapshot is the whole design. Restoring has to remove scenes written
+after the version being restored — otherwise it is a merge, not a restore — and
+removing a writer's work is only acceptable because it is one click from coming
+back.
 
 ### 2.2 Better diffs · **Done**
 - ✅ Paragraph-aligned, with moved-block detection. A scene diffed as one run of

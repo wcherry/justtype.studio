@@ -59,6 +59,7 @@ diesel::table! {
         epigraph -> Nullable<Text>,
         epigraph_source -> Nullable<Text>,
         copyright_line -> Nullable<Text>,
+        pinned_version_id -> Nullable<Text>,
     }
 }
 
@@ -174,6 +175,17 @@ diesel::table! {
         created_at -> Text,
         published_at -> Nullable<Text>,
         finalized_at -> Nullable<Text>,
+        scope -> Text,
+        scope_ref_id -> Nullable<Text>,
+    }
+}
+
+diesel::table! {
+    version_tags (id) {
+        id -> Text,
+        version_id -> Text,
+        tag -> Text,
+        created_at -> Text,
     }
 }
 
@@ -248,6 +260,7 @@ diesel::joinable!(scene_revisions -> scenes (scene_id));
 diesel::joinable!(tracked_changes -> scenes (scene_id));
 diesel::joinable!(versions -> works (work_id));
 diesel::joinable!(version_entries -> versions (version_id));
+diesel::joinable!(version_tags -> versions (version_id));
 diesel::joinable!(publications -> works (work_id));
 diesel::joinable!(comments -> publications (publication_id));
 diesel::joinable!(comment_votes -> comments (comment_id));
@@ -270,4 +283,5 @@ diesel::allow_tables_to_appear_in_same_query!(
     writing_days,
     bible_entries,
     scene_bible_links,
+    version_tags,
 );

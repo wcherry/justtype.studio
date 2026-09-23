@@ -210,6 +210,7 @@ pub async fn create(
                     epigraph: None,
                     epigraph_source: None,
                     copyright_line: None,
+                    pinned_version_id: None,
                 })
                 .execute(conn)?;
 

@@ -193,12 +193,43 @@ take the text.
 | Method | Path | Notes |
 |---|---|---|
 | `GET` | `/works/{id}/versions` | newest first |
-| `POST` | `/works/{id}/versions` | `label`, `notes`; snapshots the working copy |
+| `POST` | `/works/{id}/versions` | `label`, `notes`, `scope`, `scopeRefId`; snapshots the working copy |
+| `PATCH` | `/versions/{id}` | `label`, `notes` |
+| `POST` | `/versions/{id}/tags` | `tag`; idempotent, case-folded |
+| `DELETE` | `/versions/{id}/tags/{tag}` | |
+| `POST` | `/versions/{id}/pin` | marks it the work's pinned snapshot |
+| `POST` | `/versions/{id}/restore` | puts it back as the working copy |
 | `GET` | `/works/{id}/versions/diff?from=&to=` | scene-by-scene, paragraph-aligned |
 | `GET` | `/versions/{id}` | version plus its manifest entries |
 | `GET` | `/versions/{id}/content` | the whole frozen manuscript |
 | `POST` | `/versions/{id}/publish` | `draft` → `published` |
 | `POST` | `/versions/{id}/finalize` | → `final` |
+
+### Naming, tagging and scope
+
+A snapshot's text is immutable; what you call it is not. `PATCH` renames it and
+edits its notes, because a label chosen in the moment ("v3") is rarely the one
+that helps six months later ("before the agent's notes").
+
+Tags are free-form and case-folded, so `Submitted` and `submitted` are one tag
+and tagging twice is not an error. Pinning is separate and singular — the one
+snapshot a writer wants to find without looking, usually what they last sent
+out.
+
+`scope` is `work` (the default), `chapter` or `scene`. A narrower snapshot
+freezes just that part, for checkpointing a chapter before rewriting it without
+implying anything about the rest of the book.
+
+### Restoring
+
+`POST /versions/{id}/restore` puts a snapshot back as the working copy, and
+**snapshots the working copy first** — automatically, always. That safety
+snapshot is what makes it safe to remove scenes written after the version being
+restored; without it, "restore" would quietly discard them. The response names
+it, so it can be restored in turn.
+
+A scoped version restores only its own chapter or scene and leaves the rest of
+the book alone.
 
 ### Diffs
 

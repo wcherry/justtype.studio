@@ -4,7 +4,7 @@ import type {
   TrackedChange,
   User, Version, VersionContent, VersionDetail, Work, WorkKind, Visibility, CommentCategory,
   WritingSummary, EntryView, BibleKind, SplitSceneResponse, ResolveResponse,
-  BulkResolveResponse,
+  BulkResolveResponse, RestoreResponse, VersionSummary,
 } from './types'
 
 const BASE = '/api'
@@ -262,9 +262,23 @@ export const api = {
   },
 
   versions: {
-    list: (workId: string) => get<Version[]>(`/works/${workId}/versions`),
-    create: (workId: string, label?: string, notes?: string) =>
-      post<VersionDetail>(`/works/${workId}/versions`, { label, notes }),
+    list: (workId: string) => get<VersionSummary[]>(`/works/${workId}/versions`),
+    create: (
+      workId: string,
+      label?: string,
+      notes?: string,
+      scope?: 'work' | 'chapter' | 'scene',
+      scopeRefId?: string,
+    ) => post<VersionDetail>(`/works/${workId}/versions`, { label, notes, scope, scopeRefId }),
+    update: (versionId: string, input: { label?: string; notes?: string }) =>
+      patch<VersionDetail>(`/versions/${versionId}`, input),
+    addTag: (versionId: string, tag: string) =>
+      post<VersionDetail>(`/versions/${versionId}/tags`, { tag }),
+    removeTag: (versionId: string, tag: string) =>
+      del<VersionDetail>(`/versions/${versionId}/tags/${encodeURIComponent(tag)}`),
+    pin: (versionId: string) => post<Work>(`/versions/${versionId}/pin`),
+    /** Puts a snapshot back as the working copy, after snapshotting the draft. */
+    restore: (versionId: string) => post<RestoreResponse>(`/versions/${versionId}/restore`),
     get: (versionId: string) => get<VersionDetail>(`/versions/${versionId}`),
     content: (versionId: string) => get<VersionContent>(`/versions/${versionId}/content`),
     publish: (versionId: string) => post<Version>(`/versions/${versionId}/publish`),

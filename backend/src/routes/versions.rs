@@ -13,8 +13,9 @@ use serde_json::{json, Value};
 use crate::auth::{AuthUser, MaybeAuthUser};
 use crate::db::blocking;
 use crate::db::models::*;
-use crate::db::schema::{version_entries, versions, works};
+use crate::db::schema::{chapters, scenes, version_entries, version_tags, versions, works};
 use crate::domain::diff::{self, BlockChangeKind, DiffSummary, SceneChangeKind, SceneDiff};
+use crate::domain::enums::PublicationScope;
 use crate::domain::{doc, new_id, now_iso};
 use crate::error::{ApiError, ApiResult, ErrorEnvelope};
 use crate::state::AppState;
@@ -28,6 +29,15 @@ pub struct CreateVersionRequest {
     pub label: Option<String>,
     #[serde(default)]
     pub notes: Option<String>,
+    /// `work` (the default), `chapter` or `scene`. A smaller snapshot is for
+    /// checkpointing one chapter before rewriting it, without implying
+    /// anything about the rest of the book.
+    #[serde(default)]
+    #[schema(value_type = Option<crate::domain::enums::PublicationScope>)]
+    pub scope: Option<String>,
+    /// The chapter or scene being frozen, when narrower than the whole work.
+    #[serde(default)]
+    pub scope_ref_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
@@ -60,10 +70,24 @@ struct DiffEntry {
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
+pub struct VersionSummary {
+    #[serde(flatten)]
+    pub version: Version,
+    /// Tags, but not the manifest: a list of fifty snapshots has no use for
+    /// fifty manifests.
+    pub tags: Vec<String>,
+    /// Whether this is the work's pinned snapshot.
+    pub pinned: bool,
+}
+
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct VersionDetail {
     #[serde(flatten)]
     pub version: Version,
     pub entries: Vec<VersionEntry>,
+    /// Free-form labels, lowercased so `Submitted` and `submitted` are one tag.
+    pub tags: Vec<String>,
 }
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
@@ -115,7 +139,7 @@ pub struct DiffResponse {
     tag = "versions",
     params(("work_id" = String, Path)),
     responses(
-        (status = 200, description = "Success", body = Vec<Version>),
+        (status = 200, description = "Success", body = Vec<VersionSummary>),
         (status = 4XX, description = "Refused", body = ErrorEnvelope),
     )
 )]
@@ -124,17 +148,38 @@ pub async fn list(
     user: AuthUser,
     Path(work_id): Path<String>,
     Query(page): Query<Page>,
-) -> ApiResult<Json<Vec<Version>>> {
+) -> ApiResult<Json<Vec<VersionSummary>>> {
     let (limit, offset) = page.clamped();
     let rows = blocking(&state.pool, move |conn| {
-        support::work_for_owner(conn, &work_id, &user)?;
-        Ok(versions::table
+        let work = support::work_for_owner(conn, &work_id, &user)?;
+        let versions: Vec<Version> = versions::table
             .filter(versions::work_id.eq(&work_id))
             .order(versions::number.desc())
             .limit(limit)
             .offset(offset)
             .select(Version::as_select())
-            .load(conn)?)
+            .load(conn)?;
+
+        // One query for every tag on the page, rather than one per version.
+        let ids: Vec<String> = versions.iter().map(|v| v.id.clone()).collect();
+        let tag_rows: Vec<(String, String)> = version_tags::table
+            .filter(version_tags::version_id.eq_any(&ids))
+            .order(version_tags::tag.asc())
+            .select((version_tags::version_id, version_tags::tag))
+            .load(conn)?;
+
+        Ok(versions
+            .into_iter()
+            .map(|version| VersionSummary {
+                tags: tag_rows
+                    .iter()
+                    .filter(|(id, _)| *id == version.id)
+                    .map(|(_, tag)| tag.clone())
+                    .collect(),
+                pinned: work.pinned_version_id.as_deref() == Some(version.id.as_str()),
+                version,
+            })
+            .collect())
     })
     .await?;
     Ok(Json(rows))
@@ -167,9 +212,26 @@ pub async fn create(
     })
     .await?;
 
+    let scope = body.scope.clone().unwrap_or_else(|| "work".into());
+    if !PublicationScope::accepts(&scope) {
+        return Err(ApiError::BadRequest(format!(
+            "scope must be one of {}",
+            PublicationScope::options()
+        )));
+    }
+    if scope != "work" && body.scope_ref_id.is_none() {
+        return Err(ApiError::BadRequest(
+            "scopeRefId is required when snapshotting a chapter or a scene".into(),
+        ));
+    }
+
+    // Narrowed before anything is written, so a scoped snapshot contains
+    // exactly what it claims to and nothing else.
+    let outline = narrow_outline(outline, &scope, body.scope_ref_id.as_deref());
+
     if outline.chapters.iter().all(|c| c.scenes.is_empty()) {
         return Err(ApiError::BadRequest(
-            "there is nothing to snapshot: add at least one scene".into(),
+            "there is nothing to snapshot: that selection has no text in it".into(),
         ));
     }
 
@@ -240,6 +302,8 @@ pub async fn create(
         conn.transaction::<_, ApiError, _>(|conn| {
             diesel::insert_into(versions::table)
                 .values(&NewVersion {
+                    scope: scope.clone(),
+                    scope_ref_id: body.scope_ref_id.clone(),
                     id: db_version_id.clone(),
                     work_id: db_work_id.clone(),
                     number,
@@ -284,6 +348,27 @@ pub async fn create(
     Ok(Json(detail))
 }
 
+/// Trims an outline down to the chapter or scene a snapshot is scoped to.
+fn narrow_outline(
+    mut outline: super::works::OutlineResponse,
+    scope: &str,
+    reference: Option<&str>,
+) -> super::works::OutlineResponse {
+    match (scope, reference) {
+        ("chapter", Some(chapter_id)) => {
+            outline.chapters.retain(|c| c.chapter.id == chapter_id);
+        }
+        ("scene", Some(scene_id)) => {
+            outline.chapters.retain_mut(|chapter| {
+                chapter.scenes.retain(|scene| scene.id == scene_id);
+                !chapter.scenes.is_empty()
+            });
+        }
+        _ => {}
+    }
+    outline
+}
+
 pub(crate) fn load_detail(
     conn: &mut crate::db::Conn,
     version_id: &str,
@@ -300,7 +385,16 @@ pub(crate) fn load_detail(
         ))
         .select(VersionEntry::as_select())
         .load(conn)?;
-    Ok(VersionDetail { version, entries })
+    let tags: Vec<String> = version_tags::table
+        .filter(version_tags::version_id.eq(version_id))
+        .order(version_tags::tag.asc())
+        .select(version_tags::tag)
+        .load(conn)?;
+    Ok(VersionDetail {
+        version,
+        entries,
+        tags,
+    })
 }
 
 #[utoipa::path(
@@ -699,4 +793,348 @@ pub(crate) fn paragraphs_of(document: &Value) -> Vec<String> {
                 .collect()
         })
         .unwrap_or_default()
+}
+
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateVersionRequest {
+    #[serde(default)]
+    pub label: Option<String>,
+    /// What this snapshot was for. Blank clears it.
+    #[serde(default)]
+    pub notes: Option<String>,
+}
+
+/// Renaming a snapshot after the fact.
+///
+/// A label chosen in the moment ("v3") is rarely the one that helps six months
+/// later ("before the agent's notes"), and the snapshot's text is immutable —
+/// but what you call it should not be.
+#[utoipa::path(
+    patch,
+    path = "/api/versions/{version_id}",
+    tag = "versions",
+    params(("version_id" = String, Path)),
+    request_body = UpdateVersionRequest,
+    responses(
+        (status = 200, description = "The updated version", body = VersionDetail),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
+pub async fn update(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(version_id): Path<String>,
+    Json(body): Json<UpdateVersionRequest>,
+) -> ApiResult<Json<VersionDetail>> {
+    let detail = blocking(&state.pool, move |conn| {
+        support::version_for_owner(conn, &version_id, &user)?;
+        if let Some(label) = &body.label {
+            let label = label.trim();
+            if label.is_empty() {
+                return Err(ApiError::BadRequest("a version needs a label".into()));
+            }
+            diesel::update(versions::table.find(&version_id))
+                .set(versions::label.eq(label))
+                .execute(conn)?;
+        }
+        if let Some(notes) = &body.notes {
+            let notes = notes.trim();
+            diesel::update(versions::table.find(&version_id))
+                .set(versions::notes.eq((!notes.is_empty()).then_some(notes)))
+                .execute(conn)?;
+        }
+        load_detail(conn, &version_id)
+    })
+    .await?;
+    Ok(Json(detail))
+}
+
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TagRequest {
+    pub tag: String,
+}
+
+/// Tags a snapshot. Idempotent, so tagging twice is not an error.
+#[utoipa::path(
+    post,
+    path = "/api/versions/{version_id}/tags",
+    tag = "versions",
+    params(("version_id" = String, Path)),
+    request_body = TagRequest,
+    responses(
+        (status = 200, description = "The version and its tags", body = VersionDetail),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
+pub async fn add_tag(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(version_id): Path<String>,
+    Json(body): Json<TagRequest>,
+) -> ApiResult<Json<VersionDetail>> {
+    let tag = body.tag.trim().to_lowercase();
+    if tag.is_empty() {
+        return Err(ApiError::BadRequest("a tag needs some text".into()));
+    }
+    let detail = blocking(&state.pool, move |conn| {
+        support::version_for_owner(conn, &version_id, &user)?;
+        diesel::insert_into(version_tags::table)
+            .values(&NewVersionTag {
+                id: new_id(),
+                version_id: version_id.clone(),
+                tag,
+                created_at: now_iso(),
+            })
+            .on_conflict((version_tags::version_id, version_tags::tag))
+            .do_nothing()
+            .execute(conn)?;
+        load_detail(conn, &version_id)
+    })
+    .await?;
+    Ok(Json(detail))
+}
+
+#[utoipa::path(
+    delete,
+    path = "/api/versions/{version_id}/tags/{tag}",
+    tag = "versions",
+    params(("version_id" = String, Path), ("tag" = String, Path)),
+    responses(
+        (status = 200, description = "The version and its tags", body = VersionDetail),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
+pub async fn remove_tag(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path((version_id, tag)): Path<(String, String)>,
+) -> ApiResult<Json<VersionDetail>> {
+    let detail = blocking(&state.pool, move |conn| {
+        support::version_for_owner(conn, &version_id, &user)?;
+        diesel::delete(
+            version_tags::table
+                .filter(version_tags::version_id.eq(&version_id))
+                .filter(version_tags::tag.eq(tag.to_lowercase())),
+        )
+        .execute(conn)?;
+        load_detail(conn, &version_id)
+    })
+    .await?;
+    Ok(Json(detail))
+}
+
+/// Pins a snapshot as the one the writer wants to find without looking —
+/// typically what they last sent out. Pinning another replaces it.
+#[utoipa::path(
+    post,
+    path = "/api/versions/{version_id}/pin",
+    tag = "versions",
+    params(("version_id" = String, Path)),
+    responses(
+        (status = 200, description = "The work", body = Work),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
+pub async fn pin(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(version_id): Path<String>,
+) -> ApiResult<Json<Work>> {
+    let work = blocking(&state.pool, move |conn| {
+        let (version, work) = support::version_for_owner(conn, &version_id, &user)?;
+        diesel::update(works::table.find(&work.id))
+            .set((
+                works::pinned_version_id.eq(&version.id),
+                works::updated_at.eq(now_iso()),
+            ))
+            .execute(conn)?;
+        Ok(works::table
+            .find(&work.id)
+            .select(Work::as_select())
+            .first(conn)?)
+    })
+    .await?;
+    Ok(Json(work))
+}
+
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RestoreResponse {
+    /// The snapshot taken of the working copy before it was replaced.
+    pub safety_version: Version,
+    /// The work's outline, as it now stands.
+    pub outline: super::works::OutlineResponse,
+    pub scenes_restored: usize,
+    /// Scenes that existed only in the working copy and were removed. They are
+    /// in `safetyVersion`, which is the point of taking it.
+    pub scenes_removed: usize,
+}
+
+/// Puts a snapshot back as the working copy.
+///
+/// Never in place, and never destructively: the working copy is snapshotted
+/// first, automatically, so the state being replaced is one restore away. That
+/// safety snapshot is what makes it safe to remove scenes written after the
+/// version being restored — without it, "restore" would quietly discard them.
+///
+/// A scoped version restores only its own chapter or scene, leaving the rest of
+/// the book alone.
+#[utoipa::path(
+    post,
+    path = "/api/versions/{version_id}/restore",
+    tag = "versions",
+    params(("version_id" = String, Path)),
+    responses(
+        (status = 200, description = "What was restored", body = RestoreResponse),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
+pub async fn restore(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(version_id): Path<String>,
+) -> ApiResult<Json<RestoreResponse>> {
+    let guard_user = user.clone();
+    let guard_id = version_id.clone();
+    let (detail, work) = blocking(&state.pool, move |conn| {
+        let (_, work) = support::version_for_owner(conn, &guard_id, &guard_user)?;
+        Ok((load_detail(conn, &guard_id)?, work))
+    })
+    .await?;
+
+    // Before anything is overwritten. A restore that lost the draft it replaced
+    // would be the single worst thing this application could do.
+    let safety = create(
+        State(state.clone()),
+        user.clone(),
+        Path(work.id.clone()),
+        Json(CreateVersionRequest {
+            label: Some(format!("Before restoring {}", detail.version.label)),
+            notes: Some("Taken automatically so the restore could be undone.".into()),
+            scope: None,
+            scope_ref_id: None,
+        }),
+    )
+    .await?
+    .0;
+
+    // Copy the frozen text over the working copy, recreating anything that has
+    // been deleted since.
+    for entry in &detail.entries {
+        let content = state
+            .store
+            .read_version_scene(&work.id, &detail.version.id, &entry.scene_id)
+            .await
+            .unwrap_or_else(|_| doc::empty_doc());
+        state
+            .store
+            .write_working_scene(&work.id, &entry.scene_id, &content)
+            .await?;
+    }
+
+    let entries = detail.entries.clone();
+    let scope = detail.version.scope.clone();
+    let scope_ref = detail.version.scope_ref_id.clone();
+    let work_id = work.id.clone();
+    let restored = entries.len();
+
+    let (outline, removed) = blocking(&state.pool, move |conn| {
+        let now = now_iso();
+        let mut removed = 0usize;
+
+        conn.transaction::<_, ApiError, _>(|conn| {
+            for entry in &entries {
+                // The chapter may have been deleted since the snapshot.
+                let chapter_exists: Option<String> = chapters::table
+                    .find(&entry.chapter_id)
+                    .select(chapters::id)
+                    .first(conn)
+                    .optional()?;
+                if chapter_exists.is_none() {
+                    diesel::insert_into(chapters::table)
+                        .values(&NewChapter {
+                            id: entry.chapter_id.clone(),
+                            work_id: work_id.clone(),
+                            title: entry.chapter_title.clone(),
+                            summary: None,
+                            position: entry.chapter_position,
+                            created_at: now.clone(),
+                            updated_at: now.clone(),
+                        })
+                        .execute(conn)?;
+                }
+
+                let scene_exists: Option<String> = scenes::table
+                    .find(&entry.scene_id)
+                    .select(scenes::id)
+                    .first(conn)
+                    .optional()?;
+                if scene_exists.is_none() {
+                    diesel::insert_into(scenes::table)
+                        .values(&NewScene {
+                            id: entry.scene_id.clone(),
+                            work_id: work_id.clone(),
+                            chapter_id: entry.chapter_id.clone(),
+                            title: entry.scene_title.clone(),
+                            summary: None,
+                            pov: None,
+                            status: "drafting".into(),
+                            position: entry.scene_position,
+                            word_count: entry.word_count,
+                            content_hash: entry.content_hash.clone(),
+                            created_at: now.clone(),
+                            updated_at: now.clone(),
+                            target_words: None,
+                            location: None,
+                            story_date: None,
+                        })
+                        .execute(conn)?;
+                } else {
+                    diesel::update(scenes::table.find(&entry.scene_id))
+                        .set((
+                            scenes::chapter_id.eq(&entry.chapter_id),
+                            scenes::position.eq(entry.scene_position),
+                            scenes::word_count.eq(entry.word_count),
+                            scenes::content_hash.eq(&entry.content_hash),
+                            scenes::updated_at.eq(&now),
+                        ))
+                        .execute(conn)?;
+                }
+            }
+
+            // Scenes written after the snapshot. Removing them is what makes
+            // this a restore rather than a merge; the safety snapshot above is
+            // what makes removing them safe.
+            let keep: Vec<String> = entries.iter().map(|e| e.scene_id.clone()).collect();
+            let mut doomed = scenes::table
+                .filter(scenes::work_id.eq(&work_id))
+                .filter(scenes::id.ne_all(keep))
+                .into_boxed();
+            // A scoped version speaks only for its own chapter or scene.
+            match (scope.as_str(), scope_ref.as_deref()) {
+                ("chapter", Some(chapter_id)) => {
+                    doomed = doomed.filter(scenes::chapter_id.eq(chapter_id.to_string()));
+                }
+                ("scene", Some(_)) => return Ok(()),
+                _ => {}
+            }
+            let ids: Vec<String> = doomed.select(scenes::id).load(conn)?;
+            removed = ids.len();
+            diesel::delete(scenes::table.filter(scenes::id.eq_any(&ids))).execute(conn)?;
+            Ok(())
+        })?;
+
+        support::recount_work(conn, &work_id, &now)?;
+        Ok((super::works::load_outline(conn, &work_id)?, removed))
+    })
+    .await?;
+
+    Ok(Json(RestoreResponse {
+        safety_version: safety.version,
+        outline,
+        scenes_restored: restored,
+        scenes_removed: removed,
+    }))
 }

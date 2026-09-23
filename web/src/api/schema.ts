@@ -187,6 +187,9 @@ export interface CreateSceneRequest {
 export interface CreateVersionRequest {
   label?: string | null
   notes?: string | null
+  scope?: PublicationScope | null
+  // The chapter or scene being frozen, when narrower than the whole work.
+  scopeRefId?: string | null
 }
 
 export interface CreateWorkRequest {
@@ -313,6 +316,9 @@ export interface OutlineResponse {
   ownerId: string
   // The name on the byline, when it is not the writer's own.
   penName?: string | null
+  // The snapshot the writer wants to find without looking — what they last
+  // sent out.
+  pinnedVersionId?: string | null
   // Short form for a running header; a long title wraps and ruins it.
   shortTitle?: string | null
   status: WorkStatus
@@ -403,6 +409,17 @@ export interface ReorderRequest {
 export interface ResolveResponse {
   change: TrackedChange
   scene?: Scene | null
+}
+
+export interface RestoreResponse {
+  // The work's outline, as it now stands.
+  outline: OutlineResponse
+  // The snapshot taken of the working copy before it was replaced.
+  safetyVersion: Version
+  // Scenes that existed only in the working copy and were removed. They are
+  // in `safetyVersion`, which is the point of taking it.
+  scenesRemoved: number
+  scenesRestored: number
 }
 
 export interface RevisionWithContent {
@@ -524,6 +541,10 @@ export interface StaleChange {
   reason: string
 }
 
+export interface TagRequest {
+  tag: string
+}
+
 export interface TemplateChapter {
   scenes?: TemplateScene[]
   summary?: string | null
@@ -619,6 +640,12 @@ export interface UpdateSceneRequest {
   title?: string | null
 }
 
+export interface UpdateVersionRequest {
+  label?: string | null
+  // What this snapshot was for. Blank clears it.
+  notes?: string | null
+}
+
 export interface UpdateWorkRequest {
   copyrightLine?: string | null
   dedication?: string | null
@@ -660,6 +687,9 @@ export interface Version {
   number: number
   parentVersionId?: string | null
   publishedAt?: string | null
+  // `work`, `chapter` or `scene` — how much of the book this froze.
+  scope: PublicationScope
+  scopeRefId?: string | null
   state: VersionState
   wordCount: number
   workId: string
@@ -675,6 +705,9 @@ export interface VersionContent {
   number: number
   parentVersionId?: string | null
   publishedAt?: string | null
+  // `work`, `chapter` or `scene` — how much of the book this froze.
+  scope: PublicationScope
+  scopeRefId?: string | null
   state: VersionState
   wordCount: number
   workId: string
@@ -691,10 +724,15 @@ export interface VersionDetail {
   number: number
   parentVersionId?: string | null
   publishedAt?: string | null
+  // `work`, `chapter` or `scene` — how much of the book this froze.
+  scope: PublicationScope
+  scopeRefId?: string | null
   state: VersionState
   wordCount: number
   workId: string
   entries: VersionEntry[]
+  // Free-form labels, lowercased so `Submitted` and `submitted` are one tag.
+  tags: string[]
 }
 
 export interface VersionEntry {
@@ -711,6 +749,29 @@ export interface VersionEntry {
 }
 
 export type VersionState = 'draft' | 'published' | 'final'
+
+export interface VersionSummary {
+  createdAt: string
+  createdBy: string
+  finalizedAt?: string | null
+  id: string
+  label: string
+  notes?: string | null
+  number: number
+  parentVersionId?: string | null
+  publishedAt?: string | null
+  // `work`, `chapter` or `scene` — how much of the book this froze.
+  scope: PublicationScope
+  scopeRefId?: string | null
+  state: VersionState
+  wordCount: number
+  workId: string
+  // Whether this is the work's pinned snapshot.
+  pinned: boolean
+  // Tags, but not the manifest: a list of fifty snapshots has no use for
+  // fifty manifests.
+  tags: string[]
+}
 
 export type Visibility = 'unlisted' | 'platform' | 'public'
 
@@ -737,6 +798,9 @@ export interface Work {
   ownerId: string
   // The name on the byline, when it is not the writer's own.
   penName?: string | null
+  // The snapshot the writer wants to find without looking — what they last
+  // sent out.
+  pinnedVersionId?: string | null
   // Short form for a running header; a long title wraps and ruins it.
   shortTitle?: string | null
   status: WorkStatus

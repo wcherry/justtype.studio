@@ -490,13 +490,20 @@ public enum API {
     public struct CreateVersionRequest: Codable, Hashable, Sendable {
         public var label: String?
         public var notes: String?
+        public var scope: PublicationScope?
+        /// The chapter or scene being frozen, when narrower than the whole work.
+        public var scopeRefId: String?
 
         public init(
             label: String? = nil,
-            notes: String? = nil
+            notes: String? = nil,
+            scope: PublicationScope? = nil,
+            scopeRefId: String? = nil
         ) {
             self.label = label
             self.notes = notes
+            self.scope = scope
+            self.scopeRefId = scopeRefId
         }
     }
 
@@ -790,6 +797,9 @@ public enum API {
         public var ownerId: String
         /// The name on the byline, when it is not the writer's own.
         public var penName: String?
+        /// The snapshot the writer wants to find without looking — what they last
+        /// sent out.
+        public var pinnedVersionId: String?
         /// Short form for a running header; a long title wraps and ruins it.
         public var shortTitle: String?
         public var status: WorkStatus
@@ -812,6 +822,7 @@ public enum API {
             kind: WorkKind,
             ownerId: String,
             penName: String? = nil,
+            pinnedVersionId: String? = nil,
             shortTitle: String? = nil,
             status: WorkStatus,
             subtitle: String? = nil,
@@ -832,6 +843,7 @@ public enum API {
             self.kind = kind
             self.ownerId = ownerId
             self.penName = penName
+            self.pinnedVersionId = pinnedVersionId
             self.shortTitle = shortTitle
             self.status = status
             self.subtitle = subtitle
@@ -1033,6 +1045,29 @@ public enum API {
         ) {
             self.change = change
             self.scene = scene
+        }
+    }
+
+    public struct RestoreResponse: Codable, Hashable, Sendable {
+        /// The work's outline, as it now stands.
+        public var outline: OutlineResponse
+        /// The snapshot taken of the working copy before it was replaced.
+        public var safetyVersion: Version
+        /// Scenes that existed only in the working copy and were removed. They are
+        /// in `safetyVersion`, which is the point of taking it.
+        public var scenesRemoved: Int
+        public var scenesRestored: Int
+
+        public init(
+            outline: OutlineResponse,
+            safetyVersion: Version,
+            scenesRemoved: Int,
+            scenesRestored: Int
+        ) {
+            self.outline = outline
+            self.safetyVersion = safetyVersion
+            self.scenesRemoved = scenesRemoved
+            self.scenesRestored = scenesRestored
         }
     }
 
@@ -1342,6 +1377,16 @@ public enum API {
         }
     }
 
+    public struct TagRequest: Codable, Hashable, Sendable {
+        public var tag: String
+
+        public init(
+            tag: String
+        ) {
+            self.tag = tag
+        }
+    }
+
     public struct TemplateChapter: Codable, Hashable, Sendable {
         public var scenes: [TemplateScene]?
         public var summary: String?
@@ -1583,6 +1628,20 @@ public enum API {
         }
     }
 
+    public struct UpdateVersionRequest: Codable, Hashable, Sendable {
+        public var label: String?
+        /// What this snapshot was for. Blank clears it.
+        public var notes: String?
+
+        public init(
+            label: String? = nil,
+            notes: String? = nil
+        ) {
+            self.label = label
+            self.notes = notes
+        }
+    }
+
     public struct UpdateWorkRequest: Codable, Hashable, Sendable {
         public var copyrightLine: String?
         public var dedication: String?
@@ -1672,6 +1731,9 @@ public enum API {
         public var number: Int
         public var parentVersionId: String?
         public var publishedAt: String?
+        /// `work`, `chapter` or `scene` — how much of the book this froze.
+        public var scope: PublicationScope
+        public var scopeRefId: String?
         public var state: VersionState
         public var wordCount: Int
         public var workId: String
@@ -1686,6 +1748,8 @@ public enum API {
             number: Int,
             parentVersionId: String? = nil,
             publishedAt: String? = nil,
+            scope: PublicationScope,
+            scopeRefId: String? = nil,
             state: VersionState,
             wordCount: Int,
             workId: String
@@ -1699,6 +1763,8 @@ public enum API {
             self.number = number
             self.parentVersionId = parentVersionId
             self.publishedAt = publishedAt
+            self.scope = scope
+            self.scopeRefId = scopeRefId
             self.state = state
             self.wordCount = wordCount
             self.workId = workId
@@ -1715,6 +1781,9 @@ public enum API {
         public var number: Int
         public var parentVersionId: String?
         public var publishedAt: String?
+        /// `work`, `chapter` or `scene` — how much of the book this froze.
+        public var scope: PublicationScope
+        public var scopeRefId: String?
         public var state: VersionState
         public var wordCount: Int
         public var workId: String
@@ -1730,6 +1799,8 @@ public enum API {
             number: Int,
             parentVersionId: String? = nil,
             publishedAt: String? = nil,
+            scope: PublicationScope,
+            scopeRefId: String? = nil,
             state: VersionState,
             wordCount: Int,
             workId: String,
@@ -1744,6 +1815,8 @@ public enum API {
             self.number = number
             self.parentVersionId = parentVersionId
             self.publishedAt = publishedAt
+            self.scope = scope
+            self.scopeRefId = scopeRefId
             self.state = state
             self.wordCount = wordCount
             self.workId = workId
@@ -1761,10 +1834,15 @@ public enum API {
         public var number: Int
         public var parentVersionId: String?
         public var publishedAt: String?
+        /// `work`, `chapter` or `scene` — how much of the book this froze.
+        public var scope: PublicationScope
+        public var scopeRefId: String?
         public var state: VersionState
         public var wordCount: Int
         public var workId: String
         public var entries: [VersionEntry]
+        /// Free-form labels, lowercased so `Submitted` and `submitted` are one tag.
+        public var tags: [String]
 
         public init(
             createdAt: String,
@@ -1776,10 +1854,13 @@ public enum API {
             number: Int,
             parentVersionId: String? = nil,
             publishedAt: String? = nil,
+            scope: PublicationScope,
+            scopeRefId: String? = nil,
             state: VersionState,
             wordCount: Int,
             workId: String,
-            entries: [VersionEntry]
+            entries: [VersionEntry],
+            tags: [String]
         ) {
             self.createdAt = createdAt
             self.createdBy = createdBy
@@ -1790,10 +1871,13 @@ public enum API {
             self.number = number
             self.parentVersionId = parentVersionId
             self.publishedAt = publishedAt
+            self.scope = scope
+            self.scopeRefId = scopeRefId
             self.state = state
             self.wordCount = wordCount
             self.workId = workId
             self.entries = entries
+            self.tags = tags
         }
     }
 
@@ -1838,6 +1922,65 @@ public enum API {
         case draft = "draft"
         case published = "published"
         case final = "final"
+    }
+
+    public struct VersionSummary: Codable, Hashable, Sendable {
+        public var createdAt: String
+        public var createdBy: String
+        public var finalizedAt: String?
+        public var id: String
+        public var label: String
+        public var notes: String?
+        public var number: Int
+        public var parentVersionId: String?
+        public var publishedAt: String?
+        /// `work`, `chapter` or `scene` — how much of the book this froze.
+        public var scope: PublicationScope
+        public var scopeRefId: String?
+        public var state: VersionState
+        public var wordCount: Int
+        public var workId: String
+        /// Whether this is the work's pinned snapshot.
+        public var pinned: Bool
+        /// Tags, but not the manifest: a list of fifty snapshots has no use for
+        /// fifty manifests.
+        public var tags: [String]
+
+        public init(
+            createdAt: String,
+            createdBy: String,
+            finalizedAt: String? = nil,
+            id: String,
+            label: String,
+            notes: String? = nil,
+            number: Int,
+            parentVersionId: String? = nil,
+            publishedAt: String? = nil,
+            scope: PublicationScope,
+            scopeRefId: String? = nil,
+            state: VersionState,
+            wordCount: Int,
+            workId: String,
+            pinned: Bool,
+            tags: [String]
+        ) {
+            self.createdAt = createdAt
+            self.createdBy = createdBy
+            self.finalizedAt = finalizedAt
+            self.id = id
+            self.label = label
+            self.notes = notes
+            self.number = number
+            self.parentVersionId = parentVersionId
+            self.publishedAt = publishedAt
+            self.scope = scope
+            self.scopeRefId = scopeRefId
+            self.state = state
+            self.wordCount = wordCount
+            self.workId = workId
+            self.pinned = pinned
+            self.tags = tags
+        }
     }
 
     public enum Visibility: String, Codable, CaseIterable, Hashable, Sendable {
@@ -1885,6 +2028,9 @@ public enum API {
         public var ownerId: String
         /// The name on the byline, when it is not the writer's own.
         public var penName: String?
+        /// The snapshot the writer wants to find without looking — what they last
+        /// sent out.
+        public var pinnedVersionId: String?
         /// Short form for a running header; a long title wraps and ruins it.
         public var shortTitle: String?
         public var status: WorkStatus
@@ -1906,6 +2052,7 @@ public enum API {
             kind: WorkKind,
             ownerId: String,
             penName: String? = nil,
+            pinnedVersionId: String? = nil,
             shortTitle: String? = nil,
             status: WorkStatus,
             subtitle: String? = nil,
@@ -1925,6 +2072,7 @@ public enum API {
             self.kind = kind
             self.ownerId = ownerId
             self.penName = penName
+            self.pinnedVersionId = pinnedVersionId
             self.shortTitle = shortTitle
             self.status = status
             self.subtitle = subtitle

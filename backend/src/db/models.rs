@@ -77,6 +77,9 @@ row!(Work, works, {
     epigraph: Option<String>,
     epigraph_source: Option<String>,
     copyright_line: Option<String>,
+    /// The snapshot the writer wants to find without looking — what they last
+    /// sent out.
+    pinned_version_id: Option<String>,
 });
 
 row!(Chapter, chapters, {
@@ -186,6 +189,17 @@ row!(Version, versions, {
     created_at: String,
     published_at: Option<String>,
     finalized_at: Option<String>,
+    /// `work`, `chapter` or `scene` — how much of the book this froze.
+    #[schema(value_type = crate::domain::enums::PublicationScope)]
+    scope: String,
+    scope_ref_id: Option<String>,
+});
+
+row!(VersionTag, version_tags, {
+    id: String,
+    version_id: String,
+    tag: String,
+    created_at: String,
 });
 
 row!(VersionEntry, version_entries, {
@@ -285,6 +299,7 @@ new_row!(NewWork, works, {
     created_at: String, updated_at: String, pen_name: Option<String>,
     short_title: Option<String>, dedication: Option<String>, epigraph: Option<String>,
     epigraph_source: Option<String>, copyright_line: Option<String>,
+    pinned_version_id: Option<String>,
 });
 
 new_row!(NewChapter, chapters, {
@@ -325,7 +340,11 @@ new_row!(NewVersion, versions, {
     id: String, work_id: String, number: i32, label: String, state: String,
     parent_version_id: Option<String>, created_by: String, notes: Option<String>,
     word_count: i32, created_at: String, published_at: Option<String>,
-    finalized_at: Option<String>,
+    finalized_at: Option<String>, scope: String, scope_ref_id: Option<String>,
+});
+
+new_row!(NewVersionTag, version_tags, {
+    id: String, version_id: String, tag: String, created_at: String,
 });
 
 new_row!(NewVersionEntry, version_entries, {

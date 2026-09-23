@@ -635,6 +635,24 @@
               "string",
               "null"
             ]
+          },
+          "scope": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PublicationScope",
+                "description": "`work` (the default), `chapter` or `scene`. A smaller snapshot is for\ncheckpointing one chapter before rewriting it, without implying\nanything about the rest of the book."
+              }
+            ]
+          },
+          "scopeRefId": {
+            "description": "The chapter or scene being frozen, when narrower than the whole work.",
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "type": "object"
@@ -1189,6 +1207,34 @@
         ],
         "type": "object"
       },
+      "RestoreResponse": {
+        "properties": {
+          "outline": {
+            "$ref": "#/components/schemas/OutlineResponse",
+            "description": "The work's outline, as it now stands."
+          },
+          "safetyVersion": {
+            "$ref": "#/components/schemas/Version",
+            "description": "The snapshot taken of the working copy before it was replaced."
+          },
+          "scenesRemoved": {
+            "description": "Scenes that existed only in the working copy and were removed. They are\nin `safetyVersion`, which is the point of taking it.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "scenesRestored": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "safetyVersion",
+          "outline",
+          "scenesRestored",
+          "scenesRemoved"
+        ],
+        "type": "object"
+      },
       "RevisionWithContent": {
         "allOf": [
           {
@@ -1511,6 +1557,17 @@
         "required": [
           "changeId",
           "reason"
+        ],
+        "type": "object"
+      },
+      "TagRequest": {
+        "properties": {
+          "tag": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "tag"
         ],
         "type": "object"
       },
@@ -1857,6 +1914,24 @@
         },
         "type": "object"
       },
+      "UpdateVersionRequest": {
+        "properties": {
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "notes": {
+            "description": "What this snapshot was for. Blank clears it.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
       "UpdateWorkRequest": {
         "properties": {
           "copyrightLine": {
@@ -2029,6 +2104,16 @@
               "null"
             ]
           },
+          "scope": {
+            "$ref": "#/components/schemas/PublicationScope",
+            "description": "`work`, `chapter` or `scene` — how much of the book this froze."
+          },
+          "scopeRefId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "state": {
             "$ref": "#/components/schemas/VersionState"
           },
@@ -2048,7 +2133,8 @@
           "state",
           "createdBy",
           "wordCount",
-          "createdAt"
+          "createdAt",
+          "scope"
         ],
         "type": "object"
       },
@@ -2085,10 +2171,18 @@
                   "$ref": "#/components/schemas/VersionEntry"
                 },
                 "type": "array"
+              },
+              "tags": {
+                "description": "Free-form labels, lowercased so `Submitted` and `submitted` are one tag.",
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
               }
             },
             "required": [
-              "entries"
+              "entries",
+              "tags"
             ],
             "type": "object"
           }
@@ -2151,6 +2245,33 @@
           "final"
         ],
         "type": "string"
+      },
+      "VersionSummary": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Version"
+          },
+          {
+            "properties": {
+              "pinned": {
+                "description": "Whether this is the work's pinned snapshot.",
+                "type": "boolean"
+              },
+              "tags": {
+                "description": "Tags, but not the manifest: a list of fifty snapshots has no use for\nfifty manifests.",
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "tags",
+              "pinned"
+            ],
+            "type": "object"
+          }
+        ]
       },
       "Visibility": {
         "enum": [
@@ -2240,6 +2361,13 @@
           },
           "penName": {
             "description": "The name on the byline, when it is not the writer's own.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pinnedVersionId": {
+            "description": "The snapshot the writer wants to find without looking — what they last\nsent out.",
             "type": [
               "string",
               "null"
@@ -4215,6 +4343,56 @@
         "tags": [
           "versions"
         ]
+      },
+      "patch": {
+        "description": "A label chosen in the moment (\"v3\") is rarely the one that helps six months\nlater (\"before the agent's notes\"), and the snapshot's text is immutable —\nbut what you call it should not be.",
+        "operationId": "update",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateVersionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionDetail"
+                }
+              }
+            },
+            "description": "The updated version"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "Renaming a snapshot after the fact.",
+        "tags": [
+          "versions"
+        ]
       }
     },
     "/api/versions/{version_id}/content": {
@@ -4334,6 +4512,47 @@
         ]
       }
     },
+    "/api/versions/{version_id}/pin": {
+      "post": {
+        "operationId": "pin",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Work"
+                }
+              }
+            },
+            "description": "The work"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "Pins a snapshot as the one the writer wants to find without looking —\ntypically what they last sent out. Pinning another replaces it.",
+        "tags": [
+          "versions"
+        ]
+      }
+    },
     "/api/versions/{version_id}/publications": {
       "post": {
         "operationId": "create",
@@ -4407,6 +4626,147 @@
               }
             },
             "description": "Success"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "versions"
+        ]
+      }
+    },
+    "/api/versions/{version_id}/restore": {
+      "post": {
+        "description": "Never in place, and never destructively: the working copy is snapshotted\nfirst, automatically, so the state being replaced is one restore away. That\nsafety snapshot is what makes it safe to remove scenes written after the\nversion being restored — without it, \"restore\" would quietly discard them.\n\nA scoped version restores only its own chapter or scene, leaving the rest of\nthe book alone.",
+        "operationId": "restore",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RestoreResponse"
+                }
+              }
+            },
+            "description": "What was restored"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "Puts a snapshot back as the working copy.",
+        "tags": [
+          "versions"
+        ]
+      }
+    },
+    "/api/versions/{version_id}/tags": {
+      "post": {
+        "operationId": "add_tag",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TagRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionDetail"
+                }
+              }
+            },
+            "description": "The version and its tags"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "Tags a snapshot. Idempotent, so tagging twice is not an error.",
+        "tags": [
+          "versions"
+        ]
+      }
+    },
+    "/api/versions/{version_id}/tags/{tag}": {
+      "delete": {
+        "operationId": "remove_tag",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "tag",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionDetail"
+                }
+              }
+            },
+            "description": "The version and its tags"
           },
           "4": {
             "content": {
@@ -4867,7 +5227,7 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/Version"
+                    "$ref": "#/components/schemas/VersionSummary"
                   },
                   "type": "array"
                 }

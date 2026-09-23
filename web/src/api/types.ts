@@ -52,6 +52,8 @@ export type {
   BulkResolveResponse,
   EntryView,
   ResolveResponse,
+  RestoreResponse,
+  VersionSummary,
   SplitSceneResponse,
   StaleChange,
   Work,

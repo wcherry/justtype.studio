@@ -1,19 +1,14 @@
 import { useState } from 'react'
 import { api } from '../api/client'
-import type { DiffResponse, Version, Visibility } from '../api/types'
+import type { DiffResponse, VersionSummary, Visibility } from '../api/types'
 import { DiffView } from './DiffView'
 import { ExportDialog } from './ExportDialog'
+import { VersionCard } from './VersionCard'
 
 interface Props {
   workId: string
-  versions: Version[]
+  versions: VersionSummary[]
   onChanged: () => void
-}
-
-const STATE_LABEL: Record<Version['state'], string> = {
-  draft: 'Draft',
-  published: 'Published',
-  final: 'Final',
 }
 
 /**
@@ -71,7 +66,11 @@ export function VersionPanel({ workId, versions, onChanged }: Props) {
         <button
           type="button"
           disabled={busy}
-          onClick={() => run(() => api.versions.create(workId, window.prompt('Label for this snapshot') ?? undefined))}
+          onClick={() =>
+            run(() =>
+              api.versions.create(workId, window.prompt('Label for this snapshot') ?? undefined),
+            )
+          }
         >
           Snapshot now
         </button>
@@ -81,35 +80,17 @@ export function VersionPanel({ workId, versions, onChanged }: Props) {
 
       <ul className="versions__list">
         {versions.map((version) => (
-          <li key={version.id} className="versions__item">
-            <div className="versions__row">
-              <span className={`badge badge--${version.state}`}>{STATE_LABEL[version.state]}</span>
-              <strong>{version.label}</strong>
-              <span className="versions__meta">{version.wordCount.toLocaleString()} words</span>
-            </div>
-            <div className="versions__meta">{new Date(version.createdAt).toLocaleString()}</div>
-            <div className="versions__actions">
-              {version.state === 'draft' && (
-                <button type="button" disabled={busy} onClick={() => run(() => api.versions.publish(version.id))}>
-                  Publish
-                </button>
-              )}
-              {version.state === 'published' && (
-                <>
-                  <button type="button" disabled={busy} onClick={() => setOffering(version.id)}>
-                    Offer for review
-                  </button>
-                  <button type="button" disabled={busy} onClick={() => run(() => api.versions.finalize(version.id))}>
-                    Mark final
-                  </button>
-                </>
-              )}
-              <button type="button" disabled={busy} onClick={() => compareWithDraft(version.id)}>
-                Compare with draft
-              </button>
-              <button type="button" onClick={() => setExporting(exporting === version.id ? null : version.id)}>
-                Export
-              </button>
+          <VersionCard
+            key={version.id}
+            version={version}
+            busy={busy}
+            onChanged={onChanged}
+            onError={setError}
+            onCompareWithDraft={() => compareWithDraft(version.id)}
+            onExport={() => setExporting(exporting === version.id ? null : version.id)}
+            onOffer={() => setOffering(version.id)}
+          >
+            <div className="versions__picks">
               <label className="versions__pick">
                 <input
                   type="radio"
@@ -143,7 +124,7 @@ export function VersionPanel({ workId, versions, onChanged }: Props) {
                 }}
               />
             )}
-          </li>
+          </VersionCard>
         ))}
       </ul>
 

@@ -6,7 +6,7 @@ import Underline from '@tiptap/extension-underline'
 import Placeholder from '@tiptap/extension-placeholder'
 
 import { api } from '../api/client'
-import type { Outline as OutlineType, Scene, SceneWithContent, Version } from '../api/types'
+import type { Outline as OutlineType, Scene, SceneWithContent, VersionSummary } from '../api/types'
 import { ChangesPanel } from '../components/ChangesPanel'
 import { ConflictBanner } from '../components/ConflictBanner'
 import { Corkboard } from '../components/Corkboard'
@@ -42,7 +42,7 @@ const SAVE_LABEL: Record<string, string> = {
 export function EditorPage() {
   const { workId = '' } = useParams()
   const [outline, setOutline] = useState<OutlineType | null>(null)
-  const [versions, setVersions] = useState<Version[]>([])
+  const [versions, setVersions] = useState<VersionSummary[]>([])
   const [scene, setScene] = useState<Scene | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [panel, setPanel] =

@@ -267,6 +267,62 @@ for scene in d['scenes']:
         if b['kind'] == 'unchanged': continue
         print(f\"   {b['kind']}: {(b['after'] or b['before'])[:60]}\")"
 
+step "Naming, tagging and pinning a snapshot"
+curl -s -X PATCH "$API/versions/$VA" -H "$AUTH" -H 'content-type: application/json' \
+  -d '{"label":"Before the agent read it","notes":"What went out in March."}' \
+  | python3 -c "import sys,json;d=json.load(sys.stdin);print(f\"  renamed to '{d['label']}'\")"
+curl -s -X POST "$API/versions/$VA/tags" -H "$AUTH" -H 'content-type: application/json' -d '{"tag":"Submitted"}' >/dev/null
+curl -s -X POST "$API/versions/$VA/tags" -H "$AUTH" -H 'content-type: application/json' -d '{"tag":"submitted"}' >/dev/null
+curl -s -X POST "$API/versions/$VA/tags" -H "$AUTH" -H 'content-type: application/json' -d '{"tag":"march"}' >/dev/null
+curl -s "$API/versions/$VA" -H "$AUTH" | python3 -c "
+import sys,json;d=json.load(sys.stdin)
+print('  tags:', d['tags'], '(case-folded, so tagging twice is once)')"
+curl -s -X POST "$API/versions/$VA/pin" -H "$AUTH" | python3 -c "
+import sys,json;d=json.load(sys.stdin);print('  pinned:', d['pinnedVersionId'] is not None)"
+
+step "Snapshotting one chapter rather than the whole book"
+CH=$(curl -s "$API/works/$WID/outline" -H "$AUTH" | field chapters.0.id)
+curl -s -X POST "$API/works/$WID/versions" -H "$AUTH" -H 'content-type: application/json' \
+  -d "{\"label\":\"Chapter one only\",\"scope\":\"chapter\",\"scopeRefId\":\"$CH\"}" \
+  | python3 -c "
+import sys,json;d=json.load(sys.stdin)
+print(f\"  {d['label']}: scope={d['scope']}, {len(d['entries'])} scene(s)\")"
+BAD=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$API/works/$WID/versions" -H "$AUTH" \
+  -H 'content-type: application/json' -d '{"scope":"chapter"}')
+[ "$BAD" = "400" ] && echo "  a scoped snapshot without a target is refused" || { echo "  EXPECTED 400, got $BAD"; exit 1; }
+
+step "Restoring a version, without losing the draft it replaces"
+# The working copy says one thing; the snapshot says another.
+DRAFT_TEXT=$(curl -s "$API/scenes/$SCENE" -H "$AUTH" | python3 -c "
+import sys,json
+def text(n): return ''.join(c['text'] if c.get('type')=='text' else text(c) for c in n.get('content',[]))
+print(text(json.load(sys.stdin)['content'])[:60])")
+RESTORE=$(curl -s -X POST "$API/versions/$VA/restore" -H "$AUTH")
+echo "$RESTORE" | python3 -c "
+import sys,json;d=json.load(sys.stdin)
+print(f\"  restored {d['scenesRestored']} scene(s), removed {d['scenesRemoved']}\")
+print(f\"  safety snapshot: '{d['safetyVersion']['label']}'\")"
+AFTER_TEXT=$(curl -s "$API/scenes/$SCENE" -H "$AUTH" | python3 -c "
+import sys,json
+def text(n): return ''.join(c['text'] if c.get('type')=='text' else text(c) for c in n.get('content',[]))
+print(text(json.load(sys.stdin)['content'])[:60])")
+[ "$DRAFT_TEXT" != "$AFTER_TEXT" ] && echo "  working copy now holds the restored text" || { echo "  RESTORE DID NOTHING"; exit 1; }
+
+# The draft that was replaced has to still be reachable.
+SAFETY=$(echo "$RESTORE" | field safetyVersion.id)
+SAFE_TEXT=$(curl -s "$API/versions/$SAFETY/content" -H "$AUTH" | python3 -c "
+import sys,json
+def text(n): return ''.join(c['text'] if c.get('type')=='text' else text(c) for c in n.get('content',[]))
+d=json.load(sys.stdin)
+for ch in d['chapters']:
+    for sc in ch['scenes']:
+        t = text(sc['content'])
+        if t: print(t[:60]); break
+    else: continue
+    break")
+[ "$SAFE_TEXT" = "$DRAFT_TEXT" ] && echo "  the replaced draft is safe in the safety snapshot" || {
+  echo "  DRAFT LOST"; echo "   was:  $DRAFT_TEXT"; echo "   safe: $SAFE_TEXT"; exit 1; }
+
 step "Publishing and offering it for review"
 curl -s -X POST "$API/versions/$V2/publish" -H "$AUTH" | field state
 PUB=$(curl -s -X POST "$API/versions/$V2/publications" -H "$AUTH" -H 'content-type: application/json' \

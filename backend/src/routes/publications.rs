@@ -354,7 +354,15 @@ pub async fn content(
             ))
             .select(VersionEntry::as_select())
             .load(conn)?;
-        Ok((publication, VersionDetail { version, entries }))
+        // Tags are the author's own shelf-labels; a reader has no use for them.
+        Ok((
+            publication,
+            VersionDetail {
+                version,
+                entries,
+                tags: Vec::new(),
+            },
+        ))
     })
     .await?;
 
