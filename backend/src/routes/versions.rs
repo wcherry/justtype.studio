@@ -14,7 +14,7 @@ use crate::auth::{AuthUser, MaybeAuthUser};
 use crate::db::blocking;
 use crate::db::models::*;
 use crate::db::schema::{version_entries, versions, works};
-use crate::domain::diff::{self, DiffSummary, SceneChangeKind, SceneDiff};
+use crate::domain::diff::{self, BlockChangeKind, DiffSummary, SceneChangeKind, SceneDiff};
 use crate::domain::{doc, new_id, now_iso};
 use crate::error::{ApiError, ApiResult, ErrorEnvelope};
 use crate::state::AppState;
@@ -34,7 +34,28 @@ pub struct CreateVersionRequest {
 #[serde(rename_all = "camelCase")]
 pub struct DiffQuery {
     pub from: String,
+    /// A version id, or the literal `working` to compare against the draft as
+    /// it stands. "What have I changed since I last snapshotted" is the
+    /// question writers ask most, and it had no answer.
     pub to: String,
+}
+
+/// One side of a comparison: a frozen snapshot, or the live working copy.
+struct Side {
+    label: String,
+    version: Option<Version>,
+    /// Scene id -> (chapter title, scene title, position in reading order).
+    entries: Vec<DiffEntry>,
+}
+
+struct DiffEntry {
+    scene_id: String,
+    scene_title: String,
+    chapter_title: String,
+    content_hash: String,
+    word_count: i32,
+    chapter_id: String,
+    position: i32,
 }
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
@@ -76,8 +97,14 @@ pub struct ContentScene {
 #[derive(Debug, Serialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct DiffResponse {
-    pub from: Version,
-    pub to: Version,
+    /// What each side is called — a version's label, or "Working draft".
+    pub from: String,
+    pub to: String,
+    /// The version behind each side, absent when it is the working copy.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub from_version: Option<Version>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub to_version: Option<Version>,
     pub summary: DiffSummary,
     pub scenes: Vec<SceneDiff>,
 }
@@ -461,14 +488,18 @@ async fn transition(
     Ok(Json(version))
 }
 
-/// Scene-level comparison of two snapshots of the same work.
+/// Scene-level comparison of two snapshots, or of a snapshot and the draft.
+///
+/// Each changed scene is aligned paragraph by paragraph rather than diffed as
+/// one run of words, so a reflowed sentence does not make the rest of the scene
+/// look edited, and a paragraph that moved says so.
 #[utoipa::path(
     get,
     path = "/api/works/{work_id}/versions/diff",
     tag = "versions",
     params(("work_id" = String, Path)),
     responses(
-        (status = 200, description = "Success", body = DiffResponse),
+        (status = 200, description = "What changed", body = DiffResponse),
         (status = 4XX, description = "Refused", body = ErrorEnvelope),
     )
 )]
@@ -478,37 +509,38 @@ pub async fn diff(
     Path(work_id): Path<String>,
     Query(query): Query<DiffQuery>,
 ) -> ApiResult<Json<DiffResponse>> {
-    let (from_detail, to_detail) = blocking(&state.pool, move |conn| {
-        support::work_for_owner(conn, &work_id, &user)?;
-        let from = load_detail(conn, &query.from)?;
-        let to = load_detail(conn, &query.to)?;
-        if from.version.work_id != work_id || to.version.work_id != work_id {
-            return Err(ApiError::BadRequest(
-                "both versions must belong to this work".into(),
-            ));
-        }
-        Ok((from, to))
+    let guard_user = user.clone();
+    let guard_work = work_id.clone();
+    let from_ref = query.from.clone();
+    let to_ref = query.to.clone();
+
+    let (from_side, to_side) = blocking(&state.pool, move |conn| {
+        support::work_for_owner(conn, &guard_work, &guard_user)?;
+        Ok((
+            load_side(conn, &guard_work, &from_ref)?,
+            load_side(conn, &guard_work, &to_ref)?,
+        ))
     })
     .await?;
 
     let mut summary = DiffSummary::default();
     let mut scene_diffs: Vec<SceneDiff> = Vec::new();
 
-    for to_entry in &to_detail.entries {
-        let from_entry = from_detail
+    for entry in &to_side.entries {
+        let previous = from_side
             .entries
             .iter()
-            .find(|e| e.scene_id == to_entry.scene_id);
+            .find(|e| e.scene_id == entry.scene_id);
 
-        let (kind, changes) = match from_entry {
+        let (kind, blocks) = match previous {
             None => {
                 summary.scenes_added += 1;
-                summary.words_added += to_entry.word_count;
+                summary.words_added += entry.word_count;
                 (SceneChangeKind::Added, Vec::new())
             }
-            Some(before) if before.content_hash == to_entry.content_hash => {
-                let moved = before.scene_position != to_entry.scene_position
-                    || before.chapter_id != to_entry.chapter_id;
+            Some(before) if before.content_hash == entry.content_hash => {
+                let moved =
+                    before.position != entry.position || before.chapter_id != entry.chapter_id;
                 if moved {
                     summary.scenes_moved += 1;
                     (SceneChangeKind::Moved, Vec::new())
@@ -518,72 +550,153 @@ pub async fn diff(
             }
             Some(before) => {
                 summary.scenes_modified += 1;
-                let delta = to_entry.word_count - before.word_count;
+                let delta = entry.word_count - before.word_count;
                 if delta >= 0 {
                     summary.words_added += delta;
                 } else {
                     summary.words_removed += -delta;
                 }
-                let before_doc = state
-                    .store
-                    .read_version_scene(
-                        &from_detail.version.work_id,
-                        &from_detail.version.id,
-                        &before.scene_id,
-                    )
-                    .await
-                    .unwrap_or_else(|_| doc::empty_doc());
-                let after_doc = state
-                    .store
-                    .read_version_scene(
-                        &to_detail.version.work_id,
-                        &to_detail.version.id,
-                        &to_entry.scene_id,
-                    )
-                    .await
-                    .unwrap_or_else(|_| doc::empty_doc());
+                let before_blocks = read_blocks(&state, &work_id, &from_side, before).await?;
+                let after_blocks = read_blocks(&state, &work_id, &to_side, entry).await?;
                 (
                     SceneChangeKind::Modified,
-                    diff::diff_text(&doc::plain_text(&before_doc), &doc::plain_text(&after_doc)),
+                    diff::diff_blocks(&before_blocks, &after_blocks),
                 )
             }
         };
 
+        summary.paragraphs_changed += blocks
+            .iter()
+            .filter(|b| b.kind != BlockChangeKind::Unchanged)
+            .count();
+
         scene_diffs.push(SceneDiff {
-            scene_id: to_entry.scene_id.clone(),
-            scene_title: to_entry.scene_title.clone(),
-            chapter_title: to_entry.chapter_title.clone(),
+            scene_id: entry.scene_id.clone(),
+            scene_title: entry.scene_title.clone(),
+            chapter_title: entry.chapter_title.clone(),
             kind,
-            words_before: from_entry.map(|e| e.word_count).unwrap_or(0),
-            words_after: to_entry.word_count,
-            changes,
+            words_before: previous.map(|e| e.word_count).unwrap_or(0),
+            words_after: entry.word_count,
+            blocks,
         });
     }
 
-    for from_entry in &from_detail.entries {
-        if !to_detail
-            .entries
-            .iter()
-            .any(|e| e.scene_id == from_entry.scene_id)
-        {
+    for entry in &from_side.entries {
+        if !to_side.entries.iter().any(|e| e.scene_id == entry.scene_id) {
             summary.scenes_removed += 1;
-            summary.words_removed += from_entry.word_count;
+            summary.words_removed += entry.word_count;
             scene_diffs.push(SceneDiff {
-                scene_id: from_entry.scene_id.clone(),
-                scene_title: from_entry.scene_title.clone(),
-                chapter_title: from_entry.chapter_title.clone(),
+                scene_id: entry.scene_id.clone(),
+                scene_title: entry.scene_title.clone(),
+                chapter_title: entry.chapter_title.clone(),
                 kind: SceneChangeKind::Removed,
-                words_before: from_entry.word_count,
+                words_before: entry.word_count,
                 words_after: 0,
-                changes: Vec::new(),
+                blocks: Vec::new(),
             });
         }
     }
 
     Ok(Json(DiffResponse {
-        from: from_detail.version,
-        to: to_detail.version,
+        from: from_side.label,
+        to: to_side.label,
+        from_version: from_side.version,
+        to_version: to_side.version,
         summary,
         scenes: scene_diffs,
     }))
+}
+
+/// Resolves one side of a comparison: a version id, or `working`.
+fn load_side(conn: &mut crate::db::Conn, work_id: &str, reference: &str) -> ApiResult<Side> {
+    use crate::db::schema::{chapters, scenes};
+
+    if reference == "working" {
+        let rows: Vec<(Scene, String)> = scenes::table
+            .inner_join(chapters::table.on(chapters::id.eq(scenes::chapter_id)))
+            .filter(scenes::work_id.eq(work_id))
+            .order((chapters::position.asc(), scenes::position.asc()))
+            .select((Scene::as_select(), chapters::title))
+            .load(conn)?;
+
+        return Ok(Side {
+            label: "Working draft".into(),
+            version: None,
+            entries: rows
+                .into_iter()
+                .map(|(scene, chapter_title)| DiffEntry {
+                    scene_id: scene.id,
+                    scene_title: scene.title,
+                    chapter_title,
+                    content_hash: scene.content_hash,
+                    word_count: scene.word_count,
+                    chapter_id: scene.chapter_id,
+                    position: scene.position,
+                })
+                .collect(),
+        });
+    }
+
+    let detail = load_detail(conn, reference)?;
+    if detail.version.work_id != work_id {
+        return Err(ApiError::BadRequest(
+            "both sides of a comparison must belong to this work".into(),
+        ));
+    }
+    Ok(Side {
+        label: detail.version.label.clone(),
+        entries: detail
+            .entries
+            .iter()
+            .map(|entry| DiffEntry {
+                scene_id: entry.scene_id.clone(),
+                scene_title: entry.scene_title.clone(),
+                chapter_title: entry.chapter_title.clone(),
+                content_hash: entry.content_hash.clone(),
+                word_count: entry.word_count,
+                chapter_id: entry.chapter_id.clone(),
+                position: entry.scene_position,
+            })
+            .collect(),
+        version: Some(detail.version),
+    })
+}
+
+/// Reads one scene's paragraphs from whichever side it belongs to.
+async fn read_blocks(
+    state: &AppState,
+    work_id: &str,
+    side: &Side,
+    entry: &DiffEntry,
+) -> ApiResult<Vec<String>> {
+    let document = match &side.version {
+        Some(version) => state
+            .store
+            .read_version_scene(work_id, &version.id, &entry.scene_id)
+            .await
+            .unwrap_or_else(|_| doc::empty_doc()),
+        None => state
+            .store
+            .read_working_scene(work_id, &entry.scene_id)
+            .await
+            .unwrap_or_else(|_| doc::empty_doc()),
+    };
+    Ok(paragraphs_of(&document))
+}
+
+/// A document's top-level blocks as plain text, which is what alignment
+/// compares. Empty blocks are dropped: they are the writer pressing return, and
+/// aligning on them produces noise.
+pub(crate) fn paragraphs_of(document: &Value) -> Vec<String> {
+    document
+        .get("content")
+        .and_then(Value::as_array)
+        .map(|blocks| {
+            blocks
+                .iter()
+                .map(doc::plain_text)
+                .filter(|text| !text.trim().is_empty())
+                .collect()
+        })
+        .unwrap_or_default()
 }

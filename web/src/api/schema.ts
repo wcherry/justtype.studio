@@ -31,6 +31,20 @@ export interface BibleEntry {
 
 export type BibleKind = 'character' | 'place' | 'note'
 
+// One paragraph's fate between two versions.
+export type BlockChangeKind = 'unchanged' | 'modified' | 'added' | 'removed' | 'moved'
+
+export interface BlockDiff {
+  after: string
+  afterIndex?: number | null
+  before: string
+  // Index of this paragraph in the earlier version, when it was in it.
+  beforeIndex?: number | null
+  // Word-level detail, for a modified paragraph.
+  changes?: TextChange[]
+  kind: BlockChangeKind
+}
+
 export interface BulkResolveRequest {
   // `accept` or `reject`.
   action: string
@@ -185,13 +199,17 @@ export interface CreateWorkRequest {
 }
 
 export interface DiffResponse {
-  from: Version
+  // What each side is called — a version's label, or "Working draft".
+  from: string
+  fromVersion?: Version | null
   scenes: SceneDiff[]
   summary: DiffSummary
-  to: Version
+  to: string
+  toVersion?: Version | null
 }
 
 export interface DiffSummary {
+  paragraphsChanged: number
   scenesAdded: number
   scenesModified: number
   scenesMoved: number
@@ -395,8 +413,9 @@ export interface RevisionWithContent {
   sceneId: string
   wordCount: number
   workId: string
-  // Word diff against the scene as it stands now.
-  changes: TextChange[]
+  // Paragraph-aligned diff against the scene as it stands now — what
+  // restoring this revision would change.
+  blocks: BlockDiff[]
   content: DocNode
 }
 
@@ -429,7 +448,8 @@ export interface Scene {
 export type SceneChangeKind = 'added' | 'removed' | 'modified' | 'moved' | 'unchanged'
 
 export interface SceneDiff {
-  changes?: TextChange[]
+  // Paragraph by paragraph, for a modified scene.
+  blocks?: BlockDiff[]
   chapterTitle: string
   kind: SceneChangeKind
   sceneId: string

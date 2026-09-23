@@ -187,10 +187,26 @@ the iOS diagnostic can be misleading. Regenerate first when it appears.
 - Restore a version into the working copy as a new draft, never in place.
 - Chapter- and scene-level snapshots, not just whole-work.
 
-### 2.2 Better diffs
-- Paragraph-aligned diffs with moved-block detection, not just word runs.
-- Side-by-side and inline diff modes; diff a version against the working copy.
-- Diff a scene against any of its own revisions.
+### 2.2 Better diffs · **Done**
+- ✅ Paragraph-aligned, with moved-block detection. A scene diffed as one run of
+  words is unreadable past a few sentences: changes smear across paragraph
+  boundaries and every reflowed line looks edited.
+- ✅ Inline and side-by-side modes.
+- ✅ Diff a version against the working copy — `to=working`. "What have I
+  changed since I last snapshotted" is the question writers ask most and it had
+  no answer.
+- ✅ A scene against any of its own revisions, in the same aligned shape.
+- **Done when** a writer can see what changed without reading the whole scene.
+  *Verified with a scene where one paragraph moved, one was edited, one was cut
+  and one was added: all four read correctly, and the unchanged one is not
+  shown at all.*
+
+The ordering matters more than the algorithm. Exact matches are resolved before
+any similarity pairing, because an identical paragraph elsewhere is a certainty
+that it moved while similarity is only a guess. Getting that backwards — which
+the first implementation did — let a guess consume a paragraph that had merely
+moved, reporting a spurious edit *and* a spurious insertion, the worst of both
+readings. There is a regression test named after it.
 
 ### 2.3 Tracked changes, applied · **Done**
 - ✅ Accepting a change applies it — on the server, not in the editor. The

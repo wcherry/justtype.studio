@@ -77,6 +77,42 @@ public enum API {
         case note = "note"
     }
 
+    /// One paragraph's fate between two versions.
+    public enum BlockChangeKind: String, Codable, CaseIterable, Hashable, Sendable {
+        case unchanged = "unchanged"
+        case modified = "modified"
+        case added = "added"
+        case removed = "removed"
+        case moved = "moved"
+    }
+
+    public struct BlockDiff: Codable, Hashable, Sendable {
+        public var after: String
+        public var afterIndex: Int?
+        public var before: String
+        /// Index of this paragraph in the earlier version, when it was in it.
+        public var beforeIndex: Int?
+        /// Word-level detail, for a modified paragraph.
+        public var changes: [TextChange]?
+        public var kind: BlockChangeKind
+
+        public init(
+            after: String,
+            afterIndex: Int? = nil,
+            before: String,
+            beforeIndex: Int? = nil,
+            changes: [TextChange]? = nil,
+            kind: BlockChangeKind
+        ) {
+            self.after = after
+            self.afterIndex = afterIndex
+            self.before = before
+            self.beforeIndex = beforeIndex
+            self.changes = changes
+            self.kind = kind
+        }
+    }
+
     public struct BulkResolveRequest: Codable, Hashable, Sendable {
         /// `accept` or `reject`.
         public var action: String
@@ -488,25 +524,33 @@ public enum API {
     }
 
     public struct DiffResponse: Codable, Hashable, Sendable {
-        public var from: Version
+        /// What each side is called — a version's label, or "Working draft".
+        public var from: String
+        public var fromVersion: Version?
         public var scenes: [SceneDiff]
         public var summary: DiffSummary
-        public var to: Version
+        public var to: String
+        public var toVersion: Version?
 
         public init(
-            from: Version,
+            from: String,
+            fromVersion: Version? = nil,
             scenes: [SceneDiff],
             summary: DiffSummary,
-            to: Version
+            to: String,
+            toVersion: Version? = nil
         ) {
             self.from = from
+            self.fromVersion = fromVersion
             self.scenes = scenes
             self.summary = summary
             self.to = to
+            self.toVersion = toVersion
         }
     }
 
     public struct DiffSummary: Codable, Hashable, Sendable {
+        public var paragraphsChanged: Int
         public var scenesAdded: Int
         public var scenesModified: Int
         public var scenesMoved: Int
@@ -515,6 +559,7 @@ public enum API {
         public var wordsRemoved: Int
 
         public init(
+            paragraphsChanged: Int,
             scenesAdded: Int,
             scenesModified: Int,
             scenesMoved: Int,
@@ -522,6 +567,7 @@ public enum API {
             wordsAdded: Int,
             wordsRemoved: Int
         ) {
+            self.paragraphsChanged = paragraphsChanged
             self.scenesAdded = scenesAdded
             self.scenesModified = scenesModified
             self.scenesMoved = scenesMoved
@@ -998,8 +1044,9 @@ public enum API {
         public var sceneId: String
         public var wordCount: Int
         public var workId: String
-        /// Word diff against the scene as it stands now.
-        public var changes: [TextChange]
+        /// Paragraph-aligned diff against the scene as it stands now — what
+        /// restoring this revision would change.
+        public var blocks: [BlockDiff]
         public var content: DocNode
 
         public init(
@@ -1010,7 +1057,7 @@ public enum API {
             sceneId: String,
             wordCount: Int,
             workId: String,
-            changes: [TextChange],
+            blocks: [BlockDiff],
             content: DocNode
         ) {
             self.authorId = authorId
@@ -1020,7 +1067,7 @@ public enum API {
             self.sceneId = sceneId
             self.wordCount = wordCount
             self.workId = workId
-            self.changes = changes
+            self.blocks = blocks
             self.content = content
         }
     }
@@ -1104,7 +1151,8 @@ public enum API {
     }
 
     public struct SceneDiff: Codable, Hashable, Sendable {
-        public var changes: [TextChange]?
+        /// Paragraph by paragraph, for a modified scene.
+        public var blocks: [BlockDiff]?
         public var chapterTitle: String
         public var kind: SceneChangeKind
         public var sceneId: String
@@ -1113,7 +1161,7 @@ public enum API {
         public var wordsBefore: Int
 
         public init(
-            changes: [TextChange]? = nil,
+            blocks: [BlockDiff]? = nil,
             chapterTitle: String,
             kind: SceneChangeKind,
             sceneId: String,
@@ -1121,7 +1169,7 @@ public enum API {
             wordsAfter: Int,
             wordsBefore: Int
         ) {
-            self.changes = changes
+            self.blocks = blocks
             self.chapterTitle = chapterTitle
             self.kind = kind
             self.sceneId = sceneId

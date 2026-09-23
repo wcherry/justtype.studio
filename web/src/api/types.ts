@@ -12,6 +12,8 @@ export type {
   AuthorCard,
   BibleEntry,
   BibleKind,
+  BlockChangeKind,
+  BlockDiff,
   Chapter,
   Comment,
   CommentCategory,

@@ -41,6 +41,17 @@ export function VersionPanel({ workId, versions, onChanged }: Props) {
     }
   }
 
+  const compareWithDraft = async (versionId: string) => {
+    setBusy(true)
+    try {
+      setDiff(await api.versions.diff(workId, versionId, 'working'))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not compare that')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const showDiff = async () => {
     if (!compare.from || !compare.to) return
     setBusy(true)
@@ -93,6 +104,9 @@ export function VersionPanel({ workId, versions, onChanged }: Props) {
                   </button>
                 </>
               )}
+              <button type="button" disabled={busy} onClick={() => compareWithDraft(version.id)}>
+                Compare with draft
+              </button>
               <button type="button" onClick={() => setExporting(exporting === version.id ? null : version.id)}>
                 Export
               </button>

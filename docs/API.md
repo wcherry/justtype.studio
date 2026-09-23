@@ -194,11 +194,31 @@ take the text.
 |---|---|---|
 | `GET` | `/works/{id}/versions` | newest first |
 | `POST` | `/works/{id}/versions` | `label`, `notes`; snapshots the working copy |
-| `GET` | `/works/{id}/versions/diff?from=&to=` | scene-by-scene word diff |
+| `GET` | `/works/{id}/versions/diff?from=&to=` | scene-by-scene, paragraph-aligned |
 | `GET` | `/versions/{id}` | version plus its manifest entries |
 | `GET` | `/versions/{id}/content` | the whole frozen manuscript |
 | `POST` | `/versions/{id}/publish` | `draft` → `published` |
 | `POST` | `/versions/{id}/finalize` | → `final` |
+
+### Diffs
+
+`from` and `to` are version ids, or the literal `working` for the draft as it
+stands — "what have I changed since I last snapshotted" is the question writers
+ask most often.
+
+Each changed scene is aligned **paragraph by paragraph** rather than diffed as
+one run of words across the whole scene, which smeared changes across paragraph
+boundaries and made every reflowed line look edited. Each aligned paragraph
+comes back as `unchanged`, `modified` (with word-level `changes`), `added`,
+`removed`, or `moved`, with `beforeIndex` and `afterIndex` saying where it sat
+on each side.
+
+Exact matches are resolved before any similarity pairing. An identical paragraph
+elsewhere is a certainty that it moved; similarity is a guess, and letting the
+guess win produces both a spurious edit and a spurious insertion.
+
+`GET /scenes/{id}/revisions/{revisionId}` returns the same paragraph-aligned
+shape against the scene as it stands now — what restoring it would change.
 
 ## Publications
 

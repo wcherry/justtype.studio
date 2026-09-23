@@ -85,6 +85,58 @@
         ],
         "type": "string"
       },
+      "BlockChangeKind": {
+        "description": "One paragraph's fate between two versions.",
+        "enum": [
+          "unchanged",
+          "modified",
+          "added",
+          "removed",
+          "moved"
+        ],
+        "type": "string"
+      },
+      "BlockDiff": {
+        "properties": {
+          "after": {
+            "type": "string"
+          },
+          "afterIndex": {
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "before": {
+            "type": "string"
+          },
+          "beforeIndex": {
+            "description": "Index of this paragraph in the earlier version, when it was in it.",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "changes": {
+            "description": "Word-level detail, for a modified paragraph.",
+            "items": {
+              "$ref": "#/components/schemas/TextChange"
+            },
+            "type": "array"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/BlockChangeKind"
+          }
+        },
+        "required": [
+          "kind",
+          "before",
+          "after"
+        ],
+        "type": "object"
+      },
       "BulkResolveRequest": {
         "properties": {
           "action": {
@@ -624,7 +676,19 @@
       "DiffResponse": {
         "properties": {
           "from": {
-            "$ref": "#/components/schemas/Version"
+            "description": "What each side is called — a version's label, or \"Working draft\".",
+            "type": "string"
+          },
+          "fromVersion": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Version",
+                "description": "The version behind each side, absent when it is the working copy."
+              }
+            ]
           },
           "scenes": {
             "items": {
@@ -636,7 +700,17 @@
             "$ref": "#/components/schemas/DiffSummary"
           },
           "to": {
-            "$ref": "#/components/schemas/Version"
+            "type": "string"
+          },
+          "toVersion": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Version"
+              }
+            ]
           }
         },
         "required": [
@@ -649,6 +723,10 @@
       },
       "DiffSummary": {
         "properties": {
+          "paragraphsChanged": {
+            "minimum": 0,
+            "type": "integer"
+          },
           "scenesAdded": {
             "minimum": 0,
             "type": "integer"
@@ -679,6 +757,7 @@
           "scenesRemoved",
           "scenesModified",
           "scenesMoved",
+          "paragraphsChanged",
           "wordsAdded",
           "wordsRemoved"
         ],
@@ -1117,10 +1196,10 @@
           },
           {
             "properties": {
-              "changes": {
-                "description": "Word diff against the scene as it stands now.",
+              "blocks": {
+                "description": "Paragraph-aligned diff against the scene as it stands now — what\nrestoring this revision would change.",
                 "items": {
-                  "$ref": "#/components/schemas/TextChange"
+                  "$ref": "#/components/schemas/BlockDiff"
                 },
                 "type": "array"
               },
@@ -1130,7 +1209,7 @@
             },
             "required": [
               "content",
-              "changes"
+              "blocks"
             ],
             "type": "object"
           }
@@ -1252,9 +1331,10 @@
       },
       "SceneDiff": {
         "properties": {
-          "changes": {
+          "blocks": {
+            "description": "Paragraph by paragraph, for a modified scene.",
             "items": {
-              "$ref": "#/components/schemas/TextChange"
+              "$ref": "#/components/schemas/BlockDiff"
             },
             "type": "array"
           },
@@ -4862,6 +4942,7 @@
     },
     "/api/works/{work_id}/versions/diff": {
       "get": {
+        "description": "Each changed scene is aligned paragraph by paragraph rather than diffed as\none run of words, so a reflowed sentence does not make the rest of the scene\nlook edited, and a paragraph that moved says so.",
         "operationId": "diff",
         "parameters": [
           {
@@ -4882,7 +4963,7 @@
                 }
               }
             },
-            "description": "Success"
+            "description": "What changed"
           },
           "4": {
             "content": {
@@ -4895,7 +4976,7 @@
             "description": "Refused"
           }
         },
-        "summary": "Scene-level comparison of two snapshots of the same work.",
+        "summary": "Scene-level comparison of two snapshots, or of a snapshot and the draft.",
         "tags": [
           "versions"
         ]

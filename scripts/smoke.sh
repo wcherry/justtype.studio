@@ -229,12 +229,43 @@ curl -s "$API/works/$WID/versions/diff?from=$V1&to=$V2" -H "$AUTH" | python3 -c 
 import sys,json
 d=json.load(sys.stdin)
 s=d['summary']
-print(f\"  +{s['wordsAdded']} / -{s['wordsRemoved']} words, {s['scenesModified']} scene(s) revised\")
+print(f\"  {d['from']} -> {d['to']}: +{s['wordsAdded']} / -{s['wordsRemoved']} words, {s['scenesModified']} scene(s), {s['paragraphsChanged']} paragraph(s)\")
 for scene in d['scenes']:
-    if scene['kind']=='modified':
-        rendered=''.join({'insert':'[+%s]','delete':'[-%s]','equal':'%s'}[c['op']] % c['value'] for c in scene['changes'])
-        print('  ', scene['sceneTitle'], '->', rendered)
-        break"
+    if scene['kind'] != 'modified': continue
+    for b in scene.get('blocks', []):
+        if b['kind'] == 'unchanged': continue
+        if b['kind'] == 'modified':
+            rendered=''.join({'insert':'[+%s]','delete':'[-%s]','equal':'%s'}[c['op']] % c['value'] for c in b['changes'])
+            print('   modified:', rendered[:110])
+        else:
+            print(f\"   {b['kind']}: {(b['after'] or b['before'])[:70]}\")
+    break"
+
+step "Paragraph alignment and moves"
+# Three paragraphs, then the same three reordered with one edited: alignment
+# should report one move and one modification, not a wall of word changes.
+curl -s -X PUT "$API/scenes/$SCENE/content" -H "$AUTH" -H 'content-type: application/json' \
+  -d '{"content":{"type":"doc","content":[
+    {"type":"paragraph","content":[{"type":"text","text":"Alpha paragraph, entirely unchanged throughout."}]},
+    {"type":"paragraph","content":[{"type":"text","text":"Beta paragraph, which will be edited slightly later on."}]},
+    {"type":"paragraph","content":[{"type":"text","text":"Gamma paragraph, which will be moved to the top."}]}]}}' >/dev/null
+VA=$(curl -s -X POST "$API/works/$WID/versions" -H "$AUTH" -H 'content-type: application/json' -d '{"label":"Before"}' | field id)
+curl -s -X POST "$API/versions/$VA/publish" -H "$AUTH" >/dev/null
+curl -s -X PUT "$API/scenes/$SCENE/content" -H "$AUTH" -H 'content-type: application/json' \
+  -d '{"content":{"type":"doc","content":[
+    {"type":"paragraph","content":[{"type":"text","text":"Gamma paragraph, which will be moved to the top."}]},
+    {"type":"paragraph","content":[{"type":"text","text":"Alpha paragraph, entirely unchanged throughout."}]},
+    {"type":"paragraph","content":[{"type":"text","text":"Beta paragraph, which was edited considerably later on."}]}]}}' >/dev/null
+
+# ... and compared against the working draft, not another snapshot.
+curl -s "$API/works/$WID/versions/diff?from=$VA&to=working" -H "$AUTH" | python3 -c "
+import sys,json
+d=json.load(sys.stdin)
+print(f\"  {d['from']} -> {d['to']}\")
+for scene in d['scenes']:
+    for b in scene.get('blocks', []):
+        if b['kind'] == 'unchanged': continue
+        print(f\"   {b['kind']}: {(b['after'] or b['before'])[:60]}\")"
 
 step "Publishing and offering it for review"
 curl -s -X POST "$API/versions/$V2/publish" -H "$AUTH" | field state

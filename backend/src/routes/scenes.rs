@@ -527,8 +527,9 @@ pub struct RevisionWithContent {
     pub revision: SceneRevision,
     #[schema(value_type = crate::domain::doc::DocNode)]
     pub content: Value,
-    /// Word diff against the scene as it stands now.
-    pub changes: Vec<crate::domain::diff::TextChange>,
+    /// Paragraph-aligned diff against the scene as it stands now — what
+    /// restoring this revision would change.
+    pub blocks: Vec<crate::domain::diff::BlockDiff>,
 }
 
 #[utoipa::path(
@@ -568,13 +569,15 @@ pub async fn get_revision(
         .store
         .read_working_scene(&scene.work_id, &scene.id)
         .await?;
-    let changes =
-        crate::domain::diff::diff_text(&doc::plain_text(&content), &doc::plain_text(&current));
+    let blocks = crate::domain::diff::diff_blocks(
+        &super::versions::paragraphs_of(&content),
+        &super::versions::paragraphs_of(&current),
+    );
 
     Ok(Json(RevisionWithContent {
         revision,
         content,
-        changes,
+        blocks,
     }))
 }
 

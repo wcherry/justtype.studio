@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '../api/client'
-import type { SceneRevision } from '../api/types'
+import type { BlockDiff, SceneRevision } from '../api/types'
 
 interface Props {
   sceneId: string
@@ -17,7 +17,7 @@ interface Props {
 export function RevisionPanel({ sceneId, refreshKey, onRestored }: Props) {
   const [revisions, setRevisions] = useState<SceneRevision[]>([])
   const [expanded, setExpanded] = useState<string | null>(null)
-  const [preview, setPreview] = useState<{ id: string; changes: { op: string; value: string }[] } | null>(null)
+  const [preview, setPreview] = useState<{ id: string; blocks: BlockDiff[] } | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -36,7 +36,7 @@ export function RevisionPanel({ sceneId, refreshKey, onRestored }: Props) {
     setPreview(null)
     try {
       const full = await api.scenes.revision(sceneId, revisionId)
-      setPreview({ id: revisionId, changes: full.changes })
+      setPreview({ id: revisionId, blocks: full.blocks })
     } catch {
       setPreview(null)
     }
@@ -76,15 +76,30 @@ export function RevisionPanel({ sceneId, refreshKey, onRestored }: Props) {
             {expanded === revision.id && (
               <div className="revisions__detail">
                 {preview?.id === revision.id ? (
-                  <p className="diff__text">
-                    {/* Diffed against the scene as it stands now, so this reads
-                        as "what restoring would change". */}
-                    {preview.changes.map((change, i) => (
-                      <span key={i} className={`diff__${change.op}`}>
-                        {change.value}
-                      </span>
-                    ))}
-                  </p>
+                  // Paragraph-aligned against the scene as it stands now, so
+                  // this reads as "what restoring would change".
+                  <ol className="diff__blocks">
+                    {preview.blocks
+                      .filter((block) => block.kind !== 'unchanged')
+                      .map((block, i) => (
+                        <li key={i} className={`diff__block diff__block--${block.kind}`}>
+                          <p className="diff__text">
+                            {block.kind === 'modified' &&
+                              (block.changes ?? []).map((change, j) => (
+                                <span key={j} className={`diff__${change.op}`}>
+                                  {change.value}
+                                </span>
+                              ))}
+                            {block.kind === 'added' && <span className="diff__insert">{block.after}</span>}
+                            {block.kind === 'removed' && <span className="diff__delete">{block.before}</span>}
+                            {block.kind === 'moved' && <span className="diff__moved">{block.after}</span>}
+                          </p>
+                        </li>
+                      ))}
+                    {preview.blocks.every((b) => b.kind === 'unchanged') && (
+                      <li className="empty">Identical to the scene as it stands.</li>
+                    )}
+                  </ol>
                 ) : (
                   <p className="empty">Loading…</p>
                 )}
