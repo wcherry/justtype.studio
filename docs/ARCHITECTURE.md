@@ -75,6 +75,20 @@ once rather than re-derived in twenty places.
 A test asserts foreign keys are actually enabled, because a silently ignored
 `PRAGMA` is the kind of thing that only shows up as orphaned rows months later.
 
+**Migrations are tested in both directions.** A `down.sql` is written once and
+never run, so it rots silently. The test peels the stack one migration deeper
+each time and re-applies it, rather than reverting everything at once — the
+first migration drops every table, so a full rollback would hide a later
+`down.sql` that failed to remove its own column, because the table it lived on
+is dropped regardless. Peeling progressively means each migration's `down.sql`
+is followed by its own `up.sql`, and one that did not undo its migration fails
+to re-apply with a duplicate column.
+
+`backend/build.rs` exists for the same reason: `embed_migrations!` bakes the SQL
+in at compile time, and without a `rerun-if-changed` cargo does not notice a
+migration changing. Editing one and running the tests would recompile nothing,
+pass against the old SQL, and look fine until it ran somewhere real.
+
 ## Web
 
 Vite + React + TipTap. The interesting part is `editor/commentAnchors.ts`:

@@ -107,4 +107,117 @@ mod tests {
         drop(conn);
         std::fs::remove_dir_all(&dir).ok();
     }
+
+    /// Every `down.sql`, one at a time.
+    ///
+    /// Rollbacks are the one part of the schema that gets written and never
+    /// executed, so they rot silently: a `DROP COLUMN` SQLite refuses, tables
+    /// dropped in the wrong order against a foreign key, a `down.sql` that
+    /// simply does not match its `up.sql`.
+    ///
+    /// Each migration is reverted and immediately re-applied, rather than
+    /// reverting the whole stack at once. That distinction matters: the first
+    /// migration drops every table, so a full rollback would mask a later
+    /// `down.sql` that failed to remove its own column — the table it lived on
+    /// disappears regardless. Going one step at a time, a rollback that did not
+    /// undo its migration fails on re-apply with a duplicate column.
+    #[test]
+    fn every_migration_reverts_and_re_applies_on_its_own() {
+        let dir =
+            std::env::temp_dir().join(format!("scriptorium-rollback-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("test.db");
+
+        let pool = build_pool(path.to_str().unwrap()).unwrap();
+        run_migrations(&pool).unwrap();
+
+        let mut conn = pool.get().unwrap();
+        let applied = conn
+            .applied_migrations()
+            .expect("could not read applied migrations");
+        assert!(
+            applied.len() > 1,
+            "expected several migrations, found {}",
+            applied.len()
+        );
+
+        // Peel the stack one deeper each time, then put it all back.
+        //
+        // Reverting the whole stack in one go and re-applying it would prove
+        // much less than it appears to: the first migration drops every table,
+        // so a later `down.sql` that failed to remove its own column is
+        // invisible — the table it lived on is dropped regardless. Peeling
+        // progressively means each migration's `down.sql` is followed by its
+        // own `up.sql`, and one that did not undo its migration fails to
+        // re-apply with a duplicate column.
+        for depth in 1..=applied.len() {
+            for step in 0..depth {
+                conn.revert_last_migration(MIGRATIONS).unwrap_or_else(|e| {
+                    panic!("a down.sql failed {step} step(s) into a {depth}-deep rollback: {e}")
+                });
+            }
+            conn.run_pending_migrations(MIGRATIONS).unwrap_or_else(|e| {
+                panic!(
+                    "could not re-apply after rolling back {depth} migration(s) — \
+                     a down.sql does not undo its own up.sql: {e}"
+                )
+            });
+            assert_eq!(
+                conn.applied_migrations().unwrap().len(),
+                applied.len(),
+                "the stack did not come back to full depth after a {depth}-deep rollback"
+            );
+        }
+
+        // And once more all the way down, which is what an operator rolling a
+        // release back actually does.
+        for _ in 0..applied.len() {
+            conn.revert_last_migration(MIGRATIONS)
+                .expect("full rollback failed");
+        }
+
+        // Everything is off now; put it all back and check the result is the
+        // schema the application actually expects.
+        assert!(
+            conn.applied_migrations().unwrap().is_empty(),
+            "something was left applied after reverting the whole stack"
+        );
+        conn.run_pending_migrations(MIGRATIONS)
+            .expect("migrations failed to re-apply from a bare database");
+
+        crate::domain::templates::seed(&mut conn, &crate::domain::now_iso()).unwrap();
+        assert_eq!(
+            schema::templates::table
+                .count()
+                .get_result::<i64>(&mut conn)
+                .unwrap(),
+            5
+        );
+        // Columns and tables the later migrations added — the ones a bad
+        // rollback would have left in the wrong shape.
+        for count in [
+            schema::version_tags::table
+                .count()
+                .get_result::<i64>(&mut conn),
+            schema::bible_entries::table
+                .count()
+                .get_result::<i64>(&mut conn),
+            schema::writing_days::table
+                .count()
+                .get_result::<i64>(&mut conn),
+        ] {
+            assert_eq!(count.unwrap(), 0);
+        }
+        assert_eq!(
+            schema::users::table
+                .filter(schema::users::daily_word_goal.is_not_null())
+                .count()
+                .get_result::<i64>(&mut conn)
+                .unwrap(),
+            0
+        );
+
+        drop(conn);
+        std::fs::remove_dir_all(&dir).ok();
+    }
 }
