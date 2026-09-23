@@ -192,13 +192,33 @@ the iOS diagnostic can be misleading. Regenerate first when it appears.
 - Side-by-side and inline diff modes; diff a version against the working copy.
 - Diff a scene against any of its own revisions.
 
-### 2.3 Tracked changes, applied
-- Editor-side application of an accepted change, with position mapping through
-  edits made since the proposal.
-- Suggestion mode: a collaborator's typing becomes proposals instead of edits.
-- Accept-all / reject-all per scene, per chapter, per author.
+### 2.3 Tracked changes, applied · **Done**
+- ✅ Accepting a change applies it — on the server, not in the editor. The
+  original plan put this in ProseMirror on the reasoning that only it could map
+  a position through later edits, but that made "accepted" mean something
+  different on every client, ruled out phones, and made a batch twenty round
+  trips. The mapping turns out not to need a transform history.
+- ✅ Position mapping: a proposal records the `contentHash` it was written
+  against. An unchanged scene applies exactly; a changed one re-anchors by its
+  quotation; anything ambiguous is refused as stale and left pending, with a
+  reason, rather than guessed at.
+- ✅ Accept-all / reject-all per scene, optionally filtered to one author.
+  Batches apply back to front, so applying one never disturbs the positions of
+  the ones still to come.
+- ✅ Suggesting from a selection, with the replacement and a note.
 - **Done when** an author can accept twenty suggestions in a row and the
-  document is exactly what the reviewer intended.
+  document is exactly what the reviewer intended. *Verified: twenty proposals
+  renumbering twenty words, accepted in one call, producing the intended text
+  exactly — and a proposal whose text had since vanished left pending with
+  "`vanished` is no longer in this scene".*
+
+Two deliberate limits. A change spanning more than one paragraph is refused:
+joining blocks means deciding which one's type and attributes survive, and such
+a selection is nearly always an accident rather than an intention. And full
+suggestion mode — where a collaborator's *typing* becomes proposals — waits on
+there being collaborators at all (*5.3*); today only a work's owner can reach
+its scenes, so the selection-based flow is the whole of what the feature can
+currently mean.
 
 ### 2.4 Comparison across publications
 - "What changed since reviewers last saw this" as a first-class view.

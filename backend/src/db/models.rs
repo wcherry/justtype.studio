@@ -167,6 +167,9 @@ row!(TrackedChange, tracked_changes, {
     resolved_by: Option<String>,
     resolved_at: Option<String>,
     created_at: String,
+    /// The scene's `contentHash` when the proposal was written. `None` on rows
+    /// predating this column; those always re-anchor by their quotation.
+    base_hash: Option<String>,
 });
 
 row!(Version, versions, {
@@ -315,7 +318,7 @@ new_row!(NewTrackedChange, tracked_changes, {
     id: String, scene_id: String, work_id: String, author_id: String, kind: String,
     anchor_from: i32, anchor_to: i32, quote: Option<String>, payload: String,
     note: Option<String>, state: String, resolved_by: Option<String>,
-    resolved_at: Option<String>, created_at: String,
+    resolved_at: Option<String>, created_at: String, base_hash: Option<String>,
 });
 
 new_row!(NewVersion, versions, {

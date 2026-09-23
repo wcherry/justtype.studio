@@ -85,6 +85,54 @@
         ],
         "type": "string"
       },
+      "BulkResolveRequest": {
+        "properties": {
+          "action": {
+            "description": "`accept` or `reject`.",
+            "type": "string"
+          },
+          "authorId": {
+            "description": "Only this author's proposals, when set.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "type": "object"
+      },
+      "BulkResolveResponse": {
+        "properties": {
+          "applied": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "rejected": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "scene": {
+            "$ref": "#/components/schemas/Scene"
+          },
+          "stale": {
+            "description": "Proposals whose text has moved on too far to place automatically. They\nstay pending: refusing is safer than guessing where they meant.",
+            "items": {
+              "$ref": "#/components/schemas/StaleChange"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "applied",
+          "rejected",
+          "stale",
+          "scene"
+        ],
+        "type": "object"
+      },
       "ChangeKind": {
         "enum": [
           "insert",
@@ -339,7 +387,7 @@
             ]
           },
           "payload": {
-            "description": "Editor-defined slice or mark spec; opaque to the server."
+            "description": "The replacement text for `insert` and `replace`, or the mark name for\n`format`. Ignored for `delete`."
           },
           "quote": {
             "type": [
@@ -1040,6 +1088,28 @@
         ],
         "type": "object"
       },
+      "ResolveResponse": {
+        "properties": {
+          "change": {
+            "$ref": "#/components/schemas/TrackedChange"
+          },
+          "scene": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Scene",
+                "description": "The scene as it stands after applying it, when one was applied."
+              }
+            ]
+          }
+        },
+        "required": [
+          "change"
+        ],
+        "type": "object"
+      },
       "RevisionWithContent": {
         "allOf": [
           {
@@ -1348,6 +1418,22 @@
         ],
         "type": "object"
       },
+      "StaleChange": {
+        "description": "Why a change could not be applied, for a client that has to explain it.",
+        "properties": {
+          "changeId": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "changeId",
+          "reason"
+        ],
+        "type": "object"
+      },
       "TemplateChapter": {
         "properties": {
           "scenes": {
@@ -1464,6 +1550,13 @@
           },
           "authorId": {
             "type": "string"
+          },
+          "baseHash": {
+            "description": "The scene's `contentHash` when the proposal was written. `None` on rows\npredating this column; those always re-anchor by their quotation.",
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "createdAt": {
             "type": "string"
@@ -2617,11 +2710,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TrackedChange"
+                  "$ref": "#/components/schemas/ResolveResponse"
                 }
               }
             },
-            "description": "Success"
+            "description": "The change, and the scene it was applied to"
           },
           "4": {
             "content": {
@@ -2657,11 +2750,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TrackedChange"
+                  "$ref": "#/components/schemas/ResolveResponse"
                 }
               }
             },
-            "description": "Success"
+            "description": "The change"
           },
           "4": {
             "content": {
@@ -3577,6 +3670,58 @@
             "description": "Refused"
           }
         },
+        "tags": [
+          "changes"
+        ]
+      }
+    },
+    "/api/scenes/{scene_id}/changes/resolve": {
+      "post": {
+        "description": "Accepts apply from the end of the document backwards, so applying one never\nshifts the positions of the ones still to come. A proposal that cannot be\nplaced is left pending and reported, rather than skipped silently or applied\nsomewhere plausible.",
+        "operationId": "resolve_all",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scene_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkResolveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkResolveResponse"
+                }
+              }
+            },
+            "description": "What happened to each"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "Resolves every pending change in a scene at once.",
         "tags": [
           "changes"
         ]

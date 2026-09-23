@@ -59,6 +59,7 @@ fn api_router() -> OpenApiRouter<AppState> {
         .routes(routes!(scenes::restore_revision))
         .routes(routes!(changes::list, changes::create))
         .routes(routes!(changes::accept))
+        .routes(routes!(changes::resolve_all))
         .routes(routes!(changes::reject))
         .routes(routes!(versions::list, versions::create))
         .routes(routes!(versions::diff))

@@ -472,6 +472,34 @@ a { color: inherit; text-decoration: none; }
   min-height: 118px;
 }
 
+/* --- proposed changes ---------------------------------------------------- */
+
+.changes__suggest { width: 100%; text-align: left; font-size: 12px; margin-bottom: 10px; }
+.changes__bulk { display: flex; gap: 6px; margin-bottom: 12px; }
+.changes__bulk button { flex: 1; font-size: 12px; }
+.changes__form {
+  margin-bottom: 12px; padding: 10px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+}
+.changes__stale {
+  margin-bottom: 12px; padding: 8px 10px; font-size: 12px;
+  background: var(--del-soft); border-radius: var(--radius); color: var(--ink);
+}
+.changes__stale ul { margin: 4px 0 0; padding-left: 18px; }
+.changes__list { list-style: none; padding: 0; margin: 0; }
+.change { border-top: 1px solid var(--line); padding: 10px 0; }
+.change__head { display: flex; align-items: center; gap: 6px; }
+.change__head .badge { margin-left: 0; }
+.change__note { font-size: 12px; color: var(--ink-soft); }
+.change__quote {
+  margin: 6px 0; padding-left: 8px; border-left: 2px solid var(--line);
+  font-family: var(--serif); font-size: 13px;
+}
+.change__quote del { color: var(--del); background: var(--del-soft); text-decoration: line-through; }
+.change__quote ins { color: var(--add); background: var(--add-soft); text-decoration: none; margin-left: 4px; }
+.change__actions { display: flex; gap: 6px; }
+.change__actions button { font-size: 12px; padding: 3px 8px; }
+
 /* --- scene details and story bible --------------------------------------- */
 
 .scene-details label { margin-bottom: 12px; }

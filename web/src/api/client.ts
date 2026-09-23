@@ -3,7 +3,8 @@ import type {
   RevisionWithContent, SaveResult, Scene, SceneRevision, SceneWithContent, Session, Template,
   TrackedChange,
   User, Version, VersionContent, VersionDetail, Work, WorkKind, Visibility, CommentCategory,
-  WritingSummary, EntryView, BibleKind, SplitSceneResponse,
+  WritingSummary, EntryView, BibleKind, SplitSceneResponse, ResolveResponse,
+  BulkResolveResponse,
 } from './types'
 
 const BASE = '/api'
@@ -250,9 +251,14 @@ export const api = {
     create: (sceneId: string, input: {
       kind: TrackedChange['kind']; anchorFrom: number; anchorTo: number
       quote?: string; payload?: unknown; note?: string
+      /** The scene's contentHash, so the proposal knows what it was written against. */
+      baseHash?: string
     }) => post<TrackedChange>(`/scenes/${sceneId}/changes`, input),
-    accept: (changeId: string) => post<TrackedChange>(`/changes/${changeId}/accept`),
-    reject: (changeId: string) => post<TrackedChange>(`/changes/${changeId}/reject`),
+    accept: (changeId: string) => post<ResolveResponse>(`/changes/${changeId}/accept`),
+    reject: (changeId: string) => post<ResolveResponse>(`/changes/${changeId}/reject`),
+    /** Resolve every pending change in a scene, optionally from one author. */
+    resolveAll: (sceneId: string, action: 'accept' | 'reject', authorId?: string) =>
+      post<BulkResolveResponse>(`/scenes/${sceneId}/changes/resolve`, { action, authorId }),
   },
 
   versions: {

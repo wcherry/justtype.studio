@@ -77,6 +77,42 @@ public enum API {
         case note = "note"
     }
 
+    public struct BulkResolveRequest: Codable, Hashable, Sendable {
+        /// `accept` or `reject`.
+        public var action: String
+        /// Only this author's proposals, when set.
+        public var authorId: String?
+
+        public init(
+            action: String,
+            authorId: String? = nil
+        ) {
+            self.action = action
+            self.authorId = authorId
+        }
+    }
+
+    public struct BulkResolveResponse: Codable, Hashable, Sendable {
+        public var applied: Int
+        public var rejected: Int
+        public var scene: Scene
+        /// Proposals whose text has moved on too far to place automatically. They
+        /// stay pending: refusing is safer than guessing where they meant.
+        public var stale: [StaleChange]
+
+        public init(
+            applied: Int,
+            rejected: Int,
+            scene: Scene,
+            stale: [StaleChange]
+        ) {
+            self.applied = applied
+            self.rejected = rejected
+            self.scene = scene
+            self.stale = stale
+        }
+    }
+
     public enum ChangeKind: String, Codable, CaseIterable, Hashable, Sendable {
         case insert = "insert"
         case delete = "delete"
@@ -290,7 +326,8 @@ public enum API {
         public var anchorTo: Int
         public var kind: String
         public var note: String?
-        /// Editor-defined slice or mark spec; opaque to the server.
+        /// The replacement text for `insert` and `replace`, or the mark name for
+        /// `format`. Ignored for `delete`.
         public var payload: JSONValue?
         public var quote: String?
 
@@ -940,6 +977,19 @@ public enum API {
         }
     }
 
+    public struct ResolveResponse: Codable, Hashable, Sendable {
+        public var change: TrackedChange
+        public var scene: Scene?
+
+        public init(
+            change: TrackedChange,
+            scene: Scene? = nil
+        ) {
+            self.change = change
+            self.scene = scene
+        }
+    }
+
     public struct RevisionWithContent: Codable, Hashable, Sendable {
         public var authorId: String
         public var contentHash: String
@@ -1230,6 +1280,20 @@ public enum API {
         }
     }
 
+    /// Why a change could not be applied, for a client that has to explain it.
+    public struct StaleChange: Codable, Hashable, Sendable {
+        public var changeId: String
+        public var reason: String
+
+        public init(
+            changeId: String,
+            reason: String
+        ) {
+            self.changeId = changeId
+            self.reason = reason
+        }
+    }
+
     public struct TemplateChapter: Codable, Hashable, Sendable {
         public var scenes: [TemplateScene]?
         public var summary: String?
@@ -1315,6 +1379,9 @@ public enum API {
         public var anchorFrom: Int
         public var anchorTo: Int
         public var authorId: String
+        /// The scene's `contentHash` when the proposal was written. `None` on rows
+        /// predating this column; those always re-anchor by their quotation.
+        public var baseHash: String?
         public var createdAt: String
         public var id: String
         public var kind: ChangeKind
@@ -1331,6 +1398,7 @@ public enum API {
             anchorFrom: Int,
             anchorTo: Int,
             authorId: String,
+            baseHash: String? = nil,
             createdAt: String,
             id: String,
             kind: ChangeKind,
@@ -1346,6 +1414,7 @@ public enum API {
             self.anchorFrom = anchorFrom
             self.anchorTo = anchorTo
             self.authorId = authorId
+            self.baseHash = baseHash
             self.createdAt = createdAt
             self.id = id
             self.kind = kind

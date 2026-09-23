@@ -162,13 +162,31 @@ rewritten.
 | Method | Path | Notes |
 |---|---|---|
 | `GET` | `/scenes/{id}/changes` | `?state=pending\|accepted\|rejected\|all` |
-| `POST` | `/scenes/{id}/changes` | `kind`, `anchorFrom`, `anchorTo`, `quote`, `payload`, `note` |
-| `POST` | `/changes/{id}/accept` | author only |
+| `POST` | `/scenes/{id}/changes` | `kind`, `anchorFrom`, `anchorTo`, `quote`, `payload`, `note`, `baseHash` |
+| `POST` | `/changes/{id}/accept` | applies it; author only |
 | `POST` | `/changes/{id}/reject` | author only |
+| `POST` | `/scenes/{id}/changes/resolve` | `action` (`accept`/`reject`), optional `authorId` |
 
-The server records the proposal and its resolution. Applying an accepted change
-to the document is the editor's job — only ProseMirror can map a position
-through the edits made since the proposal was written.
+Accepting a change **applies it**. The result is therefore the same from any
+client, a batch is one operation rather than twenty round trips through an
+editor, and a phone can do it.
+
+Positions are mapped without a transform history:
+
+* a proposal records the `baseHash` it was written against, so an unchanged
+  scene applies its positions exactly;
+* a scene that has moved on re-anchors by `quote`, which is unambiguous when the
+  quotation still appears exactly once in a paragraph;
+* anything else is refused as stale and left pending, rather than guessed at.
+  `resolve` returns those in `stale` with a reason for each.
+
+Batches apply from the end of the document backwards, so applying one change
+never invalidates the positions of the ones still to come.
+
+A change that spans more than one paragraph is refused: joining blocks means
+deciding which one's type survives, and such a selection is nearly always an
+accident. `format` takes the mark name as its payload; `insert` and `replace`
+take the text.
 
 ## Versions
 

@@ -31,6 +31,22 @@ export interface BibleEntry {
 
 export type BibleKind = 'character' | 'place' | 'note'
 
+export interface BulkResolveRequest {
+  // `accept` or `reject`.
+  action: string
+  // Only this author's proposals, when set.
+  authorId?: string | null
+}
+
+export interface BulkResolveResponse {
+  applied: number
+  rejected: number
+  scene: Scene
+  // Proposals whose text has moved on too far to place automatically. They
+  // stay pending: refusing is safer than guessing where they meant.
+  stale: StaleChange[]
+}
+
 export type ChangeKind = 'insert' | 'delete' | 'replace' | 'format'
 
 export type ChangeState = 'pending' | 'accepted' | 'rejected'
@@ -109,7 +125,8 @@ export interface CreateChangeRequest {
   anchorTo: number
   kind: string
   note?: string | null
-  // Editor-defined slice or mark spec; opaque to the server.
+  // The replacement text for `insert` and `replace`, or the mark name for
+  // `format`. Ignored for `delete`.
   payload?: JsonValue
   quote?: string | null
 }
@@ -365,6 +382,11 @@ export interface ReorderRequest {
   ids: string[]
 }
 
+export interface ResolveResponse {
+  change: TrackedChange
+  scene?: Scene | null
+}
+
 export interface RevisionWithContent {
   authorId: string
   contentHash: string
@@ -476,6 +498,12 @@ export interface SplitSceneResponse {
   second: Scene
 }
 
+// Why a change could not be applied, for a client that has to explain it.
+export interface StaleChange {
+  changeId: string
+  reason: string
+}
+
 export interface TemplateChapter {
   scenes?: TemplateScene[]
   summary?: string | null
@@ -511,6 +539,9 @@ export interface TrackedChange {
   anchorFrom: number
   anchorTo: number
   authorId: string
+  // The scene's `contentHash` when the proposal was written. `None` on rows
+  // predating this column; those always re-anchor by their quotation.
+  baseHash?: string | null
   createdAt: string
   id: string
   kind: ChangeKind

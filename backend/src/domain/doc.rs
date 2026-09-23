@@ -202,6 +202,33 @@ pub struct DocMark {
 ///
 /// Block-boundary splitting is lossless by construction: every block ends up in
 /// exactly one half, so `merge` puts the document back byte for byte.
+/// Nodes that hold no content of their own and occupy exactly one position.
+const LEAF_TYPES: &[&str] = &["horizontalRule", "hardBreak", "image"];
+
+pub fn is_leaf(node: &Value) -> bool {
+    node.get("type")
+        .and_then(Value::as_str)
+        .is_some_and(|t| LEAF_TYPES.contains(&t))
+}
+
+/// ProseMirror node size. Text measures in UTF-16 code units, which is what the
+/// editor counts, so positions agree across clients.
+pub fn node_size(node: &Value) -> usize {
+    match node.get("type").and_then(Value::as_str) {
+        Some("text") => node
+            .get("text")
+            .and_then(Value::as_str)
+            .map_or(0, |t| t.encode_utf16().count()),
+        _ if is_leaf(node) => 1,
+        _ => {
+            node.get("content")
+                .and_then(Value::as_array)
+                .map_or(0, |children| children.iter().map(node_size).sum::<usize>())
+                + 2
+        }
+    }
+}
+
 pub fn split_doc(doc: &Value, at_block: usize) -> (Value, Value) {
     let blocks = doc
         .get("content")

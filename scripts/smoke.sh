@@ -137,6 +137,73 @@ def text(n): return ''.join(c['text'] if c.get('type')=='text' else text(c) for 
 print(text(json.load(sys.stdin)['content']))")
 [ "$BEFORE_TEXT" = "$AFTER_TEXT" ] && echo "  merged back, text identical" || { echo "  TEXT CHANGED:"; echo "   before: $BEFORE_TEXT"; echo "   after:  $AFTER_TEXT"; exit 1; }
 
+step "Tracked changes, applied"
+# Twenty numbered words, and twenty proposals to renumber them. Accepting all
+# of them must produce exactly what the proposals asked for — which only works
+# if applying one does not disturb where the others point.
+python3 - > "$TMP/twenty.json" <<'PYEOF'
+import json
+words = " ".join(f"word{i}" for i in range(1, 21))
+print(json.dumps({"content": {"type":"doc","content":[
+    {"type":"paragraph","content":[{"type":"text","text": words}]}]}}))
+PYEOF
+curl -s -X PUT "$API/scenes/$SCENE/content" -H "$AUTH" -H 'content-type: application/json' -d @"$TMP/twenty.json" >/dev/null
+HASH=$(curl -s "$API/scenes/$SCENE" -H "$AUTH" | field contentHash)
+
+python3 - "$API" "$SCENE" "$TOKEN" "$HASH" <<'PYEOF'
+import json, subprocess, sys
+api, scene, token, base = sys.argv[1:5]
+# Positions are ProseMirror's: the paragraph opens at 0, so its text starts at 1.
+offset = 1
+for i in range(1, 21):
+    word = f"word{i}"
+    body = {
+        "kind": "replace",
+        "anchorFrom": offset,
+        "anchorTo": offset + len(word),
+        "quote": word,
+        "payload": f"WORD{i}",
+        "note": f"renumber {i}",
+        "baseHash": base,
+    }
+    subprocess.run(["curl", "-s", "-o", "/dev/null", "-X", "POST",
+                    f"{api}/scenes/{scene}/changes",
+                    "-H", f"Authorization: Bearer {token}",
+                    "-H", "content-type: application/json",
+                    "-d", json.dumps(body)], check=True)
+    offset += len(word) + 1
+print("  proposed 20 changes")
+PYEOF
+
+curl -s -X POST "$API/scenes/$SCENE/changes/resolve" -H "$AUTH" -H 'content-type: application/json' \
+  -d '{"action":"accept"}' | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+print(f\"  accepted {d['applied']}, stale {len(d['stale'])}\")
+for s in d['stale']:
+    print('   stale:', s['reason'])"
+
+RESULT=$(curl -s "$API/scenes/$SCENE" -H "$AUTH" | python3 -c "
+import sys,json
+def text(n): return ''.join(c['text'] if c.get('type')=='text' else text(c) for c in n.get('content',[]))
+print(text(json.load(sys.stdin)['content']))")
+EXPECTED=$(python3 -c "print(' '.join(f'WORD{i}' for i in range(1,21)))")
+[ "$RESULT" = "$EXPECTED" ] && echo "  document is exactly what the proposals asked for" || {
+  echo "  MISMATCH"; echo "   got:      $RESULT"; echo "   expected: $EXPECTED"; exit 1; }
+
+# A proposal whose text has moved on must be refused, not guessed at.
+H=$(curl -s "$API/scenes/$SCENE" -H "$AUTH" | field contentHash)
+curl -s -X POST "$API/scenes/$SCENE/changes" -H "$AUTH" -H 'content-type: application/json' \
+  -d "{\"kind\":\"replace\",\"anchorFrom\":1,\"anchorTo\":6,\"quote\":\"vanished\",\"payload\":\"x\",\"baseHash\":\"$H\"}" >/dev/null
+curl -s -X PUT "$API/scenes/$SCENE/content" -H "$AUTH" -H 'content-type: application/json' \
+  -d '{"content":{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Entirely different text now."}]}]}}' >/dev/null
+curl -s -X POST "$API/scenes/$SCENE/changes/resolve" -H "$AUTH" -H 'content-type: application/json' \
+  -d '{"action":"accept"}' | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+print(f\"  after the scene moved on: applied {d['applied']}, left pending {len(d['stale'])}\")
+for s in d['stale']: print('   ', s['reason'])"
+
 step "Story bible"
 ENTRY=$(curl -s -X POST "$API/works/$WID/bible" -H "$AUTH" -H 'content-type: application/json' \
   -d '{"kind":"character","name":"Ada","summary":"Walks into the dark on purpose."}')

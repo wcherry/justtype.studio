@@ -7,6 +7,7 @@ import Placeholder from '@tiptap/extension-placeholder'
 
 import { api } from '../api/client'
 import type { Outline as OutlineType, Scene, SceneWithContent, Version } from '../api/types'
+import { ChangesPanel } from '../components/ChangesPanel'
 import { ConflictBanner } from '../components/ConflictBanner'
 import { Corkboard } from '../components/Corkboard'
 import { FrontMatter } from '../components/FrontMatter'
@@ -45,8 +46,12 @@ export function EditorPage() {
   const [scene, setScene] = useState<Scene | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [panel, setPanel] =
-    useState<'none' | 'versions' | 'history' | 'prefs' | 'front' | 'details' | 'bible'>('none')
+    useState<
+      'none' | 'versions' | 'history' | 'prefs' | 'front' | 'details' | 'bible' | 'changes'
+    >('none')
   const [view, setView] = useState<'write' | 'corkboard'>('write')
+  /** What the writer has selected, in the same positions a proposal records. */
+  const [selection, setSelection] = useState<{ from: number; to: number; quote: string } | null>(null)
   const [online, setOnline] = useState(() => navigator.onLine)
   /** Bumped after every accepted save, so the history list stays current. */
   const [savedAt, setSavedAt] = useState(0)
@@ -186,6 +191,22 @@ export function EditorPage() {
     }
   }, [editor, schedule])
 
+  // Selection is tracked for suggestions: a proposal records the same
+  // ProseMirror positions the editor reports here.
+  useEffect(() => {
+    if (!editor) return
+    const handler = () => {
+      const { from, to, empty } = editor.state.selection
+      setSelection(
+        empty ? null : { from, to, quote: editor.state.doc.textBetween(from, to, ' ') },
+      )
+    }
+    editor.on('selectionUpdate', handler)
+    return () => {
+      editor.off('selectionUpdate', handler)
+    }
+  }, [editor])
+
   /** The scene after this one in the same chapter, if there is one. */
   const nextScene = (() => {
     if (!scene || !outline) return null
@@ -320,6 +341,12 @@ export function EditorPage() {
             </button>
             <button
               type="button"
+              onClick={() => setPanel((p) => (p === 'changes' ? 'none' : 'changes'))}
+            >
+              Changes
+            </button>
+            <button
+              type="button"
               onClick={() => setPanel((p) => (p === 'bible' ? 'none' : 'bible'))}
             >
               Bible
@@ -448,6 +475,24 @@ export function EditorPage() {
             onMerge={mergeNext}
             onSaved={(updated) => {
               setScene((current) => (current ? { ...current, ...updated } : current))
+              void loadOutline()
+            }}
+          />
+        </aside>
+      )}
+
+      {panel === 'changes' && scene && (
+        <aside className="versions">
+          <header className="versions__header">
+            <h3>Proposed changes</h3>
+          </header>
+          <ChangesPanel
+            scene={scene}
+            selection={selection}
+            // The server edited the document, so the editor has to re-read it
+            // rather than keep the copy it was holding.
+            onApplied={() => {
+              void openScene(scene)
               void loadOutline()
             }}
           />

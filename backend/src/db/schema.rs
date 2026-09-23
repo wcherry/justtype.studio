@@ -156,6 +156,7 @@ diesel::table! {
         resolved_by -> Nullable<Text>,
         resolved_at -> Nullable<Text>,
         created_at -> Text,
+        base_hash -> Nullable<Text>,
     }
 }
 
