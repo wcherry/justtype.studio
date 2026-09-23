@@ -18,6 +18,27 @@ export interface Anchor {
   to: number
 }
 
+export interface AnswerRequest {
+  body?: string | null
+  // Required for a chapter-scoped question, ignored otherwise.
+  chapterId?: string | null
+  // 1 to 5, for a rating question.
+  rating?: number | null
+}
+
+export interface AnswerView {
+  body?: string | null
+  // Empty for a work-scoped question.
+  chapterId: string
+  createdAt: string
+  id: string
+  questionId: string
+  rating?: number | null
+  updatedAt: string
+  userId: string
+  reader: AuthorCard
+}
+
 // Author cards attached to comments so the clients need no second round trip.
 export interface AuthorCard {
   displayName: string
@@ -49,6 +70,17 @@ export interface BlockDiff {
   // Word-level detail, for a modified paragraph.
   changes?: TextChange[]
   kind: BlockChangeKind
+}
+
+export interface BlockReactions {
+  blockIndex: number
+  // Totals, for the author only — see the note on `list_reactions`.
+  counts: ReactionCount[]
+  mine?: ReactionKind | null
+  // The opening of the paragraph, so the author's list reads as prose
+  // rather than as coordinates. Empty if the block has since gone.
+  quote: string
+  sceneId: string
 }
 
 export interface BulkResolveRequest {
@@ -135,6 +167,10 @@ export interface CommentView {
   updatedAt: string
   versionId: string
   author: AuthorCard
+  // How useful this reviewer's notes have proved elsewhere — votes plus the
+  // notes authors marked resolved. Shown beside the name so a reader with a
+  // record of being right is legible as one.
+  authorScore: number
   // Threads nest arbitrarily deep, which makes this type self-referential.
   // Schema generation has to be told to stop, or it recurses until the stack
   // gives out.
@@ -204,6 +240,13 @@ export interface CreatePublicationRequest {
   // Chapter or scene id when `scope` is narrower than the whole work.
   scopeRefId?: string | null
   visibility: Visibility
+}
+
+export interface CreateQuestionRequest {
+  kind: QuestionKind
+  prompt: string
+  // `work` asks it once; `chapter` asks it of every chapter on offer.
+  scope?: QuestionScope
 }
 
 export interface CreateSceneRequest {
@@ -460,6 +503,25 @@ export interface PutContentRequest {
   localDay?: string | null
 }
 
+export type QuestionKind = 'rating' | 'text'
+
+export type QuestionScope = 'work' | 'chapter'
+
+export interface ReactRequest {
+  // Index of the paragraph in the snapshot scene.
+  blockIndex: number
+  // Sending the kind already there clears it, the way a repeated vote does.
+  kind: ReactionKind
+  sceneId: string
+}
+
+export interface ReactionCount {
+  count: number
+  kind: ReactionKind
+}
+
+export type ReactionKind = 'loved' | 'confusing' | 'dragging'
+
 export interface ReaderCircle {
   createdAt: string
   id: string
@@ -530,6 +592,29 @@ export interface RestoreResponse {
   // in `safetyVersion`, which is the point of taking it.
   scenesRemoved: number
   scenesRestored: number
+}
+
+export interface ReviewAnswer {
+  body?: string | null
+  // Empty for a work-scoped question.
+  chapterId: string
+  createdAt: string
+  id: string
+  questionId: string
+  rating?: number | null
+  updatedAt: string
+  userId: string
+}
+
+export interface ReviewQuestion {
+  createdAt: string
+  id: string
+  kind: string
+  position: number
+  prompt: string
+  publicationId: string
+  scope: string
+  updatedAt: string
 }
 
 export interface RevisionWithContent {
@@ -651,6 +736,20 @@ export interface StaleChange {
   reason: string
 }
 
+// How useful a reviewer's feedback has turned out to be.
+// 
+// Derived on read rather than kept in a column: it is a function of rows that
+// already exist, and a stored copy would only be a second thing to get wrong.
+export interface Standing {
+  comments: number
+  // Notes a work's author marked resolved — them saying they acted on it.
+  resolved: number
+  // `votes + 3 x resolved`.
+  score: number
+  // Net votes across everything this reviewer has written.
+  votes: number
+}
+
 export interface TagRequest {
   tag: string
 }
@@ -734,6 +833,11 @@ export interface UpdatePublicationRequest {
   maxReviewers?: number | null
   reviewPrompt?: string | null
   visibility?: Visibility | null
+}
+
+export interface UpdateQuestionRequest {
+  position?: number | null
+  prompt?: string | null
 }
 
 export interface UpdateSceneRequest {

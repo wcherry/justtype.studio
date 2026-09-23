@@ -287,6 +287,14 @@ fn is_blank(blocks: &[Value]) -> bool {
     })
 }
 
+/// The text of one top-level block, for naming the paragraph a reaction sits
+/// on. `None` when the index is past the end, which is what a reaction left
+/// against an older snapshot looks like.
+pub fn block_text(doc: &Value, index: usize) -> Option<String> {
+    let block = doc.get("content").and_then(Value::as_array)?.get(index)?;
+    Some(plain_text(block))
+}
+
 /// How many top-level blocks a document has — the range a split may cut at.
 pub fn block_count(doc: &Value) -> usize {
     doc.get("content")
@@ -308,6 +316,15 @@ mod split_tests {
                 }))
                 .collect::<Vec<_>>()
         })
+    }
+
+    #[test]
+    fn a_block_can_be_named_by_its_index() {
+        let doc = sample(3);
+        assert_eq!(block_text(&doc, 1).as_deref(), Some("Paragraph 1."));
+        // A reaction left against an older snapshot points past the end rather
+        // than at the wrong paragraph, and has to read as missing.
+        assert_eq!(block_text(&doc, 9), None);
     }
 
     #[test]

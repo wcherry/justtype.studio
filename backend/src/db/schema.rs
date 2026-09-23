@@ -287,6 +287,44 @@ diesel::table! {
 }
 
 diesel::table! {
+    reactions (id) {
+        id -> Text,
+        publication_id -> Text,
+        user_id -> Text,
+        scene_id -> Text,
+        block_index -> Integer,
+        kind -> Text,
+        created_at -> Text,
+    }
+}
+
+diesel::table! {
+    review_questions (id) {
+        id -> Text,
+        publication_id -> Text,
+        prompt -> Text,
+        kind -> Text,
+        scope -> Text,
+        position -> Integer,
+        created_at -> Text,
+        updated_at -> Text,
+    }
+}
+
+diesel::table! {
+    review_answers (id) {
+        id -> Text,
+        question_id -> Text,
+        user_id -> Text,
+        chapter_id -> Text,
+        rating -> Nullable<Integer>,
+        body -> Nullable<Text>,
+        created_at -> Text,
+        updated_at -> Text,
+    }
+}
+
+diesel::table! {
     comment_votes (id) {
         id -> Text,
         comment_id -> Text,
@@ -314,6 +352,9 @@ diesel::joinable!(reading_progress -> publications (publication_id));
 diesel::joinable!(publications -> works (work_id));
 diesel::joinable!(comments -> publications (publication_id));
 diesel::joinable!(comment_votes -> comments (comment_id));
+diesel::joinable!(reactions -> publications (publication_id));
+diesel::joinable!(review_questions -> publications (publication_id));
+diesel::joinable!(review_answers -> review_questions (question_id));
 diesel::joinable!(comment_votes -> users (user_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
@@ -338,4 +379,7 @@ diesel::allow_tables_to_appear_in_same_query!(
     reader_circles,
     circle_members,
     reading_progress,
+    reactions,
+    review_questions,
+    review_answers,
 );

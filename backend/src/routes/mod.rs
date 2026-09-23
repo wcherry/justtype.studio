@@ -3,6 +3,7 @@ pub mod bible;
 pub mod changes;
 pub mod comments;
 pub mod export;
+pub mod feedback;
 pub mod goals;
 pub mod openapi;
 pub mod publications;
@@ -91,6 +92,15 @@ fn api_router() -> OpenApiRouter<AppState> {
         .routes(routes!(comments::list, comments::create))
         .routes(routes!(comments::update, comments::delete_comment))
         .routes(routes!(comments::vote))
+        .routes(routes!(feedback::list_reactions, feedback::react))
+        .routes(routes!(feedback::list_questions, feedback::create_question))
+        .routes(routes!(
+            feedback::update_question,
+            feedback::delete_question
+        ))
+        .routes(routes!(feedback::answer))
+        .routes(routes!(feedback::list_answers))
+        .routes(routes!(feedback::standing))
 }
 
 pub fn router(state: AppState) -> Router {

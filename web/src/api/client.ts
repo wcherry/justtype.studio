@@ -5,7 +5,8 @@ import type {
   User, Version, VersionContent, VersionDetail, Work, WorkKind, Visibility, CommentCategory,
   WritingSummary, EntryView, BibleKind, SplitSceneResponse, ResolveResponse,
   BulkResolveResponse, RestoreResponse, VersionSummary, InviteView, CircleView,
-  ReaderProgressView,
+  ReaderProgressView, BlockReactions, ReactionKind, ReviewQuestion, AnswerView,
+  QuestionKind, QuestionScope, Standing,
 } from './types'
 
 const BASE = '/api'
@@ -324,6 +325,37 @@ export const api = {
     recordProgress: (publicationId: string, sceneId: string) =>
       put<ReaderProgressView>(`/publications/${publicationId}/progress`, { sceneId }),
     remove: (publicationId: string) => del<{ ok: boolean }>(`/publications/${publicationId}`),
+  },
+
+  /**
+   * One-tap signals and the author's own questions.
+   *
+   * Reactions come back differently depending on who is asking: a reader gets
+   * only their own marks, the author gets the totals. That is the server's
+   * rule, not a flag this client passes.
+   */
+  feedback: {
+    reactions: (publicationId: string) =>
+      get<BlockReactions[]>(`/publications/${publicationId}/reactions`),
+    react: (publicationId: string, input: { sceneId: string; blockIndex: number; kind: ReactionKind }) =>
+      put<BlockReactions>(`/publications/${publicationId}/reactions`, input),
+
+    questions: (publicationId: string) =>
+      get<ReviewQuestion[]>(`/publications/${publicationId}/questions`),
+    ask: (publicationId: string, input: { prompt: string; kind: QuestionKind; scope: QuestionScope }) =>
+      post<ReviewQuestion>(`/publications/${publicationId}/questions`, input),
+    updateQuestion: (questionId: string, input: { prompt?: string; position?: number }) =>
+      patch<ReviewQuestion>(`/questions/${questionId}`, input),
+    removeQuestion: (questionId: string) => del<{ deleted: boolean }>(`/questions/${questionId}`),
+
+    answers: (publicationId: string) =>
+      get<AnswerView[]>(`/publications/${publicationId}/answers`),
+    answer: (
+      questionId: string,
+      input: { chapterId?: string; rating?: number; body?: string },
+    ) => put<AnswerView>(`/questions/${questionId}/answers`, input),
+
+    standing: (userId: string) => get<Standing>(`/users/${userId}/standing`),
   },
 
   bible: {

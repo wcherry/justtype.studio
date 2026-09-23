@@ -300,6 +300,42 @@ Progress keeps the **furthest** scene reached, never the latest: a reader who
 gave up in chapter three and later skimmed the ending has still stopped in
 chapter three. `finishedAt` is set once the furthest point is the last scene.
 
+## Reactions and questions
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/publications/{id}/reactions` | a reader's own marks; the author's totals |
+| `PUT` | `/publications/{id}/reactions` | `sceneId`, `blockIndex`, `kind` |
+| `GET` | `/publications/{id}/questions` | what the author is asking |
+| `POST` | `/publications/{id}/questions` | `prompt`, `kind`, `scope` |
+| `PATCH` | `/questions/{id}` | `prompt`, `position` |
+| `DELETE` | `/questions/{id}` | |
+| `PUT` | `/questions/{id}/answers` | `chapterId`, `rating` or `body` |
+| `GET` | `/publications/{id}/answers` | the author's: everyone's; a reader's: their own |
+| `GET` | `/users/{id}/standing` | how useful this reviewer's notes have been |
+
+A reaction is `loved`, `confusing` or `dragging`, anchored to a **block index**
+rather than to a selection: two readers never highlight quite the same words,
+and a tally nobody can add up is not a signal. One mark per reader per block —
+a different kind replaces it, the same kind clears it, the way a repeated vote
+does. A block index past the end of the scene is refused.
+
+A reader is shown only their own marks. Not a privacy rule: a reader who can
+see that four people found this paragraph confusing is being told what to think
+about it, and the fifth mark stops meaning anything.
+
+`kind` is `rating` (1–5) or `text`. `scope` is `work` (asked once) or `chapter`
+(asked again for each chapter in the published slice, with the chapter in
+`chapterId`). Answering twice corrects the answer rather than adding one.
+
+Reactions and answers are governed by `maxReviewers` exactly as comments are:
+the cap is on who may leave feedback, not on which kind.
+
+`standing` is derived, never stored: `votes + 3 x resolved` across everything
+that reviewer has written. A resolve outweighs an upvote because it is the
+author saying they acted on the note rather than a bystander agreeing with it.
+The same number rides along on every comment as `authorScore`.
+
 ## Comments
 
 | Method | Path | Notes |

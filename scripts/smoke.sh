@@ -438,6 +438,73 @@ echo "  the author still sees:    $(titles "$AUTH")"
 curl -s -X PATCH "$API/publications/$INV" -H "$AUTH" -H 'content-type: application/json' \
   -d "{\"closesAt\":\"$FUTURE\"}" >/dev/null
 
+step "One-tap reactions"
+# A reader who will not write a paragraph about your paragraph will still tell
+# you, in one tap, where they got lost.
+react() {
+  curl -s -X PUT "$API/publications/$PID/reactions" -H "$1" -H 'content-type: application/json' \
+    -d "{\"sceneId\":\"$SCENE\",\"blockIndex\":$2,\"kind\":\"$3\"}"
+}
+react "$RAUTH" 0 loved >/dev/null
+react "$SAUTH" 0 confusing >/dev/null
+curl -s "$API/publications/$PID/reactions" -H "$AUTH" | python3 -c "
+import sys,json
+for b in json.load(sys.stdin):
+    tally = ', '.join(f\"{c['count']} {c['kind']}\" for c in b['counts'])
+    print(f\"  paragraph {b['blockIndex']} — {tally}: {b['quote'][:40]}\")"
+# A paragraph that is not there is not a signal.
+GONE=$(curl -s -o /dev/null -w '%{http_code}' -X PUT "$API/publications/$PID/reactions" -H "$SAUTH" \
+  -H 'content-type: application/json' -d "{\"sceneId\":\"$SCENE\",\"blockIndex\":99,\"kind\":\"dragging\"}")
+[ "$GONE" = "400" ] && echo "  a reaction on a paragraph that is not there is refused" || { echo "  EXPECTED 400, got $GONE"; exit 1; }
+# The same face twice takes it back.
+LEFT=$(react "$SAUTH" 0 confusing | python3 -c "import sys,json;print(json.load(sys.stdin)['mine'])")
+[ "$LEFT" = "None" ] && echo "  tapping the same face again clears it" || { echo "  EXPECTED cleared, got $LEFT"; exit 1; }
+# A different face replaces rather than piles up: the tally counts people.
+react "$RAUTH" 0 confusing >/dev/null
+MINE=$(curl -s "$API/publications/$PID/reactions" -H "$RAUTH" | python3 -c "
+import sys,json
+rows=json.load(sys.stdin)
+assert all(not r['counts'] for r in rows), 'a reader was shown the totals'
+print(' '.join(f\"{r['blockIndex']}:{r['mine']}\" for r in rows))")
+echo "  a reader sees only their own marks: $MINE"
+
+step "The author's own questions"
+Q1=$(curl -s -X POST "$API/publications/$PID/questions" -H "$AUTH" -H 'content-type: application/json' \
+  -d '{"prompt":"Did this chapter drag?","kind":"rating","scope":"chapter"}' | field id)
+Q2=$(curl -s -X POST "$API/publications/$PID/questions" -H "$AUTH" -H 'content-type: application/json' \
+  -d '{"prompt":"Who did you think the villain was?","kind":"text","scope":"work"}' | field id)
+CH1=$(curl -s "$API/publications/$PID/content" -H "$RAUTH" | field chapters.0.chapterId)
+curl -s -X PUT "$API/questions/$Q1/answers" -H "$RAUTH" -H 'content-type: application/json' \
+  -d "{\"chapterId\":\"$CH1\",\"rating\":2}" >/dev/null
+curl -s -X PUT "$API/questions/$Q2/answers" -H "$RAUTH" -H 'content-type: application/json' \
+  -d '{"body":"The house."}' >/dev/null
+# Answering twice corrects the answer rather than adding a second one.
+curl -s -X PUT "$API/questions/$Q1/answers" -H "$RAUTH" -H 'content-type: application/json' \
+  -d "{\"chapterId\":\"$CH1\",\"rating\":4}" >/dev/null
+curl -s "$API/publications/$PID/answers" -H "$AUTH" | python3 -c "
+import sys,json
+rows=json.load(sys.stdin)
+assert len(rows) == 2, f'expected 2 answers, got {len(rows)}'
+for a in rows:
+    said = a['rating'] if a['rating'] is not None else a['body']
+    print(f\"  {a['reader']['displayName']}: {said}\")"
+BAD=$(curl -s -o /dev/null -w '%{http_code}' -X PUT "$API/questions/$Q1/answers" -H "$RAUTH" \
+  -H 'content-type: application/json' -d "{\"chapterId\":\"$CH1\",\"rating\":9}")
+[ "$BAD" = "400" ] && echo "  a rating outside 1-5 is refused" || { echo "  EXPECTED 400, got $BAD"; exit 1; }
+MINE=$(curl -s "$API/publications/$PID/answers" -H "$SAUTH" | python3 -c "
+import sys,json;print(len(json.load(sys.stdin)))")
+[ "$MINE" = "0" ] && echo "  a reader does not see anyone else's answers" || { echo "  EXPECTED 0, got $MINE"; exit 1; }
+
+step "Reviewer standing"
+# Votes say the other readers agreed; a resolve says the author acted.
+GRACE=$(curl -s "$API/publications/$PID/comments" -H "$AUTH" | field 0.author.id)
+curl -s -X PATCH "$API/comments/$CID" -H "$AUTH" -H 'content-type: application/json' \
+  -d '{"state":"resolved"}' >/dev/null
+curl -s "$API/users/$GRACE/standing" -H "$AUTH" | python3 -c "
+import sys,json;d=json.load(sys.stdin)
+print(f\"  {d['comments']} notes, {d['votes']} net votes, {d['resolved']} acted on — standing {d['score']}\")
+assert d['score'] == d['votes'] + 3 * d['resolved']"
+
 step "Threaded feedback"
 curl -s "$API/publications/$PID/comments" -H "$AUTH" | python3 -c "
 import sys,json

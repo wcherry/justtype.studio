@@ -119,3 +119,26 @@ api_enum!(ChangeState {
     Accepted => "accepted",
     Rejected => "rejected",
 });
+
+api_enum!(ReactionKind {
+    /// This landed.
+    Loved => "loved",
+    /// I did not follow what happened here.
+    Confusing => "confusing",
+    /// I was skimming by this point.
+    Dragging => "dragging",
+});
+
+api_enum!(QuestionKind {
+    /// Answered one to five.
+    Rating => "rating",
+    /// Answered in the reader's own words.
+    Text => "text",
+});
+
+api_enum!(QuestionScope {
+    /// Asked once about the whole publication.
+    Work => "work",
+    /// Asked again for each chapter in the published slice.
+    Chapter => "chapter",
+});

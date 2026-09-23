@@ -1,8 +1,10 @@
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { EditorContent, useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
 import { CommentAnchors } from '../editor/commentAnchors'
+import { ReactionGutter } from '../editor/reactionGutter'
+import type { ReactionKind } from '../editor/reactionGutter'
 import type { AnchorSpec } from '../editor/commentAnchors'
 import type { DocNode } from '../api/types'
 
@@ -19,8 +21,11 @@ interface Props {
   content: DocNode
   anchors: AnchorSpec[]
   activeCommentId: string | null
+  /** What this reader has marked in this scene, by block index. */
+  marks: Record<number, ReactionKind>
   onSelect: (selection: Selection | null) => void
   onActivateComment: (commentId: string) => void
+  onReact: (sceneId: string, blockIndex: number, kind: ReactionKind) => void
 }
 
 /**
@@ -31,12 +36,27 @@ interface Props {
  * the same positions the server stores, in the same document.
  */
 export function ReaderScene({
-  sceneId, title, content, anchors, activeCommentId, onSelect, onActivateComment,
+  sceneId, title, content, anchors, activeCommentId, marks, onSelect, onActivateComment, onReact,
 }: Props) {
+  // Each scene gets its own instances. An extension declared at module level is
+  // one object, and the page mounts a dozen editors: passing the bare
+  // extensions would give every scene the same options, so the last one to
+  // mount would own them — every gutter reporting the last scene's id, every
+  // scene painting the last scene's comment anchors. `configure` clones.
+  const extensions = useMemo(
+    () => [
+      StarterKit,
+      Underline,
+      CommentAnchors.configure({ anchors: [], activeId: null }),
+      ReactionGutter.configure({ marks: {}, onReact: () => {} }),
+    ],
+    [],
+  )
+
   const editor = useEditor(
     {
       editable: false,
-      extensions: [StarterKit, Underline, CommentAnchors],
+      extensions,
       content: content as never,
       onSelectionUpdate({ editor }) {
         const { from, to, empty } = editor.state.selection
@@ -60,6 +80,16 @@ export function ReaderScene({
     extension.options.activeId = activeCommentId
     editor.view.dispatch(editor.state.tr)
   }, [editor, anchors, activeCommentId])
+
+  useEffect(() => {
+    if (!editor) return
+    const extension = editor.extensionManager.extensions.find((e) => e.name === 'reactionGutter')
+    if (!extension) return
+    extension.options.marks = marks
+    extension.options.onReact = (blockIndex: number, kind: ReactionKind) =>
+      onReact(sceneId, blockIndex, kind)
+    editor.view.dispatch(editor.state.tr)
+  }, [editor, marks, onReact, sceneId])
 
   useEffect(() => {
     if (!editor) return

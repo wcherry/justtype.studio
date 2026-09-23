@@ -274,10 +274,19 @@ currently mean.
   what they were invited to, and nobody is shown a window that has shut. There
   is no mail going out yet (*2.4*), so the feed is the only way in.
 
-### 3.2 Richer feedback
-- Inline reactions (confusing / dragging / loved this) as one-tap signals.
-- Per-chapter rating prompts driven by the author's review questions.
-- Reviewer reputation from vote totals, weighted by the author's own resolves.
+### 3.2 Richer feedback — **done**
+- One-tap reactions — loved / confusing / dragging — in the margin beside every
+  paragraph. Anchored to the block rather than to a selection, because two
+  readers never highlight quite the same words and a tally nobody can add up is
+  not a signal. The author gets the totals; a reader sees only their own marks,
+  so the fifth person to call a paragraph confusing still means it.
+- The author's own questions, rated 1–5 or answered in words, asked once or
+  asked again at the end of every chapter — which is what turns "does the
+  middle sag" into something with an answer. They are asked where the chapter
+  ends, while the reader still has it in mind.
+- Reviewer standing: votes plus the notes an author marked resolved, weighted
+  so that an author acting on a note outweighs a bystander agreeing with it.
+  Derived on read rather than stored, and shown beside the name on every note.
 
 ### 3.3 Comment management
 - Filter by scene, category, score, resolved state, author.

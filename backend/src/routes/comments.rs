@@ -81,6 +81,10 @@ pub struct CommentView {
     #[serde(flatten)]
     pub comment: Comment,
     pub author: AuthorCard,
+    /// How useful this reviewer's notes have proved elsewhere — votes plus the
+    /// notes authors marked resolved. Shown beside the name so a reader with a
+    /// record of being right is legible as one.
+    pub author_score: i64,
     pub viewer_vote: i32,
     /// Threads nest arbitrarily deep, which makes this type self-referential.
     /// Schema generation has to be told to stop, or it recurses until the stack
@@ -133,6 +137,7 @@ pub async fn list(
 
         let author_ids: Vec<String> = rows.iter().map(|c| c.author_id.clone()).collect();
         let authors = support::author_cards(conn, &author_ids)?;
+        let standings = support::standings(conn, &author_ids)?;
 
         let votes: HashMap<String, i32> = match &viewer_id {
             Some(id) => comment_votes::table
@@ -144,7 +149,13 @@ pub async fn list(
             None => HashMap::new(),
         };
 
-        Ok(build_threads(rows, &authors, &votes, sort_by_score))
+        Ok(build_threads(
+            rows,
+            &authors,
+            &standings,
+            &votes,
+            sort_by_score,
+        ))
     })
     .await?;
     Ok(Json(views))
@@ -155,6 +166,7 @@ pub async fn list(
 fn build_threads(
     rows: Vec<Comment>,
     authors: &HashMap<String, AuthorCard>,
+    standings: &HashMap<String, support::Standing>,
     votes: &HashMap<String, i32>,
     sort_by_score: bool,
 ) -> Vec<CommentView> {
@@ -174,15 +186,20 @@ fn build_threads(
         comment: Comment,
         children: &mut HashMap<String, Vec<Comment>>,
         authors: &HashMap<String, AuthorCard>,
+        standings: &HashMap<String, support::Standing>,
         votes: &HashMap<String, i32>,
     ) -> CommentView {
         let replies = children
             .remove(&comment.id)
             .unwrap_or_default()
             .into_iter()
-            .map(|child| to_view(child, children, authors, votes))
+            .map(|child| to_view(child, children, authors, standings, votes))
             .collect();
         CommentView {
+            author_score: standings
+                .get(&comment.author_id)
+                .map(|s| s.score)
+                .unwrap_or_default(),
             author: authors
                 .get(&comment.author_id)
                 .cloned()
@@ -198,7 +215,7 @@ fn build_threads(
 
     roots
         .into_iter()
-        .map(|root| to_view(root, &mut children, authors, votes))
+        .map(|root| to_view(root, &mut children, authors, standings, votes))
         .collect()
 }
 
@@ -280,7 +297,12 @@ pub async fn create(
             .select(Comment::as_select())
             .first(conn)?;
         let authors = support::author_cards(conn, std::slice::from_ref(&comment.author_id))?;
+        let standings = support::standings(conn, std::slice::from_ref(&comment.author_id))?;
         Ok(CommentView {
+            author_score: standings
+                .get(&comment.author_id)
+                .map(|s| s.score)
+                .unwrap_or_default(),
             author: authors
                 .get(&comment.author_id)
                 .cloned()

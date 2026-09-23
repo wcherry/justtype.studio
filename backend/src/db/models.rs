@@ -275,6 +275,42 @@ row!(ReadingProgress, reading_progress, {
     updated_at: String,
 });
 
+row!(Reaction, reactions, {
+    id: String,
+    publication_id: String,
+    user_id: String,
+    scene_id: String,
+    /// Index of the block in the snapshot's `content` array. Blocks, not
+    /// spans: two readers never highlight quite the same words, and a tally
+    /// nobody can add up is not a signal.
+    block_index: i32,
+    kind: String,
+    created_at: String,
+});
+
+row!(ReviewQuestion, review_questions, {
+    id: String,
+    publication_id: String,
+    prompt: String,
+    kind: String,
+    scope: String,
+    position: i32,
+    created_at: String,
+    updated_at: String,
+});
+
+row!(ReviewAnswer, review_answers, {
+    id: String,
+    question_id: String,
+    user_id: String,
+    /// Empty for a work-scoped question.
+    chapter_id: String,
+    rating: Option<i32>,
+    body: Option<String>,
+    created_at: String,
+    updated_at: String,
+});
+
 row!(Comment, comments, {
     id: String,
     publication_id: String,
@@ -428,6 +464,21 @@ new_row!(NewComment, comments, {
     parent_id: Option<String>, author_id: String, body: String, anchor: Option<String>,
     anchor_quote: Option<String>, category: String, state: String, score: i32,
     created_at: String, updated_at: String,
+});
+
+new_row!(NewReaction, reactions, {
+    id: String, publication_id: String, user_id: String, scene_id: String,
+    block_index: i32, kind: String, created_at: String,
+});
+
+new_row!(NewReviewQuestion, review_questions, {
+    id: String, publication_id: String, prompt: String, kind: String,
+    scope: String, position: i32, created_at: String, updated_at: String,
+});
+
+new_row!(NewReviewAnswer, review_answers, {
+    id: String, question_id: String, user_id: String, chapter_id: String,
+    rating: Option<i32>, body: Option<String>, created_at: String, updated_at: String,
 });
 
 new_row!(NewCommentVote, comment_votes, {

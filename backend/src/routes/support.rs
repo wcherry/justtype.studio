@@ -243,6 +243,45 @@ pub fn within_reviewer_cap(
     )))
 }
 
+/// Is this scene actually part of what was published?
+///
+/// The snapshot answers "does this scene exist"; the publication's scope
+/// answers "was it on offer". Feedback pointed at a scene outside the slice is
+/// feedback on something the reader was never shown.
+pub fn scene_in_publication(
+    conn: &mut Conn,
+    publication: &Publication,
+    scene_id: &str,
+) -> ApiResult<()> {
+    use crate::db::schema::version_entries;
+    let entry: Option<(String, String)> = version_entries::table
+        .filter(version_entries::version_id.eq(&publication.version_id))
+        .filter(version_entries::scene_id.eq(scene_id))
+        .select((version_entries::chapter_id, version_entries::scene_id))
+        .first(conn)
+        .optional()?;
+    let Some((chapter_id, scene_id)) = entry else {
+        return Err(ApiError::BadRequest(
+            "that scene is not in this publication".into(),
+        ));
+    };
+    let within = match (
+        publication.scope.as_str(),
+        publication.scope_ref_id.as_deref(),
+    ) {
+        ("chapter", Some(wanted)) => chapter_id == wanted,
+        ("scene", Some(wanted)) => scene_id == wanted,
+        _ => true,
+    };
+    if within {
+        Ok(())
+    } else {
+        Err(ApiError::BadRequest(
+            "that scene is not in this publication".into(),
+        ))
+    }
+}
+
 pub fn publication_for_owner(
     conn: &mut Conn,
     publication_id: &str,
@@ -281,6 +320,55 @@ pub fn next_chapter_position(conn: &mut Conn, work_id: &str) -> ApiResult<i32> {
         .select(diesel::dsl::max(chapters::position))
         .first(conn)?;
     Ok(max.unwrap_or(-1) + 1)
+}
+
+/// An author acting on a note is a stronger signal than a bystander agreeing
+/// with it, so a resolve counts for more than an upvote. The number is a
+/// judgement, not a measurement; it lives here so there is one of it.
+const RESOLVE_WEIGHT: i64 = 3;
+
+/// How useful a reviewer's feedback has turned out to be.
+///
+/// Derived on read rather than kept in a column: it is a function of rows that
+/// already exist, and a stored copy would only be a second thing to get wrong.
+#[derive(Debug, Clone, Default, serde::Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct Standing {
+    pub comments: i64,
+    /// Notes a work's author marked resolved — them saying they acted on it.
+    pub resolved: i64,
+    /// Net votes across everything this reviewer has written.
+    pub votes: i64,
+    /// `votes + 3 x resolved`.
+    pub score: i64,
+}
+
+pub fn standings(
+    conn: &mut Conn,
+    ids: &[String],
+) -> ApiResult<std::collections::HashMap<String, Standing>> {
+    use crate::db::schema::comments;
+    let mut out: std::collections::HashMap<String, Standing> = Default::default();
+    if ids.is_empty() {
+        return Ok(out);
+    }
+    let rows: Vec<(String, String, i32)> = comments::table
+        .filter(comments::author_id.eq_any(ids))
+        .filter(comments::state.ne("deleted"))
+        .select((comments::author_id, comments::state, comments::score))
+        .load(conn)?;
+    for (author_id, state, score) in rows {
+        let entry = out.entry(author_id).or_default();
+        entry.comments += 1;
+        entry.votes += i64::from(score);
+        if state == "resolved" {
+            entry.resolved += 1;
+        }
+    }
+    for standing in out.values_mut() {
+        standing.score = standing.votes + RESOLVE_WEIGHT * standing.resolved;
+    }
+    Ok(out)
 }
 
 /// Author cards attached to comments so the clients need no second round trip.

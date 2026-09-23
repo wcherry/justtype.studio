@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api/client'
 import { CircleManager } from '../components/CircleManager'
+import { FeedbackPanel } from '../components/FeedbackPanel'
 import { ReviewPanel } from '../components/ReviewPanel'
 import type { PublicationCard } from '../api/types'
 
@@ -9,6 +10,7 @@ export function FeedPage() {
   const [cards, setCards] = useState<PublicationCard[]>([])
   const [mine, setMine] = useState(false)
   const [managing, setManaging] = useState<string | null>(null)
+  const [reading, setReading] = useState<string | null>(null)
   const [showCircles, setShowCircles] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -59,21 +61,33 @@ export function FeedPage() {
               <p className="feed__meta">
                 {card.author.displayName} · {card.workKind.replace('_', ' ')} ·{' '}
                 {card.wordCount.toLocaleString()} words · {card.versionLabel}
-                <span className="feed__count">{card.commentCount} comments</span>
+                <span className="feed__count">
+                  {card.commentCount} comment{card.commentCount === 1 ? '' : 's'}
+                </span>
               </p>
               {card.reviewPrompt && <p className="feed__prompt">“{card.reviewPrompt}”</p>}
               {card.excerpt && <p className="feed__excerpt">{card.excerpt}</p>}
             </Link>
             {mine && (
               <>
-                <button
-                  type="button"
-                  className="linklike feed__manage"
-                  onClick={() => setManaging(managing === card.id ? null : card.id)}
-                >
-                  {managing === card.id ? 'Hide readers' : 'Readers and progress'}
-                </button>
+                <div className="feed__manage">
+                  <button
+                    type="button"
+                    className="linklike"
+                    onClick={() => setManaging(managing === card.id ? null : card.id)}
+                  >
+                    {managing === card.id ? 'Hide readers' : 'Readers and progress'}
+                  </button>
+                  <button
+                    type="button"
+                    className="linklike"
+                    onClick={() => setReading(reading === card.id ? null : card.id)}
+                  >
+                    {reading === card.id ? 'Hide feedback' : 'Reactions and questions'}
+                  </button>
+                </div>
                 {managing === card.id && <ReviewPanel publication={card} onChanged={load} />}
+                {reading === card.id && <FeedbackPanel publication={card} />}
               </>
             )}
           </li>

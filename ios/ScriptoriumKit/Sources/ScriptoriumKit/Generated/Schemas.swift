@@ -40,6 +40,59 @@ public enum API {
         }
     }
 
+    public struct AnswerRequest: Codable, Hashable, Sendable {
+        public var body: String?
+        /// Required for a chapter-scoped question, ignored otherwise.
+        public var chapterId: String?
+        /// 1 to 5, for a rating question.
+        public var rating: Int?
+
+        public init(
+            body: String? = nil,
+            chapterId: String? = nil,
+            rating: Int? = nil
+        ) {
+            self.body = body
+            self.chapterId = chapterId
+            self.rating = rating
+        }
+    }
+
+    public struct AnswerView: Codable, Hashable, Sendable {
+        public var body: String?
+        /// Empty for a work-scoped question.
+        public var chapterId: String
+        public var createdAt: String
+        public var id: String
+        public var questionId: String
+        public var rating: Int?
+        public var updatedAt: String
+        public var userId: String
+        public var reader: AuthorCard
+
+        public init(
+            body: String? = nil,
+            chapterId: String,
+            createdAt: String,
+            id: String,
+            questionId: String,
+            rating: Int? = nil,
+            updatedAt: String,
+            userId: String,
+            reader: AuthorCard
+        ) {
+            self.body = body
+            self.chapterId = chapterId
+            self.createdAt = createdAt
+            self.id = id
+            self.questionId = questionId
+            self.rating = rating
+            self.updatedAt = updatedAt
+            self.userId = userId
+            self.reader = reader
+        }
+    }
+
     /// Author cards attached to comments so the clients need no second round trip.
     public struct AuthorCard: Codable, Hashable, Sendable {
         public var displayName: String
@@ -124,6 +177,31 @@ public enum API {
             self.beforeIndex = beforeIndex
             self.changes = changes
             self.kind = kind
+        }
+    }
+
+    public struct BlockReactions: Codable, Hashable, Sendable {
+        public var blockIndex: Int
+        /// Totals, for the author only — see the note on `list_reactions`.
+        public var counts: [ReactionCount]
+        public var mine: ReactionKind?
+        /// The opening of the paragraph, so the author's list reads as prose
+        /// rather than as coordinates. Empty if the block has since gone.
+        public var quote: String
+        public var sceneId: String
+
+        public init(
+            blockIndex: Int,
+            counts: [ReactionCount],
+            mine: ReactionKind? = nil,
+            quote: String,
+            sceneId: String
+        ) {
+            self.blockIndex = blockIndex
+            self.counts = counts
+            self.mine = mine
+            self.quote = quote
+            self.sceneId = sceneId
         }
     }
 
@@ -332,6 +410,10 @@ public enum API {
         public var updatedAt: String
         public var versionId: String
         public var author: AuthorCard
+        /// How useful this reviewer's notes have proved elsewhere — votes plus the
+        /// notes authors marked resolved. Shown beside the name so a reader with a
+        /// record of being right is legible as one.
+        public var authorScore: Int
         /// Threads nest arbitrarily deep, which makes this type self-referential.
         /// Schema generation has to be told to stop, or it recurses until the stack
         /// gives out.
@@ -354,6 +436,7 @@ public enum API {
             updatedAt: String,
             versionId: String,
             author: AuthorCard,
+            authorScore: Int,
             replies: [CommentView],
             viewerVote: Int
         ) {
@@ -372,6 +455,7 @@ public enum API {
             self.updatedAt = updatedAt
             self.versionId = versionId
             self.author = author
+            self.authorScore = authorScore
             self.replies = replies
             self.viewerVote = viewerVote
         }
@@ -540,6 +624,23 @@ public enum API {
             self.scope = scope
             self.scopeRefId = scopeRefId
             self.visibility = visibility
+        }
+    }
+
+    public struct CreateQuestionRequest: Codable, Hashable, Sendable {
+        public var kind: QuestionKind
+        public var prompt: String
+        /// `work` asks it once; `chapter` asks it of every chapter on offer.
+        public var scope: QuestionScope?
+
+        public init(
+            kind: QuestionKind,
+            prompt: String,
+            scope: QuestionScope? = nil
+        ) {
+            self.kind = kind
+            self.prompt = prompt
+            self.scope = scope
         }
     }
 
@@ -1169,6 +1270,53 @@ public enum API {
         }
     }
 
+    public enum QuestionKind: String, Codable, CaseIterable, Hashable, Sendable {
+        case rating = "rating"
+        case text = "text"
+    }
+
+    public enum QuestionScope: String, Codable, CaseIterable, Hashable, Sendable {
+        case work = "work"
+        case chapter = "chapter"
+    }
+
+    public struct ReactRequest: Codable, Hashable, Sendable {
+        /// Index of the paragraph in the snapshot scene.
+        public var blockIndex: Int
+        /// Sending the kind already there clears it, the way a repeated vote does.
+        public var kind: ReactionKind
+        public var sceneId: String
+
+        public init(
+            blockIndex: Int,
+            kind: ReactionKind,
+            sceneId: String
+        ) {
+            self.blockIndex = blockIndex
+            self.kind = kind
+            self.sceneId = sceneId
+        }
+    }
+
+    public struct ReactionCount: Codable, Hashable, Sendable {
+        public var count: Int
+        public var kind: ReactionKind
+
+        public init(
+            count: Int,
+            kind: ReactionKind
+        ) {
+            self.count = count
+            self.kind = kind
+        }
+    }
+
+    public enum ReactionKind: String, Codable, CaseIterable, Hashable, Sendable {
+        case loved = "loved"
+        case confusing = "confusing"
+        case dragging = "dragging"
+    }
+
     public struct ReaderCircle: Codable, Hashable, Sendable {
         public var createdAt: String
         public var id: String
@@ -1342,6 +1490,69 @@ public enum API {
             self.safetyVersion = safetyVersion
             self.scenesRemoved = scenesRemoved
             self.scenesRestored = scenesRestored
+        }
+    }
+
+    public struct ReviewAnswer: Codable, Hashable, Sendable {
+        public var body: String?
+        /// Empty for a work-scoped question.
+        public var chapterId: String
+        public var createdAt: String
+        public var id: String
+        public var questionId: String
+        public var rating: Int?
+        public var updatedAt: String
+        public var userId: String
+
+        public init(
+            body: String? = nil,
+            chapterId: String,
+            createdAt: String,
+            id: String,
+            questionId: String,
+            rating: Int? = nil,
+            updatedAt: String,
+            userId: String
+        ) {
+            self.body = body
+            self.chapterId = chapterId
+            self.createdAt = createdAt
+            self.id = id
+            self.questionId = questionId
+            self.rating = rating
+            self.updatedAt = updatedAt
+            self.userId = userId
+        }
+    }
+
+    public struct ReviewQuestion: Codable, Hashable, Sendable {
+        public var createdAt: String
+        public var id: String
+        public var kind: String
+        public var position: Int
+        public var prompt: String
+        public var publicationId: String
+        public var scope: String
+        public var updatedAt: String
+
+        public init(
+            createdAt: String,
+            id: String,
+            kind: String,
+            position: Int,
+            prompt: String,
+            publicationId: String,
+            scope: String,
+            updatedAt: String
+        ) {
+            self.createdAt = createdAt
+            self.id = id
+            self.kind = kind
+            self.position = position
+            self.prompt = prompt
+            self.publicationId = publicationId
+            self.scope = scope
+            self.updatedAt = updatedAt
         }
     }
 
@@ -1651,6 +1862,32 @@ public enum API {
         }
     }
 
+    /// How useful a reviewer's feedback has turned out to be.
+    /// 
+    /// Derived on read rather than kept in a column: it is a function of rows that
+    /// already exist, and a stored copy would only be a second thing to get wrong.
+    public struct Standing: Codable, Hashable, Sendable {
+        public var comments: Int
+        /// Notes a work's author marked resolved — them saying they acted on it.
+        public var resolved: Int
+        /// `votes + 3 x resolved`.
+        public var score: Int
+        /// Net votes across everything this reviewer has written.
+        public var votes: Int
+
+        public init(
+            comments: Int,
+            resolved: Int,
+            score: Int,
+            votes: Int
+        ) {
+            self.comments = comments
+            self.resolved = resolved
+            self.score = score
+            self.votes = votes
+        }
+    }
+
     public struct TagRequest: Codable, Hashable, Sendable {
         public var tag: String
 
@@ -1867,6 +2104,19 @@ public enum API {
             self.maxReviewers = maxReviewers
             self.reviewPrompt = reviewPrompt
             self.visibility = visibility
+        }
+    }
+
+    public struct UpdateQuestionRequest: Codable, Hashable, Sendable {
+        public var position: Int?
+        public var prompt: String?
+
+        public init(
+            position: Int? = nil,
+            prompt: String? = nil
+        ) {
+            self.position = position
+            self.prompt = prompt
         }
     }
 
