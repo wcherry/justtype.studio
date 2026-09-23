@@ -229,6 +229,50 @@ row!(Publication, publications, {
     closes_at: Option<String>,
     created_at: String,
     updated_at: String,
+    /// How many people may comment. Beta readers are scarce, and twenty
+    /// overlapping opinions are worse than five considered ones.
+    max_reviewers: Option<i32>,
+});
+
+row!(PublicationInvite, publication_invites, {
+    id: String,
+    publication_id: String,
+    email: String,
+    invited_by: String,
+    accepted_at: Option<String>,
+    accepted_by: Option<String>,
+    created_at: String,
+});
+
+row!(ReaderCircle, reader_circles, {
+    id: String,
+    owner_id: String,
+    name: String,
+    created_at: String,
+    updated_at: String,
+});
+
+row!(CircleMember, circle_members, {
+    id: String,
+    circle_id: String,
+    email: String,
+    name: Option<String>,
+    created_at: String,
+});
+
+row!(ReadingProgress, reading_progress, {
+    id: String,
+    publication_id: String,
+    user_id: String,
+    scene_id: String,
+    /// The furthest they ever reached, which is the interesting one: a reader
+    /// who gave up in chapter three and later skimmed the ending has still
+    /// stopped in chapter three.
+    furthest_index: i32,
+    scenes_total: i32,
+    finished_at: Option<String>,
+    created_at: String,
+    updated_at: String,
 });
 
 row!(Comment, comments, {
@@ -357,7 +401,26 @@ new_row!(NewPublication, publications, {
     id: String, work_id: String, version_id: String, visibility: String,
     scope: String, scope_ref_id: Option<String>, review_prompt: Option<String>,
     opens_at: Option<String>, closes_at: Option<String>, created_at: String,
-    updated_at: String,
+    updated_at: String, max_reviewers: Option<i32>,
+});
+
+new_row!(NewPublicationInvite, publication_invites, {
+    id: String, publication_id: String, email: String, invited_by: String,
+    accepted_at: Option<String>, accepted_by: Option<String>, created_at: String,
+});
+
+new_row!(NewReaderCircle, reader_circles, {
+    id: String, owner_id: String, name: String, created_at: String, updated_at: String,
+});
+
+new_row!(NewCircleMember, circle_members, {
+    id: String, circle_id: String, email: String, name: Option<String>, created_at: String,
+});
+
+new_row!(NewReadingProgress, reading_progress, {
+    id: String, publication_id: String, user_id: String, scene_id: String,
+    furthest_index: i32, scenes_total: i32, finished_at: Option<String>,
+    created_at: String, updated_at: String,
 });
 
 new_row!(NewComment, comments, {

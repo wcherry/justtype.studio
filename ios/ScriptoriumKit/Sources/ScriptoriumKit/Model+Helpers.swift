@@ -22,6 +22,7 @@ public extension API.Visibility {
         switch self {
         case .unlisted: "Anyone with the link"
         case .platform: "Signed-in writers"
+        case .invited: "Named readers only"
         case .public: "Everyone"
         }
     }

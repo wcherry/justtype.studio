@@ -259,10 +259,20 @@ currently mean.
 
 ## Phase 3 — Publication and review
 
-### 3.1 Review workflows
-- Review windows with a close date and a reviewer cap.
-- Invite specific readers by email or handle; private beta-reader circles.
-- Reader progress: how far through, where they stopped.
+### 3.1 Review workflows — **done**
+- Review windows with an open and close date, and a reviewer cap. Outside the
+  window every reader is refused; the author can always open their own.
+- `invited` visibility: named readers by email address, singly or by circle.
+  Addresses rather than accounts, because the people a writer trusts with a
+  draft usually have an address and not yet an account here.
+- Private beta-reader circles, so inviting "my first readers" is one action
+  rather than eleven.
+- Reader progress, recorded as the reader scrolls and reported to the author as
+  a percentage. It keeps the furthest point reached, not the latest: giving up
+  in chapter three and later skimming the ending still means chapter three.
+- The feed answers the same question the click does — an invited reader sees
+  what they were invited to, and nobody is shown a window that has shut. There
+  is no mail going out yet (*2.4*), so the feed is the only way in.
 
 ### 3.2 Richer feedback
 - Inline reactions (confusing / dragging / loved this) as one-tap signals.

@@ -233,11 +233,9 @@ pub async fn create(
 
     let view = blocking(&state.pool, move |conn| {
         let (publication, _) = support::publication_for_reader(conn, &publication_id, Some(&user))?;
-        if let Some(closes_at) = &publication.closes_at {
-            if closes_at.as_str() < now_iso().as_str() {
-                return Err(ApiError::Conflict("this review window has closed".into()));
-            }
-        }
+        // The window is enforced by `publication_for_reader` above; the cap is
+        // about who may speak rather than who may read, so it belongs here.
+        support::within_reviewer_cap(conn, &publication, &user)?;
         // A reply must belong to the same publication as its parent.
         if let Some(parent_id) = &body.parent_id {
             let parent: Comment = comments::table

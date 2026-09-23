@@ -1,6 +1,24 @@
 {
   "components": {
     "schemas": {
+      "AddMemberRequest": {
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "name": {
+            "description": "What to call them, since an address is a poor way to recognise a friend.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "email"
+        ],
+        "type": "object"
+      },
       "Anchor": {
         "properties": {
           "from": {
@@ -240,6 +258,56 @@
         ],
         "type": "object"
       },
+      "CircleMember": {
+        "properties": {
+          "circleId": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "circleId",
+          "email",
+          "createdAt"
+        ],
+        "type": "object"
+      },
+      "CircleView": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ReaderCircle"
+          },
+          {
+            "properties": {
+              "members": {
+                "items": {
+                  "$ref": "#/components/schemas/CircleMember"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "members"
+            ],
+            "type": "object"
+          }
+        ]
+      },
       "Comment": {
         "properties": {
           "anchor": {
@@ -472,6 +540,17 @@
         ],
         "type": "object"
       },
+      "CreateCircleRequest": {
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
       "CreateCommentRequest": {
         "properties": {
           "anchor": {
@@ -555,6 +634,14 @@
           "closesAt": {
             "type": [
               "string",
+              "null"
+            ]
+          },
+          "maxReviewers": {
+            "description": "How many people may comment. Omitted, there is no cap.",
+            "format": "int32",
+            "type": [
+              "integer",
               "null"
             ]
           },
@@ -902,6 +989,44 @@
         ],
         "type": "object"
       },
+      "InviteRequest": {
+        "properties": {
+          "circleId": {
+            "description": "Invite everyone in one of the author's circles, by id.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "emails": {
+            "description": "Addresses to invite. Duplicates and ones already invited are ignored.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "InviteView": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PublicationInvite"
+          },
+          {
+            "properties": {
+              "accepted": {
+                "description": "Whether that reader has opened it yet.",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "accepted"
+            ],
+            "type": "object"
+          }
+        ]
+      },
       "LinkRequest": {
         "properties": {
           "sceneId": {
@@ -999,6 +1124,18 @@
           }
         ]
       },
+      "ProgressRequest": {
+        "properties": {
+          "sceneId": {
+            "description": "The scene the reader is looking at.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sceneId"
+        ],
+        "type": "object"
+      },
       "Publication": {
         "properties": {
           "closesAt": {
@@ -1012,6 +1149,14 @@
           },
           "id": {
             "type": "string"
+          },
+          "maxReviewers": {
+            "description": "How many people may comment. Beta readers are scarce, and twenty\noverlapping opinions are worse than five considered ones.",
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "opensAt": {
             "type": [
@@ -1103,6 +1248,45 @@
           }
         ]
       },
+      "PublicationInvite": {
+        "properties": {
+          "acceptedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "acceptedBy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "invitedBy": {
+            "type": "string"
+          },
+          "publicationId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "publicationId",
+          "email",
+          "invitedBy",
+          "createdAt"
+        ],
+        "type": "object"
+      },
       "PublicationScope": {
         "enum": [
           "work",
@@ -1137,6 +1321,105 @@
         },
         "required": [
           "content"
+        ],
+        "type": "object"
+      },
+      "ReaderCircle": {
+        "properties": {
+          "createdAt": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "ownerId": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "ownerId",
+          "name",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "ReaderProgressView": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ReadingProgress"
+          },
+          {
+            "properties": {
+              "percent": {
+                "description": "Furthest point reached, as a percentage of the published scenes.",
+                "format": "int32",
+                "type": "integer"
+              },
+              "reader": {
+                "$ref": "#/components/schemas/AuthorCard"
+              }
+            },
+            "required": [
+              "reader",
+              "percent"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "ReadingProgress": {
+        "properties": {
+          "createdAt": {
+            "type": "string"
+          },
+          "finishedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "furthestIndex": {
+            "description": "The furthest they ever reached, which is the interesting one: a reader\nwho gave up in chapter three and later skimmed the ending has still\nstopped in chapter three.",
+            "format": "int32",
+            "type": "integer"
+          },
+          "id": {
+            "type": "string"
+          },
+          "publicationId": {
+            "type": "string"
+          },
+          "sceneId": {
+            "type": "string"
+          },
+          "scenesTotal": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "updatedAt": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "publicationId",
+          "userId",
+          "sceneId",
+          "furthestIndex",
+          "scenesTotal",
+          "createdAt",
+          "updatedAt"
         ],
         "type": "object"
       },
@@ -1834,6 +2117,14 @@
               "null"
             ]
           },
+          "maxReviewers": {
+            "description": "`0` removes the cap.",
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
           "reviewPrompt": {
             "type": [
               "string",
@@ -2275,6 +2566,7 @@
       },
       "Visibility": {
         "enum": [
+          "invited",
           "unlisted",
           "platform",
           "public"
@@ -3164,6 +3456,208 @@
         ]
       }
     },
+    "/api/circles": {
+      "get": {
+        "operationId": "list_circles",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CircleView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "The writer's circles"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "readers"
+        ]
+      },
+      "post": {
+        "operationId": "create_circle",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCircleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CircleView"
+                }
+              }
+            },
+            "description": "The new circle"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "readers"
+        ]
+      }
+    },
+    "/api/circles/{circle_id}": {
+      "delete": {
+        "operationId": "delete_circle",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "circle_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Removed"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "readers"
+        ]
+      }
+    },
+    "/api/circles/{circle_id}/members": {
+      "post": {
+        "operationId": "add_member",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "circle_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddMemberRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CircleView"
+                }
+              }
+            },
+            "description": "The circle"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "readers"
+        ]
+      }
+    },
+    "/api/circles/{circle_id}/members/{email}": {
+      "delete": {
+        "operationId": "remove_member",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "circle_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "email",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CircleView"
+                }
+              }
+            },
+            "description": "The circle"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "readers"
+        ]
+      }
+    },
     "/api/comments/{comment_id}": {
       "delete": {
         "operationId": "delete_comment",
@@ -3670,6 +4164,235 @@
         "summary": "The manuscript as reviewers see it: the frozen snapshot, narrowed to the\nslice the author published.",
         "tags": [
           "publications"
+        ]
+      }
+    },
+    "/api/publications/{publication_id}/invites": {
+      "get": {
+        "operationId": "list_invites",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "publication_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/InviteView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Who it was shared with"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "readers"
+        ]
+      },
+      "post": {
+        "operationId": "invite",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "publication_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InviteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/InviteView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Who it is now shared with"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "readers"
+        ]
+      }
+    },
+    "/api/publications/{publication_id}/invites/{email}": {
+      "delete": {
+        "operationId": "uninvite",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "publication_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "email",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Removed"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "readers"
+        ]
+      }
+    },
+    "/api/publications/{publication_id}/progress": {
+      "get": {
+        "operationId": "list_progress",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "publication_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ReaderProgressView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Every reader's progress"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "How far everyone got — the author's view of a review in progress.",
+        "tags": [
+          "readers"
+        ]
+      },
+      "put": {
+        "description": "Only ever moves the furthest mark forward: a reader who gave up in chapter\nthree and later skimmed the ending has still stopped in chapter three, and\nthat is the fact an author needs.",
+        "operationId": "record_progress",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "publication_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProgressRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReaderProgressView"
+                }
+              }
+            },
+            "description": "Where they are"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "Records where a reader has got to.",
+        "tags": [
+          "readers"
         ]
       }
     },

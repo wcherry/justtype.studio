@@ -4,7 +4,8 @@ import type {
   TrackedChange,
   User, Version, VersionContent, VersionDetail, Work, WorkKind, Visibility, CommentCategory,
   WritingSummary, EntryView, BibleKind, SplitSceneResponse, ResolveResponse,
-  BulkResolveResponse, RestoreResponse, VersionSummary,
+  BulkResolveResponse, RestoreResponse, VersionSummary, InviteView, CircleView,
+  ReaderProgressView,
 } from './types'
 
 const BASE = '/api'
@@ -291,6 +292,7 @@ export const api = {
     create: (versionId: string, input: {
       visibility: Visibility; scope?: 'work' | 'chapter' | 'scene'
       scopeRefId?: string; reviewPrompt?: string; closesAt?: string
+      maxReviewers?: number
     }) => post<PublicationCard>(`/versions/${versionId}/publications`, input),
     feed: (opts: { mine?: boolean; kind?: string } = {}) => {
       const params = new URLSearchParams()
@@ -301,8 +303,26 @@ export const api = {
     },
     get: (publicationId: string) => get<PublicationCard>(`/publications/${publicationId}`),
     content: (publicationId: string) => get<VersionContent>(`/publications/${publicationId}/content`),
-    update: (publicationId: string, input: Partial<Pick<Publication, 'visibility' | 'reviewPrompt' | 'closesAt'>>) =>
-      patch<PublicationCard>(`/publications/${publicationId}`, input),
+    update: (
+      publicationId: string,
+      input: Partial<Pick<Publication, 'visibility' | 'reviewPrompt' | 'closesAt'>> & {
+        /** `0` removes the cap. */
+        maxReviewers?: number
+      },
+    ) => patch<PublicationCard>(`/publications/${publicationId}`, input),
+
+    /** Who it was shared with, and whether they have turned up. */
+    invites: (publicationId: string) => get<InviteView[]>(`/publications/${publicationId}/invites`),
+    invite: (publicationId: string, input: { emails?: string[]; circleId?: string }) =>
+      post<InviteView[]>(`/publications/${publicationId}/invites`, input),
+    uninvite: (publicationId: string, email: string) =>
+      del<{ ok: boolean }>(`/publications/${publicationId}/invites/${encodeURIComponent(email)}`),
+
+    /** How far each reader got. */
+    progress: (publicationId: string) =>
+      get<ReaderProgressView[]>(`/publications/${publicationId}/progress`),
+    recordProgress: (publicationId: string, sceneId: string) =>
+      put<ReaderProgressView>(`/publications/${publicationId}/progress`, { sceneId }),
     remove: (publicationId: string) => del<{ ok: boolean }>(`/publications/${publicationId}`),
   },
 
@@ -323,6 +343,16 @@ export const api = {
       post<EntryView>(`/bible/${entryId}/links`, { sceneId }),
     unlink: (entryId: string, sceneId: string) =>
       del<EntryView>(`/bible/${entryId}/links/${sceneId}`),
+  },
+
+  circles: {
+    list: () => get<CircleView[]>('/circles'),
+    create: (name: string) => post<CircleView>('/circles', { name }),
+    remove: (circleId: string) => del<{ ok: boolean }>(`/circles/${circleId}`),
+    addMember: (circleId: string, email: string, name?: string) =>
+      post<CircleView>(`/circles/${circleId}/members`, { email, name }),
+    removeMember: (circleId: string, email: string) =>
+      del<CircleView>(`/circles/${circleId}/members/${encodeURIComponent(email)}`),
   },
 
   comments: {

@@ -13,6 +13,20 @@ import Foundation
 /// view file. `API.Scene` is unambiguous and says where the type came from.
 public enum API {
 
+    public struct AddMemberRequest: Codable, Hashable, Sendable {
+        public var email: String
+        /// What to call them, since an address is a poor way to recognise a friend.
+        public var name: String?
+
+        public init(
+            email: String,
+            name: String? = nil
+        ) {
+            self.email = email
+            self.name = name
+        }
+    }
+
     public struct Anchor: Codable, Hashable, Sendable {
         public var from: Int
         public var to: Int
@@ -187,6 +201,53 @@ public enum API {
             self.title = title
             self.updatedAt = updatedAt
             self.workId = workId
+        }
+    }
+
+    public struct CircleMember: Codable, Hashable, Sendable {
+        public var circleId: String
+        public var createdAt: String
+        public var email: String
+        public var id: String
+        public var name: String?
+
+        public init(
+            circleId: String,
+            createdAt: String,
+            email: String,
+            id: String,
+            name: String? = nil
+        ) {
+            self.circleId = circleId
+            self.createdAt = createdAt
+            self.email = email
+            self.id = id
+            self.name = name
+        }
+    }
+
+    public struct CircleView: Codable, Hashable, Sendable {
+        public var createdAt: String
+        public var id: String
+        public var name: String
+        public var ownerId: String
+        public var updatedAt: String
+        public var members: [CircleMember]
+
+        public init(
+            createdAt: String,
+            id: String,
+            name: String,
+            ownerId: String,
+            updatedAt: String,
+            members: [CircleMember]
+        ) {
+            self.createdAt = createdAt
+            self.id = id
+            self.name = name
+            self.ownerId = ownerId
+            self.updatedAt = updatedAt
+            self.members = members
         }
     }
 
@@ -397,6 +458,16 @@ public enum API {
         }
     }
 
+    public struct CreateCircleRequest: Codable, Hashable, Sendable {
+        public var name: String
+
+        public init(
+            name: String
+        ) {
+            self.name = name
+        }
+    }
+
     public struct CreateCommentRequest: Codable, Hashable, Sendable {
         public var anchor: Anchor?
         public var anchorQuote: String?
@@ -444,6 +515,8 @@ public enum API {
 
     public struct CreatePublicationRequest: Codable, Hashable, Sendable {
         public var closesAt: String?
+        /// How many people may comment. Omitted, there is no cap.
+        public var maxReviewers: Int?
         public var opensAt: String?
         public var reviewPrompt: String?
         public var scope: PublicationScope?
@@ -453,6 +526,7 @@ public enum API {
 
         public init(
             closesAt: String? = nil,
+            maxReviewers: Int? = nil,
             opensAt: String? = nil,
             reviewPrompt: String? = nil,
             scope: PublicationScope? = nil,
@@ -460,6 +534,7 @@ public enum API {
             visibility: Visibility
         ) {
             self.closesAt = closesAt
+            self.maxReviewers = maxReviewers
             self.opensAt = opensAt
             self.reviewPrompt = reviewPrompt
             self.scope = scope
@@ -707,6 +782,53 @@ public enum API {
         }
     }
 
+    public struct InviteRequest: Codable, Hashable, Sendable {
+        /// Invite everyone in one of the author's circles, by id.
+        public var circleId: String?
+        /// Addresses to invite. Duplicates and ones already invited are ignored.
+        public var emails: [String]?
+
+        public init(
+            circleId: String? = nil,
+            emails: [String]? = nil
+        ) {
+            self.circleId = circleId
+            self.emails = emails
+        }
+    }
+
+    public struct InviteView: Codable, Hashable, Sendable {
+        public var acceptedAt: String?
+        public var acceptedBy: String?
+        public var createdAt: String
+        public var email: String
+        public var id: String
+        public var invitedBy: String
+        public var publicationId: String
+        /// Whether that reader has opened it yet.
+        public var accepted: Bool
+
+        public init(
+            acceptedAt: String? = nil,
+            acceptedBy: String? = nil,
+            createdAt: String,
+            email: String,
+            id: String,
+            invitedBy: String,
+            publicationId: String,
+            accepted: Bool
+        ) {
+            self.acceptedAt = acceptedAt
+            self.acceptedBy = acceptedBy
+            self.createdAt = createdAt
+            self.email = email
+            self.id = id
+            self.invitedBy = invitedBy
+            self.publicationId = publicationId
+            self.accepted = accepted
+        }
+    }
+
     public struct LinkRequest: Codable, Hashable, Sendable {
         public var sceneId: String
 
@@ -856,10 +978,24 @@ public enum API {
         }
     }
 
+    public struct ProgressRequest: Codable, Hashable, Sendable {
+        /// The scene the reader is looking at.
+        public var sceneId: String
+
+        public init(
+            sceneId: String
+        ) {
+            self.sceneId = sceneId
+        }
+    }
+
     public struct Publication: Codable, Hashable, Sendable {
         public var closesAt: String?
         public var createdAt: String
         public var id: String
+        /// How many people may comment. Beta readers are scarce, and twenty
+        /// overlapping opinions are worse than five considered ones.
+        public var maxReviewers: Int?
         public var opensAt: String?
         public var reviewPrompt: String?
         public var scope: PublicationScope
@@ -873,6 +1009,7 @@ public enum API {
             closesAt: String? = nil,
             createdAt: String,
             id: String,
+            maxReviewers: Int? = nil,
             opensAt: String? = nil,
             reviewPrompt: String? = nil,
             scope: PublicationScope,
@@ -885,6 +1022,7 @@ public enum API {
             self.closesAt = closesAt
             self.createdAt = createdAt
             self.id = id
+            self.maxReviewers = maxReviewers
             self.opensAt = opensAt
             self.reviewPrompt = reviewPrompt
             self.scope = scope
@@ -900,6 +1038,9 @@ public enum API {
         public var closesAt: String?
         public var createdAt: String
         public var id: String
+        /// How many people may comment. Beta readers are scarce, and twenty
+        /// overlapping opinions are worse than five considered ones.
+        public var maxReviewers: Int?
         public var opensAt: String?
         public var reviewPrompt: String?
         public var scope: PublicationScope
@@ -923,6 +1064,7 @@ public enum API {
             closesAt: String? = nil,
             createdAt: String,
             id: String,
+            maxReviewers: Int? = nil,
             opensAt: String? = nil,
             reviewPrompt: String? = nil,
             scope: PublicationScope,
@@ -942,6 +1084,7 @@ public enum API {
             self.closesAt = closesAt
             self.createdAt = createdAt
             self.id = id
+            self.maxReviewers = maxReviewers
             self.opensAt = opensAt
             self.reviewPrompt = reviewPrompt
             self.scope = scope
@@ -957,6 +1100,34 @@ public enum API {
             self.wordCount = wordCount
             self.workKind = workKind
             self.workTitle = workTitle
+        }
+    }
+
+    public struct PublicationInvite: Codable, Hashable, Sendable {
+        public var acceptedAt: String?
+        public var acceptedBy: String?
+        public var createdAt: String
+        public var email: String
+        public var id: String
+        public var invitedBy: String
+        public var publicationId: String
+
+        public init(
+            acceptedAt: String? = nil,
+            acceptedBy: String? = nil,
+            createdAt: String,
+            email: String,
+            id: String,
+            invitedBy: String,
+            publicationId: String
+        ) {
+            self.acceptedAt = acceptedAt
+            self.acceptedBy = acceptedBy
+            self.createdAt = createdAt
+            self.email = email
+            self.id = id
+            self.invitedBy = invitedBy
+            self.publicationId = publicationId
         }
     }
 
@@ -995,6 +1166,109 @@ public enum API {
             self.content = content
             self.createRevision = createRevision
             self.localDay = localDay
+        }
+    }
+
+    public struct ReaderCircle: Codable, Hashable, Sendable {
+        public var createdAt: String
+        public var id: String
+        public var name: String
+        public var ownerId: String
+        public var updatedAt: String
+
+        public init(
+            createdAt: String,
+            id: String,
+            name: String,
+            ownerId: String,
+            updatedAt: String
+        ) {
+            self.createdAt = createdAt
+            self.id = id
+            self.name = name
+            self.ownerId = ownerId
+            self.updatedAt = updatedAt
+        }
+    }
+
+    public struct ReaderProgressView: Codable, Hashable, Sendable {
+        public var createdAt: String
+        public var finishedAt: String?
+        /// The furthest they ever reached, which is the interesting one: a reader
+        /// who gave up in chapter three and later skimmed the ending has still
+        /// stopped in chapter three.
+        public var furthestIndex: Int
+        public var id: String
+        public var publicationId: String
+        public var sceneId: String
+        public var scenesTotal: Int
+        public var updatedAt: String
+        public var userId: String
+        /// Furthest point reached, as a percentage of the published scenes.
+        public var percent: Int
+        public var reader: AuthorCard
+
+        public init(
+            createdAt: String,
+            finishedAt: String? = nil,
+            furthestIndex: Int,
+            id: String,
+            publicationId: String,
+            sceneId: String,
+            scenesTotal: Int,
+            updatedAt: String,
+            userId: String,
+            percent: Int,
+            reader: AuthorCard
+        ) {
+            self.createdAt = createdAt
+            self.finishedAt = finishedAt
+            self.furthestIndex = furthestIndex
+            self.id = id
+            self.publicationId = publicationId
+            self.sceneId = sceneId
+            self.scenesTotal = scenesTotal
+            self.updatedAt = updatedAt
+            self.userId = userId
+            self.percent = percent
+            self.reader = reader
+        }
+    }
+
+    public struct ReadingProgress: Codable, Hashable, Sendable {
+        public var createdAt: String
+        public var finishedAt: String?
+        /// The furthest they ever reached, which is the interesting one: a reader
+        /// who gave up in chapter three and later skimmed the ending has still
+        /// stopped in chapter three.
+        public var furthestIndex: Int
+        public var id: String
+        public var publicationId: String
+        public var sceneId: String
+        public var scenesTotal: Int
+        public var updatedAt: String
+        public var userId: String
+
+        public init(
+            createdAt: String,
+            finishedAt: String? = nil,
+            furthestIndex: Int,
+            id: String,
+            publicationId: String,
+            sceneId: String,
+            scenesTotal: Int,
+            updatedAt: String,
+            userId: String
+        ) {
+            self.createdAt = createdAt
+            self.finishedAt = finishedAt
+            self.furthestIndex = furthestIndex
+            self.id = id
+            self.publicationId = publicationId
+            self.sceneId = sceneId
+            self.scenesTotal = scenesTotal
+            self.updatedAt = updatedAt
+            self.userId = userId
         }
     }
 
@@ -1578,15 +1852,19 @@ public enum API {
 
     public struct UpdatePublicationRequest: Codable, Hashable, Sendable {
         public var closesAt: String?
+        /// `0` removes the cap.
+        public var maxReviewers: Int?
         public var reviewPrompt: String?
         public var visibility: Visibility?
 
         public init(
             closesAt: String? = nil,
+            maxReviewers: Int? = nil,
             reviewPrompt: String? = nil,
             visibility: Visibility? = nil
         ) {
             self.closesAt = closesAt
+            self.maxReviewers = maxReviewers
             self.reviewPrompt = reviewPrompt
             self.visibility = visibility
         }
@@ -1984,6 +2262,7 @@ public enum API {
     }
 
     public enum Visibility: String, Codable, CaseIterable, Hashable, Sendable {
+        case invited = "invited"
         case unlisted = "unlisted"
         case platform = "platform"
         case `public` = "public"

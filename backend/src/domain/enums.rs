@@ -9,13 +9,16 @@
 //! values are validated at the edge either way.
 
 macro_rules! api_enum {
-    ($name:ident { $($variant:ident => $wire:literal),* $(,)? }) => {
+    // Variants may carry doc comments; they reach the generated schema, where
+    // they are the only place a client learns what a value means.
+    ($name:ident { $($(#[$variant_doc:meta])* $variant:ident => $wire:literal),* $(,)? }) => {
         // `schema(rename)` as well as `serde(rename)`: utoipa does not read
         // serde's per-variant renames, and without it the generated clients get
         // the Rust identifiers instead of the values that go over the wire.
         #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
         pub enum $name {
             $(
+                $(#[$variant_doc])*
                 #[serde(rename = $wire)]
                 #[schema(rename = $wire)]
                 $variant
@@ -69,6 +72,8 @@ api_enum!(VersionState {
 });
 
 api_enum!(Visibility {
+    /// Only people the author invited by email.
+    Invited => "invited",
     Unlisted => "unlisted",
     Platform => "platform",
     Public => "public",

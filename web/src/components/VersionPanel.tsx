@@ -118,8 +118,15 @@ export function VersionPanel({ workId, versions, onChanged }: Props) {
             {offering === version.id && (
               <OfferForm
                 onCancel={() => setOffering(null)}
-                onSubmit={async (visibility, reviewPrompt) => {
-                  await run(() => api.publications.create(version.id, { visibility, reviewPrompt }))
+                onSubmit={async (visibility, reviewPrompt, closesAt, maxReviewers) => {
+                  await run(() =>
+                    api.publications.create(version.id, {
+                      visibility,
+                      reviewPrompt,
+                      closesAt,
+                      maxReviewers,
+                    }),
+                  )
                   setOffering(null)
                 }}
               />
@@ -143,27 +150,60 @@ function OfferForm({
   onSubmit,
   onCancel,
 }: {
-  onSubmit: (visibility: Visibility, reviewPrompt: string) => void
+  onSubmit: (
+    visibility: Visibility,
+    reviewPrompt: string,
+    closesAt?: string,
+    maxReviewers?: number,
+  ) => void
   onCancel: () => void
 }) {
-  const [visibility, setVisibility] = useState<Visibility>('platform')
+  const [visibility, setVisibility] = useState<Visibility>('invited')
   const [prompt, setPrompt] = useState('')
+  const [closesAt, setClosesAt] = useState('')
+  const [cap, setCap] = useState('')
 
   return (
     <form
       className="offer"
       onSubmit={(event) => {
         event.preventDefault()
-        onSubmit(visibility, prompt)
+        onSubmit(
+          visibility,
+          prompt,
+          // A date input gives a day; a review window closes at the end of it.
+          closesAt ? new Date(`${closesAt}T23:59:59`).toISOString() : undefined,
+          cap ? Number(cap) : undefined,
+        )
       }}
     >
       <label>
         Who can read it
         <select value={visibility} onChange={(e) => setVisibility(e.target.value as Visibility)}>
+          <option value="invited">Only readers I name</option>
           <option value="unlisted">Anyone with the link</option>
           <option value="platform">Signed-in writers</option>
           <option value="public">Everyone</option>
         </select>
+      </label>
+      <label>
+        Closes on
+        <input type="date" value={closesAt} onChange={(e) => setClosesAt(e.target.value)} />
+        <span className="field__hint">Leave empty to keep it open.</span>
+      </label>
+      <label>
+        At most
+        <input
+          type="number"
+          min={1}
+          value={cap}
+          placeholder="no limit"
+          onChange={(e) => setCap(e.target.value)}
+        />
+        <span className="field__hint">
+          Readers who may comment. Beta readers are scarce, and twenty overlapping
+          opinions are worse than five considered ones.
+        </span>
       </label>
       <label>
         What do you want feedback on?

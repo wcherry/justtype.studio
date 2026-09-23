@@ -255,16 +255,50 @@ shape against the scene as it stands now — what restoring it would change.
 
 | Method | Path | Notes |
 |---|---|---|
-| `POST` | `/versions/{id}/publications` | `visibility`, `scope`, `scopeRefId`, `reviewPrompt`, `closesAt` |
+| `POST` | `/versions/{id}/publications` | `visibility`, `scope`, `scopeRefId`, `reviewPrompt`, `opensAt`, `closesAt`, `maxReviewers` |
 | `GET` | `/publications` | review feed; `?mine=true`, `?kind=`, `limit`, `offset` |
 | `GET` | `/publications/{id}` | card with author, counts and excerpt |
 | `GET` | `/publications/{id}/content` | the snapshot, narrowed to the published scope |
-| `PATCH` | `/publications/{id}` | `visibility`, `reviewPrompt`, `closesAt` |
+| `PATCH` | `/publications/{id}` | `visibility`, `reviewPrompt`, `closesAt`, `maxReviewers` (`0` removes the cap) |
 | `DELETE` | `/publications/{id}` | withdraws it, comments included |
 
-`visibility` is `unlisted` (link only), `platform` (signed-in readers) or
-`public`. `scope` is `work`, `chapter` or `scene`; the narrower scopes need
-`scopeRefId`. A version must be published before it can be offered for review.
+`visibility` is `unlisted` (link only), `platform` (signed-in readers),
+`invited` (named readers only) or `public`. `scope` is `work`, `chapter` or
+`scene`; the narrower scopes need `scopeRefId`. A version must be published
+before it can be offered for review.
+
+`opensAt` and `closesAt` bound the review window. Outside it every reader is
+refused with `403`, the author excepted — they can always open their own. The
+feed applies the same rules it would apply to the click: a reader is shown the
+publications they were invited to, and is not shown one whose window has shut.
+
+`maxReviewers` caps how many distinct people may comment. Someone already
+inside the cap may keep talking; a new voice is refused once it is full.
+
+## Readers
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/publications/{id}/invites` | who was invited, and who turned up |
+| `POST` | `/publications/{id}/invites` | `emails[]` and/or `circleId` |
+| `DELETE` | `/publications/{id}/invites/{email}` | withdraws one invitation |
+| `PUT` | `/publications/{id}/progress` | `sceneId`; records the reader's position |
+| `GET` | `/publications/{id}/progress` | every reader's furthest point (author only) |
+| `GET` | `/circles` | the writer's reader circles, members included |
+| `POST` | `/circles` | `name` |
+| `DELETE` | `/circles/{id}` | |
+| `POST` | `/circles/{id}/members` | `email`, optional `name` |
+| `DELETE` | `/circles/{id}/members/{email}` | |
+
+Invitations are addresses, not accounts: the people a writer trusts with a draft
+usually have an address and not yet an account here. Addresses are case-folded,
+so inviting `Grace@Example.com` twice invites one person. Opening the
+publication marks that invitation accepted, which is how the author can tell who
+actually turned up.
+
+Progress keeps the **furthest** scene reached, never the latest: a reader who
+gave up in chapter three and later skimmed the ending has still stopped in
+chapter three. `finishedAt` is set once the furthest point is the last scene.
 
 ## Comments
 

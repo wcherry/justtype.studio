@@ -217,6 +217,53 @@ diesel::table! {
         closes_at -> Nullable<Text>,
         created_at -> Text,
         updated_at -> Text,
+        max_reviewers -> Nullable<Integer>,
+    }
+}
+
+diesel::table! {
+    publication_invites (id) {
+        id -> Text,
+        publication_id -> Text,
+        email -> Text,
+        invited_by -> Text,
+        accepted_at -> Nullable<Text>,
+        accepted_by -> Nullable<Text>,
+        created_at -> Text,
+    }
+}
+
+diesel::table! {
+    reader_circles (id) {
+        id -> Text,
+        owner_id -> Text,
+        name -> Text,
+        created_at -> Text,
+        updated_at -> Text,
+    }
+}
+
+diesel::table! {
+    circle_members (id) {
+        id -> Text,
+        circle_id -> Text,
+        email -> Text,
+        name -> Nullable<Text>,
+        created_at -> Text,
+    }
+}
+
+diesel::table! {
+    reading_progress (id) {
+        id -> Text,
+        publication_id -> Text,
+        user_id -> Text,
+        scene_id -> Text,
+        furthest_index -> Integer,
+        scenes_total -> Integer,
+        finished_at -> Nullable<Text>,
+        created_at -> Text,
+        updated_at -> Text,
     }
 }
 
@@ -261,6 +308,9 @@ diesel::joinable!(tracked_changes -> scenes (scene_id));
 diesel::joinable!(versions -> works (work_id));
 diesel::joinable!(version_entries -> versions (version_id));
 diesel::joinable!(version_tags -> versions (version_id));
+diesel::joinable!(publication_invites -> publications (publication_id));
+diesel::joinable!(circle_members -> reader_circles (circle_id));
+diesel::joinable!(reading_progress -> publications (publication_id));
 diesel::joinable!(publications -> works (work_id));
 diesel::joinable!(comments -> publications (publication_id));
 diesel::joinable!(comment_votes -> comments (comment_id));
@@ -284,4 +334,8 @@ diesel::allow_tables_to_appear_in_same_query!(
     bible_entries,
     scene_bible_links,
     version_tags,
+    publication_invites,
+    reader_circles,
+    circle_members,
+    reading_progress,
 );

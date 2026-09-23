@@ -7,6 +7,7 @@ import { CommentSidebar } from '../components/CommentSidebar'
 import { ReaderScene } from '../components/ReaderScene'
 import type { Selection } from '../components/ReaderScene'
 import type { AnchorSpec } from '../editor/commentAnchors'
+import { useReadingProgress } from '../reader/useReadingProgress'
 import { useAuth } from '../state/auth'
 
 export function ReviewPage() {
@@ -56,10 +57,19 @@ export function ReviewPage() {
     return map
   }, [comments])
 
+  /** Reading order, which is what a progress index counts along. */
+  const sceneIds = useMemo(
+    () => content?.chapters.flatMap((chapter) => chapter.scenes.map((scene) => scene.sceneId)) ?? [],
+    [content],
+  )
+
+  // An author scrolling through their own draft is not a reader, and counting
+  // them would put a 100% beside their own name on every publication.
+  const isAuthor = !!user && card?.author.id === user.id
+  useReadingProgress(publicationId, sceneIds, !!card && !isAuthor)
+
   if (error) return <main className="review"><p className="error">{error}</p></main>
   if (!card || !content) return <main className="review"><p className="empty">Opening…</p></main>
-
-  const isAuthor = user?.id === card.author.id
 
   return (
     <main className="review">

@@ -117,8 +117,16 @@ pub fn find_publication(conn: &mut Conn, publication_id: &str) -> ApiResult<Publ
         .ok_or_else(|| ApiError::NotFound("publication not found".into()))
 }
 
-/// Reader-side access: anyone signed in can read a `platform` publication, an
-/// `unlisted` one is link-only (same rule for now), `public` is open to all.
+/// Reader-side access.
+///
+/// `public` is open to all, `unlisted` is link-only, `platform` wants anyone
+/// signed in, and `invited` wants the reader's address on the invitation list.
+/// The author always gets through their own door.
+///
+/// The review window is checked here rather than at each caller: a publication
+/// that has not opened, or has closed, is not readable by anyone but its
+/// author, and forgetting that check in one handler would quietly leak a
+/// manuscript.
 pub fn publication_for_reader(
     conn: &mut Conn,
     publication_id: &str,
@@ -129,17 +137,110 @@ pub fn publication_for_reader(
         .find(&publication.work_id)
         .select(Work::as_select())
         .first(conn)?;
-    let is_owner = user.map(|u| u.id == work.owner_id).unwrap_or(false);
-    if is_owner {
+    if user.map(|u| u.id == work.owner_id).unwrap_or(false) {
         return Ok((publication, work));
     }
+
+    let now = crate::domain::now_iso();
+    if publication
+        .opens_at
+        .as_deref()
+        .is_some_and(|at| now.as_str() < at)
+    {
+        return Err(ApiError::Forbidden("this review has not opened yet".into()));
+    }
+    if publication
+        .closes_at
+        .as_deref()
+        .is_some_and(|at| at < now.as_str())
+    {
+        return Err(ApiError::Forbidden("this review window has closed".into()));
+    }
+
     match publication.visibility.as_str() {
         "public" | "unlisted" => Ok((publication, work)),
         "platform" if user.is_some() => Ok((publication, work)),
+        "invited" => {
+            let Some(user) = user else {
+                return Err(ApiError::Forbidden(
+                    "this manuscript was shared with named readers — sign in to open it".into(),
+                ));
+            };
+            if invited(conn, &publication.id, &user.email)? {
+                Ok((publication, work))
+            } else {
+                Err(ApiError::Forbidden(
+                    "this manuscript was shared with named readers, and yours is not among them"
+                        .into(),
+                ))
+            }
+        }
         _ => Err(ApiError::Forbidden(
             "sign in to read this publication".into(),
         )),
     }
+}
+
+/// Whether an address is on a publication's invitation list.
+pub fn invited(conn: &mut Conn, publication_id: &str, email: &str) -> ApiResult<bool> {
+    use crate::db::schema::publication_invites;
+    let count: i64 = publication_invites::table
+        .filter(publication_invites::publication_id.eq(publication_id))
+        .filter(publication_invites::email.eq(email.trim().to_lowercase()))
+        .count()
+        .get_result(conn)?;
+    Ok(count > 0)
+}
+
+/// Records that an invited reader turned up, which is how an author can tell
+/// who actually opened the thing.
+pub fn mark_invite_accepted(
+    conn: &mut Conn,
+    publication_id: &str,
+    user: &AuthUser,
+) -> ApiResult<()> {
+    use crate::db::schema::publication_invites;
+    diesel::update(
+        publication_invites::table
+            .filter(publication_invites::publication_id.eq(publication_id))
+            .filter(publication_invites::email.eq(user.email.trim().to_lowercase()))
+            .filter(publication_invites::accepted_at.is_null()),
+    )
+    .set((
+        publication_invites::accepted_at.eq(crate::domain::now_iso()),
+        publication_invites::accepted_by.eq(&user.id),
+    ))
+    .execute(conn)?;
+    Ok(())
+}
+
+/// Refuses a would-be reviewer once the cap is full.
+///
+/// Counted by distinct people who have already commented, so the cap limits
+/// voices rather than comments — someone who has said one thing may say
+/// another.
+pub fn within_reviewer_cap(
+    conn: &mut Conn,
+    publication: &Publication,
+    user: &AuthUser,
+) -> ApiResult<()> {
+    let Some(cap) = publication.max_reviewers else {
+        return Ok(());
+    };
+    use crate::db::schema::comments;
+    let existing: Vec<String> = comments::table
+        .filter(comments::publication_id.eq(&publication.id))
+        .filter(comments::state.ne("deleted"))
+        .select(comments::author_id)
+        .distinct()
+        .load(conn)?;
+    if existing.iter().any(|id| id == &user.id) || (existing.len() as i32) < cap {
+        return Ok(());
+    }
+    Err(ApiError::Forbidden(format!(
+        "this review is full — the author asked for {cap} reader{}",
+        if cap == 1 { "" } else { "s" }
+    )))
 }
 
 pub fn publication_for_owner(

@@ -6,6 +6,7 @@ pub mod export;
 pub mod goals;
 pub mod openapi;
 pub mod publications;
+pub mod readers;
 pub mod scenes;
 pub mod support;
 pub mod templates;
@@ -74,6 +75,13 @@ fn api_router() -> OpenApiRouter<AppState> {
         .routes(routes!(versions::finalize))
         .routes(routes!(publications::create))
         .routes(routes!(publications::feed))
+        .routes(routes!(readers::list_invites, readers::invite))
+        .routes(routes!(readers::uninvite))
+        .routes(routes!(readers::list_circles, readers::create_circle))
+        .routes(routes!(readers::delete_circle))
+        .routes(routes!(readers::add_member))
+        .routes(routes!(readers::remove_member))
+        .routes(routes!(readers::record_progress, readers::list_progress))
         .routes(routes!(
             publications::get_one,
             publications::update,

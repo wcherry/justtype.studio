@@ -342,6 +342,102 @@ curl -s -X POST "$API/publications/$PID/comments" -H "$RAUTH" -H 'content-type: 
   -d "{\"body\":\"Agreed, though 'kept going' is doing a lot of work.\",\"parentId\":\"$CID\"}" >/dev/null
 curl -s -X POST "$API/comments/$CID/vote" -H "$AUTH" -H 'content-type: application/json' -d '{"value":1}' >/dev/null
 
+step "Invited readers only"
+# A third writer nobody invited, to check the door is actually locked.
+STOKEN=$(curl -s -X POST "$API/auth/register" -H 'content-type: application/json' \
+  -d '{"email":"stranger@example.com","password":"correcthorse","displayName":"Stranger"}' | field accessToken)
+SAUTH="Authorization: Bearer $STOKEN"
+
+INV=$(curl -s -X POST "$API/versions/$V2/publications" -H "$AUTH" -H 'content-type: application/json' \
+  -d '{"visibility":"invited","scope":"work","reviewPrompt":"Just for the circle.","maxReviewers":2}' | field id)
+curl -s -X POST "$API/publications/$INV/invites" -H "$AUTH" -H 'content-type: application/json' \
+  -d '{"emails":["Grace@Example.com","grace@example.com"]}' | python3 -c "
+import sys,json;d=json.load(sys.stdin)
+print(f\"  invited {len(d)} reader(s) — the duplicate and the capitalisation collapsed\")"
+
+CODE=$(curl -s -o /dev/null -w '%{http_code}' "$API/publications/$INV" -H "$SAUTH")
+[ "$CODE" = "403" ] && echo "  an uninvited reader is refused (403)" || { echo "  EXPECTED 403, got $CODE"; exit 1; }
+CODE=$(curl -s -o /dev/null -w '%{http_code}' "$API/publications/$INV" -H "$RAUTH")
+[ "$CODE" = "200" ] && echo "  the invited reader gets in" || { echo "  EXPECTED 200, got $CODE"; exit 1; }
+
+step "Review windows"
+# A window that closed yesterday is shut, even to someone who was invited.
+PAST=$(python3 -c "import datetime;print((datetime.datetime.now(datetime.UTC)-datetime.timedelta(days=1)).isoformat().replace('+00:00','Z'))")
+curl -s -X PATCH "$API/publications/$INV" -H "$AUTH" -H 'content-type: application/json' \
+  -d "{\"closesAt\":\"$PAST\"}" >/dev/null
+CODE=$(curl -s -o /dev/null -w '%{http_code}' "$API/publications/$INV" -H "$RAUTH")
+[ "$CODE" = "403" ] && echo "  a closed window shuts out an invited reader too" || { echo "  EXPECTED 403, got $CODE"; exit 1; }
+CODE=$(curl -s -o /dev/null -w '%{http_code}' "$API/publications/$INV" -H "$AUTH")
+[ "$CODE" = "200" ] && echo "  the author can still see their own" || { echo "  EXPECTED 200, got $CODE"; exit 1; }
+FUTURE=$(python3 -c "import datetime;print((datetime.datetime.now(datetime.UTC)+datetime.timedelta(days=7)).isoformat().replace('+00:00','Z'))")
+curl -s -X PATCH "$API/publications/$INV" -H "$AUTH" -H 'content-type: application/json' \
+  -d "{\"closesAt\":\"$FUTURE\"}" >/dev/null
+
+step "Beta-reader circles"
+CIRCLE=$(curl -s -X POST "$API/circles" -H "$AUTH" -H 'content-type: application/json' -d '{"name":"First readers"}' | field id)
+for who in kay@example.com sam@example.com; do
+  curl -s -X POST "$API/circles/$CIRCLE/members" -H "$AUTH" -H 'content-type: application/json' \
+    -d "{\"email\":\"$who\",\"name\":\"${who%%@*}\"}" >/dev/null
+done
+curl -s -X POST "$API/publications/$INV/invites" -H "$AUTH" -H 'content-type: application/json' \
+  -d "{\"circleId\":\"$CIRCLE\"}" | python3 -c "
+import sys,json;d=json.load(sys.stdin)
+print('  after inviting the circle:', ', '.join(sorted(i['email'] for i in d)))"
+
+step "Reader progress"
+SCENES=$(curl -s "$API/publications/$INV/content" -H "$RAUTH" | python3 -c "
+import sys,json;d=json.load(sys.stdin)
+print(' '.join(s['sceneId'] for ch in d['chapters'] for s in ch['scenes']))")
+FIRST=$(echo $SCENES | cut -d' ' -f1)
+SECOND=$(echo $SCENES | cut -d' ' -f2)
+curl -s -X PUT "$API/publications/$INV/progress" -H "$RAUTH" -H 'content-type: application/json' \
+  -d "{\"sceneId\":\"$SECOND\"}" | python3 -c "
+import sys,json;d=json.load(sys.stdin);print(f\"  {d['reader']['displayName']} reached {d['percent']}%\")"
+# Going back does not move the furthest mark: giving up in chapter three and
+# later skimming the ending still means they stopped in chapter three.
+curl -s -X PUT "$API/publications/$INV/progress" -H "$RAUTH" -H 'content-type: application/json' \
+  -d "{\"sceneId\":\"$FIRST\"}" | python3 -c "
+import sys,json;d=json.load(sys.stdin)
+print(f\"  after turning back: now on scene 1, furthest still {d['percent']}%\")"
+curl -s "$API/publications/$INV/progress" -H "$AUTH" | python3 -c "
+import sys,json
+for r in json.load(sys.stdin):
+    print(f\"  author sees: {r['reader']['displayName']} — {r['percent']}% read\")"
+
+step "Reviewer cap"
+# Beta readers are scarce; twenty overlapping opinions are worse than five
+# considered ones. Grace has already commented on $PID, so a cap of one is full.
+curl -s -X PATCH "$API/publications/$PID" -H "$AUTH" -H 'content-type: application/json' \
+  -d '{"maxReviewers":1}' >/dev/null
+CODE=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$API/publications/$PID/comments" -H "$SAUTH" \
+  -H 'content-type: application/json' -d '{"body":"Third opinion nobody asked for."}')
+[ "$CODE" = "403" ] && echo "  a new voice is turned away once the cap is full" || { echo "  EXPECTED 403, got $CODE"; exit 1; }
+# But someone already inside may say more than one thing.
+CODE=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$API/publications/$PID/comments" -H "$RAUTH" \
+  -H 'content-type: application/json' -d '{"body":"One more thought, from someone already here."}')
+[ "$CODE" = "200" ] && echo "  a reader already inside may still speak" || { echo "  EXPECTED 200, got $CODE"; exit 1; }
+curl -s -X PATCH "$API/publications/$PID" -H "$AUTH" -H 'content-type: application/json' -d '{"maxReviewers":0}' >/dev/null
+
+step "What the feed shows"
+# There is no mail going out yet, so an invited reader who cannot see the draft
+# in their feed cannot reach it at all without the author pasting a link.
+titles() { curl -s "$API/publications" -H "$1" | python3 -c "
+import sys,json
+rows=json.load(sys.stdin)
+print(', '.join(r['workTitle']+' ('+r['visibility']+')' for r in rows) or 'nothing')"; }
+echo "  the invited reader sees:  $(titles "$RAUTH")"
+echo "  an uninvited writer sees: $(titles "$SAUTH")"
+curl -s "$API/publications" -H "$SAUTH" | python3 -c "
+import sys,json
+assert all(r['visibility'] != 'invited' for r in json.load(sys.stdin)), 'an invited draft leaked into the open feed'"
+# A window that refuses the click should not be sitting in the feed inviting it.
+curl -s -X PATCH "$API/publications/$INV" -H "$AUTH" -H 'content-type: application/json' \
+  -d "{\"closesAt\":\"$PAST\"}" >/dev/null
+echo "  once the window closes:   $(titles "$RAUTH")"
+echo "  the author still sees:    $(titles "$AUTH")"
+curl -s -X PATCH "$API/publications/$INV" -H "$AUTH" -H 'content-type: application/json' \
+  -d "{\"closesAt\":\"$FUTURE\"}" >/dev/null
+
 step "Threaded feedback"
 curl -s "$API/publications/$PID/comments" -H "$AUTH" | python3 -c "
 import sys,json

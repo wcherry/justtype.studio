@@ -36,6 +36,9 @@ pub struct CreatePublicationRequest {
     pub opens_at: Option<String>,
     #[serde(default)]
     pub closes_at: Option<String>,
+    /// How many people may comment. Omitted, there is no cap.
+    #[serde(default)]
+    pub max_reviewers: Option<i32>,
 }
 
 fn default_scope() -> String {
@@ -48,6 +51,9 @@ pub struct UpdatePublicationRequest {
     #[serde(default)]
     #[schema(value_type = Option<crate::domain::enums::Visibility>)]
     pub visibility: Option<String>,
+    /// `0` removes the cap.
+    #[serde(default)]
+    pub max_reviewers: Option<i32>,
     #[serde(default)]
     pub review_prompt: Option<String>,
     #[serde(default)]
@@ -126,6 +132,7 @@ pub async fn create(
             closes_at: body.closes_at.clone(),
             created_at: now.clone(),
             updated_at: now,
+            max_reviewers: body.max_reviewers,
         };
         diesel::insert_into(publications::table)
             .values(&row)
@@ -255,21 +262,44 @@ pub async fn feed(
         offset: query.offset.unwrap_or(0),
     }
     .clamped();
-    let user_id = user.map(|u| u.id);
+    let me = user.map(|u| (u.id, u.email.trim().to_lowercase()));
 
     let cards = blocking(&state.pool, move |conn| {
         let mut q = publications::table
             .inner_join(works::table.on(works::id.eq(publications::work_id)))
             .into_boxed();
 
-        match (&user_id, query.mine.unwrap_or(false)) {
-            (Some(id), true) => q = q.filter(works::owner_id.eq(id.clone())),
-            (Some(id), false) => {
+        match (&me, query.mine.unwrap_or(false)) {
+            (Some((id, _)), true) => q = q.filter(works::owner_id.eq(id.clone())),
+            (Some((id, email)), false) => {
+                use crate::db::schema::publication_invites;
+                // Named readers have no other way in: there is no mail going
+                // out yet, so a draft invisible in the feed is a draft they can
+                // only reach if the author sends them the link by hand.
+                let invited = publication_invites::table
+                    .filter(publication_invites::email.eq(email.clone()))
+                    .select(publication_invites::publication_id);
                 q = q.filter(
                     publications::visibility
                         .eq_any(vec!["public", "platform"])
+                        .or(works::owner_id.eq(id.clone()))
+                        .or(publications::id.eq_any(invited)),
+                );
+                // A window that has closed, or has not opened, refuses the
+                // click; listing it would be an invitation to a locked door.
+                let now = crate::domain::now_iso();
+                q = q.filter(
+                    publications::opens_at
+                        .is_null()
+                        .or(publications::opens_at.le(now.clone()))
                         .or(works::owner_id.eq(id.clone())),
-                )
+                );
+                q = q.filter(
+                    publications::closes_at
+                        .is_null()
+                        .or(publications::closes_at.ge(now))
+                        .or(works::owner_id.eq(id.clone())),
+                );
             }
             (None, _) => q = q.filter(publications::visibility.eq("public")),
         }
@@ -428,6 +458,11 @@ pub async fn update(
         if let Some(closes_at) = &body.closes_at {
             diesel::update(publications::table.find(&publication_id))
                 .set(publications::closes_at.eq(closes_at))
+                .execute(conn)?;
+        }
+        if let Some(cap) = body.max_reviewers {
+            diesel::update(publications::table.find(&publication_id))
+                .set(publications::max_reviewers.eq((cap > 0).then_some(cap)))
                 .execute(conn)?;
         }
         diesel::update(publications::table.find(&publication_id))

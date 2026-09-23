@@ -7,6 +7,12 @@
 /** Arbitrary JSON, where the server accepts or returns `serde_json::Value`. */
 export type JsonValue = unknown
 
+export interface AddMemberRequest {
+  email: string
+  // What to call them, since an address is a poor way to recognise a friend.
+  name?: string | null
+}
+
 export interface Anchor {
   from: number
   to: number
@@ -73,6 +79,23 @@ export interface Chapter {
   title: string
   updatedAt: string
   workId: string
+}
+
+export interface CircleMember {
+  circleId: string
+  createdAt: string
+  email: string
+  id: string
+  name?: string | null
+}
+
+export interface CircleView {
+  createdAt: string
+  id: string
+  name: string
+  ownerId: string
+  updatedAt: string
+  members: CircleMember[]
 }
 
 export interface Comment {
@@ -150,6 +173,10 @@ export interface CreateChapterRequest {
   title: string
 }
 
+export interface CreateCircleRequest {
+  name: string
+}
+
 export interface CreateCommentRequest {
   anchor?: Anchor | null
   anchorQuote?: string | null
@@ -169,6 +196,8 @@ export interface CreateEntryRequest {
 
 export interface CreatePublicationRequest {
   closesAt?: string | null
+  // How many people may comment. Omitted, there is no cap.
+  maxReviewers?: number | null
   opensAt?: string | null
   reviewPrompt?: string | null
   scope?: PublicationScope
@@ -274,6 +303,25 @@ export interface HealthResponse {
   version: string
 }
 
+export interface InviteRequest {
+  // Invite everyone in one of the author's circles, by id.
+  circleId?: string | null
+  // Addresses to invite. Duplicates and ones already invited are ignored.
+  emails?: string[]
+}
+
+export interface InviteView {
+  acceptedAt?: string | null
+  acceptedBy?: string | null
+  createdAt: string
+  email: string
+  id: string
+  invitedBy: string
+  publicationId: string
+  // Whether that reader has opened it yet.
+  accepted: boolean
+}
+
 export interface LinkRequest {
   sceneId: string
 }
@@ -331,10 +379,18 @@ export interface OutlineResponse {
   chapters: OutlineChapter[]
 }
 
+export interface ProgressRequest {
+  // The scene the reader is looking at.
+  sceneId: string
+}
+
 export interface Publication {
   closesAt?: string | null
   createdAt: string
   id: string
+  // How many people may comment. Beta readers are scarce, and twenty
+  // overlapping opinions are worse than five considered ones.
+  maxReviewers?: number | null
   opensAt?: string | null
   reviewPrompt?: string | null
   scope: PublicationScope
@@ -349,6 +405,9 @@ export interface PublicationCard {
   closesAt?: string | null
   createdAt: string
   id: string
+  // How many people may comment. Beta readers are scarce, and twenty
+  // overlapping opinions are worse than five considered ones.
+  maxReviewers?: number | null
   opensAt?: string | null
   reviewPrompt?: string | null
   scope: PublicationScope
@@ -367,6 +426,16 @@ export interface PublicationCard {
   wordCount: number
   workKind: string
   workTitle: string
+}
+
+export interface PublicationInvite {
+  acceptedAt?: string | null
+  acceptedBy?: string | null
+  createdAt: string
+  email: string
+  id: string
+  invitedBy: string
+  publicationId: string
 }
 
 export type PublicationScope = 'work' | 'chapter' | 'scene'
@@ -389,6 +458,47 @@ export interface PutContentRequest {
   // right day. Omitted, it is not recorded against any day at all: skipping
   // a tally is better than crediting the wrong one.
   localDay?: string | null
+}
+
+export interface ReaderCircle {
+  createdAt: string
+  id: string
+  name: string
+  ownerId: string
+  updatedAt: string
+}
+
+export interface ReaderProgressView {
+  createdAt: string
+  finishedAt?: string | null
+  // The furthest they ever reached, which is the interesting one: a reader
+  // who gave up in chapter three and later skimmed the ending has still
+  // stopped in chapter three.
+  furthestIndex: number
+  id: string
+  publicationId: string
+  sceneId: string
+  scenesTotal: number
+  updatedAt: string
+  userId: string
+  // Furthest point reached, as a percentage of the published scenes.
+  percent: number
+  reader: AuthorCard
+}
+
+export interface ReadingProgress {
+  createdAt: string
+  finishedAt?: string | null
+  // The furthest they ever reached, which is the interesting one: a reader
+  // who gave up in chapter three and later skimmed the ending has still
+  // stopped in chapter three.
+  furthestIndex: number
+  id: string
+  publicationId: string
+  sceneId: string
+  scenesTotal: number
+  updatedAt: string
+  userId: string
 }
 
 export interface RefreshRequest {
@@ -620,6 +730,8 @@ export interface UpdateGoalsRequest {
 
 export interface UpdatePublicationRequest {
   closesAt?: string | null
+  // `0` removes the cap.
+  maxReviewers?: number | null
   reviewPrompt?: string | null
   visibility?: Visibility | null
 }
@@ -773,7 +885,7 @@ export interface VersionSummary {
   tags: string[]
 }
 
-export type Visibility = 'unlisted' | 'platform' | 'public'
+export type Visibility = 'invited' | 'unlisted' | 'platform' | 'public'
 
 export interface VoteRequest {
   // `1` upvote, `-1` downvote, `0` clears the caller's vote.
