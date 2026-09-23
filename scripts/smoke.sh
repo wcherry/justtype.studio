@@ -105,6 +105,52 @@ import sys,json
 d=json.load(sys.stdin)
 print(f\"  today: {d['wordsToday']} words over {d['savesToday']} save(s), goal {d['dailyWordGoal']}, streak {d['streak']}\")"
 
+step "Splitting a scene, then merging it back"
+# The property that matters: prose must survive the round trip exactly.
+curl -s -X PUT "$API/scenes/$SCENE/content" -H "$AUTH" -H 'content-type: application/json' \
+  -d '{"content":{"type":"doc","content":[
+    {"type":"paragraph","content":[{"type":"text","text":"First paragraph, before the cut."}]},
+    {"type":"paragraph","content":[{"type":"text","text":"Second paragraph, after it."}]},
+    {"type":"paragraph","content":[{"type":"text","text":"Third, also after."}]}]}}' >/dev/null
+BEFORE_TEXT=$(curl -s "$API/scenes/$SCENE" -H "$AUTH" | python3 -c "
+import sys,json
+def text(n): return ''.join(c['text'] if c.get('type')=='text' else text(c) for c in n.get('content',[]))
+print(text(json.load(sys.stdin)['content']))")
+HASH=$(curl -s "$API/scenes/$SCENE" -H "$AUTH" | field contentHash)
+SPLIT=$(curl -s -X POST "$API/scenes/$SCENE/split" -H "$AUTH" -H 'content-type: application/json' \
+  -d "{\"atBlock\":1,\"baseHash\":\"$HASH\"}")
+SECOND=$(echo "$SPLIT" | field second.id)
+echo "  split: $(echo "$SPLIT" | field first.wordCount) + $(echo "$SPLIT" | field second.wordCount) words, new scene \"$(echo "$SPLIT" | field second.title)\""
+
+# A stale hash must be refused — splitting rewrites prose in two places.
+STALE=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$API/scenes/$SCENE/split" -H "$AUTH" \
+  -H 'content-type: application/json' -d "{\"atBlock\":1,\"baseHash\":\"$HASH\"}")
+[ "$STALE" = "409" ] && echo "  stale split rejected with 409" || { echo "  EXPECTED 409, got $STALE"; exit 1; }
+
+H1=$(curl -s "$API/scenes/$SCENE" -H "$AUTH" | field contentHash)
+H2=$(curl -s "$API/scenes/$SECOND" -H "$AUTH" | field contentHash)
+curl -s -X POST "$API/scenes/$SCENE/merge" -H "$AUTH" -H 'content-type: application/json' \
+  -d "{\"with\":\"$SECOND\",\"baseHash\":\"$H1\",\"withBaseHash\":\"$H2\"}" >/dev/null
+AFTER_TEXT=$(curl -s "$API/scenes/$SCENE" -H "$AUTH" | python3 -c "
+import sys,json
+def text(n): return ''.join(c['text'] if c.get('type')=='text' else text(c) for c in n.get('content',[]))
+print(text(json.load(sys.stdin)['content']))")
+[ "$BEFORE_TEXT" = "$AFTER_TEXT" ] && echo "  merged back, text identical" || { echo "  TEXT CHANGED:"; echo "   before: $BEFORE_TEXT"; echo "   after:  $AFTER_TEXT"; exit 1; }
+
+step "Story bible"
+ENTRY=$(curl -s -X POST "$API/works/$WID/bible" -H "$AUTH" -H 'content-type: application/json' \
+  -d '{"kind":"character","name":"Ada","summary":"Walks into the dark on purpose."}')
+EID=$(echo "$ENTRY" | field id)
+curl -s -X POST "$API/bible/$EID/links" -H "$AUTH" -H 'content-type: application/json' \
+  -d "{\"sceneId\":\"$SCENE\"}" >/dev/null
+# Linking twice is what someone does when unsure whether they already did.
+curl -s -X POST "$API/bible/$EID/links" -H "$AUTH" -H 'content-type: application/json' \
+  -d "{\"sceneId\":\"$SCENE\"}" >/dev/null
+curl -s "$API/works/$WID/bible" -H "$AUTH" | python3 -c "
+import sys,json
+for e in json.load(sys.stdin):
+    print(f\"  {e['kind']}: {e['name']} — in {len(e['sceneIds'])} scene(s)\")"
+
 step "Snapshotting, revising, snapshotting again"
 V1=$(curl -s -X POST "$API/works/$WID/versions" -H "$AUTH" -H 'content-type: application/json' -d '{"label":"First pass"}' | field id)
 curl -s -X PUT "$API/scenes/$SCENE/content" -H "$AUTH" -H 'content-type: application/json' \

@@ -103,6 +103,12 @@ api_enum!(ChangeKind {
     Format => "format",
 });
 
+api_enum!(BibleKind {
+    Character => "character",
+    Place => "place",
+    Note => "note",
+});
+
 api_enum!(ChangeState {
     Pending => "pending",
     Accepted => "accepted",

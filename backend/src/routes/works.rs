@@ -248,6 +248,8 @@ pub async fn create(
                             created_at: now.clone(),
                             updated_at: now.clone(),
                             target_words: None,
+                            location: None,
+                            story_date: None,
                         })
                         .execute(conn)?;
                     pending.push(PendingScene {

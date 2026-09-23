@@ -89,6 +89,8 @@ diesel::table! {
         created_at -> Text,
         updated_at -> Text,
         target_words -> Nullable<Integer>,
+        location -> Nullable<Text>,
+        story_date -> Nullable<Text>,
     }
 }
 
@@ -100,6 +102,28 @@ diesel::table! {
         author_id -> Text,
         content_hash -> Text,
         word_count -> Integer,
+        created_at -> Text,
+    }
+}
+
+diesel::table! {
+    bible_entries (id) {
+        id -> Text,
+        work_id -> Text,
+        kind -> Text,
+        name -> Text,
+        summary -> Nullable<Text>,
+        body -> Nullable<Text>,
+        created_at -> Text,
+        updated_at -> Text,
+    }
+}
+
+diesel::table! {
+    scene_bible_links (id) {
+        id -> Text,
+        scene_id -> Text,
+        entry_id -> Text,
         created_at -> Text,
     }
 }
@@ -214,6 +238,8 @@ diesel::table! {
 
 diesel::joinable!(refresh_tokens -> users (user_id));
 diesel::joinable!(writing_days -> users (user_id));
+diesel::joinable!(bible_entries -> works (work_id));
+diesel::joinable!(scene_bible_links -> bible_entries (entry_id));
 diesel::joinable!(works -> users (owner_id));
 diesel::joinable!(chapters -> works (work_id));
 diesel::joinable!(scenes -> chapters (chapter_id));
@@ -241,4 +267,6 @@ diesel::allow_tables_to_appear_in_same_query!(
     versions,
     works,
     writing_days,
+    bible_entries,
+    scene_bible_links,
 );

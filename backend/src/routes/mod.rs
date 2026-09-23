@@ -1,4 +1,5 @@
 pub mod auth;
+pub mod bible;
 pub mod changes;
 pub mod comments;
 pub mod export;
@@ -36,6 +37,10 @@ fn api_router() -> OpenApiRouter<AppState> {
         .routes(routes!(works::list, works::create))
         .routes(routes!(works::get_one, works::update, works::delete_work))
         .routes(routes!(works::outline))
+        .routes(routes!(bible::list, bible::create))
+        .routes(routes!(bible::update, bible::delete_entry))
+        .routes(routes!(bible::link))
+        .routes(routes!(bible::unlink))
         .routes(routes!(works::create_chapter))
         .routes(routes!(works::reorder_chapters))
         .routes(routes!(works::update_chapter, works::delete_chapter))
@@ -47,6 +52,8 @@ fn api_router() -> OpenApiRouter<AppState> {
             scenes::delete_scene
         ))
         .routes(routes!(scenes::put_content))
+        .routes(routes!(scenes::split_scene))
+        .routes(routes!(scenes::merge_scene))
         .routes(routes!(scenes::list_revisions))
         .routes(routes!(scenes::get_revision))
         .routes(routes!(scenes::restore_revision))

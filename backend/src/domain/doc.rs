@@ -191,3 +191,160 @@ pub struct DocMark {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub attrs: Option<serde_json::Value>,
 }
+
+/// Splits a document in two at a block boundary.
+///
+/// The cut is between top-level blocks, never inside one. A position-based cut
+/// would have to split a paragraph mid-sentence and rebuild both halves' marks,
+/// which is a lot of machinery for an operation whose whole point is "this
+/// scene should have been two scenes" — a thought a writer has about
+/// paragraphs, not about characters.
+///
+/// Block-boundary splitting is lossless by construction: every block ends up in
+/// exactly one half, so `merge` puts the document back byte for byte.
+pub fn split_doc(doc: &Value, at_block: usize) -> (Value, Value) {
+    let blocks = doc
+        .get("content")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let at = at_block.min(blocks.len());
+    let (before, after) = blocks.split_at(at);
+
+    let wrap = |blocks: &[Value]| -> Value {
+        if blocks.is_empty() {
+            empty_doc()
+        } else {
+            json!({ "type": "doc", "content": blocks })
+        }
+    };
+    (wrap(before), wrap(after))
+}
+
+/// Joins two documents, the second's blocks following the first's.
+///
+/// The inverse of `split_doc`: merging what a split produced returns the
+/// original. A document that is only an empty paragraph contributes nothing,
+/// so merging into an untouched scene does not leave a blank line at the seam.
+pub fn merge_docs(first: &Value, second: &Value) -> Value {
+    let blocks_of = |doc: &Value| -> Vec<Value> {
+        let blocks = doc
+            .get("content")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        if is_blank(&blocks) {
+            Vec::new()
+        } else {
+            blocks
+        }
+    };
+
+    let mut blocks = blocks_of(first);
+    blocks.extend(blocks_of(second));
+    if blocks.is_empty() {
+        empty_doc()
+    } else {
+        json!({ "type": "doc", "content": blocks })
+    }
+}
+
+/// A document that holds nothing a reader would see.
+fn is_blank(blocks: &[Value]) -> bool {
+    blocks.iter().all(|block| {
+        let has_content = block
+            .get("content")
+            .and_then(Value::as_array)
+            .is_some_and(|c| !c.is_empty());
+        !has_content && block.get("type").and_then(Value::as_str) != Some("horizontalRule")
+    })
+}
+
+/// How many top-level blocks a document has — the range a split may cut at.
+pub fn block_count(doc: &Value) -> usize {
+    doc.get("content")
+        .and_then(Value::as_array)
+        .map_or(0, Vec::len)
+}
+
+#[cfg(test)]
+mod split_tests {
+    use super::*;
+
+    fn sample(paragraphs: usize) -> Value {
+        json!({
+            "type": "doc",
+            "content": (0..paragraphs)
+                .map(|i| json!({
+                    "type": "paragraph",
+                    "content": [{ "type": "text", "text": format!("Paragraph {i}.") }]
+                }))
+                .collect::<Vec<_>>()
+        })
+    }
+
+    #[test]
+    fn splitting_divides_the_blocks() {
+        let (before, after) = split_doc(&sample(5), 2);
+        assert_eq!(block_count(&before), 2);
+        assert_eq!(block_count(&after), 3);
+    }
+
+    /// The property that matters: splitting then merging loses nothing.
+    #[test]
+    fn split_then_merge_is_the_original() {
+        let original = sample(6);
+        for at in 0..=6 {
+            let (before, after) = split_doc(&original, at);
+            assert_eq!(
+                merge_docs(&before, &after),
+                original,
+                "round trip changed the document when split at {at}"
+            );
+        }
+    }
+
+    #[test]
+    fn splitting_past_the_end_leaves_everything_in_the_first_half() {
+        let (before, after) = split_doc(&sample(3), 99);
+        assert_eq!(block_count(&before), 3);
+        assert_eq!(plain_text(&after), "");
+    }
+
+    #[test]
+    fn splitting_at_zero_leaves_everything_in_the_second_half() {
+        let (before, after) = split_doc(&sample(3), 0);
+        assert_eq!(plain_text(&before), "");
+        assert_eq!(block_count(&after), 3);
+    }
+
+    #[test]
+    fn merging_an_empty_scene_adds_no_blank_line() {
+        let merged = merge_docs(&sample(2), &empty_doc());
+        assert_eq!(block_count(&merged), 2);
+        let merged = merge_docs(&empty_doc(), &sample(2));
+        assert_eq!(block_count(&merged), 2);
+    }
+
+    #[test]
+    fn merging_two_empty_scenes_is_still_a_valid_document() {
+        let merged = merge_docs(&empty_doc(), &empty_doc());
+        assert!(validate(&merged).is_ok());
+        assert_eq!(word_count(&merged), 0);
+    }
+
+    /// Marks and scene breaks are carried, not flattened.
+    #[test]
+    fn formatting_survives_a_round_trip() {
+        let original = json!({"type":"doc","content":[
+            {"type":"paragraph","content":[
+                {"type":"text","text":"She said "},
+                {"type":"text","text":"nothing","marks":[{"type":"italic"}]}
+            ]},
+            {"type":"horizontalRule"},
+            {"type":"heading","attrs":{"level":2},"content":[{"type":"text","text":"Later"}]}
+        ]});
+        let (before, after) = split_doc(&original, 1);
+        assert_eq!(merge_docs(&before, &after), original);
+    }
+}

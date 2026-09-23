@@ -10,6 +10,8 @@
 export type {
   Anchor,
   AuthorCard,
+  BibleEntry,
+  BibleKind,
   Chapter,
   Comment,
   CommentCategory,
@@ -45,6 +47,8 @@ export type {
   Visibility,
   WorkKind,
   WorkStatus,
+  EntryView,
+  SplitSceneResponse,
   Work,
   WritingDay,
   WritingSummary,

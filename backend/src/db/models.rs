@@ -105,6 +105,28 @@ row!(Scene, scenes, {
     updated_at: String,
     /// A target for this scene, for writers who plan at that level.
     target_words: Option<i32>,
+    location: Option<String>,
+    /// Free text: fiction rarely runs on the Gregorian calendar.
+    story_date: Option<String>,
+});
+
+row!(BibleEntry, bible_entries, {
+    id: String,
+    work_id: String,
+    #[schema(value_type = crate::domain::enums::BibleKind)]
+    kind: String,
+    name: String,
+    summary: Option<String>,
+    body: Option<String>,
+    created_at: String,
+    updated_at: String,
+});
+
+row!(SceneBibleLink, scene_bible_links, {
+    id: String,
+    scene_id: String,
+    entry_id: String,
+    created_at: String,
 });
 
 row!(WritingDay, writing_days, {
@@ -271,7 +293,17 @@ new_row!(NewScene, scenes, {
     id: String, work_id: String, chapter_id: String, title: String,
     summary: Option<String>, pov: Option<String>, status: String, position: i32,
     word_count: i32, content_hash: String, created_at: String, updated_at: String,
-    target_words: Option<i32>,
+    target_words: Option<i32>, location: Option<String>, story_date: Option<String>,
+});
+
+new_row!(NewBibleEntry, bible_entries, {
+    id: String, work_id: String, kind: String, name: String,
+    summary: Option<String>, body: Option<String>,
+    created_at: String, updated_at: String,
+});
+
+new_row!(NewSceneBibleLink, scene_bible_links, {
+    id: String, scene_id: String, entry_id: String, created_at: String,
 });
 
 new_row!(NewSceneRevision, scene_revisions, {

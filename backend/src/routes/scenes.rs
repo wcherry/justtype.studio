@@ -41,6 +41,11 @@ pub struct UpdateSceneRequest {
     #[serde(default)]
     #[schema(value_type = Option<crate::domain::enums::SceneStatus>)]
     pub status: Option<String>,
+    #[serde(default)]
+    pub location: Option<String>,
+    /// Free text: fiction rarely runs on the Gregorian calendar.
+    #[serde(default)]
+    pub story_date: Option<String>,
     /// A word target for this scene. Omit to leave it alone; send `null` to
     /// clear it. The nesting is what distinguishes those two — see
     /// `present_or_absent`.
@@ -152,6 +157,8 @@ pub async fn create(
             created_at: now.clone(),
             updated_at: now.clone(),
             target_words: None,
+            location: None,
+            story_date: None,
         };
         diesel::insert_into(scenes::table)
             .values(&row)
@@ -239,6 +246,19 @@ pub async fn update(
         if let Some(pov) = &body.pov {
             diesel::update(scenes::table.find(&scene.id))
                 .set(scenes::pov.eq(pov))
+                .execute(conn)?;
+        }
+        // Blank clears these, the way emptying the field in the UI means.
+        if let Some(location) = &body.location {
+            let value = location.trim();
+            diesel::update(scenes::table.find(&scene.id))
+                .set(scenes::location.eq((!value.is_empty()).then_some(value)))
+                .execute(conn)?;
+        }
+        if let Some(story_date) = &body.story_date {
+            let value = story_date.trim();
+            diesel::update(scenes::table.find(&scene.id))
+                .set(scenes::story_date.eq((!value.is_empty()).then_some(value)))
                 .execute(conn)?;
         }
         if let Some(status) = &body.status {
@@ -618,4 +638,298 @@ pub async fn restore_revision(
         }),
     )
     .await
+}
+
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SplitSceneRequest {
+    /// Index of the first top-level block that belongs to the *new* scene.
+    /// Blocks, not characters: the cut is between paragraphs, which is how a
+    /// writer thinks about "this should have been two scenes".
+    pub at_block: usize,
+    /// Title for the new scene. Defaults to the original's, with a suffix.
+    #[serde(default)]
+    pub title: Option<String>,
+    /// The `contentHash` the split was decided against. Required, unlike on an
+    /// ordinary save: splitting rewrites prose in two places, and doing that to
+    /// a document someone else has edited would be much worse than refusing.
+    pub base_hash: String,
+}
+
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SplitSceneResponse {
+    /// The original scene, now holding only the blocks before the cut.
+    pub first: Scene,
+    /// The new scene, holding the rest.
+    pub second: Scene,
+}
+
+/// Cuts one scene into two at a block boundary.
+///
+/// The new scene lands immediately after the original and everything below it
+/// shifts down, so the reading order is unchanged. Nothing is lost: every block
+/// ends up in exactly one of the two, which is what makes `merge` its inverse.
+#[utoipa::path(
+    post,
+    path = "/api/scenes/{scene_id}/split",
+    tag = "scenes",
+    params(("scene_id" = String, Path)),
+    request_body = SplitSceneRequest,
+    responses(
+        (status = 200, description = "Both halves", body = SplitSceneResponse),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
+pub async fn split_scene(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(scene_id): Path<String>,
+    Json(body): Json<SplitSceneRequest>,
+) -> ApiResult<Json<SplitSceneResponse>> {
+    let lookup_user = user.clone();
+    let lookup_id = scene_id.clone();
+    let scene = blocking(&state.pool, move |conn| {
+        let (scene, _) = support::scene_for_owner(conn, &lookup_id, &lookup_user)?;
+        Ok(scene)
+    })
+    .await?;
+
+    if scene.content_hash != body.base_hash {
+        return Err(ApiError::ConflictWith {
+            message: "this scene changed since you decided where to split it".into(),
+            details: serde_json::json!({
+                "sceneId": scene.id,
+                "currentHash": scene.content_hash,
+                "currentWordCount": scene.word_count,
+                "updatedAt": scene.updated_at,
+                "yourHash": body.base_hash,
+            }),
+        });
+    }
+
+    let content = state
+        .store
+        .read_working_scene(&scene.work_id, &scene.id)
+        .await?;
+    let blocks = doc::block_count(&content);
+    if body.at_block == 0 || body.at_block >= blocks {
+        return Err(ApiError::BadRequest(format!(
+            "atBlock must fall inside the scene: expected 1..{blocks}, got {}",
+            body.at_block
+        )));
+    }
+
+    let (first_doc, second_doc) = doc::split_doc(&content, body.at_block);
+    let new_id_value = new_id();
+    let title = body
+        .title
+        .as_deref()
+        .map(str::trim)
+        .filter(|t| !t.is_empty())
+        .map(str::to_string)
+        .unwrap_or_else(|| format!("{} (continued)", scene.title));
+
+    // Files first: a scene row pointing at a document that was never written
+    // would read as lost work, where an orphaned file is merely untidy.
+    state
+        .store
+        .write_working_scene(&scene.work_id, &new_id_value, &second_doc)
+        .await?;
+    state
+        .store
+        .write_working_scene(&scene.work_id, &scene.id, &first_doc)
+        .await?;
+
+    let work_id = scene.work_id.clone();
+    let chapter_id = scene.chapter_id.clone();
+    let original_id = scene.id.clone();
+    let position = scene.position;
+    let result = blocking(&state.pool, move |conn| {
+        let now = now_iso();
+        conn.transaction::<_, ApiError, _>(|conn| {
+            // Make room for the new scene without disturbing reading order.
+            diesel::update(
+                scenes::table
+                    .filter(scenes::chapter_id.eq(&chapter_id))
+                    .filter(scenes::position.gt(position)),
+            )
+            .set(scenes::position.eq(scenes::position + 1))
+            .execute(conn)?;
+
+            diesel::update(scenes::table.find(&original_id))
+                .set((
+                    scenes::content_hash.eq(doc::content_hash(&first_doc)),
+                    scenes::word_count.eq(doc::word_count(&first_doc)),
+                    scenes::updated_at.eq(&now),
+                ))
+                .execute(conn)?;
+
+            diesel::insert_into(scenes::table)
+                .values(&NewScene {
+                    id: new_id_value.clone(),
+                    work_id: work_id.clone(),
+                    chapter_id: chapter_id.clone(),
+                    title,
+                    summary: None,
+                    // Inherited: the second half of a scene is almost always in
+                    // the same place, on the same day, in the same head.
+                    pov: scene.pov.clone(),
+                    status: scene.status.clone(),
+                    position: position + 1,
+                    word_count: doc::word_count(&second_doc),
+                    content_hash: doc::content_hash(&second_doc),
+                    created_at: now.clone(),
+                    updated_at: now.clone(),
+                    target_words: None,
+                    location: scene.location.clone(),
+                    story_date: scene.story_date.clone(),
+                })
+                .execute(conn)?;
+            Ok(())
+        })?;
+
+        support::recount_work(conn, &work_id, &now_iso())?;
+        Ok(SplitSceneResponse {
+            first: scenes::table
+                .find(&original_id)
+                .select(Scene::as_select())
+                .first(conn)?,
+            second: scenes::table
+                .find(&new_id_value)
+                .select(Scene::as_select())
+                .first(conn)?,
+        })
+    })
+    .await?;
+
+    Ok(Json(result))
+}
+
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct MergeSceneRequest {
+    /// The scene to absorb. It must sit in the same chapter.
+    pub with: String,
+    /// Both scenes' hashes, so a merge cannot silently swallow someone's edit.
+    pub base_hash: String,
+    pub with_base_hash: String,
+}
+
+/// Folds the next scene into this one and removes it.
+///
+/// The inverse of `split`: the absorbed scene's blocks follow this one's, in
+/// order, and nothing is dropped at the seam.
+#[utoipa::path(
+    post,
+    path = "/api/scenes/{scene_id}/merge",
+    tag = "scenes",
+    params(("scene_id" = String, Path)),
+    request_body = MergeSceneRequest,
+    responses(
+        (status = 200, description = "The surviving scene", body = Scene),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
+pub async fn merge_scene(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(scene_id): Path<String>,
+    Json(body): Json<MergeSceneRequest>,
+) -> ApiResult<Json<Scene>> {
+    if scene_id == body.with {
+        return Err(ApiError::BadRequest(
+            "a scene cannot be merged with itself".into(),
+        ));
+    }
+
+    let lookup_user = user.clone();
+    let lookup_id = scene_id.clone();
+    let other_id = body.with.clone();
+    let (keep, absorb) = blocking(&state.pool, move |conn| {
+        let (keep, _) = support::scene_for_owner(conn, &lookup_id, &lookup_user)?;
+        let (absorb, _) = support::scene_for_owner(conn, &other_id, &lookup_user)?;
+        if keep.chapter_id != absorb.chapter_id {
+            return Err(ApiError::BadRequest(
+                "scenes can only be merged within one chapter — move it first".into(),
+            ));
+        }
+        Ok((keep, absorb))
+    })
+    .await?;
+
+    for (scene, expected) in [(&keep, &body.base_hash), (&absorb, &body.with_base_hash)] {
+        if &scene.content_hash != expected {
+            return Err(ApiError::ConflictWith {
+                message: format!("`{}` changed since you chose to merge it", scene.title),
+                details: serde_json::json!({
+                    "sceneId": scene.id,
+                    "currentHash": scene.content_hash,
+                    "currentWordCount": scene.word_count,
+                    "updatedAt": scene.updated_at,
+                    "yourHash": expected,
+                }),
+            });
+        }
+    }
+
+    let first = state
+        .store
+        .read_working_scene(&keep.work_id, &keep.id)
+        .await?;
+    let second = state
+        .store
+        .read_working_scene(&absorb.work_id, &absorb.id)
+        .await?;
+    // Order follows the page, not the argument order: whichever scene the
+    // reader meets first keeps its text first.
+    let merged = if keep.position <= absorb.position {
+        doc::merge_docs(&first, &second)
+    } else {
+        doc::merge_docs(&second, &first)
+    };
+
+    state
+        .store
+        .write_working_scene(&keep.work_id, &keep.id, &merged)
+        .await?;
+
+    let work_id = keep.work_id.clone();
+    let keep_id = keep.id.clone();
+    let absorb_id = absorb.id.clone();
+    let chapter_id = keep.chapter_id.clone();
+    let absorbed_position = absorb.position;
+    let scene = blocking(&state.pool, move |conn| {
+        let now = now_iso();
+        conn.transaction::<_, ApiError, _>(|conn| {
+            diesel::update(scenes::table.find(&keep_id))
+                .set((
+                    scenes::content_hash.eq(doc::content_hash(&merged)),
+                    scenes::word_count.eq(doc::word_count(&merged)),
+                    scenes::updated_at.eq(&now),
+                ))
+                .execute(conn)?;
+            diesel::delete(scenes::table.find(&absorb_id)).execute(conn)?;
+            // Close the gap the removed scene left.
+            diesel::update(
+                scenes::table
+                    .filter(scenes::chapter_id.eq(&chapter_id))
+                    .filter(scenes::position.gt(absorbed_position)),
+            )
+            .set(scenes::position.eq(scenes::position - 1))
+            .execute(conn)?;
+            Ok(())
+        })?;
+        support::recount_work(conn, &work_id, &now_iso())?;
+        Ok(scenes::table
+            .find(&keep_id)
+            .select(Scene::as_select())
+            .first(conn)?)
+    })
+    .await?;
+
+    // The absorbed scene's file is no longer referenced by anything.
+    state.store.delete_scene(&keep.work_id, &absorb.id).await?;
+
+    Ok(Json(scene))
 }

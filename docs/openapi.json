@@ -34,6 +34,57 @@
         ],
         "type": "object"
       },
+      "BibleEntry": {
+        "properties": {
+          "body": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/BibleKind"
+          },
+          "name": {
+            "type": "string"
+          },
+          "summary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updatedAt": {
+            "type": "string"
+          },
+          "workId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "workId",
+          "kind",
+          "name",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "BibleKind": {
+        "enum": [
+          "character",
+          "place",
+          "note"
+        ],
+        "type": "string"
+      },
       "ChangeKind": {
         "enum": [
           "insert",
@@ -371,6 +422,34 @@
         ],
         "type": "object"
       },
+      "CreateEntryRequest": {
+        "properties": {
+          "body": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "kind": {
+            "$ref": "#/components/schemas/BibleKind",
+            "description": "`character`, `place` or `note`."
+          },
+          "name": {
+            "type": "string"
+          },
+          "summary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "name"
+        ],
+        "type": "object"
+      },
       "CreatePublicationRequest": {
         "properties": {
           "closesAt": {
@@ -606,6 +685,28 @@
         ],
         "type": "object"
       },
+      "EntryView": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/BibleEntry"
+          },
+          {
+            "properties": {
+              "sceneIds": {
+                "description": "Scenes this entry appears in, in reading order.",
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "sceneIds"
+            ],
+            "type": "object"
+          }
+        ]
+      },
       "ErrorBody": {
         "properties": {
           "code": {
@@ -656,6 +757,17 @@
         ],
         "type": "object"
       },
+      "LinkRequest": {
+        "properties": {
+          "sceneId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "sceneId"
+        ],
+        "type": "object"
+      },
       "LoginRequest": {
         "properties": {
           "email": {
@@ -668,6 +780,27 @@
         "required": [
           "email",
           "password"
+        ],
+        "type": "object"
+      },
+      "MergeSceneRequest": {
+        "properties": {
+          "baseHash": {
+            "description": "Both scenes' hashes, so a merge cannot silently swallow someone's edit.",
+            "type": "string"
+          },
+          "with": {
+            "description": "The scene to absorb. It must sit in the same chapter.",
+            "type": "string"
+          },
+          "withBaseHash": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "with",
+          "baseHash",
+          "withBaseHash"
         ],
         "type": "object"
       },
@@ -969,6 +1102,12 @@
           "id": {
             "type": "string"
           },
+          "location": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "position": {
             "format": "int32",
             "type": "integer"
@@ -981,6 +1120,13 @@
           },
           "status": {
             "$ref": "#/components/schemas/SceneStatus"
+          },
+          "storyDate": {
+            "description": "Free text: fiction rarely runs on the Gregorian calendar.",
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "summary": {
             "type": [
@@ -1157,6 +1303,48 @@
           "accessToken",
           "refreshToken",
           "expiresIn"
+        ],
+        "type": "object"
+      },
+      "SplitSceneRequest": {
+        "properties": {
+          "atBlock": {
+            "description": "Index of the first top-level block that belongs to the *new* scene.\nBlocks, not characters: the cut is between paragraphs, which is how a\nwriter thinks about \"this should have been two scenes\".",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "baseHash": {
+            "description": "The `contentHash` the split was decided against. Required, unlike on an\nordinary save: splitting rewrites prose in two places, and doing that to\na document someone else has edited would be much worse than refusing.",
+            "type": "string"
+          },
+          "title": {
+            "description": "Title for the new scene. Defaults to the original's, with a suffix.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "atBlock",
+          "baseHash"
+        ],
+        "type": "object"
+      },
+      "SplitSceneResponse": {
+        "properties": {
+          "first": {
+            "$ref": "#/components/schemas/Scene",
+            "description": "The original scene, now holding only the blocks before the cut."
+          },
+          "second": {
+            "$ref": "#/components/schemas/Scene",
+            "description": "The new scene, holding the rest."
+          }
+        },
+        "required": [
+          "first",
+          "second"
         ],
         "type": "object"
       },
@@ -1372,6 +1560,29 @@
         },
         "type": "object"
       },
+      "UpdateEntryRequest": {
+        "properties": {
+          "body": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "summary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
       "UpdateGoalsRequest": {
         "properties": {
           "dailyWordGoal": {
@@ -1421,6 +1632,12 @@
               "null"
             ]
           },
+          "location": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "pov": {
             "type": [
               "string",
@@ -1435,6 +1652,13 @@
               {
                 "$ref": "#/components/schemas/SceneStatus"
               }
+            ]
+          },
+          "storyDate": {
+            "description": "Free text: fiction rarely runs on the Gregorian calendar.",
+            "type": [
+              "string",
+              "null"
             ]
           },
           "summary": {
@@ -2192,6 +2416,186 @@
         },
         "tags": [
           "auth"
+        ]
+      }
+    },
+    "/api/bible/{entry_id}": {
+      "delete": {
+        "operationId": "delete_entry",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Removed"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "bible"
+        ]
+      },
+      "patch": {
+        "operationId": "update",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateEntryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntryView"
+                }
+              }
+            },
+            "description": "The updated entry"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "bible"
+        ]
+      }
+    },
+    "/api/bible/{entry_id}/links": {
+      "post": {
+        "operationId": "link",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntryView"
+                }
+              }
+            },
+            "description": "The entry, with its scenes"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "Records that an entry appears in a scene. Idempotent — linking twice is what\na writer does when they are not sure whether they already did.",
+        "tags": [
+          "bible"
+        ]
+      }
+    },
+    "/api/bible/{entry_id}/links/{scene_id}": {
+      "delete": {
+        "operationId": "unlink",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "scene_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntryView"
+                }
+              }
+            },
+            "description": "The entry, with its scenes"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "bible"
         ]
       }
     },
@@ -3229,6 +3633,58 @@
         ]
       }
     },
+    "/api/scenes/{scene_id}/merge": {
+      "post": {
+        "description": "The inverse of `split`: the absorbed scene's blocks follow this one's, in\norder, and nothing is dropped at the seam.",
+        "operationId": "merge_scene",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scene_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MergeSceneRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Scene"
+                }
+              }
+            },
+            "description": "The surviving scene"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "Folds the next scene into this one and removes it.",
+        "tags": [
+          "scenes"
+        ]
+      }
+    },
     "/api/scenes/{scene_id}/revisions": {
       "get": {
         "operationId": "list_revisions",
@@ -3365,6 +3821,58 @@
           }
         },
         "summary": "Put an earlier revision back as the working copy.",
+        "tags": [
+          "scenes"
+        ]
+      }
+    },
+    "/api/scenes/{scene_id}/split": {
+      "post": {
+        "description": "The new scene lands immediately after the original and everything below it\nshifts down, so the reading order is unchanged. Nothing is lost: every block\nends up in exactly one of the two, which is what makes `merge` its inverse.",
+        "operationId": "split_scene",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scene_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SplitSceneRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SplitSceneResponse"
+                }
+              }
+            },
+            "description": "Both halves"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "Cuts one scene into two at a block boundary.",
         "tags": [
           "scenes"
         ]
@@ -3878,6 +4386,97 @@
         },
         "tags": [
           "works"
+        ]
+      }
+    },
+    "/api/works/{work_id}/bible": {
+      "get": {
+        "operationId": "list",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/EntryView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "The work's entries"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "bible"
+        ]
+      },
+      "post": {
+        "operationId": "create",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateEntryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntryView"
+                }
+              }
+            },
+            "description": "The new entry"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "bible"
         ]
       }
     },

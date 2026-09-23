@@ -18,6 +18,19 @@ export interface AuthorCard {
   id: string
 }
 
+export interface BibleEntry {
+  body?: string | null
+  createdAt: string
+  id: string
+  kind: BibleKind
+  name: string
+  summary?: string | null
+  updatedAt: string
+  workId: string
+}
+
+export type BibleKind = 'character' | 'place' | 'note'
+
 export type ChangeKind = 'insert' | 'delete' | 'replace' | 'format'
 
 export type ChangeState = 'pending' | 'accepted' | 'rejected'
@@ -115,6 +128,14 @@ export interface CreateCommentRequest {
   sceneId?: string | null
 }
 
+export interface CreateEntryRequest {
+  body?: string | null
+  // `character`, `place` or `note`.
+  kind: BibleKind
+  name: string
+  summary?: string | null
+}
+
 export interface CreatePublicationRequest {
   closesAt?: string | null
   opensAt?: string | null
@@ -182,6 +203,19 @@ export interface DocNode {
   type: string
 }
 
+export interface EntryView {
+  body?: string | null
+  createdAt: string
+  id: string
+  kind: BibleKind
+  name: string
+  summary?: string | null
+  updatedAt: string
+  workId: string
+  // Scenes this entry appears in, in reading order.
+  sceneIds: string[]
+}
+
 export interface ErrorBody {
   // `bad_request`, `unauthorized`, `forbidden`, `not_found`, `conflict`, `internal`.
   code: string
@@ -202,9 +236,21 @@ export interface HealthResponse {
   version: string
 }
 
+export interface LinkRequest {
+  sceneId: string
+}
+
 export interface LoginRequest {
   email: string
   password: string
+}
+
+export interface MergeSceneRequest {
+  // Both scenes' hashes, so a merge cannot silently swallow someone's edit.
+  baseHash: string
+  // The scene to absorb. It must sit in the same chapter.
+  with: string
+  withBaseHash: string
 }
 
 export type Op = 'equal' | 'insert' | 'delete'
@@ -343,9 +389,12 @@ export interface Scene {
   contentHash: string
   createdAt: string
   id: string
+  location?: string | null
   position: number
   pov?: string | null
   status: SceneStatus
+  // Free text: fiction rarely runs on the Gregorian calendar.
+  storyDate?: string | null
   summary?: string | null
   // A target for this scene, for writers who plan at that level.
   targetWords?: number | null
@@ -384,9 +433,12 @@ export interface SceneWithContent {
   contentHash: string
   createdAt: string
   id: string
+  location?: string | null
   position: number
   pov?: string | null
   status: SceneStatus
+  // Free text: fiction rarely runs on the Gregorian calendar.
+  storyDate?: string | null
   summary?: string | null
   // A target for this scene, for writers who plan at that level.
   targetWords?: number | null
@@ -402,6 +454,26 @@ export interface SessionResponse {
   expiresIn: number
   refreshToken: string
   user: User
+}
+
+export interface SplitSceneRequest {
+  // Index of the first top-level block that belongs to the *new* scene.
+  // Blocks, not characters: the cut is between paragraphs, which is how a
+  // writer thinks about "this should have been two scenes".
+  atBlock: number
+  // The `contentHash` the split was decided against. Required, unlike on an
+  // ordinary save: splitting rewrites prose in two places, and doing that to
+  // a document someone else has edited would be much worse than refusing.
+  baseHash: string
+  // Title for the new scene. Defaults to the original's, with a suffix.
+  title?: string | null
+}
+
+export interface SplitSceneResponse {
+  // The original scene, now holding only the blocks before the cut.
+  first: Scene
+  // The new scene, holding the rest.
+  second: Scene
 }
 
 export interface TemplateChapter {
@@ -463,6 +535,12 @@ export interface UpdateCommentRequest {
   state?: string | null
 }
 
+export interface UpdateEntryRequest {
+  body?: string | null
+  name?: string | null
+  summary?: string | null
+}
+
 export interface UpdateGoalsRequest {
   // `null` clears the target.
   dailyWordGoal?: number | null
@@ -477,8 +555,11 @@ export interface UpdatePublicationRequest {
 export interface UpdateSceneRequest {
   // Move the scene into a different chapter of the same work.
   chapterId?: string | null
+  location?: string | null
   pov?: string | null
   status?: SceneStatus | null
+  // Free text: fiction rarely runs on the Gregorian calendar.
+  storyDate?: string | null
   summary?: string | null
   // A word target for this scene. Omit to leave it alone; send `null` to
   // clear it. The nesting is what distinguishes those two — see

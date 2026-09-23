@@ -27,6 +27,38 @@ back as `{"error": {"code": "...", "message": "..."}}` with a matching status.
 A session is `{user, accessToken, refreshToken, expiresIn}`. Refresh tokens are
 single-use: refreshing revokes the one you presented.
 
+### Splitting and merging
+
+A split cuts between top-level blocks, never inside one — `atBlock` is the index
+of the first block that belongs to the *new* scene. Block boundaries make the
+operation lossless by construction: every block ends up in exactly one half, so
+merging what a split produced returns the original document. A merge folds the
+named scene into this one, in reading order, and deletes it.
+
+Both require the `contentHash` of every scene involved, and refuse with `409` if
+any has moved. Unlike an ordinary save, the hash is not optional: these rewrite
+prose in two places at once, and doing that to a document someone else has
+edited would be much worse than refusing.
+
+`storyDate` is free text. Fiction rarely runs on the Gregorian calendar, and
+"the third day of the siege" is a timeline position too.
+
+## Story bible
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/works/{id}/bible?kind=&sceneId=` | entries, with the scenes each appears in |
+| `POST` | `/works/{id}/bible` | `kind` (`character`/`place`/`note`), `name`, `summary`, `body` |
+| `PATCH` | `/bible/{entryId}` | `name`, `summary`, `body` |
+| `DELETE` | `/bible/{entryId}` | |
+| `POST` | `/bible/{entryId}/links` | `sceneId`; idempotent |
+| `DELETE` | `/bible/{entryId}/links/{sceneId}` | |
+
+Entries link to scenes through a join table rather than a list on either side,
+because the question gets asked from both directions — "who is in this scene"
+while writing it, and "which scenes is she in" while fixing her eye colour in
+chapter nine.
+
 ## Export
 
 | Method | Path | Notes |
@@ -92,7 +124,9 @@ recovering, not writing.
 | `POST` | `/chapters/{id}/scenes` | `title`, optional `content` |
 | `POST` | `/chapters/{id}/scenes/reorder` | `ids` |
 | `GET` | `/scenes/{id}` | scene plus its content |
-| `PATCH` | `/scenes/{id}` | `title`, `summary`, `pov`, `status`, `chapterId` (to move it), `targetWords` |
+| `PATCH` | `/scenes/{id}` | `title`, `summary`, `pov`, `status`, `chapterId` (to move it), `targetWords`, `location`, `storyDate` |
+| `POST` | `/scenes/{id}/split` | `atBlock`, `baseHash`, `title` |
+| `POST` | `/scenes/{id}/merge` | `with`, `baseHash`, `withBaseHash` |
 | `PUT` | `/scenes/{id}/content` | `content` (a TipTap doc), `createRevision`, `baseHash`, `localDay` |
 | `DELETE` | `/scenes/{id}` | |
 | `GET` | `/scenes/{id}/revisions` | newest first |

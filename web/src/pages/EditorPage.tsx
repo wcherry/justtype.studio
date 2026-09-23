@@ -8,9 +8,12 @@ import Placeholder from '@tiptap/extension-placeholder'
 import { api } from '../api/client'
 import type { Outline as OutlineType, Scene, SceneWithContent, Version } from '../api/types'
 import { ConflictBanner } from '../components/ConflictBanner'
+import { Corkboard } from '../components/Corkboard'
 import { FrontMatter } from '../components/FrontMatter'
 import { GoalBar } from '../components/GoalBar'
 import { Outline } from '../components/Outline'
+import { SceneDetails } from '../components/SceneDetails'
+import { StoryBible } from '../components/StoryBible'
 import { RevisionPanel } from '../components/RevisionPanel'
 import { Toolbar } from '../components/Toolbar'
 import { WritingPreferencesPanel } from '../components/WritingPreferences'
@@ -41,7 +44,9 @@ export function EditorPage() {
   const [versions, setVersions] = useState<Version[]>([])
   const [scene, setScene] = useState<Scene | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [panel, setPanel] = useState<'none' | 'versions' | 'history' | 'prefs' | 'front'>('none')
+  const [panel, setPanel] =
+    useState<'none' | 'versions' | 'history' | 'prefs' | 'front' | 'details' | 'bible'>('none')
+  const [view, setView] = useState<'write' | 'corkboard'>('write')
   const [online, setOnline] = useState(() => navigator.onLine)
   /** Bumped after every accepted save, so the history list stays current. */
   const [savedAt, setSavedAt] = useState(0)
@@ -181,6 +186,50 @@ export function EditorPage() {
     }
   }, [editor, schedule])
 
+  /** The scene after this one in the same chapter, if there is one. */
+  const nextScene = (() => {
+    if (!scene || !outline) return null
+    const chapter = outline.chapters.find((c) => c.id === scene.chapterId)
+    const index = chapter?.scenes.findIndex((s) => s.id === scene.id) ?? -1
+    return index >= 0 ? chapter?.scenes[index + 1] ?? null : null
+  })()
+
+  const splitHere = async () => {
+    if (!scene || !editor) return
+    // Anything unsaved has to land first: the server checks the hash, and it
+    // would refuse a split decided against text it has never seen.
+    await flush(true)
+    const at = editor.state.selection.$from.depth > 0
+      ? editor.state.doc.resolve(editor.state.selection.from).index(0)
+      : 0
+    try {
+      const fresh = await api.scenes.get(scene.id)
+      const result = await api.scenes.split(scene.id, at, fresh.contentHash)
+      await loadOutline()
+      void openScene(result.first)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not split that scene')
+    }
+  }
+
+  const mergeNext = async () => {
+    if (!scene || !nextScene) return
+    await flush(true)
+    try {
+      const [mine, theirs] = await Promise.all([
+        api.scenes.get(scene.id),
+        api.scenes.get(nextScene.id),
+      ])
+      const merged = await api.scenes.merge(
+        scene.id, nextScene.id, mine.contentHash, theirs.contentHash,
+      )
+      await loadOutline()
+      void openScene(merged)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not merge those scenes')
+    }
+  }
+
   if (error) return <main className="editor"><p className="error">{error}</p></main>
   if (!outline) return <main className="editor"><p className="empty">Opening…</p></main>
 
@@ -258,6 +307,25 @@ export function EditorPage() {
             </button>
             <button
               type="button"
+              className={view === 'corkboard' ? 'is-active' : undefined}
+              onClick={() => setView((v) => (v === 'write' ? 'corkboard' : 'write'))}
+            >
+              {view === 'write' ? 'Corkboard' : 'Write'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setPanel((p) => (p === 'details' ? 'none' : 'details'))}
+            >
+              Scene
+            </button>
+            <button
+              type="button"
+              onClick={() => setPanel((p) => (p === 'bible' ? 'none' : 'bible'))}
+            >
+              Bible
+            </button>
+            <button
+              type="button"
               onClick={() => setPanel((p) => (p === 'front' ? 'none' : 'front'))}
             >
               Front matter
@@ -312,7 +380,35 @@ export function EditorPage() {
           }}
         />
 
-        {scene ? (
+        {view === 'corkboard' ? (
+          <div className="prose-scroll">
+            <Corkboard
+              outline={outline}
+              activeSceneId={scene?.id ?? null}
+              onOpenScene={(target) => {
+                setView('write')
+                void openScene(target)
+              }}
+              onMove={async (moved, toChapterId, toIndex) => {
+                // Moving between chapters is a scene update; reordering within
+                // one is a reorder. Both end with the outline reloaded.
+                const chapter = outline.chapters.find((c) => c.id === toChapterId)
+                if (!chapter) return
+                const remaining = chapter.scenes.filter((s) => s.id !== moved.id)
+                const ids = [
+                  ...remaining.slice(0, toIndex).map((s) => s.id),
+                  moved.id,
+                  ...remaining.slice(toIndex).map((s) => s.id),
+                ]
+                if (moved.chapterId !== toChapterId) {
+                  await api.scenes.update(moved.id, { chapterId: toChapterId })
+                }
+                await api.scenes.reorder(toChapterId, ids)
+                void loadOutline()
+              }}
+            />
+          </div>
+        ) : scene ? (
           // The scroll container is what typewriter scrolling drives; the
           // typography lands as custom properties on the prose itself.
           <div className="prose-scroll">
@@ -337,6 +433,33 @@ export function EditorPage() {
             onChange={setPreference}
             onReset={resetPreferences}
           />
+        </aside>
+      )}
+
+      {panel === 'details' && scene && (
+        <aside className="versions">
+          <header className="versions__header">
+            <h3>{scene.title}</h3>
+          </header>
+          <SceneDetails
+            scene={scene}
+            canMerge={!!nextScene}
+            onSplit={splitHere}
+            onMerge={mergeNext}
+            onSaved={(updated) => {
+              setScene((current) => (current ? { ...current, ...updated } : current))
+              void loadOutline()
+            }}
+          />
+        </aside>
+      )}
+
+      {panel === 'bible' && (
+        <aside className="versions">
+          <header className="versions__header">
+            <h3>Story bible</h3>
+          </header>
+          <StoryBible workId={workId} scene={scene} />
         </aside>
       )}
 

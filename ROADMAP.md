@@ -135,11 +135,26 @@ Two bugs this surfaced: a template's empty scenes exported as pages of lone `#`
 marks, and the front-matter fields had nowhere to be set from — the work's PATCH
 handler knew nothing about them, so a pen name saved silently did nothing.
 
-### 1.4 Structure tools
-- Corkboard / index-card view over scenes; drag to reorder across chapters.
-- Scene metadata surfaced as filters: POV, location, timeline date, status.
-- Split and merge scenes with positions preserved.
-- Story bible: characters, places, and continuity notes linked from scenes.
+### 1.4 Structure tools · **Done**
+- ✅ Corkboard: the whole work as index cards, grouped by chapter, with drag to
+  reorder and to move a scene into another chapter. Plain HTML5 drag and drop —
+  one draggable element and one drop target is less code than a library for it.
+- ✅ Scene metadata — POV, location, story date, status — surfaced as filters,
+  offered as the values that actually exist rather than typed. `storyDate` is
+  free text: fiction rarely runs on the Gregorian calendar.
+- ✅ Split and merge, cutting between blocks rather than inside them. Lossless by
+  construction, and guarded by `baseHash` on every scene involved.
+- ✅ Story bible: characters, places and continuity notes, linked to scenes from
+  both directions.
+- **Done when** a writer can rearrange a novel without opening a single scene,
+  and split one in two without losing a word. *Verified in the browser: a scene
+  dragged from Act I to Act II, all four filters narrowing correctly, and a
+  split then merged back with the text identical to the character.*
+
+The property worth stating: `split` and `merge` are inverses. A unit test
+asserts the round trip at every block boundary, and the smoke test asserts it
+through the real API, because a bug here loses prose rather than merely
+misordering it.
 
 ### 1.5 One source of truth for types · **Done**
 - ✅ `docs/openapi.json` is generated from the handlers themselves: the axum
@@ -261,27 +276,27 @@ the iOS diagnostic can be misleading. Regenerate first when it appears.
 
 ## Phase 6 — The SaaS parts
 
-### 6.1 Plans and billing
-- Stripe subscriptions; free tier capped on works, snapshot retention and
-  concurrent review windows.
-- Usage metering on storage and snapshot count.
-- Dunning, proration, and a self-serve billing portal.
-
-### 6.2 Accounts
+### 6.1 Accounts
 - OAuth sign-in (Apple, Google) alongside the existing password flow.
 - Email verification and password reset.
 - Two-factor authentication; session list with remote revoke.
 
-### 6.3 Trust
+### 6.2 Trust
 - GDPR export and delete, covering the filesystem as well as the database.
 - Audit log of publications, permission changes and deletions.
 - Terms that make it unambiguous the author keeps their copyright.
 
-### 6.4 Operations
+### 6.3 Operations
 - Structured request logging with a request id through to the client.
 - Error tracking, uptime checks, and a status page.
 - Nightly backups of both the database and the manuscript tree, with a
   restore drill that is actually run.
+
+### 6.4 Plans and billing
+- Stripe subscriptions; free tier capped on works, snapshot retention and
+  concurrent review windows.
+- Usage metering on storage and snapshot count.
+- Dunning, proration, and a self-serve billing portal.
 
 ---
 

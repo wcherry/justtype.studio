@@ -40,6 +40,43 @@ public enum API {
         }
     }
 
+    public struct BibleEntry: Codable, Hashable, Sendable {
+        public var body: String?
+        public var createdAt: String
+        public var id: String
+        public var kind: BibleKind
+        public var name: String
+        public var summary: String?
+        public var updatedAt: String
+        public var workId: String
+
+        public init(
+            body: String? = nil,
+            createdAt: String,
+            id: String,
+            kind: BibleKind,
+            name: String,
+            summary: String? = nil,
+            updatedAt: String,
+            workId: String
+        ) {
+            self.body = body
+            self.createdAt = createdAt
+            self.id = id
+            self.kind = kind
+            self.name = name
+            self.summary = summary
+            self.updatedAt = updatedAt
+            self.workId = workId
+        }
+    }
+
+    public enum BibleKind: String, Codable, CaseIterable, Hashable, Sendable {
+        case character = "character"
+        case place = "place"
+        case note = "note"
+    }
+
     public enum ChangeKind: String, Codable, CaseIterable, Hashable, Sendable {
         case insert = "insert"
         case delete = "delete"
@@ -312,6 +349,26 @@ public enum API {
         }
     }
 
+    public struct CreateEntryRequest: Codable, Hashable, Sendable {
+        public var body: String?
+        /// `character`, `place` or `note`.
+        public var kind: BibleKind
+        public var name: String
+        public var summary: String?
+
+        public init(
+            body: String? = nil,
+            kind: BibleKind,
+            name: String,
+            summary: String? = nil
+        ) {
+            self.body = body
+            self.kind = kind
+            self.name = name
+            self.summary = summary
+        }
+    }
+
     public struct CreatePublicationRequest: Codable, Hashable, Sendable {
         public var closesAt: String?
         public var opensAt: String?
@@ -479,6 +536,41 @@ public enum API {
         }
     }
 
+    public struct EntryView: Codable, Hashable, Sendable {
+        public var body: String?
+        public var createdAt: String
+        public var id: String
+        public var kind: BibleKind
+        public var name: String
+        public var summary: String?
+        public var updatedAt: String
+        public var workId: String
+        /// Scenes this entry appears in, in reading order.
+        public var sceneIds: [String]
+
+        public init(
+            body: String? = nil,
+            createdAt: String,
+            id: String,
+            kind: BibleKind,
+            name: String,
+            summary: String? = nil,
+            updatedAt: String,
+            workId: String,
+            sceneIds: [String]
+        ) {
+            self.body = body
+            self.createdAt = createdAt
+            self.id = id
+            self.kind = kind
+            self.name = name
+            self.summary = summary
+            self.updatedAt = updatedAt
+            self.workId = workId
+            self.sceneIds = sceneIds
+        }
+    }
+
     public struct ErrorBody: Codable, Hashable, Sendable {
         /// `bad_request`, `unauthorized`, `forbidden`, `not_found`, `conflict`, `internal`.
         public var code: String
@@ -525,6 +617,16 @@ public enum API {
         }
     }
 
+    public struct LinkRequest: Codable, Hashable, Sendable {
+        public var sceneId: String
+
+        public init(
+            sceneId: String
+        ) {
+            self.sceneId = sceneId
+        }
+    }
+
     public struct LoginRequest: Codable, Hashable, Sendable {
         public var email: String
         public var password: String
@@ -535,6 +637,24 @@ public enum API {
         ) {
             self.email = email
             self.password = password
+        }
+    }
+
+    public struct MergeSceneRequest: Codable, Hashable, Sendable {
+        /// Both scenes' hashes, so a merge cannot silently swallow someone's edit.
+        public var baseHash: String
+        /// The scene to absorb. It must sit in the same chapter.
+        public var with: String
+        public var withBaseHash: String
+
+        public init(
+            baseHash: String,
+            with: String,
+            withBaseHash: String
+        ) {
+            self.baseHash = baseHash
+            self.with = with
+            self.withBaseHash = withBaseHash
         }
     }
 
@@ -876,9 +996,12 @@ public enum API {
         public var contentHash: String
         public var createdAt: String
         public var id: String
+        public var location: String?
         public var position: Int
         public var pov: String?
         public var status: SceneStatus
+        /// Free text: fiction rarely runs on the Gregorian calendar.
+        public var storyDate: String?
         public var summary: String?
         /// A target for this scene, for writers who plan at that level.
         public var targetWords: Int?
@@ -892,9 +1015,11 @@ public enum API {
             contentHash: String,
             createdAt: String,
             id: String,
+            location: String? = nil,
             position: Int,
             pov: String? = nil,
             status: SceneStatus,
+            storyDate: String? = nil,
             summary: String? = nil,
             targetWords: Int? = nil,
             title: String,
@@ -906,9 +1031,11 @@ public enum API {
             self.contentHash = contentHash
             self.createdAt = createdAt
             self.id = id
+            self.location = location
             self.position = position
             self.pov = pov
             self.status = status
+            self.storyDate = storyDate
             self.summary = summary
             self.targetWords = targetWords
             self.title = title
@@ -994,9 +1121,12 @@ public enum API {
         public var contentHash: String
         public var createdAt: String
         public var id: String
+        public var location: String?
         public var position: Int
         public var pov: String?
         public var status: SceneStatus
+        /// Free text: fiction rarely runs on the Gregorian calendar.
+        public var storyDate: String?
         public var summary: String?
         /// A target for this scene, for writers who plan at that level.
         public var targetWords: Int?
@@ -1011,9 +1141,11 @@ public enum API {
             contentHash: String,
             createdAt: String,
             id: String,
+            location: String? = nil,
             position: Int,
             pov: String? = nil,
             status: SceneStatus,
+            storyDate: String? = nil,
             summary: String? = nil,
             targetWords: Int? = nil,
             title: String,
@@ -1026,9 +1158,11 @@ public enum API {
             self.contentHash = contentHash
             self.createdAt = createdAt
             self.id = id
+            self.location = location
             self.position = position
             self.pov = pov
             self.status = status
+            self.storyDate = storyDate
             self.summary = summary
             self.targetWords = targetWords
             self.title = title
@@ -1055,6 +1189,44 @@ public enum API {
             self.expiresIn = expiresIn
             self.refreshToken = refreshToken
             self.user = user
+        }
+    }
+
+    public struct SplitSceneRequest: Codable, Hashable, Sendable {
+        /// Index of the first top-level block that belongs to the *new* scene.
+        /// Blocks, not characters: the cut is between paragraphs, which is how a
+        /// writer thinks about "this should have been two scenes".
+        public var atBlock: Int
+        /// The `contentHash` the split was decided against. Required, unlike on an
+        /// ordinary save: splitting rewrites prose in two places, and doing that to
+        /// a document someone else has edited would be much worse than refusing.
+        public var baseHash: String
+        /// Title for the new scene. Defaults to the original's, with a suffix.
+        public var title: String?
+
+        public init(
+            atBlock: Int,
+            baseHash: String,
+            title: String? = nil
+        ) {
+            self.atBlock = atBlock
+            self.baseHash = baseHash
+            self.title = title
+        }
+    }
+
+    public struct SplitSceneResponse: Codable, Hashable, Sendable {
+        /// The original scene, now holding only the blocks before the cut.
+        public var first: Scene
+        /// The new scene, holding the rest.
+        public var second: Scene
+
+        public init(
+            first: Scene,
+            second: Scene
+        ) {
+            self.first = first
+            self.second = second
         }
     }
 
@@ -1215,6 +1387,22 @@ public enum API {
         }
     }
 
+    public struct UpdateEntryRequest: Codable, Hashable, Sendable {
+        public var body: String?
+        public var name: String?
+        public var summary: String?
+
+        public init(
+            body: String? = nil,
+            name: String? = nil,
+            summary: String? = nil
+        ) {
+            self.body = body
+            self.name = name
+            self.summary = summary
+        }
+    }
+
     public struct UpdateGoalsRequest: Codable, Hashable, Sendable {
         /// `null` clears the target.
         public var dailyWordGoal: Int?
@@ -1245,8 +1433,11 @@ public enum API {
     public struct UpdateSceneRequest: Codable, Hashable, Sendable {
         /// Move the scene into a different chapter of the same work.
         public var chapterId: String?
+        public var location: String?
         public var pov: String?
         public var status: SceneStatus?
+        /// Free text: fiction rarely runs on the Gregorian calendar.
+        public var storyDate: String?
         public var summary: String?
         /// A word target for this scene. Omit to leave it alone; send `null` to
         /// clear it. The nesting is what distinguishes those two — see
@@ -1256,15 +1447,19 @@ public enum API {
 
         public init(
             chapterId: String? = nil,
+            location: String? = nil,
             pov: String? = nil,
             status: SceneStatus? = nil,
+            storyDate: String? = nil,
             summary: String? = nil,
             targetWords: Int? = nil,
             title: String? = nil
         ) {
             self.chapterId = chapterId
+            self.location = location
             self.pov = pov
             self.status = status
+            self.storyDate = storyDate
             self.summary = summary
             self.targetWords = targetWords
             self.title = title

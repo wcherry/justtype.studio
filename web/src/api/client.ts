@@ -3,7 +3,7 @@ import type {
   RevisionWithContent, SaveResult, Scene, SceneRevision, SceneWithContent, Session, Template,
   TrackedChange,
   User, Version, VersionContent, VersionDetail, Work, WorkKind, Visibility, CommentCategory,
-  WritingSummary,
+  WritingSummary, EntryView, BibleKind, SplitSceneResponse,
 } from './types'
 
 const BASE = '/api'
@@ -211,11 +211,18 @@ export const api = {
     create: (chapterId: string, title: string) =>
       post<Scene>(`/chapters/${chapterId}/scenes`, { title }),
     get: (sceneId: string) => get<SceneWithContent>(`/scenes/${sceneId}`),
+    split: (sceneId: string, atBlock: number, baseHash: string, title?: string) =>
+      post<SplitSceneResponse>(`/scenes/${sceneId}/split`, { atBlock, baseHash, title }),
+    /** Both hashes, so a merge cannot silently swallow someone else's edit. */
+    merge: (sceneId: string, withId: string, baseHash: string, withBaseHash: string) =>
+      post<Scene>(`/scenes/${sceneId}/merge`, { with: withId, baseHash, withBaseHash }),
     update: (
       sceneId: string,
       input: Partial<Pick<Scene, 'title' | 'summary' | 'pov' | 'status' | 'chapterId'>> & {
         /** `null` clears the target; omitting leaves it alone. */
         targetWords?: number | null
+        location?: string
+        storyDate?: string
       },
     ) => patch<Scene>(`/scenes/${sceneId}`, input),
     /** `baseHash` is the contentHash this edit was made on top of; the server
@@ -277,6 +284,25 @@ export const api = {
     update: (publicationId: string, input: Partial<Pick<Publication, 'visibility' | 'reviewPrompt' | 'closesAt'>>) =>
       patch<PublicationCard>(`/publications/${publicationId}`, input),
     remove: (publicationId: string) => del<{ ok: boolean }>(`/publications/${publicationId}`),
+  },
+
+  bible: {
+    list: (workId: string, opts: { kind?: string; sceneId?: string } = {}) => {
+      const params = new URLSearchParams()
+      if (opts.kind) params.set('kind', opts.kind)
+      if (opts.sceneId) params.set('sceneId', opts.sceneId)
+      const qs = params.toString()
+      return get<EntryView[]>(`/works/${workId}/bible${qs ? `?${qs}` : ''}`)
+    },
+    create: (workId: string, input: { kind: BibleKind; name: string; summary?: string; body?: string }) =>
+      post<EntryView>(`/works/${workId}/bible`, input),
+    update: (entryId: string, input: { name?: string; summary?: string; body?: string }) =>
+      patch<EntryView>(`/bible/${entryId}`, input),
+    remove: (entryId: string) => del<{ ok: boolean }>(`/bible/${entryId}`),
+    link: (entryId: string, sceneId: string) =>
+      post<EntryView>(`/bible/${entryId}/links`, { sceneId }),
+    unlink: (entryId: string, sceneId: string) =>
+      del<EntryView>(`/bible/${entryId}/links/${sceneId}`),
   },
 
   comments: {
