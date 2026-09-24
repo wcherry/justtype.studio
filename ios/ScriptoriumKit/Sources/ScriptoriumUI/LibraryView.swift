@@ -6,11 +6,15 @@ struct LibraryView: View {
     @State private var works: [API.Work] = []
     @State private var templates: [API.TemplateView] = []
     @State private var creating = false
+    @State private var offline = false
     @State private var error: String?
 
     var body: some View {
         NavigationStack {
             List {
+                if offline || session.pending > 0 {
+                    OfflineNotice(offline: offline, pending: session.pending)
+                }
                 if works.isEmpty {
                     ContentUnavailableView(
                         "Nothing here yet",
@@ -37,7 +41,10 @@ struct LibraryView: View {
             .toolbar {
                 Button { creating = true } label: { Label("New", systemImage: "plus") }
             }
-            .refreshable { await load() }
+            .refreshable {
+                await session.catchUp()
+                await load()
+            }
             .task { await load() }
             .sheet(isPresented: $creating) {
                 NewWorkSheet(templates: templates) { title, kind, templateId in
@@ -58,7 +65,12 @@ struct LibraryView: View {
 
     private func load() async {
         do {
-            works = try await session.client.works()
+            // The list of works is the first thing a writer sees, so it comes
+            // from the phone when there is no network rather than not at all.
+            if let loaded = await session.sync.works() {
+                works = loaded.works
+                offline = loaded.freshness == .local
+            }
             templates = (try? await session.client.templates()) ?? []
         } catch {
             self.error = error.localizedDescription

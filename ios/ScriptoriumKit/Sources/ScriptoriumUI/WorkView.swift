@@ -71,6 +71,6 @@ struct WorkView: View {
     }
 
     private func load() async {
-        outline = try? await session.client.outline(workId: workId)
+        outline = await session.sync.outline(workId: workId)?.outline
     }
 }

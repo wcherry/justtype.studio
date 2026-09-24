@@ -27,7 +27,7 @@ struct SceneEditorView: View {
     @State private var showConflict = false
 
     enum SaveState {
-        case idle, dirty, saving, saved, failed, conflict
+        case idle, dirty, saving, saved, queued, conflict
 
         var label: String {
             switch self {
@@ -35,7 +35,8 @@ struct SceneEditorView: View {
             case .dirty: "Unsaved"
             case .saving: "Saving…"
             case .saved: "Saved"
-            case .failed: "Save failed"
+            // Not a failure. The words are on the phone and they will go up.
+            case .queued: "Kept on this phone"
             case .conflict: "Changed elsewhere"
             }
         }
@@ -70,15 +71,22 @@ struct SceneEditorView: View {
         }
         .navigationTitle(scene?.title ?? title)
         .alert("This scene changed somewhere else", isPresented: $showConflict) {
-            Button("Reload it") { Task { await load() } }
+            Button("Reload it") {
+                Task {
+                    await session.sync.discardMine(sceneId: sceneId)
+                    await load()
+                }
+            }
             Button("Keep mine", role: .destructive) {
                 Task {
-                    // Adopt the server's current hash, which is how a client
-                    // says "I have seen theirs and still mean this".
-                    if let latest = try? await session.client.scene(id: sceneId) {
-                        baseHash = latest.contentHash
-                        await save(createRevision: true)
+                    // Rebase onto whatever the server has now, which is how a
+                    // client says "I have seen theirs and still mean this".
+                    let outcome = await session.sync.keepMine(sceneId: sceneId)
+                    if case .saved(let hash) = outcome {
+                        baseHash = hash
+                        saveState = .saved
                     }
+                    await session.refreshPendingCount()
                 }
             }
         } message: {
@@ -89,7 +97,7 @@ struct SceneEditorView: View {
                 HStack(spacing: 10) {
                     Text("\(words) words")
                     Text(saveState.label)
-                        .foregroundStyle(saveState == .failed ? .red : .secondary)
+                        .foregroundStyle(saveState == .conflict ? .orange : .secondary)
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -103,12 +111,16 @@ struct SceneEditorView: View {
     }
 
     private func load() async {
-        guard let loaded = try? await session.client.scene(id: sceneId) else { return }
-        scene = loaded
-        baseHash = loaded.contentHash
-        document = loaded.content
-        words = loaded.content.wordCount
-        saveState = .idle
+        // Through the sync engine, so an unsent edit wins over the server's
+        // older copy — handing a writer their own work back, undone, is the
+        // worst thing an offline mode can do.
+        guard let loaded = await session.sync.scene(id: sceneId) else { return }
+        scene = loaded.scene
+        baseHash = loaded.scene.contentHash
+        document = loaded.scene.content
+        words = loaded.scene.content.wordCount
+        saveState = await session.sync.pending(for: sceneId) == nil ? .idle : .queued
+        await session.refreshPendingCount()
     }
 
     /// Debounced autosave, with a checkpoint revision when the writer pauses.
@@ -129,22 +141,24 @@ struct SceneEditorView: View {
     private func save(createRevision: Bool) async {
         guard let scene else { return }
         saveState = .saving
-        do {
-            let result = try await session.client.saveScene(
-                id: scene.id,
-                content: document,
-                createRevision: createRevision,
-                baseHash: baseHash
-            )
-            baseHash = result.scene.contentHash
+        let outcome = await session.sync.save(
+            sceneId: scene.id,
+            content: document,
+            baseHash: baseHash,
+            createRevision: createRevision
+        )
+        switch outcome {
+        case .saved(let hash):
+            baseHash = hash
             saveState = .saved
-        } catch APIError.conflict {
+        case .queued:
+            saveState = .queued
+        case .conflict:
             // Not a failure to retry: retrying unchanged can only fail again.
             saveState = .conflict
             showConflict = true
-        } catch {
-            saveState = .failed
         }
+        await session.refreshPendingCount()
     }
 }
 

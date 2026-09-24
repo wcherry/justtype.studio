@@ -351,10 +351,27 @@ currently mean.
   the screen with only the accessory bar visible — so that test skips rather
   than claiming a pass it did not earn. It needs a device.
 
-### 4.2 Offline-first
-- Local mirror of the outline and the scenes the writer has opened.
-- Background sync with the same conflict rules as *1.1*.
-- Writing on a plane is the acceptance test.
+### 4.2 Offline-first — **done**
+- `LocalStore`: the works, the outlines and every scene the writer has opened,
+  on the phone as files, written the way the server writes manuscripts —
+  neighbour then rename, because a half-written scene is worse than no scene.
+- `SaveQueue`: one pending save per scene, on disk, surviving the app being
+  killed. A sitting of edits collapses to the latest text measured against the
+  hash the *first* unsent edit was made on — the ones after it were written
+  over text the server has never seen.
+- `SyncEngine`: reads prefer the server and fall back to the phone; writes go
+  to the phone first and to the server if they can. A queued edit always beats
+  the server's copy on reopening, because handing a writer their own work back
+  undone is the worst thing an offline mode can do.
+- The same conflict rules as *1.1*: a queued save onto a scene that moved is
+  refused, kept, and stops being retried until the writer chooses. "Keep mine"
+  rebases onto whatever the server has now.
+- Seven tests fly the plane: the network is a stub that switches off mid-edit,
+  so the client takes its usual path and gets the failure iOS hands it in a
+  tunnel. Queued, reopened, collapsed, flushed, conflicted, rebased, and
+  surviving a crash.
+- The state is shown rather than hidden — "Offline. 2 scenes waiting to go up"
+  — and the queue flushes when the app comes back to the foreground.
 
 ### 4.3 Mobile review
 - Character-level selection for anchoring, replacing paragraph-level tapping.

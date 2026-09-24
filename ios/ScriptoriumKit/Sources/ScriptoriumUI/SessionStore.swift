@@ -9,9 +9,30 @@ public final class SessionStore: ObservableObject {
     @Published public var errorMessage: String?
 
     public let client: APIClient
+    /// Everything the views read and write goes through this, not the client:
+    /// a read falls back to the phone, and a write is kept there first.
+    public let sync: SyncEngine
+
+    /// How many edits the server has not seen. Shown rather than hidden — a
+    /// writer is owed the truth about whether their words have left the phone.
+    @Published public private(set) var pending = 0
+    @Published public private(set) var working = true
 
     public init(baseURL: URL, store: TokenStoring = KeychainTokenStore()) {
-        self.client = APIClient(baseURL: baseURL, tokens: TokenManager(store: store))
+        let client = APIClient(baseURL: baseURL, tokens: TokenManager(store: store))
+        self.client = client
+        self.sync = SyncEngine(client: client, store: LocalStore(), queue: SaveQueue())
+    }
+
+    /// Called when the app comes back to the foreground, and after every save.
+    public func catchUp() async {
+        let outcomes = await sync.flush()
+        working = !outcomes.values.contains(.queued)
+        pending = await sync.pendingCount
+    }
+
+    public func refreshPendingCount() async {
+        pending = await sync.pendingCount
     }
 
     /// A stored refresh token may be stale; asking the server is the only way
@@ -34,6 +55,9 @@ public final class SessionStore: ObservableObject {
 
     public func signOut() async {
         await client.signOut()
+        // A shared phone should not keep somebody else's unpublished novel.
+        await sync.signOut()
+        pending = 0
         user = nil
     }
 
