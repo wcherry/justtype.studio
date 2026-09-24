@@ -10,6 +10,13 @@ import SwiftUI
 /// has to log in first fails for reasons that have nothing to do with what it
 /// is testing.
 struct EditorHarnessView: View {
+    /// Reading rather than writing, for the 4.3 tests.
+    let reading: Bool
+
+    init(reading: Bool = false) {
+        self.reading = reading
+    }
+
     @State private var document = EditorHarnessView.sample
     @State private var words = 0
     @State private var selection = (from: 0, to: 0)
@@ -17,6 +24,9 @@ struct EditorHarnessView: View {
     @State private var command: WebEditorView.Command?
     @State private var issued = 0
     @State private var problem: String?
+    @State private var quote = ""
+    @State private var paged = false
+    @State private var page = (current: 1, of: 1)
 
     var body: some View {
         VStack(spacing: 0) {
@@ -32,19 +42,39 @@ struct EditorHarnessView: View {
             WebEditorView(
                 document: document,
                 command: command,
+                editable: !reading,
+                typography: reading ? .init(paged: paged) : nil,
                 onChange: { doc, count in
                     document = doc
                     words = count
                 },
-                onSelection: { from, to, active in
-                    selection = (from, to)
-                    marks = active
+                onSelection: { chosen in
+                    selection = (chosen.from, chosen.to)
+                    marks = chosen.marks
+                    quote = chosen.quote
                 },
+                onPages: { page = ($0, $1) },
                 onProblem: { problem = $0 }
             )
 
+            if reading {
+                HStack(spacing: 10) {
+                    Button(paged ? "scroll" : "page") { paged.toggle() }
+                        .accessibilityIdentifier("harness.paged")
+                    Text("p\(page.current)/\(page.of)").accessibilityIdentifier("harness.page")
+                    // A word rather than a dash: accessibility drops a label
+                    // that is only punctuation, and then the test cannot find
+                    // the readout it is here to read.
+                    Text(quote.isEmpty ? "none" : quote)
+                        .accessibilityIdentifier("harness.quote")
+                        .lineLimit(1)
+                }
+                .font(.caption.monospaced())
+                .padding(.vertical, 6)
+            }
+
             HStack(spacing: 8) {
-                ForEach(["bold", "italic", "h2"], id: \.self) { name in
+                ForEach(reading ? [] : ["bold", "italic", "h2", "undo"], id: \.self) { name in
                     Button(name) {
                         issued += 1
                         command = WebEditorView.Command(name: name, issue: issued)

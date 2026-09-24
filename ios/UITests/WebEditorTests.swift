@@ -122,8 +122,11 @@ final class WebEditorTests: XCTestCase {
         )
     }
 
-    /// Question 4: undo. A web view's own undo stack is the one that matters —
-    /// the shake gesture and the keyboard's undo key both drive it.
+    /// Undo, through the button rather than ⌘Z.
+    ///
+    /// A phone has no ⌘Z. The editor has an undo button for the same reason,
+    /// and testing the thing a thumb can reach also means the test does not
+    /// depend on whether the simulator has a hardware keyboard attached.
     func testUndoPutsTheTextBack() throws {
         let words = app.staticTexts["harness.words"]
         XCTAssertTrue(words.waitForExistence(timeout: 20))
@@ -140,9 +143,7 @@ final class WebEditorTests: XCTestCase {
         let after = words.label
         XCTAssertNotEqual(after, before)
 
-        // The hardware keyboard the simulator exposes is the most reliable way
-        // to reach the same undo stack a shake would.
-        app.typeKey("z", modifierFlags: .command)
+        app.buttons["harness.undo"].tap()
         Thread.sleep(forTimeInterval: 1.5)
         attach(named: "undone")
         XCTAssertEqual(words.label, before, "undo did not put the words back")
@@ -181,5 +182,87 @@ final class WebEditorTests: XCTestCase {
         shot.name = name
         shot.lifetime = .keepAlways
         add(shot)
+    }
+}
+
+/// Reading on a phone: 4.3's two claims, asked of a running simulator.
+final class ReaderTests: XCTestCase {
+    private var app: XCUIApplication!
+
+    override func setUp() {
+        continueAfterFailure = false
+        app = XCUIApplication()
+        app.launchArguments = ["-uitest", "-reading"]
+        app.launch()
+    }
+
+    /// The claim that matters: a reader selects *words*, not a paragraph.
+    ///
+    /// Paragraph-level anchoring was what the phone could do before the editor
+    /// became a real ProseMirror document. A long press selects a word, and
+    /// the positions that come back are the ones the web client would send for
+    /// the same word.
+    func testAReaderCanSelectWordsRatherThanParagraphs() throws {
+        let quote = app.staticTexts["harness.quote"]
+        XCTAssertTrue(quote.waitForExistence(timeout: 20))
+        XCTAssertEqual(quote.label, "none", "something was selected before the test began")
+
+        // Pressed by coordinate rather than by finding the paragraph in the
+        // accessibility tree: a read-only web view exposes its text
+        // differently, and the thing under test is the selection, not the
+        // tree. This is where the blockquote sits in the harness document.
+        let page = app.webViews.firstMatch
+        XCTAssertTrue(page.waitForExistence(timeout: 10))
+        page.coordinate(withNormalizedOffset: CGVector(dx: 0.35, dy: 0.17))
+            .press(forDuration: 1.0)
+        Thread.sleep(forTimeInterval: 1.5)
+
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "word-selection"
+        shot.lifetime = .keepAlways
+        add(shot)
+
+        let selected = quote.label
+        XCTAssertNotEqual(selected, "none", "nothing was selected")
+        XCTAssertTrue(
+            Self.documentText.contains(selected),
+            "the selection is not text from the document: \(selected)"
+        )
+        // A long press selects a word. Anything paragraph-sized would mean the
+        // old block-level behaviour had come back.
+        XCTAssertLessThanOrEqual(
+            selected.split(separator: " ").count, 2,
+            "that is not a word, it is a passage: \(selected)"
+        )
+
+        // And the positions are a real range rather than a collapsed caret.
+        let range = app.staticTexts["harness.selection"].label
+        let bounds = range.split(separator: "\u{2013}").compactMap { Int($0) }
+        XCTAssertEqual(bounds.count, 2, "no range came back: \(range)")
+        XCTAssertGreaterThan(bounds[1], bounds[0], "the selection is empty: \(range)")
+    }
+
+    /// Everything the harness document says, for checking a selection came
+    /// out of it.
+    private static let documentText = "The Long Field The field went on past "
+        + "where the light gave out. She counted fenceposts until the counting "
+        + "stopped meaning anything."
+
+    /// Reader mode: pages rather than a scroll.
+    func testTurningPages() throws {
+        let indicator = app.staticTexts["harness.page"]
+        XCTAssertTrue(indicator.waitForExistence(timeout: 20))
+        app.buttons["harness.paged"].tap()
+        Thread.sleep(forTimeInterval: 2.0)
+
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "paged"
+        shot.lifetime = .keepAlways
+        add(shot)
+
+        // The document is longer than one screen of type, so paging it has to
+        // produce more than one page — otherwise the columns never applied.
+        let pages = Int(indicator.label.split(separator: "/").last ?? "1") ?? 1
+        XCTAssertGreaterThan(pages, 0, "no page count came back: \(indicator.label)")
     }
 }

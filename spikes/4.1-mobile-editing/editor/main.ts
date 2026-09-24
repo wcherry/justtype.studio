@@ -15,7 +15,9 @@ import Underline from '@tiptap/extension-underline'
 type Outbound =
   | { kind: 'ready' }
   | { kind: 'change'; doc: unknown; words: number }
-  | { kind: 'selection'; from: number; to: number; marks: string[] }
+  | { kind: 'selection'; from: number; to: number; marks: string[]; quote: string }
+  /** Reader mode: which page of how many, for the progress dots. */
+  | { kind: 'pages'; page: number; pages: number }
 
 declare global {
   interface Window {
@@ -23,6 +25,15 @@ declare global {
       load: (doc: unknown) => void
       toggle: (mark: string) => void
       blocks: () => { id: number; type: string; from: number; to: number; text: string }[]
+      /** Reading rather than writing: no caret, no keyboard, still selectable. */
+      setEditable: (editable: boolean) => void
+      setTypography: (style: {
+        size?: number
+        family?: string
+        leading?: number
+        paged?: boolean
+      }) => void
+      turn: (by: number) => void
     }
     webkit?: { messageHandlers?: { scriptorium?: { postMessage: (m: unknown) => void } } }
     /** Set by the harness when this runs in a browser rather than in the app. */
@@ -62,6 +73,9 @@ function sendSelection(editor: Editor) {
     kind: 'selection',
     from,
     to,
+    // The words themselves, so a comment can quote what was selected without
+    // the phone having to work out what lies between two positions.
+    quote: from === to ? '' : editor.state.doc.textBetween(from, to, ' '),
     marks: ['bold', 'italic', 'underline', 'strike', 'code']
       .filter((m) => editor.isActive(m))
       .concat(editor.isActive('heading', { level: 2 }) ? ['h2'] : [])
@@ -71,7 +85,26 @@ function sendSelection(editor: Editor) {
 }
 
 window.scriptorium = {
-  load: (doc) => editor.commands.setContent(doc as never, false),
+  load: (doc) => {
+    // `addToHistory: false` is the important part. Loading a scene is not an
+    // edit, and leaving it on the undo stack means the first undo empties the
+    // document — which autosave would then dutifully persist.
+    editor
+      .chain()
+      .setMeta('addToHistory', false)
+      .setContent(doc as never, false)
+      // Start at the top. Setting content leaves the selection at the end of
+      // the document, and the browser scrolls to wherever the selection is,
+      // silently hiding the first paragraph of every scene a writer opens.
+      .setTextSelection(0)
+      .run()
+    window.scrollTo(0, 0)
+    const element = document.querySelector('.ProseMirror') as HTMLElement | null
+    if (element) {
+      element.scrollTop = 0
+      element.scrollLeft = 0
+    }
+  },
   toggle: (mark) => {
     const chain = editor.chain().focus()
     switch (mark) {
@@ -82,8 +115,39 @@ window.scriptorium = {
       case 'h2': chain.toggleHeading({ level: 2 }).run(); break
       case 'quote': chain.toggleBlockquote().run(); break
       case 'bullet': chain.toggleBulletList().run(); break
+      // A phone has no ⌘Z, and the shake gesture is a gamble with somebody's
+      // paragraph. These are the buttons instead.
+      case 'undo': chain.undo().run(); break
+      case 'redo': chain.redo().run(); break
     }
   },
+  setEditable: (editable) => editor.setEditable(editable),
+
+  /**
+   * Reading is not writing. The controls are the ones a reader reaches for —
+   * size, face, leading — and paging, which is columns the width of the screen
+   * with snapping, because a novel read in portrait on a phone is a stack of
+   * pages rather than a scroll.
+   */
+  setTypography: ({ size, family, leading, paged }) => {
+    const root = document.documentElement
+    if (size) root.style.setProperty('--prose-size', `${size}px`)
+    if (family) root.style.setProperty('--prose-family', family)
+    if (leading) root.style.setProperty('--prose-leading', String(leading))
+    if (paged !== undefined) {
+      document.body.classList.toggle('paged', paged)
+      reportPages()
+    }
+  },
+
+  /** Next page, or the one before. Ignored when not paged. */
+  turn: (by) => {
+    const element = document.querySelector('.ProseMirror') as HTMLElement | null
+    if (!element || !document.body.classList.contains('paged')) return
+    element.scrollBy({ left: by * element.clientWidth, behavior: 'smooth' })
+    window.setTimeout(reportPages, 350)
+  },
+
   /**
    * The same shape `DocNode.blocks()` computes in Swift, straight from
    * ProseMirror. The spike's contract check: if these two ever disagree, a
@@ -104,5 +168,19 @@ window.scriptorium = {
     return out
   },
 }
+
+function reportPages() {
+  const element = document.querySelector('.ProseMirror') as HTMLElement | null
+  if (!element || !document.body.classList.contains('paged')) return
+  const width = element.clientWidth || 1
+  send({
+    kind: 'pages',
+    page: Math.round(element.scrollLeft / width) + 1,
+    pages: Math.max(1, Math.ceil(element.scrollWidth / width)),
+  })
+}
+
+window.addEventListener('resize', reportPages)
+document.addEventListener('scroll', reportPages, { capture: true, passive: true })
 
 send({ kind: 'ready' })

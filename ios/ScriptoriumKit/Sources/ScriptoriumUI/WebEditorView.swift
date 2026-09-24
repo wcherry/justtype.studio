@@ -25,12 +25,52 @@ public struct WebEditorView: ViewRepresentable {
     let document: API.DocNode
     /// Fires on every edit, already in the shape the API takes.
     let onChange: (API.DocNode, Int) -> Void
-    let onSelection: (Int, Int, Set<String>) -> Void
+    /// Positions, the words between them, and the marks they carry.
+    let onSelection: (Selection) -> Void
+    /// Reading rather than writing: no caret, no keyboard, still selectable —
+    /// which is what makes character-level anchoring work on a phone.
+    var editable = true
+    var typography: Typography?
+    /// Which page of how many, in paged reading.
+    var onPages: ((Int, Int) -> Void)?
     /// Loading failures, which are otherwise a blank white rectangle with
     /// nothing in it to say what went wrong.
     var onProblem: ((String) -> Void)?
     /// Formatting commands the toolbar sends down. Changing the value sends it.
     var command: Command?
+
+    /// What the reader has their finger on.
+    public struct Selection: Equatable, Sendable {
+        public let from: Int
+        public let to: Int
+        public let quote: String
+        public let marks: Set<String>
+
+        public var isEmpty: Bool { from == to }
+    }
+
+    /// How the page should read. The defaults are the web client's.
+    public struct Typography: Equatable {
+        public var size: Double
+        public var family: String
+        public var leading: Double
+        public var paged: Bool
+
+        public init(size: Double = 17, family: String = "serif", leading: Double = 1.6, paged: Bool = false) {
+            self.size = size
+            self.family = family
+            self.leading = leading
+            self.paged = paged
+        }
+
+        var families: String {
+            switch family {
+            case "sans": "-apple-system, BlinkMacSystemFont, sans-serif"
+            case "mono": "ui-monospace, SFMono-Regular, Menlo, monospace"
+            default: "'Iowan Old Style', Georgia, serif"
+            }
+        }
+    }
 
     public struct Command: Equatable {
         let name: String
@@ -46,14 +86,20 @@ public struct WebEditorView: ViewRepresentable {
     public init(
         document: API.DocNode,
         command: Command? = nil,
-        onChange: @escaping (API.DocNode, Int) -> Void,
-        onSelection: @escaping (Int, Int, Set<String>) -> Void,
+        editable: Bool = true,
+        typography: Typography? = nil,
+        onChange: @escaping (API.DocNode, Int) -> Void = { _, _ in },
+        onSelection: @escaping (Selection) -> Void = { _ in },
+        onPages: ((Int, Int) -> Void)? = nil,
         onProblem: ((String) -> Void)? = nil
     ) {
         self.document = document
         self.command = command
+        self.editable = editable
+        self.typography = typography
         self.onChange = onChange
         self.onSelection = onSelection
+        self.onPages = onPages
         self.onProblem = onProblem
     }
 
@@ -118,6 +164,14 @@ public struct WebEditorView: ViewRepresentable {
             context.coordinator.lastCommand = command
             webView.evaluateJavaScript("window.scriptorium.toggle('\(command.name)')")
         }
+        if context.coordinator.loaded, context.coordinator.lastEditable != editable {
+            context.coordinator.lastEditable = editable
+            webView.evaluateJavaScript("window.scriptorium.setEditable(\(editable))")
+        }
+        if let typography, context.coordinator.lastTypography != typography {
+            context.coordinator.lastTypography = typography
+            context.coordinator.apply(typography)
+        }
     }
 
     public final class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
@@ -126,6 +180,21 @@ public struct WebEditorView: ViewRepresentable {
         private(set) var loaded = false
         private(set) var pushed: API.DocNode?
         var lastCommand: Command?
+        var lastEditable: Bool?
+        var lastTypography: Typography?
+
+        func apply(_ typography: Typography) {
+            let script = "window.scriptorium.setTypography({size: \(typography.size),"
+                + " family: \"\(typography.families)\","
+                + " leading: \(typography.leading), paged: \(typography.paged)})"
+            webView?.evaluateJavaScript(script)
+        }
+
+        /// Turn a page. Reading is the one place a phone beats a laptop, and
+        /// paging is most of why.
+        public func turn(_ by: Int) {
+            webView?.evaluateJavaScript("window.scriptorium.turn(\(by))")
+        }
 
         init(_ parent: WebEditorView) {
             self.parent = parent
@@ -183,15 +252,13 @@ public struct WebEditorView: ViewRepresentable {
             case "ready":
                 loaded = true
                 push(parent.document)
-                // The first paint can land before the view has its size, and
-                // the page then draws a document laid out for a zero-width
-                // window — the heading comes out invisible until something
-                // forces a relayout. Nudging it once after the push is cheaper
-                // than making the page watch for it.
-                DispatchQueue.main.async { [weak self] in
-                    self?.webView?.evaluateJavaScript(
-                        "window.dispatchEvent(new Event('resize'))"
-                    )
+                if !parent.editable {
+                    lastEditable = false
+                    webView?.evaluateJavaScript("window.scriptorium.setEditable(false)")
+                }
+                if let typography = parent.typography {
+                    lastTypography = typography
+                    apply(typography)
                 }
             case "change":
                 guard
@@ -205,10 +272,15 @@ public struct WebEditorView: ViewRepresentable {
                 parent.onChange(document, body["words"] as? Int ?? 0)
             case "selection":
                 parent.onSelection(
-                    body["from"] as? Int ?? 0,
-                    body["to"] as? Int ?? 0,
-                    Set(body["marks"] as? [String] ?? [])
+                    Selection(
+                        from: body["from"] as? Int ?? 0,
+                        to: body["to"] as? Int ?? 0,
+                        quote: body["quote"] as? String ?? "",
+                        marks: Set(body["marks"] as? [String] ?? [])
+                    )
                 )
+            case "pages":
+                parent.onPages?(body["page"] as? Int ?? 1, body["pages"] as? Int ?? 1)
             default:
                 break
             }

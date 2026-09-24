@@ -12,7 +12,9 @@ struct ScriptoriumApp: App {
             // command line. Delete this branch, `spikes/4.1-mobile-editing`
             // and the Editor resource together when the spike is acted on.
             if CommandLine.arguments.contains("-uitest") {
-                EditorHarnessView()
+                EditorHarnessView(
+                    reading: CommandLine.arguments.contains("-reading")
+                )
             } else {
                 RootView(baseURL: AppConfig.apiBaseURL)
             }

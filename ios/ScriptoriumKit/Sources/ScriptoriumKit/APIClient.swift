@@ -356,6 +356,19 @@ public struct APIClient: Sendable {
         )
     }
 
+    /// How far a reader has got, which is the signal authors cannot get any
+    /// other way — and the phone is where most reading happens.
+    @discardableResult
+    public func recordProgress(publicationId: String, sceneId: String) async throws
+        -> API.ReaderProgressView
+    {
+        try await send(
+            "PUT",
+            "publications/\(publicationId)/progress",
+            body: ["sceneId": sceneId]
+        )
+    }
+
     public func vote(commentId: String, value: Int) async throws -> API.VoteResponse {
         try await send("POST", "comments/\(commentId)/vote", body: ["value": value])
     }

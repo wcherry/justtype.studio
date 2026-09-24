@@ -346,10 +346,18 @@ currently mean.
 - Five UI tests drive the real editor on a simulator: it loads and renders,
   typing reaches Swift, a selection reports itself, the toolbar's bold reaches
   the document Swift holds, and ⌘Z puts the words back.
-- **Still open:** whether the caret clears the software keyboard. It never
-  presented for the web view under `xcodebuild test` — parked off the bottom of
-  the screen with only the accessory bar visible — so that test skips rather
-  than claiming a pass it did not earn. It needs a device.
+- The keyboard question from the spike is **answered**: with the editor as it
+  now stands the software keyboard presents (233 points tall, top at y=583 on
+  an 874-point screen) and the line being edited sits at y=207, well clear of
+  it. The test keeps its skip for the case where the keyboard is parked
+  off-screen, because a measurement against a keyboard that is not there is
+  not a measurement.
+- Two defects the simulator found and fixed: loading a scene left the selection
+  at the end of the document, so the browser scrolled to it and hid the first
+  paragraph; and the load itself sat on the undo stack, so one undo emptied the
+  scene and autosave would have persisted that. Loading is not an edit.
+- The format bar carries undo and redo, because a phone has no ⌘Z and shaking
+  it at a paragraph is a gamble rather than a design.
 
 ### 4.2 Offline-first — **done**
 - `LocalStore`: the works, the outlines and every scene the writer has opened,
@@ -373,10 +381,22 @@ currently mean.
 - The state is shown rather than hidden — "Offline. 2 scenes waiting to go up"
   — and the queue flushes when the app comes back to the foreground.
 
-### 4.3 Mobile review
-- Character-level selection for anchoring, replacing paragraph-level tapping.
-- Reader mode with pagination and adjustable typography.
-- Push notifications for new comments and replies.
+### 4.3 Mobile review — **mostly done**
+- Character-level anchoring, which came almost free once the reader became the
+  same ProseMirror document the editor is: one flag turns the caret off and
+  leaves the text selectable, and the `{from, to}` a long press produces is the
+  pair the web client would send for the same words. A UI test presses a word
+  and checks what comes back is a word and a real range, not a block.
+- Reader mode: size, face and leading, kept between sittings, and paging —
+  columns the width of the screen with snapping, because a novel in portrait is
+  a stack of pages rather than a scroll.
+- Reading on a phone now counts: the reader records progress as it goes, so the
+  author's "how far did they get" is not a browser-only signal.
+- **Not built: push notifications.** They need APNs credentials, a signed push
+  entitlement and a service to send them — the same missing piece as *2.4*'s
+  half. Nothing here can be tested or even meaningfully written without one, so
+  it is left undone rather than half-built. It belongs with the notification
+  work, not with the reader.
 
 ### 4.4 Platform polish
 - Widgets for the daily word goal; Shortcuts for "start writing".

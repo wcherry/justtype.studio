@@ -11,6 +11,22 @@
         outline: none; min-height: 100vh; -webkit-user-select: text;
       }
       .ProseMirror p { margin: 0 0 1.1em; }
+      /* Reader mode: the writer's settings, and pages rather than a scroll. */
+      body { font-size: var(--prose-size, 17px); font-family: var(--prose-family, 'Iowan Old Style', Georgia, serif); }
+      .ProseMirror { line-height: var(--prose-leading, 1.6); }
+      body.paged .ProseMirror {
+        height: 100vh;
+        min-height: 0;
+        padding: 16px 18px;
+        box-sizing: border-box;
+        column-width: 100vw;
+        column-gap: 36px;
+        overflow-x: auto;
+        overflow-y: hidden;
+        scroll-snap-type: x mandatory;
+        overscroll-behavior-x: contain;
+      }
+      body.paged .ProseMirror > * { scroll-snap-align: start; break-inside: avoid-column; }
       .ProseMirror blockquote { border-left: 2px solid currentColor; margin: 0 0 1.1em; padding-left: 12px; opacity: 0.8; }
     </style>
   </head>

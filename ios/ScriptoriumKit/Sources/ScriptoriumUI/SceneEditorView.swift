@@ -60,7 +60,7 @@ struct SceneEditorView: View {
                     words = count
                     scheduleSave()
                 },
-                onSelection: { _, _, marks in activeMarks = marks },
+                onSelection: { activeMarks = $0.marks },
                 onProblem: { problem = $0 }
             )
 
@@ -178,6 +178,9 @@ private struct FormatBar: View {
         ("h2", "textformat.size", "Heading"),
         ("quote", "text.quote", "Quote"),
         ("bullet", "list.bullet", "List"),
+        // A phone has no ⌘Z, and shaking it at a paragraph is not a design.
+        ("undo", "arrow.uturn.backward", "Undo"),
+        ("redo", "arrow.uturn.forward", "Redo"),
     ]
 
     var body: some View {
