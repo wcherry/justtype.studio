@@ -332,8 +332,20 @@ currently mean.
 ## Phase 4 — iOS parity
 
 ### 4.1 Real rich-text editing
-- `UITextView` bridge with a ProseMirror-compatible attributed-string model, or
-  an embedded TipTap instance in a `WKWebView` — decide with a spike.
+- **Spiked, decided: the embedded editor.** Both paths were built far enough to
+  measure — see `spikes/4.1-mobile-editing/README.md`. An attributed-string
+  model flattens nested lists, merges adjacent blockquotes, and puts every
+  comment anchor through a second coordinate system that drifts with nesting
+  (13 positions by the end of a six-block test document). A `WKWebView` running
+  the same TipTap gives one editor, one document model and one set of
+  positions across all three clients, for 296 KB in the app bundle. A test now
+  checks `DocNode.blocks()` against numbers taken from the real editor.
+- **Open before building:** the simulator pass. Caret scroll-into-view above
+  the keyboard, selection handles, the input accessory view and undo cannot be
+  tested from a command line, and they are where a web-view editor fails if it
+  is going to. If it fails, the fallback is a *restricted* native editor —
+  paragraphs, headings and inline marks — with lists still opening read-only,
+  written down as the smaller promise it is.
 - Until then the current read-only guard stays; it is the correct failure mode.
 - **Done when** a scene written on the web opens, edits and saves on iPhone
   without losing a single mark.
