@@ -218,6 +218,7 @@ diesel::table! {
         created_at -> Text,
         updated_at -> Text,
         max_reviewers -> Nullable<Integer>,
+        spoiler_safe -> Integer,
     }
 }
 
@@ -283,6 +284,40 @@ diesel::table! {
         score -> Integer,
         created_at -> Text,
         updated_at -> Text,
+    }
+}
+
+diesel::table! {
+    revision_tasks (id) {
+        id -> Text,
+        work_id -> Text,
+        scene_id -> Nullable<Text>,
+        comment_id -> Nullable<Text>,
+        body -> Text,
+        state -> Text,
+        created_at -> Text,
+        updated_at -> Text,
+        done_at -> Nullable<Text>,
+    }
+}
+
+diesel::table! {
+    comment_reports (id) {
+        id -> Text,
+        comment_id -> Text,
+        reporter_id -> Text,
+        reason -> Text,
+        detail -> Nullable<Text>,
+        created_at -> Text,
+    }
+}
+
+diesel::table! {
+    blocked_readers (id) {
+        id -> Text,
+        owner_id -> Text,
+        user_id -> Text,
+        created_at -> Text,
     }
 }
 
@@ -355,6 +390,8 @@ diesel::joinable!(comment_votes -> comments (comment_id));
 diesel::joinable!(reactions -> publications (publication_id));
 diesel::joinable!(review_questions -> publications (publication_id));
 diesel::joinable!(review_answers -> review_questions (question_id));
+diesel::joinable!(revision_tasks -> works (work_id));
+diesel::joinable!(comment_reports -> comments (comment_id));
 diesel::joinable!(comment_votes -> users (user_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
@@ -382,4 +419,7 @@ diesel::allow_tables_to_appear_in_same_query!(
     reactions,
     review_questions,
     review_answers,
+    revision_tasks,
+    comment_reports,
+    blocked_readers,
 );

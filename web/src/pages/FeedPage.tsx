@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api/client'
+import { BlockList } from '../components/BlockList'
 import { CircleManager } from '../components/CircleManager'
 import { FeedbackPanel } from '../components/FeedbackPanel'
 import { ReviewPanel } from '../components/ReviewPanel'
@@ -47,6 +48,9 @@ export function FeedPage() {
             rather than eleven.
           </p>
           <CircleManager />
+
+          <h2>Blocked readers</h2>
+          <BlockList />
         </section>
       )}
 

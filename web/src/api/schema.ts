@@ -83,6 +83,27 @@ export interface BlockReactions {
   sceneId: string
 }
 
+export interface BlockRequest {
+  // Who to shut out. An id rather than an address: this is somebody who has
+  // already turned up.
+  userId: string
+}
+
+export interface BlockView {
+  createdAt: string
+  id: string
+  ownerId: string
+  userId: string
+  reader: AuthorCard
+}
+
+export interface BlockedReader {
+  createdAt: string
+  id: string
+  ownerId: string
+  userId: string
+}
+
 export interface BulkResolveRequest {
   // `accept` or `reject`.
   action: string
@@ -97,6 +118,20 @@ export interface BulkResolveResponse {
   // Proposals whose text has moved on too far to place automatically. They
   // stay pending: refusing is safer than guessing where they meant.
   stale: StaleChange[]
+}
+
+export interface BulkStateRequest {
+  authorId?: string | null
+  category?: CommentCategory | null
+  // Named ids win outright; without them the filters below choose.
+  commentIds?: string[]
+  sceneId?: string | null
+  // `resolved` or `open`.
+  state: CommentState
+}
+
+export interface BulkStateResponse {
+  changed: number
 }
 
 export type ChangeKind = 'insert' | 'delete' | 'replace' | 'format'
@@ -148,6 +183,15 @@ export interface Comment {
 }
 
 export type CommentCategory = 'general' | 'praise' | 'plot' | 'pacing' | 'prose' | 'character' | 'typo'
+
+export interface CommentReport {
+  commentId: string
+  createdAt: string
+  detail?: string | null
+  id: string
+  reason: string
+  reporterId: string
+}
 
 export type CommentState = 'open' | 'resolved' | 'deleted'
 
@@ -239,6 +283,9 @@ export interface CreatePublicationRequest {
   scope?: PublicationScope
   // Chapter or scene id when `scope` is narrower than the whole work.
   scopeRefId?: string | null
+  // Withhold notes on scenes a reader has not reached. Omitted, it follows
+  // the work: on for a serial, off for anything else.
+  spoilerSafe?: boolean | null
   visibility: Visibility
 }
 
@@ -254,6 +301,11 @@ export interface CreateSceneRequest {
   pov?: string | null
   summary?: string | null
   title: string
+}
+
+export interface CreateTaskRequest {
+  body: string
+  sceneId?: string | null
 }
 
 export interface CreateVersionRequest {
@@ -438,6 +490,9 @@ export interface Publication {
   reviewPrompt?: string | null
   scope: PublicationScope
   scopeRefId?: string | null
+  // Withhold notes on scenes a reader has not reached yet. Defaulted on for
+  // a serial, where not knowing yet is the whole point of reading one.
+  spoilerSafe: number
   updatedAt: string
   versionId: string
   visibility: Visibility
@@ -455,6 +510,9 @@ export interface PublicationCard {
   reviewPrompt?: string | null
   scope: PublicationScope
   scopeRefId?: string | null
+  // Withhold notes on scenes a reader has not reached yet. Defaulted on for
+  // a serial, where not knowing yet is the whole point of reading one.
+  spoilerSafe: number
   updatedAt: string
   versionId: string
   visibility: Visibility
@@ -578,6 +636,27 @@ export interface ReorderRequest {
   ids: string[]
 }
 
+export type ReportReason = 'abuse' | 'spam' | 'spoiler' | 'off_topic' | 'other'
+
+export interface ReportRequest {
+  detail?: string | null
+  reason: ReportReason
+}
+
+export interface ReportView {
+  commentId: string
+  createdAt: string
+  detail?: string | null
+  id: string
+  reason: string
+  reporterId: string
+  commentAuthor: AuthorCard
+  // What was said, so the author can judge without going to find it.
+  commentBody: string
+  publicationId: string
+  reporter: AuthorCard
+}
+
 export interface ResolveResponse {
   change: TrackedChange
   scene?: Scene | null
@@ -615,6 +694,21 @@ export interface ReviewQuestion {
   publicationId: string
   scope: string
   updatedAt: string
+}
+
+export interface RevisionTask {
+  body: string
+  // The note it came from, or `None` for one the author typed themselves —
+  // or one whose comment has since been deleted. The task is the author's
+  // either way.
+  commentId?: string | null
+  createdAt: string
+  doneAt?: string | null
+  id: string
+  sceneId?: string | null
+  state: string
+  updatedAt: string
+  workId: string
 }
 
 export interface RevisionWithContent {
@@ -754,6 +848,31 @@ export interface TagRequest {
   tag: string
 }
 
+export interface TaskSource {
+  author: AuthorCard
+  commentId: string
+  publicationId: string
+  quote?: string | null
+}
+
+export type TaskState = 'open' | 'done'
+
+export interface TaskView {
+  body: string
+  // The note it came from, or `None` for one the author typed themselves —
+  // or one whose comment has since been deleted. The task is the author's
+  // either way.
+  commentId?: string | null
+  createdAt: string
+  doneAt?: string | null
+  id: string
+  sceneId?: string | null
+  state: string
+  updatedAt: string
+  workId: string
+  source?: TaskSource | null
+}
+
 export interface TemplateChapter {
   scenes?: TemplateScene[]
   summary?: string | null
@@ -832,6 +951,7 @@ export interface UpdatePublicationRequest {
   // `0` removes the cap.
   maxReviewers?: number | null
   reviewPrompt?: string | null
+  spoilerSafe?: boolean | null
   visibility?: Visibility | null
 }
 
@@ -854,6 +974,12 @@ export interface UpdateSceneRequest {
   // `present_or_absent`.
   targetWords?: number | null
   title?: string | null
+}
+
+export interface UpdateTaskRequest {
+  body?: string | null
+  sceneId?: string | null
+  state?: TaskState | null
 }
 
 export interface UpdateVersionRequest {

@@ -312,6 +312,7 @@ chapter three. `finishedAt` is set once the furthest point is the last scene.
 | `DELETE` | `/questions/{id}` | |
 | `PUT` | `/questions/{id}/answers` | `chapterId`, `rating` or `body` |
 | `GET` | `/publications/{id}/answers` | the author's: everyone's; a reader's: their own |
+| `GET` | `/publications/{id}/feedback/export` | every note as a document; `?format=txt\|docx\|pdf` |
 | `GET` | `/users/{id}/standing` | how useful this reviewer's notes have been |
 
 A reaction is `loved`, `confusing` or `dragging`, anchored to a **block index**
@@ -340,13 +341,64 @@ The same number rides along on every comment as `authorScore`.
 
 | Method | Path | Notes |
 |---|---|---|
-| `GET` | `/publications/{id}/comments` | threaded; `?sceneId=`, `?sort=top\|new` |
+| `GET` | `/publications/{id}/comments` | threaded; `?sceneId=`, `?sort=top\|new`, `?category=`, `?state=`, `?authorId=`, `?minScore=` |
 | `POST` | `/publications/{id}/comments` | `body`, `sceneId`, `parentId`, `anchor`, `anchorQuote`, `category` |
 | `PATCH` | `/comments/{id}` | `body` (author only), `state` (work owner only) |
 | `DELETE` | `/comments/{id}` | soft delete; author or work owner |
 | `POST` | `/comments/{id}/vote` | `value`: `1`, `-1`, or `0` to clear |
+| `POST` | `/publications/{id}/comments/state` | bulk resolve or reopen |
+| `POST` | `/comments/{id}/report` | `reason`, `detail` |
 
 `anchor` is `{from, to}` in ProseMirror positions against the published
 snapshot. `category` is one of `general`, `praise`, `plot`, `pacing`, `prose`,
 `character`, `typo`. Sending the same vote value twice clears it. You cannot
 vote on your own comment.
+
+Filters apply to the **thread**, not the sentence: a note that matches brings
+its replies with it, because hiding a reply would leave an answer without its
+question. A bulk state change takes `commentIds`, or a `sceneId`, `category` or
+`authorId` to narrow it — a call with none of those is refused rather than
+resolving the whole review on one mis-click.
+
+## Revision tasks
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/works/{id}/tasks` | `?state=open\|done\|all`, `?sceneId=` |
+| `POST` | `/works/{id}/tasks` | `body`, `sceneId` |
+| `POST` | `/comments/{id}/task` | turns a note into work; idempotent |
+| `PATCH` | `/tasks/{id}` | `body`, `state`, `sceneId` |
+| `DELETE` | `/tasks/{id}` | |
+
+A revision task is the step between forty notes and a plan: the author decides
+a note is real and it becomes a line of work against the scene. Deliberately
+not a tracked change, which proposes an exact edit to an exact range —
+"chapter four needs to be colder" is not a diff. Turning the same comment into
+a task twice returns the task already there.
+
+## Moderation
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/publications/{id}/reports` | what readers flagged (author only) |
+| `GET` | `/me/blocks` | who cannot read your work |
+| `POST` | `/me/blocks` | `userId` |
+| `DELETE` | `/me/blocks/{userId}` | |
+
+There is no moderation team, so a report goes to the only person with standing
+to act on it: the author whose work the comment sits on. Nothing is hidden
+automatically — a report is one reader telling the author to look.
+
+A block is one writer's door, not a platform ban. A blocked reader is refused
+**any** publication of that author's, checked in `publication_for_reader` so
+the rule covers everything rather than the handlers somebody remembered.
+
+Comment creation, voting and reactions are rate limited per user per minute
+(`SCRIPTORIUM_COMMENT_RATE`, `SCRIPTORIUM_VOTE_RATE`, `SCRIPTORIUM_REACTION_RATE`;
+`0` turns one off). Over the limit is a `429` whose `details.retryAfter` says how
+many seconds to wait. The counters live in the process — see `backend/src/limit.rs`.
+
+`spoilerSafe` on a publication withholds notes on scenes a reader has not
+reached, using the same furthest-point index that reader progress keeps. It
+defaults on for a serial, where not knowing yet is the point of reading one,
+and off for anything else. The author always sees everything.

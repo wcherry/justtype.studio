@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
-import { api } from '../api/client'
+import { api, downloadFeedback } from '../api/client'
 import { REACTIONS } from '../editor/reactionGutter'
 import type {
-  AnswerView, BlockReactions, PublicationCard, QuestionKind, QuestionScope, ReviewQuestion,
-  VersionContent,
+  AnswerView, BlockReactions, PublicationCard, QuestionKind, QuestionScope, ReportView,
+  ReviewQuestion, VersionContent,
 } from '../api/types'
 
 interface Props {
@@ -22,6 +22,7 @@ export function FeedbackPanel({ publication }: Props) {
   const [questions, setQuestions] = useState<ReviewQuestion[]>([])
   const [answers, setAnswers] = useState<AnswerView[]>([])
   const [chapters, setChapters] = useState<VersionContent['chapters']>([])
+  const [reports, setReports] = useState<ReportView[]>([])
   const [loaded, setLoaded] = useState(false)
   const [prompt, setPrompt] = useState('')
   const [kind, setKind] = useState<QuestionKind>('rating')
@@ -37,6 +38,7 @@ export function FeedbackPanel({ publication }: Props) {
         .content(publication.id)
         .then((c) => setChapters(c.chapters))
         .catch(() => setChapters([])),
+      api.moderation.reports(publication.id).then(setReports).catch(() => setReports([])),
     ]).finally(() => setLoaded(true))
   }, [publication.id])
 
@@ -59,6 +61,53 @@ export function FeedbackPanel({ publication }: Props) {
   return (
     <div className="feedback-panel">
       {error && <p className="error">{error}</p>}
+
+      {reports.length > 0 && (
+        <section className="reports">
+          <h4>Flagged by a reader</h4>
+          <p className="field__hint">
+            There is no moderation queue here — you are it. Nothing has been
+            hidden; these are notes somebody else thought you should look at.
+          </p>
+          <ul>
+            {reports.map((report) => (
+              <li key={report.id}>
+                <div className="reports__meta">
+                  <span>
+                    {report.reporter.displayName} flagged {report.commentAuthor.displayName}
+                  </span>
+                  <span className="badge badge--report">{report.reason.replace('_', ' ')}</span>
+                </div>
+                <p>{report.commentBody}</p>
+                {report.detail && <p className="field__hint">{report.detail}</p>}
+                <div className="reports__actions">
+                  <button
+                    type="button"
+                    className="linklike"
+                    onClick={async () => {
+                      await api.comments.remove(report.commentId)
+                      load()
+                    }}
+                  >
+                    Delete the note
+                  </button>
+                  <button
+                    type="button"
+                    className="linklike"
+                    title="They will not be able to open your work"
+                    onClick={async () => {
+                      await api.moderation.block(report.commentAuthor.id)
+                      load()
+                    }}
+                  >
+                    Block {report.commentAuthor.displayName}
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section>
         <h4>Where readers reacted</h4>
@@ -145,6 +194,32 @@ export function FeedbackPanel({ publication }: Props) {
             Ask
           </button>
         </form>
+      </section>
+
+      <section>
+        <h4>Take it away with you</h4>
+        <p className="field__hint">
+          Every note on this publication as one document — the book's chapters,
+          the passages people quoted, and what they said underneath.
+        </p>
+        <div className="feedback-panel__export">
+          {(['txt', 'docx', 'pdf'] as const).map((format) => (
+            <button
+              key={format}
+              type="button"
+              onClick={async () => {
+                setError(null)
+                try {
+                  await downloadFeedback(publication.id, format)
+                } catch (e) {
+                  setError(e instanceof Error ? e.message : 'Could not build that file')
+                }
+              }}
+            >
+              {format.toUpperCase()}
+            </button>
+          ))}
+        </div>
       </section>
     </div>
   )

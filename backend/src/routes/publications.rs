@@ -39,6 +39,10 @@ pub struct CreatePublicationRequest {
     /// How many people may comment. Omitted, there is no cap.
     #[serde(default)]
     pub max_reviewers: Option<i32>,
+    /// Withhold notes on scenes a reader has not reached. Omitted, it follows
+    /// the work: on for a serial, off for anything else.
+    #[serde(default)]
+    pub spoiler_safe: Option<bool>,
 }
 
 fn default_scope() -> String {
@@ -58,6 +62,8 @@ pub struct UpdatePublicationRequest {
     pub review_prompt: Option<String>,
     #[serde(default)]
     pub closes_at: Option<String>,
+    #[serde(default)]
+    pub spoiler_safe: Option<bool>,
 }
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
@@ -133,6 +139,10 @@ pub async fn create(
             created_at: now.clone(),
             updated_at: now,
             max_reviewers: body.max_reviewers,
+            // A serial is read as it is written, so one reader is always
+            // further in than another. Anything else is finished before anyone
+            // opens it, and withholding notes would only hide them.
+            spoiler_safe: i32::from(body.spoiler_safe.unwrap_or(work.kind == "serial")),
         };
         diesel::insert_into(publications::table)
             .values(&row)
@@ -463,6 +473,11 @@ pub async fn update(
         if let Some(cap) = body.max_reviewers {
             diesel::update(publications::table.find(&publication_id))
                 .set(publications::max_reviewers.eq((cap > 0).then_some(cap)))
+                .execute(conn)?;
+        }
+        if let Some(spoiler_safe) = body.spoiler_safe {
+            diesel::update(publications::table.find(&publication_id))
+                .set(publications::spoiler_safe.eq(i32::from(spoiler_safe)))
                 .execute(conn)?;
         }
         diesel::update(publications::table.find(&publication_id))

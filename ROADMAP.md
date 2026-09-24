@@ -288,15 +288,34 @@ currently mean.
   so that an author acting on a note outweighs a bystander agreeing with it.
   Derived on read rather than stored, and shown beside the name on every note.
 
-### 3.3 Comment management
-- Filter by scene, category, score, resolved state, author.
-- Bulk resolve; convert a comment into a revision task on the author's list.
-- Export all feedback as a working document.
+### 3.3 Comment management — **done**
+- Filters by scene, category, score, resolved state and reviewer. They apply to
+  the thread rather than the sentence: hiding a reply would leave an answer
+  without its question.
+- Bulk resolve, because twenty typo reports are twenty rows and one decision. A
+  bulk call with nothing to narrow it is refused rather than resolving a whole
+  review on one mis-click.
+- Revision tasks — the step between forty notes and a plan. A note the author
+  accepts becomes a line of work against the scene, on a list in the editor,
+  and it outlives the publication it came from because the next draft is where
+  it gets answered. Not a tracked change: "chapter four needs to be colder" is
+  not a diff.
+- The whole review as one document, through the same writers the book uses, so
+  it can be printed and marked up rather than scrolled past.
 
-### 3.4 Moderation and safety
-- Report a comment; author-side block list.
-- Rate limits on comment creation and voting.
-- Spoiler-safe defaults for serial fiction.
+### 3.4 Moderation and safety — **done**
+- Report a comment. There is no moderation team, so it goes to the only person
+  with standing to act on it: the author whose work it sits on. Nothing is
+  hidden automatically — a report is one reader telling the author to look.
+- An author-side block list: one writer's door, not a platform ban. Enforced in
+  `publication_for_reader`, so it covers everything a reader could do rather
+  than the handlers somebody remembered to guard.
+- Rate limits on comments, votes and reactions, per user per minute, counted in
+  process. They exist to stop a script, not a person, and the refusal says how
+  long to wait.
+- Spoiler-safe serials: notes on scenes a reader has not reached are withheld,
+  using the same furthest-point index reader progress already keeps. On by
+  default for a serial, where not knowing yet is the point of reading one.
 
 ---
 

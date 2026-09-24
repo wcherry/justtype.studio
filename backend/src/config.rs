@@ -10,6 +10,10 @@ pub struct Config {
     pub access_ttl_minutes: i64,
     pub refresh_ttl_days: i64,
     pub cors_origins: Vec<String>,
+    /// Per user, per minute. Zero turns the limit off.
+    pub comment_rate: i64,
+    pub vote_rate: i64,
+    pub reaction_rate: i64,
 }
 
 fn env_or(key: &str, default: &str) -> String {
@@ -35,6 +39,11 @@ impl Config {
                 .map(|s| s.trim().to_string())
                 .filter(|s| !s.is_empty())
                 .collect(),
+            // Set to stop a script rather than a person: nobody writing real
+            // feedback comes near twenty considered notes in a minute.
+            comment_rate: env_or("SCRIPTORIUM_COMMENT_RATE", "20").parse()?,
+            vote_rate: env_or("SCRIPTORIUM_VOTE_RATE", "120").parse()?,
+            reaction_rate: env_or("SCRIPTORIUM_REACTION_RATE", "120").parse()?,
         })
     }
 }

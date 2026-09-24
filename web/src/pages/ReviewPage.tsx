@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { api } from '../api/client'
+import type { CommentFilters } from '../api/client'
 import { parseAnchor } from '../api/types'
 import type {
   AnswerView, BlockReactions, CommentView, PublicationCard, ReviewQuestion, VersionContent,
@@ -25,12 +26,13 @@ export function ReviewPage() {
   const [reactions, setReactions] = useState<BlockReactions[]>([])
   const [questions, setQuestions] = useState<ReviewQuestion[]>([])
   const [answers, setAnswers] = useState<AnswerView[]>([])
+  const [filters, setFilters] = useState<CommentFilters>({ sort: 'top' })
   const [notice, setNotice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const loadComments = useCallback(() => {
-    api.comments.list(publicationId).then(setComments).catch(() => undefined)
-  }, [publicationId])
+    api.comments.list(publicationId, filters).then(setComments).catch(() => undefined)
+  }, [publicationId, filters])
 
   useEffect(() => {
     Promise.all([api.publications.get(publicationId), api.publications.content(publicationId)])
@@ -207,8 +209,11 @@ export function ReviewPage() {
         comments={comments}
         pending={pending}
         isAuthor={isAuthor}
+        viewerId={user?.id ?? null}
         activeCommentId={activeCommentId}
         reviewPrompt={card.reviewPrompt ?? null}
+        filters={filters}
+        onFilter={setFilters}
         onRefresh={loadComments}
         onActivate={setActiveCommentId}
         onClearPending={() => setPending(null)}

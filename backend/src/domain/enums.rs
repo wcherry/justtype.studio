@@ -142,3 +142,22 @@ api_enum!(QuestionScope {
     /// Asked again for each chapter in the published slice.
     Chapter => "chapter",
 });
+
+api_enum!(TaskState {
+    /// Still to do.
+    Open => "open",
+    /// Dealt with.
+    Done => "done",
+});
+
+api_enum!(ReportReason {
+    /// Abusive or harassing.
+    Abuse => "abuse",
+    /// Advertising, or not feedback at all.
+    Spam => "spam",
+    /// Gives away something later in the book.
+    Spoiler => "spoiler",
+    /// Not about the writing.
+    OffTopic => "off_topic",
+    Other => "other",
+});

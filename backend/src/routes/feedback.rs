@@ -19,6 +19,7 @@ use crate::db::schema::{reactions, review_answers, review_questions};
 use crate::domain::enums::{QuestionKind, QuestionScope, ReactionKind};
 use crate::domain::{new_id, now_iso};
 use crate::error::{ApiError, ApiResult, ErrorEnvelope};
+use crate::limit::Action;
 use crate::state::AppState;
 
 use super::support::{self, AuthorCard};
@@ -132,6 +133,9 @@ pub async fn react(
     if body.block_index < 0 {
         return Err(ApiError::BadRequest("blockIndex cannot be negative".into()));
     }
+    state
+        .limiter
+        .check(&user.id, Action::React, state.config.reaction_rate)?;
 
     let (scene_id, block_index) = (body.scene_id.clone(), body.block_index);
 

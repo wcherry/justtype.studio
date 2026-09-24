@@ -6,7 +6,8 @@ import type {
   WritingSummary, EntryView, BibleKind, SplitSceneResponse, ResolveResponse,
   BulkResolveResponse, RestoreResponse, VersionSummary, InviteView, CircleView,
   ReaderProgressView, BlockReactions, ReactionKind, ReviewQuestion, AnswerView,
-  QuestionKind, QuestionScope, Standing,
+  QuestionKind, QuestionScope, Standing, BulkStateResponse, ReportReason, TaskView,
+  TaskState, ReportView, BlockView,
 } from './types'
 
 const BASE = '/api'
@@ -117,21 +118,31 @@ const del = <T>(path: string) => request<T>('DELETE', path)
  * The cost is holding the file in memory briefly, which for a manuscript is a
  * few megabytes at most.
  */
-export async function downloadExport(
-  versionId: string,
-  format: string,
-  style: string,
-): Promise<void> {
+export function downloadExport(versionId: string, format: string, style: string): Promise<void> {
+  return download(`/versions/${versionId}/export`, format, style)
+}
+
+/** Every note on a publication, as a document the author can work from. */
+export function downloadFeedback(publicationId: string, format: string): Promise<void> {
+  return download(`/publications/${publicationId}/feedback/export`, format, 'manuscript')
+}
+
+/**
+ * Fetched rather than linked, because the token belongs in a header and never
+ * in a URL: a query string is logged, kept in history, and handed to whatever
+ * the page links to next.
+ */
+async function download(path: string, format: string, style: string): Promise<void> {
   const params = new URLSearchParams({ format, style })
   const headers: Record<string, string> = {}
   const access = tokens.access()
   if (access) headers.authorization = `Bearer ${access}`
 
-  let res = await fetch(`${BASE}/versions/${versionId}/export?${params}`, { headers })
+  let res = await fetch(`${BASE}${path}?${params}`, { headers })
   if (res.status === 401 && (await tryRefresh())) {
     const retry = tokens.access()
     if (retry) headers.authorization = `Bearer ${retry}`
-    res = await fetch(`${BASE}/versions/${versionId}/export?${params}`, { headers })
+    res = await fetch(`${BASE}${path}?${params}`, { headers })
   }
   if (!res.ok) {
     const payload = await res.json().catch(() => null)
@@ -294,6 +305,7 @@ export const api = {
       visibility: Visibility; scope?: 'work' | 'chapter' | 'scene'
       scopeRefId?: string; reviewPrompt?: string; closesAt?: string
       maxReviewers?: number
+      spoilerSafe?: boolean
     }) => post<PublicationCard>(`/versions/${versionId}/publications`, input),
     feed: (opts: { mine?: boolean; kind?: string } = {}) => {
       const params = new URLSearchParams()
@@ -309,6 +321,7 @@ export const api = {
       input: Partial<Pick<Publication, 'visibility' | 'reviewPrompt' | 'closesAt'>> & {
         /** `0` removes the cap. */
         maxReviewers?: number
+        spoilerSafe?: boolean
       },
     ) => patch<PublicationCard>(`/publications/${publicationId}`, input),
 
@@ -388,10 +401,14 @@ export const api = {
   },
 
   comments: {
-    list: (publicationId: string, opts: { sceneId?: string; sort?: 'top' | 'new' } = {}) => {
+    list: (publicationId: string, opts: CommentFilters = {}) => {
       const params = new URLSearchParams()
       if (opts.sceneId) params.set('sceneId', opts.sceneId)
       if (opts.sort) params.set('sort', opts.sort)
+      if (opts.category) params.set('category', opts.category)
+      if (opts.state) params.set('state', opts.state)
+      if (opts.authorId) params.set('authorId', opts.authorId)
+      if (opts.minScore != null) params.set('minScore', String(opts.minScore))
       const qs = params.toString()
       return get<CommentView[]>(`/publications/${publicationId}/comments${qs ? `?${qs}` : ''}`)
     },
@@ -404,5 +421,54 @@ export const api = {
     remove: (commentId: string) => del<{ ok: boolean }>(`/comments/${commentId}`),
     vote: (commentId: string, value: -1 | 0 | 1) =>
       post<{ commentId: string; score: number; viewerVote: number }>(`/comments/${commentId}/vote`, { value }),
+
+    /** Resolve or reopen a pile at once. Needs something to narrow it. */
+    bulkState: (
+      publicationId: string,
+      input: {
+        state: 'open' | 'resolved'
+        commentIds?: string[]
+        sceneId?: string
+        category?: CommentCategory
+        authorId?: string
+      },
+    ) => post<BulkStateResponse>(`/publications/${publicationId}/comments/state`, input),
+
+    report: (commentId: string, input: { reason: ReportReason; detail?: string }) =>
+      post<{ reported: boolean }>(`/comments/${commentId}/report`, input),
   },
+
+  /** The author's list of what to change, and who is not welcome. */
+  tasks: {
+    list: (workId: string, opts: { state?: 'open' | 'done' | 'all'; sceneId?: string } = {}) => {
+      const params = new URLSearchParams()
+      if (opts.state) params.set('state', opts.state)
+      if (opts.sceneId) params.set('sceneId', opts.sceneId)
+      const qs = params.toString()
+      return get<TaskView[]>(`/works/${workId}/tasks${qs ? `?${qs}` : ''}`)
+    },
+    create: (workId: string, input: { body: string; sceneId?: string }) =>
+      post<TaskView>(`/works/${workId}/tasks`, input),
+    fromComment: (commentId: string) => post<TaskView>(`/comments/${commentId}/task`, {}),
+    update: (taskId: string, input: { body?: string; state?: TaskState; sceneId?: string }) =>
+      patch<TaskView>(`/tasks/${taskId}`, input),
+    remove: (taskId: string) => del<{ deleted: boolean }>(`/tasks/${taskId}`),
+  },
+
+  moderation: {
+    reports: (publicationId: string) => get<ReportView[]>(`/publications/${publicationId}/reports`),
+    blocks: () => get<BlockView[]>('/me/blocks'),
+    block: (userId: string) => post<BlockView[]>('/me/blocks', { userId }),
+    unblock: (userId: string) => del<BlockView[]>(`/me/blocks/${userId}`),
+  },
+}
+
+/** What the sidebar is narrowed to. Lifted out because the page owns it. */
+export interface CommentFilters {
+  sceneId?: string
+  sort?: 'top' | 'new'
+  category?: CommentCategory
+  state?: 'open' | 'resolved'
+  authorId?: string
+  minScore?: number
 }

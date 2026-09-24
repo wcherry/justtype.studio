@@ -141,6 +141,17 @@ pub fn publication_for_reader(
         return Ok((publication, work));
     }
 
+    // A block is one writer's door, not a platform ban, and it is checked here
+    // so that it covers everything a reader could do with a publication rather
+    // than only the handlers someone remembered to guard.
+    if let Some(user) = user {
+        if blocked(conn, &work.owner_id, &user.id)? {
+            return Err(ApiError::Forbidden(
+                "this author has asked that you not read their work".into(),
+            ));
+        }
+    }
+
     let now = crate::domain::now_iso();
     if publication
         .opens_at
@@ -241,6 +252,48 @@ pub fn within_reviewer_cap(
         "this review is full — the author asked for {cap} reader{}",
         if cap == 1 { "" } else { "s" }
     )))
+}
+
+/// The scenes a reader has actually got to, for a spoiler-safe publication.
+///
+/// "Reached" means at or before their furthest point, counted in the
+/// publication's own reading order — the same index `reading_progress` keeps,
+/// so the two can never disagree about where someone is.
+pub fn scenes_reached(
+    conn: &mut Conn,
+    publication: &Publication,
+    user: &AuthUser,
+) -> ApiResult<std::collections::HashSet<String>> {
+    use crate::db::schema::{reading_progress, version_entries};
+    let order: Vec<String> = version_entries::table
+        .filter(version_entries::version_id.eq(&publication.version_id))
+        .order((
+            version_entries::chapter_position.asc(),
+            version_entries::scene_position.asc(),
+        ))
+        .select(version_entries::scene_id)
+        .load(conn)?;
+    let furthest: Option<i32> = reading_progress::table
+        .filter(reading_progress::publication_id.eq(&publication.id))
+        .filter(reading_progress::user_id.eq(&user.id))
+        .select(reading_progress::furthest_index)
+        .first(conn)
+        .optional()?;
+    // Someone who has not opened it yet has reached the first scene: they are
+    // about to read it, and a reader who sees nothing assumes it is broken.
+    let reached = furthest.unwrap_or(0).max(0) as usize;
+    Ok(order.into_iter().take(reached + 1).collect())
+}
+
+/// Has this author shut their door on this reader?
+pub fn blocked(conn: &mut Conn, owner_id: &str, user_id: &str) -> ApiResult<bool> {
+    use crate::db::schema::blocked_readers;
+    let count: i64 = blocked_readers::table
+        .filter(blocked_readers::owner_id.eq(owner_id))
+        .filter(blocked_readers::user_id.eq(user_id))
+        .count()
+        .get_result(conn)?;
+    Ok(count > 0)
 }
 
 /// Is this scene actually part of what was published?

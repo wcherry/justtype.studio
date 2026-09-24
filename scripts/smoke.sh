@@ -30,6 +30,7 @@ SCRIPTORIUM_BIND_ADDR="127.0.0.1:${PORT}" \
 SCRIPTORIUM_DATABASE_URL="$TMP/scriptorium.db" \
 SCRIPTORIUM_DATA_DIR="$TMP/works" \
 SCRIPTORIUM_JWT_SECRET="smoke-test-secret-value-1234567890" \
+SCRIPTORIUM_VOTE_RATE=3 \
 RUST_LOG=warn \
   "$ROOT/target/debug/scriptorium-backend" >"$TMP/server.log" 2>&1 &
 SERVER_PID=$!
@@ -512,6 +513,112 @@ for c in json.load(sys.stdin):
     print(f\"  • {c['author']['displayName']} (score {c['score']}) on '{c['anchorQuote']}': {c['body']}\")
     for r in c['replies']:
         print(f\"      ↳ {r['author']['displayName']}: {r['body']}\")"
+
+step "Sorting through the notes"
+count() { curl -s "$API/publications/$PID/comments?$1" -H "$AUTH" | python3 -c "
+import sys,json;print(len(json.load(sys.stdin)))"; }
+echo "  everything: $(count '') · prose only: $(count 'category=prose') · from Grace: $(count "authorId=$GRACE")"
+UNVOTED=$(count 'minScore=1')
+echo "  worth at least one vote: $UNVOTED"
+NONE=$(count 'category=typo')
+[ "$NONE" = "0" ] && echo "  a category nobody used comes back empty" || { echo "  EXPECTED 0, got $NONE"; exit 1; }
+
+step "Resolving a pile at once"
+# A bulk call with nothing to narrow it would resolve the whole review.
+WILD=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$API/publications/$PID/comments/state" -H "$AUTH" \
+  -H 'content-type: application/json' -d '{"state":"resolved"}')
+[ "$WILD" = "400" ] && echo "  a bulk resolve with no filter is refused" || { echo "  EXPECTED 400, got $WILD"; exit 1; }
+curl -s -X POST "$API/publications/$PID/comments/state" -H "$AUTH" -H 'content-type: application/json' \
+  -d "{\"state\":\"resolved\",\"authorId\":\"$GRACE\"}" | python3 -c "
+import sys,json;print('  resolved', json.load(sys.stdin)['changed'], \"of Grace's notes at once\")"
+curl -s -X POST "$API/publications/$PID/comments/state" -H "$AUTH" -H 'content-type: application/json' \
+  -d "{\"state\":\"open\",\"commentIds\":[\"$CID\"]}" >/dev/null
+
+step "Turning a note into work"
+TASK=$(curl -s -X POST "$API/comments/$CID/task" -H "$AUTH")
+TID=$(echo "$TASK" | field id)
+echo "$TASK" | python3 -c "
+import sys,json;d=json.load(sys.stdin)
+print(f\"  from {d['source']['author']['displayName']}: {d['body'][:48]}\")"
+AGAIN=$(curl -s -X POST "$API/comments/$CID/task" -H "$AUTH" | field id)
+[ "$AGAIN" = "$TID" ] && echo "  the same note twice is the same task" || { echo "  DUPLICATED"; exit 1; }
+curl -s -X POST "$API/works/$WID/tasks" -H "$AUTH" -H 'content-type: application/json' \
+  -d '{"body":"Chapter two needs to be colder."}' >/dev/null
+curl -s -X PATCH "$API/tasks/$TID" -H "$AUTH" -H 'content-type: application/json' -d '{"state":"done"}' >/dev/null
+curl -s "$API/works/$WID/tasks?state=all" -H "$AUTH" | python3 -c "
+import sys,json
+for t in json.load(sys.stdin):
+    print(f\"  [{'x' if t['state'] == 'done' else ' '}] {t['body'][:56]}\")"
+
+step "The review as a document"
+for fmt in txt docx; do
+  out="$TMP/feedback.$fmt"
+  code=$(curl -s -o "$out" -w '%{http_code}' "$API/publications/$PID/feedback/export?format=$fmt" -H "$AUTH")
+  [ "$code" = "200" ] || { echo "  $fmt: HTTP $code"; exit 1; }
+  printf '  %-4s %7s bytes  %s\n' "$fmt" "$(wc -c < "$out" | tr -d ' ')" "$(python3 "$ROOT/scripts/check_export.py" "$out")"
+done
+grep -q "This line lands" "$TMP/feedback.txt" && echo "  the notes are in it" || { echo "  NOTES MISSING"; exit 1; }
+MINE=$(curl -s -o /dev/null -w '%{http_code}' "$API/publications/$PID/feedback/export?format=txt" -H "$RAUTH")
+[ "$MINE" = "403" ] && echo "  a reviewer cannot export everyone else's feedback" || { echo "  EXPECTED 403, got $MINE"; exit 1; }
+
+step "Reporting a comment"
+curl -s -X POST "$API/comments/$CID/report" -H "$SAUTH" -H 'content-type: application/json' \
+  -d '{"reason":"off_topic","detail":"Not about the writing."}' >/dev/null
+# Twice is the same report, not a louder one.
+curl -s -X POST "$API/comments/$CID/report" -H "$SAUTH" -H 'content-type: application/json' \
+  -d '{"reason":"spam"}' >/dev/null
+curl -s "$API/publications/$PID/reports" -H "$AUTH" | python3 -c "
+import sys,json
+rows=json.load(sys.stdin)
+assert len(rows) == 1, f'expected one report, got {len(rows)}'
+for r in rows:
+    print(f\"  {r['reporter']['displayName']} flagged {r['commentAuthor']['displayName']}: {r['reason']}\")"
+OWN=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$API/comments/$CID/report" -H "$RAUTH" \
+  -H 'content-type: application/json' -d '{"reason":"spam"}')
+[ "$OWN" = "400" ] && echo "  reporting your own comment is refused" || { echo "  EXPECTED 400, got $OWN"; exit 1; }
+
+step "Spoiler-safe serials"
+SCENES2=$(curl -s "$API/publications/$PID/content" -H "$AUTH" | python3 -c "
+import sys,json;d=json.load(sys.stdin)
+print(' '.join(s['sceneId'] for ch in d['chapters'] for s in ch['scenes']))")
+LATER=$(echo $SCENES2 | cut -d' ' -f3)
+curl -s -X POST "$API/publications/$PID/comments" -H "$RAUTH" -H 'content-type: application/json' \
+  -d "{\"body\":\"The ending gives it away.\",\"sceneId\":\"$LATER\"}" >/dev/null
+OPEN=$(count '')
+curl -s -X PATCH "$API/publications/$PID" -H "$AUTH" -H 'content-type: application/json' \
+  -d '{"spoilerSafe":true}' >/dev/null
+BEFORE=$(curl -s "$API/publications/$PID/comments" -H "$SAUTH" | python3 -c "
+import sys,json;print(len(json.load(sys.stdin)))")
+curl -s -X PUT "$API/publications/$PID/progress" -H "$SAUTH" -H 'content-type: application/json' \
+  -d "{\"sceneId\":\"$LATER\"}" >/dev/null
+AFTER=$(curl -s "$API/publications/$PID/comments" -H "$SAUTH" | python3 -c "
+import sys,json;print(len(json.load(sys.stdin)))")
+[ "$AFTER" -gt "$BEFORE" ] && echo "  a reader at the start sees $BEFORE of $OPEN notes; once they reach scene 3, $AFTER" \
+  || { echo "  EXPECTED more notes after reading on: $BEFORE -> $AFTER"; exit 1; }
+curl -s -X PATCH "$API/publications/$PID" -H "$AUTH" -H 'content-type: application/json' \
+  -d '{"spoilerSafe":false}' >/dev/null
+
+step "Rate limits"
+# The server runs with a vote limit of 3 a minute; Ada has already used one.
+for _ in 1 2; do
+  curl -s -X POST "$API/comments/$CID/vote" -H "$AUTH" -H 'content-type: application/json' -d '{"value":1}' >/dev/null
+done
+LIMITED=$(curl -s -X POST "$API/comments/$CID/vote" -H "$AUTH" -H 'content-type: application/json' -d '{"value":1}')
+echo "$LIMITED" | python3 -c "
+import sys,json;d=json.load(sys.stdin)['error']
+assert d['code'] == 'too_many_requests', d
+print(f\"  refused after three: {d['message']}\")"
+
+step "An author's own door"
+curl -s -X POST "$API/me/blocks" -H "$AUTH" -H 'content-type: application/json' \
+  -d "{\"userId\":\"$GRACE\"}" | python3 -c "
+import sys,json
+print('  blocked:', ', '.join(b['reader']['displayName'] for b in json.load(sys.stdin)))"
+SHUT=$(curl -s -o /dev/null -w '%{http_code}' "$API/publications/$PID" -H "$RAUTH")
+[ "$SHUT" = "403" ] && echo "  a blocked reader cannot open the work at all" || { echo "  EXPECTED 403, got $SHUT"; exit 1; }
+curl -s -X DELETE "$API/me/blocks/$GRACE" -H "$AUTH" >/dev/null
+BACK=$(curl -s -o /dev/null -w '%{http_code}' "$API/publications/$PID" -H "$RAUTH")
+[ "$BACK" = "200" ] && echo "  and is let back in when the block goes" || { echo "  EXPECTED 200, got $BACK"; exit 1; }
 
 step "Exporting the published version"
 for fmt in txt docx epub pdf; do

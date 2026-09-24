@@ -18,6 +18,7 @@ use crate::db::schema::{comment_votes, comments};
 use crate::domain::enums::CommentCategory;
 use crate::domain::{new_id, now_iso};
 use crate::error::{ApiError, ApiResult, ErrorEnvelope};
+use crate::limit::Action;
 use crate::state::AppState;
 
 use super::support::{self, AuthorCard};
@@ -31,6 +32,36 @@ pub struct ListQuery {
     /// `top` (default) or `new`.
     #[serde(default)]
     pub sort: Option<String>,
+    #[serde(default)]
+    #[schema(value_type = Option<crate::domain::enums::CommentCategory>)]
+    pub category: Option<String>,
+    /// `open` or `resolved`. Omitted, both.
+    #[serde(default)]
+    #[schema(value_type = Option<crate::domain::enums::CommentState>)]
+    pub state: Option<String>,
+    /// Only this reviewer's notes.
+    #[serde(default)]
+    pub author_id: Option<String>,
+    /// Only notes the room agreed with.
+    #[serde(default)]
+    pub min_score: Option<i32>,
+}
+
+/// Filters apply to the note, and a note's replies come with it.
+///
+/// Hiding a reply because it is uncategorised would leave an answer without
+/// its question; the author is filtering *threads*, not sentences.
+fn keeps(comment: &Comment, query: &ListQuery) -> bool {
+    query
+        .category
+        .as_ref()
+        .is_none_or(|c| &comment.category == c)
+        && query.state.as_ref().is_none_or(|s| &comment.state == s)
+        && query
+            .author_id
+            .as_ref()
+            .is_none_or(|a| &comment.author_id == a)
+        && query.min_score.is_none_or(|m| comment.score >= m)
 }
 
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
@@ -121,7 +152,8 @@ pub async fn list(
     let sort_by_score = query.sort.as_deref() != Some("new");
 
     let views = blocking(&state.pool, move |conn| {
-        support::publication_for_reader(conn, &publication_id, user.as_ref())?;
+        let (publication, work) =
+            support::publication_for_reader(conn, &publication_id, user.as_ref())?;
 
         let mut q = comments::table
             .filter(comments::publication_id.eq(&publication_id))
@@ -130,10 +162,35 @@ pub async fn list(
         if let Some(scene_id) = &query.scene_id {
             q = q.filter(comments::scene_id.eq(scene_id.clone()));
         }
-        let rows: Vec<Comment> = q
+        let mut rows: Vec<Comment> = q
             .order(comments::created_at.asc())
             .select(Comment::as_select())
             .load(conn)?;
+
+        // Spoilers are withheld before anything else looks at the rows, so no
+        // filter or sort downstream can leak one back.
+        if let Some(reader) = user.as_ref() {
+            if publication.spoiler_safe != 0 && work.owner_id != reader.id {
+                let reached = support::scenes_reached(conn, &publication, reader)?;
+                rows.retain(|c| match &c.scene_id {
+                    Some(scene_id) => reached.contains(scene_id),
+                    None => true,
+                });
+            }
+        }
+
+        // Replies survive their parent being filtered out only as far as
+        // `build_threads` can find the parent, so filter roots and let the
+        // thread come with them.
+        let keep: std::collections::HashSet<String> = rows
+            .iter()
+            .filter(|c| c.parent_id.is_none() && keeps(c, &query))
+            .map(|c| c.id.clone())
+            .collect();
+        rows.retain(|c| match &c.parent_id {
+            Some(parent) => keep.contains(parent),
+            None => keep.contains(&c.id),
+        });
 
         let author_ids: Vec<String> = rows.iter().map(|c| c.author_id.clone()).collect();
         let authors = support::author_cards(conn, &author_ids)?;
@@ -247,6 +304,9 @@ pub async fn create(
             CommentCategory::options()
         )));
     }
+    state
+        .limiter
+        .check(&user.id, Action::Comment, state.config.comment_rate)?;
 
     let view = blocking(&state.pool, move |conn| {
         let (publication, _) = support::publication_for_reader(conn, &publication_id, Some(&user))?;
@@ -317,6 +377,96 @@ pub async fn create(
     })
     .await?;
     Ok(Json(view))
+}
+
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct BulkStateRequest {
+    /// `resolved` or `open`.
+    #[schema(value_type = crate::domain::enums::CommentState)]
+    pub state: String,
+    /// Named ids win outright; without them the filters below choose.
+    #[serde(default)]
+    pub comment_ids: Vec<String>,
+    #[serde(default)]
+    pub scene_id: Option<String>,
+    #[serde(default)]
+    #[schema(value_type = Option<crate::domain::enums::CommentCategory>)]
+    pub category: Option<String>,
+    #[serde(default)]
+    pub author_id: Option<String>,
+}
+
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct BulkStateResponse {
+    pub changed: usize,
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/publications/{publication_id}/comments/state",
+    tag = "comments",
+    params(("publication_id" = String, Path)),
+    request_body = BulkStateRequest,
+    responses(
+        (status = 200, description = "How many moved", body = BulkStateResponse),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
+/// Resolve or reopen a pile of notes at once.
+///
+/// Twenty typo reports are twenty rows and one decision. Doing that one row at
+/// a time is how a review queue stops being read at all.
+pub async fn bulk_state(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(publication_id): Path<String>,
+    Json(body): Json<BulkStateRequest>,
+) -> ApiResult<Json<BulkStateResponse>> {
+    if body.state != "open" && body.state != "resolved" {
+        return Err(ApiError::BadRequest(
+            "state must be `open` or `resolved`".into(),
+        ));
+    }
+    // A bulk call with nothing to narrow it would resolve the whole review on
+    // one mis-click, so it has to say what it means.
+    if body.comment_ids.is_empty()
+        && body.scene_id.is_none()
+        && body.category.is_none()
+        && body.author_id.is_none()
+    {
+        return Err(ApiError::BadRequest(
+            "say which notes: commentIds, or a sceneId, category or authorId".into(),
+        ));
+    }
+
+    let changed = blocking(&state.pool, move |conn| {
+        support::publication_for_owner(conn, &publication_id, &user)?;
+        let mut q = diesel::update(comments::table)
+            .filter(comments::publication_id.eq(&publication_id))
+            .filter(comments::state.ne("deleted"))
+            .into_boxed();
+        if !body.comment_ids.is_empty() {
+            q = q.filter(comments::id.eq_any(body.comment_ids.clone()));
+        }
+        if let Some(scene_id) = &body.scene_id {
+            q = q.filter(comments::scene_id.eq(scene_id.clone()));
+        }
+        if let Some(category) = &body.category {
+            q = q.filter(comments::category.eq(category.clone()));
+        }
+        if let Some(author_id) = &body.author_id {
+            q = q.filter(comments::author_id.eq(author_id.clone()));
+        }
+        Ok(q.set((
+            comments::state.eq(&body.state),
+            comments::updated_at.eq(now_iso()),
+        ))
+        .execute(conn)?)
+    })
+    .await?;
+    Ok(Json(BulkStateResponse { changed }))
 }
 
 #[utoipa::path(
@@ -447,6 +597,9 @@ pub async fn vote(
     if ![-1, 0, 1].contains(&body.value) {
         return Err(ApiError::BadRequest("value must be -1, 0 or 1".into()));
     }
+    state
+        .limiter
+        .check(&user.id, Action::Vote, state.config.vote_rate)?;
 
     let response = blocking(&state.pool, move |conn| {
         let comment: Comment = comments::table

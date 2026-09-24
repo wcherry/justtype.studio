@@ -5,11 +5,13 @@ pub mod comments;
 pub mod export;
 pub mod feedback;
 pub mod goals;
+pub mod moderation;
 pub mod openapi;
 pub mod publications;
 pub mod readers;
 pub mod scenes;
 pub mod support;
+pub mod tasks;
 pub mod templates;
 pub mod versions;
 pub mod works;
@@ -101,6 +103,15 @@ fn api_router() -> OpenApiRouter<AppState> {
         .routes(routes!(feedback::answer))
         .routes(routes!(feedback::list_answers))
         .routes(routes!(feedback::standing))
+        .routes(routes!(comments::bulk_state))
+        .routes(routes!(export::export_feedback))
+        .routes(routes!(tasks::list, tasks::create))
+        .routes(routes!(tasks::from_comment))
+        .routes(routes!(tasks::update, tasks::delete_task))
+        .routes(routes!(moderation::report))
+        .routes(routes!(moderation::list_reports))
+        .routes(routes!(moderation::list_blocks, moderation::block))
+        .routes(routes!(moderation::unblock))
 }
 
 pub fn router(state: AppState) -> Router {

@@ -205,6 +205,59 @@ public enum API {
         }
     }
 
+    public struct BlockRequest: Codable, Hashable, Sendable {
+        /// Who to shut out. An id rather than an address: this is somebody who has
+        /// already turned up.
+        public var userId: String
+
+        public init(
+            userId: String
+        ) {
+            self.userId = userId
+        }
+    }
+
+    public struct BlockView: Codable, Hashable, Sendable {
+        public var createdAt: String
+        public var id: String
+        public var ownerId: String
+        public var userId: String
+        public var reader: AuthorCard
+
+        public init(
+            createdAt: String,
+            id: String,
+            ownerId: String,
+            userId: String,
+            reader: AuthorCard
+        ) {
+            self.createdAt = createdAt
+            self.id = id
+            self.ownerId = ownerId
+            self.userId = userId
+            self.reader = reader
+        }
+    }
+
+    public struct BlockedReader: Codable, Hashable, Sendable {
+        public var createdAt: String
+        public var id: String
+        public var ownerId: String
+        public var userId: String
+
+        public init(
+            createdAt: String,
+            id: String,
+            ownerId: String,
+            userId: String
+        ) {
+            self.createdAt = createdAt
+            self.id = id
+            self.ownerId = ownerId
+            self.userId = userId
+        }
+    }
+
     public struct BulkResolveRequest: Codable, Hashable, Sendable {
         /// `accept` or `reject`.
         public var action: String
@@ -238,6 +291,40 @@ public enum API {
             self.rejected = rejected
             self.scene = scene
             self.stale = stale
+        }
+    }
+
+    public struct BulkStateRequest: Codable, Hashable, Sendable {
+        public var authorId: String?
+        public var category: CommentCategory?
+        /// Named ids win outright; without them the filters below choose.
+        public var commentIds: [String]?
+        public var sceneId: String?
+        /// `resolved` or `open`.
+        public var state: CommentState
+
+        public init(
+            authorId: String? = nil,
+            category: CommentCategory? = nil,
+            commentIds: [String]? = nil,
+            sceneId: String? = nil,
+            state: CommentState
+        ) {
+            self.authorId = authorId
+            self.category = category
+            self.commentIds = commentIds
+            self.sceneId = sceneId
+            self.state = state
+        }
+    }
+
+    public struct BulkStateResponse: Codable, Hashable, Sendable {
+        public var changed: Int
+
+        public init(
+            changed: Int
+        ) {
+            self.changed = changed
         }
     }
 
@@ -386,6 +473,31 @@ public enum API {
         case prose = "prose"
         case character = "character"
         case typo = "typo"
+    }
+
+    public struct CommentReport: Codable, Hashable, Sendable {
+        public var commentId: String
+        public var createdAt: String
+        public var detail: String?
+        public var id: String
+        public var reason: String
+        public var reporterId: String
+
+        public init(
+            commentId: String,
+            createdAt: String,
+            detail: String? = nil,
+            id: String,
+            reason: String,
+            reporterId: String
+        ) {
+            self.commentId = commentId
+            self.createdAt = createdAt
+            self.detail = detail
+            self.id = id
+            self.reason = reason
+            self.reporterId = reporterId
+        }
     }
 
     public enum CommentState: String, Codable, CaseIterable, Hashable, Sendable {
@@ -606,6 +718,9 @@ public enum API {
         public var scope: PublicationScope?
         /// Chapter or scene id when `scope` is narrower than the whole work.
         public var scopeRefId: String?
+        /// Withhold notes on scenes a reader has not reached. Omitted, it follows
+        /// the work: on for a serial, off for anything else.
+        public var spoilerSafe: Bool?
         public var visibility: Visibility
 
         public init(
@@ -615,6 +730,7 @@ public enum API {
             reviewPrompt: String? = nil,
             scope: PublicationScope? = nil,
             scopeRefId: String? = nil,
+            spoilerSafe: Bool? = nil,
             visibility: Visibility
         ) {
             self.closesAt = closesAt
@@ -623,6 +739,7 @@ public enum API {
             self.reviewPrompt = reviewPrompt
             self.scope = scope
             self.scopeRefId = scopeRefId
+            self.spoilerSafe = spoilerSafe
             self.visibility = visibility
         }
     }
@@ -660,6 +777,19 @@ public enum API {
             self.pov = pov
             self.summary = summary
             self.title = title
+        }
+    }
+
+    public struct CreateTaskRequest: Codable, Hashable, Sendable {
+        public var body: String
+        public var sceneId: String?
+
+        public init(
+            body: String,
+            sceneId: String? = nil
+        ) {
+            self.body = body
+            self.sceneId = sceneId
         }
     }
 
@@ -1101,6 +1231,9 @@ public enum API {
         public var reviewPrompt: String?
         public var scope: PublicationScope
         public var scopeRefId: String?
+        /// Withhold notes on scenes a reader has not reached yet. Defaulted on for
+        /// a serial, where not knowing yet is the whole point of reading one.
+        public var spoilerSafe: Int
         public var updatedAt: String
         public var versionId: String
         public var visibility: Visibility
@@ -1115,6 +1248,7 @@ public enum API {
             reviewPrompt: String? = nil,
             scope: PublicationScope,
             scopeRefId: String? = nil,
+            spoilerSafe: Int,
             updatedAt: String,
             versionId: String,
             visibility: Visibility,
@@ -1128,6 +1262,7 @@ public enum API {
             self.reviewPrompt = reviewPrompt
             self.scope = scope
             self.scopeRefId = scopeRefId
+            self.spoilerSafe = spoilerSafe
             self.updatedAt = updatedAt
             self.versionId = versionId
             self.visibility = visibility
@@ -1146,6 +1281,9 @@ public enum API {
         public var reviewPrompt: String?
         public var scope: PublicationScope
         public var scopeRefId: String?
+        /// Withhold notes on scenes a reader has not reached yet. Defaulted on for
+        /// a serial, where not knowing yet is the whole point of reading one.
+        public var spoilerSafe: Int
         public var updatedAt: String
         public var versionId: String
         public var visibility: Visibility
@@ -1170,6 +1308,7 @@ public enum API {
             reviewPrompt: String? = nil,
             scope: PublicationScope,
             scopeRefId: String? = nil,
+            spoilerSafe: Int,
             updatedAt: String,
             versionId: String,
             visibility: Visibility,
@@ -1190,6 +1329,7 @@ public enum API {
             self.reviewPrompt = reviewPrompt
             self.scope = scope
             self.scopeRefId = scopeRefId
+            self.spoilerSafe = spoilerSafe
             self.updatedAt = updatedAt
             self.versionId = versionId
             self.visibility = visibility
@@ -1457,6 +1597,65 @@ public enum API {
         }
     }
 
+    public enum ReportReason: String, Codable, CaseIterable, Hashable, Sendable {
+        case abuse = "abuse"
+        case spam = "spam"
+        case spoiler = "spoiler"
+        case off_topic = "off_topic"
+        case other = "other"
+    }
+
+    public struct ReportRequest: Codable, Hashable, Sendable {
+        public var detail: String?
+        public var reason: ReportReason
+
+        public init(
+            detail: String? = nil,
+            reason: ReportReason
+        ) {
+            self.detail = detail
+            self.reason = reason
+        }
+    }
+
+    public struct ReportView: Codable, Hashable, Sendable {
+        public var commentId: String
+        public var createdAt: String
+        public var detail: String?
+        public var id: String
+        public var reason: String
+        public var reporterId: String
+        public var commentAuthor: AuthorCard
+        /// What was said, so the author can judge without going to find it.
+        public var commentBody: String
+        public var publicationId: String
+        public var reporter: AuthorCard
+
+        public init(
+            commentId: String,
+            createdAt: String,
+            detail: String? = nil,
+            id: String,
+            reason: String,
+            reporterId: String,
+            commentAuthor: AuthorCard,
+            commentBody: String,
+            publicationId: String,
+            reporter: AuthorCard
+        ) {
+            self.commentId = commentId
+            self.createdAt = createdAt
+            self.detail = detail
+            self.id = id
+            self.reason = reason
+            self.reporterId = reporterId
+            self.commentAuthor = commentAuthor
+            self.commentBody = commentBody
+            self.publicationId = publicationId
+            self.reporter = reporter
+        }
+    }
+
     public struct ResolveResponse: Codable, Hashable, Sendable {
         public var change: TrackedChange
         public var scene: Scene?
@@ -1553,6 +1752,43 @@ public enum API {
             self.publicationId = publicationId
             self.scope = scope
             self.updatedAt = updatedAt
+        }
+    }
+
+    public struct RevisionTask: Codable, Hashable, Sendable {
+        public var body: String
+        /// The note it came from, or `None` for one the author typed themselves —
+        /// or one whose comment has since been deleted. The task is the author's
+        /// either way.
+        public var commentId: String?
+        public var createdAt: String
+        public var doneAt: String?
+        public var id: String
+        public var sceneId: String?
+        public var state: String
+        public var updatedAt: String
+        public var workId: String
+
+        public init(
+            body: String,
+            commentId: String? = nil,
+            createdAt: String,
+            doneAt: String? = nil,
+            id: String,
+            sceneId: String? = nil,
+            state: String,
+            updatedAt: String,
+            workId: String
+        ) {
+            self.body = body
+            self.commentId = commentId
+            self.createdAt = createdAt
+            self.doneAt = doneAt
+            self.id = id
+            self.sceneId = sceneId
+            self.state = state
+            self.updatedAt = updatedAt
+            self.workId = workId
         }
     }
 
@@ -1898,6 +2134,70 @@ public enum API {
         }
     }
 
+    public struct TaskSource: Codable, Hashable, Sendable {
+        public var author: AuthorCard
+        public var commentId: String
+        public var publicationId: String
+        public var quote: String?
+
+        public init(
+            author: AuthorCard,
+            commentId: String,
+            publicationId: String,
+            quote: String? = nil
+        ) {
+            self.author = author
+            self.commentId = commentId
+            self.publicationId = publicationId
+            self.quote = quote
+        }
+    }
+
+    public enum TaskState: String, Codable, CaseIterable, Hashable, Sendable {
+        case open = "open"
+        case done = "done"
+    }
+
+    public struct TaskView: Codable, Hashable, Sendable {
+        public var body: String
+        /// The note it came from, or `None` for one the author typed themselves —
+        /// or one whose comment has since been deleted. The task is the author's
+        /// either way.
+        public var commentId: String?
+        public var createdAt: String
+        public var doneAt: String?
+        public var id: String
+        public var sceneId: String?
+        public var state: String
+        public var updatedAt: String
+        public var workId: String
+        public var source: TaskSource?
+
+        public init(
+            body: String,
+            commentId: String? = nil,
+            createdAt: String,
+            doneAt: String? = nil,
+            id: String,
+            sceneId: String? = nil,
+            state: String,
+            updatedAt: String,
+            workId: String,
+            source: TaskSource? = nil
+        ) {
+            self.body = body
+            self.commentId = commentId
+            self.createdAt = createdAt
+            self.doneAt = doneAt
+            self.id = id
+            self.sceneId = sceneId
+            self.state = state
+            self.updatedAt = updatedAt
+            self.workId = workId
+            self.source = source
+        }
+    }
+
     public struct TemplateChapter: Codable, Hashable, Sendable {
         public var scenes: [TemplateScene]?
         public var summary: String?
@@ -2092,17 +2392,20 @@ public enum API {
         /// `0` removes the cap.
         public var maxReviewers: Int?
         public var reviewPrompt: String?
+        public var spoilerSafe: Bool?
         public var visibility: Visibility?
 
         public init(
             closesAt: String? = nil,
             maxReviewers: Int? = nil,
             reviewPrompt: String? = nil,
+            spoilerSafe: Bool? = nil,
             visibility: Visibility? = nil
         ) {
             self.closesAt = closesAt
             self.maxReviewers = maxReviewers
             self.reviewPrompt = reviewPrompt
+            self.spoilerSafe = spoilerSafe
             self.visibility = visibility
         }
     }
@@ -2153,6 +2456,22 @@ public enum API {
             self.summary = summary
             self.targetWords = targetWords
             self.title = title
+        }
+    }
+
+    public struct UpdateTaskRequest: Codable, Hashable, Sendable {
+        public var body: String?
+        public var sceneId: String?
+        public var state: TaskState?
+
+        public init(
+            body: String? = nil,
+            sceneId: String? = nil,
+            state: TaskState? = nil
+        ) {
+            self.body = body
+            self.sceneId = sceneId
+            self.state = state
         }
     }
 

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { api } from '../api/client'
-import type { CommentCategory, CommentView } from '../api/types'
+import type { CommentFilters } from '../api/client'
+import type { CommentCategory, CommentView, ReportReason } from '../api/types'
 import type { Selection } from './ReaderScene'
 
 interface Props {
@@ -8,8 +9,12 @@ interface Props {
   comments: CommentView[]
   pending: Selection | null
   isAuthor: boolean
+  /** Who is reading, so nobody is offered a way to report themselves. */
+  viewerId: string | null
   activeCommentId: string | null
   reviewPrompt: string | null
+  filters: CommentFilters
+  onFilter: (filters: CommentFilters) => void
   onRefresh: () => void
   onActivate: (commentId: string | null) => void
   onClearPending: () => void
@@ -19,21 +24,100 @@ const CATEGORIES: CommentCategory[] = [
   'general', 'praise', 'plot', 'pacing', 'prose', 'character', 'typo',
 ]
 
+const REPORT_REASONS: ReportReason[] = ['abuse', 'spam', 'spoiler', 'off_topic', 'other']
+
 export function CommentSidebar({
-  publicationId, comments, pending, isAuthor, activeCommentId, reviewPrompt,
-  onRefresh, onActivate, onClearPending,
+  publicationId, comments, pending, isAuthor, viewerId, activeCommentId, reviewPrompt,
+  filters, onFilter, onRefresh, onActivate, onClearPending,
 }: Props) {
-  const [sort, setSort] = useState<'top' | 'new'>('top')
+  const [busy, setBusy] = useState(false)
+
+  // The names in the thread, so "only Grace's notes" needs no second request.
+  const reviewers = new Map<string, string>()
+  const walk = (list: CommentView[]) => {
+    for (const comment of list) {
+      reviewers.set(comment.author.id, comment.author.displayName)
+      walk(comment.replies)
+    }
+  }
+  walk(comments)
+
+  const set = (patch: CommentFilters) => onFilter({ ...filters, ...patch })
 
   return (
     <aside className="comments">
       <header className="comments__header">
         <h3>Feedback</h3>
-        <select value={sort} onChange={(e) => { setSort(e.target.value as 'top' | 'new'); onRefresh() }}>
+        <select
+          value={filters.sort ?? 'top'}
+          onChange={(e) => set({ sort: e.target.value as 'top' | 'new' })}
+        >
           <option value="top">Most useful</option>
           <option value="new">Newest</option>
         </select>
       </header>
+
+      <div className="comments__filters">
+        <select
+          value={filters.category ?? ''}
+          onChange={(e) => set({ category: (e.target.value || undefined) as CommentCategory | undefined })}
+        >
+          <option value="">Any kind</option>
+          {CATEGORIES.map((c) => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+        <select
+          value={filters.state ?? ''}
+          onChange={(e) => set({ state: (e.target.value || undefined) as 'open' | 'resolved' | undefined })}
+        >
+          <option value="">Open and resolved</option>
+          <option value="open">Still open</option>
+          <option value="resolved">Resolved</option>
+        </select>
+        {reviewers.size > 1 && (
+          <select
+            value={filters.authorId ?? ''}
+            onChange={(e) => set({ authorId: e.target.value || undefined })}
+          >
+            <option value="">Everyone</option>
+            {[...reviewers].map(([id, name]) => (
+              <option key={id} value={id}>{name}</option>
+            ))}
+          </select>
+        )}
+        <label className="comments__agreed">
+          <input
+            type="checkbox"
+            checked={filters.minScore != null}
+            onChange={(e) => set({ minScore: e.target.checked ? 1 : undefined })}
+          />
+          Others agreed
+        </label>
+      </div>
+
+      {/* Twenty typo reports are twenty rows and one decision. */}
+      {isAuthor && comments.length > 1 && filters.state !== 'resolved' && (
+        <button
+          type="button"
+          className="linklike comments__bulk"
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true)
+            try {
+              await api.comments.bulkState(publicationId, {
+                state: 'resolved',
+                commentIds: comments.map((c) => c.id),
+              })
+              onRefresh()
+            } finally {
+              setBusy(false)
+            }
+          }}
+        >
+          Resolve these {comments.length}
+        </button>
+      )}
 
       {reviewPrompt && (
         <p className="comments__prompt">
@@ -58,6 +142,7 @@ export function CommentSidebar({
             comment={comment}
             publicationId={publicationId}
             isAuthor={isAuthor}
+            viewerId={viewerId}
             activeCommentId={activeCommentId}
             onActivate={onActivate}
             onRefresh={onRefresh}
@@ -69,17 +154,21 @@ export function CommentSidebar({
 }
 
 function CommentThread({
-  comment, publicationId, isAuthor, activeCommentId, onActivate, onRefresh, depth = 0,
+  comment, publicationId, isAuthor, viewerId, activeCommentId, onActivate, onRefresh, depth = 0,
 }: {
   comment: CommentView
   publicationId: string
   isAuthor: boolean
+  viewerId: string | null
   activeCommentId: string | null
   onActivate: (id: string | null) => void
   onRefresh: () => void
   depth?: number
 }) {
   const [replying, setReplying] = useState(false)
+  const [reporting, setReporting] = useState(false)
+  const [reason, setReason] = useState<ReportReason>('off_topic')
+  const [done, setDone] = useState<string | null>(null)
 
   const vote = async (value: -1 | 1) => {
     // Sending the same value again clears it, which the server enforces too.
@@ -106,6 +195,13 @@ function CommentThread({
       <div className="comment__body">
         <div className="comment__meta">
           <strong>{comment.author.displayName}</strong>
+          {/* What this reviewer's notes have been worth elsewhere, so a reader
+              with a record of being right is legible as one. */}
+          {comment.authorScore > 0 && (
+            <span className="comment__standing" title="Votes, plus notes authors acted on">
+              {comment.authorScore}
+            </span>
+          )}
           <span className={`badge badge--${comment.category}`}>{comment.category}</span>
           {comment.state === 'resolved' && <span className="badge badge--resolved">resolved</span>}
         </div>
@@ -124,7 +220,42 @@ function CommentThread({
               Resolve
             </button>
           )}
+          {isAuthor && (
+            <button
+              type="button"
+              title="Put it on your revision list"
+              onClick={async () => {
+                await api.tasks.fromComment(comment.id)
+                setDone('on your list')
+              }}
+            >
+              Add to my list
+            </button>
+          )}
+          {comment.author.id !== viewerId && (
+            <button type="button" onClick={() => setReporting((r) => !r)}>Report</button>
+          )}
+          {done && <span className="field__hint">{done}</span>}
         </div>
+
+        {reporting && (
+          <form
+            className="comment__report"
+            onSubmit={async (event) => {
+              event.preventDefault()
+              await api.comments.report(comment.id, { reason })
+              setReporting(false)
+              setDone('reported to the author')
+            }}
+          >
+            <select value={reason} onChange={(e) => setReason(e.target.value as ReportReason)}>
+              {REPORT_REASONS.map((r) => (
+                <option key={r} value={r}>{r.replace('_', ' ')}</option>
+              ))}
+            </select>
+            <button type="submit">Send</button>
+          </form>
+        )}
 
         {replying && (
           <NewComment
@@ -144,6 +275,7 @@ function CommentThread({
                 comment={reply}
                 publicationId={publicationId}
                 isAuthor={isAuthor}
+                viewerId={viewerId}
                 activeCommentId={activeCommentId}
                 onActivate={onActivate}
                 onRefresh={onRefresh}

@@ -22,6 +22,10 @@ pub enum ApiError {
         message: String,
         details: serde_json::Value,
     },
+    /// Too much, too fast. Carries the wait in seconds so a client can say
+    /// something better than "try again".
+    #[error("{message}")]
+    TooManyRequests { message: String, retry_after: i64 },
     #[error("{0}")]
     Internal(String),
 }
@@ -39,6 +43,9 @@ impl ApiError {
             ApiError::NotFound(_) => (StatusCode::NOT_FOUND, "not_found"),
             ApiError::Conflict(_) => (StatusCode::CONFLICT, "conflict"),
             ApiError::ConflictWith { .. } => (StatusCode::CONFLICT, "conflict"),
+            ApiError::TooManyRequests { .. } => {
+                (StatusCode::TOO_MANY_REQUESTS, "too_many_requests")
+            }
             ApiError::Internal(_) => (StatusCode::INTERNAL_SERVER_ERROR, "internal"),
         }
     }
@@ -53,6 +60,9 @@ impl IntoResponse for ApiError {
         let mut error = json!({ "code": code, "message": self.to_string() });
         if let ApiError::ConflictWith { details, .. } = &self {
             error["details"] = details.clone();
+        }
+        if let ApiError::TooManyRequests { retry_after, .. } = &self {
+            error["details"] = json!({ "retryAfter": retry_after });
         }
         (status, Json(json!({ "error": error }))).into_response()
     }

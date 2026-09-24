@@ -4,6 +4,7 @@ mod db;
 mod domain;
 mod error;
 mod export;
+mod limit;
 mod routes;
 mod state;
 mod storage;
@@ -74,6 +75,7 @@ async fn main() -> anyhow::Result<()> {
         config: Arc::new(config),
         pool,
         store,
+        limiter: Arc::new(limit::RateLimiter::new()),
     };
 
     let app = routes::router(state)

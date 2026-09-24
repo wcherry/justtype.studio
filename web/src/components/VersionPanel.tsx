@@ -118,13 +118,14 @@ export function VersionPanel({ workId, versions, onChanged }: Props) {
             {offering === version.id && (
               <OfferForm
                 onCancel={() => setOffering(null)}
-                onSubmit={async (visibility, reviewPrompt, closesAt, maxReviewers) => {
+                onSubmit={async (visibility, reviewPrompt, closesAt, maxReviewers, spoilerSafe) => {
                   await run(() =>
                     api.publications.create(version.id, {
                       visibility,
                       reviewPrompt,
                       closesAt,
                       maxReviewers,
+                      spoilerSafe,
                     }),
                   )
                   setOffering(null)
@@ -155,6 +156,7 @@ function OfferForm({
     reviewPrompt: string,
     closesAt?: string,
     maxReviewers?: number,
+    spoilerSafe?: boolean,
   ) => void
   onCancel: () => void
 }) {
@@ -162,6 +164,7 @@ function OfferForm({
   const [prompt, setPrompt] = useState('')
   const [closesAt, setClosesAt] = useState('')
   const [cap, setCap] = useState('')
+  const [spoilerSafe, setSpoilerSafe] = useState(false)
 
   return (
     <form
@@ -174,6 +177,7 @@ function OfferForm({
           // A date input gives a day; a review window closes at the end of it.
           closesAt ? new Date(`${closesAt}T23:59:59`).toISOString() : undefined,
           cap ? Number(cap) : undefined,
+          spoilerSafe,
         )
       }}
     >
@@ -203,6 +207,18 @@ function OfferForm({
         <span className="field__hint">
           Readers who may comment. Beta readers are scarce, and twenty overlapping
           opinions are worse than five considered ones.
+        </span>
+      </label>
+      <label className="offer__check">
+        <input
+          type="checkbox"
+          checked={spoilerSafe}
+          onChange={(e) => setSpoilerSafe(e.target.checked)}
+        />
+        Hold back notes on scenes a reader has not reached
+        <span className="field__hint">
+          For a serial, where not knowing yet is the point. On by default when
+          the work is one.
         </span>
       </label>
       <label>

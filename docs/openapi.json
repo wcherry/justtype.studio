@@ -239,6 +239,59 @@
         ],
         "type": "object"
       },
+      "BlockRequest": {
+        "properties": {
+          "userId": {
+            "description": "Who to shut out. An id rather than an address: this is somebody who has\nalready turned up.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "userId"
+        ],
+        "type": "object"
+      },
+      "BlockView": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/BlockedReader"
+          },
+          {
+            "properties": {
+              "reader": {
+                "$ref": "#/components/schemas/AuthorCard"
+              }
+            },
+            "required": [
+              "reader"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "BlockedReader": {
+        "properties": {
+          "createdAt": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "ownerId": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "ownerId",
+          "userId",
+          "createdAt"
+        ],
+        "type": "object"
+      },
       "BulkResolveRequest": {
         "properties": {
           "action": {
@@ -284,6 +337,59 @@
           "rejected",
           "stale",
           "scene"
+        ],
+        "type": "object"
+      },
+      "BulkStateRequest": {
+        "properties": {
+          "authorId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "category": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CommentCategory"
+              }
+            ]
+          },
+          "commentIds": {
+            "description": "Named ids win outright; without them the filters below choose.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "sceneId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "$ref": "#/components/schemas/CommentState",
+            "description": "`resolved` or `open`."
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "type": "object"
+      },
+      "BulkStateResponse": {
+        "properties": {
+          "changed": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "changed"
         ],
         "type": "object"
       },
@@ -475,6 +581,39 @@
           "typo"
         ],
         "type": "string"
+      },
+      "CommentReport": {
+        "properties": {
+          "commentId": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "detail": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "reporterId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "commentId",
+          "reporterId",
+          "reason",
+          "createdAt"
+        ],
+        "type": "object"
       },
       "CommentState": {
         "enum": [
@@ -757,6 +896,13 @@
               "null"
             ]
           },
+          "spoilerSafe": {
+            "description": "Withhold notes on scenes a reader has not reached. Omitted, it follows\nthe work: on for a serial, off for anything else.",
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
           "visibility": {
             "$ref": "#/components/schemas/Visibility"
           }
@@ -815,6 +961,23 @@
         },
         "required": [
           "title"
+        ],
+        "type": "object"
+      },
+      "CreateTaskRequest": {
+        "properties": {
+          "body": {
+            "type": "string"
+          },
+          "sceneId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "body"
         ],
         "type": "object"
       },
@@ -1288,6 +1451,11 @@
               "null"
             ]
           },
+          "spoilerSafe": {
+            "description": "Withhold notes on scenes a reader has not reached yet. Defaulted on for\na serial, where not knowing yet is the whole point of reading one.",
+            "format": "int32",
+            "type": "integer"
+          },
           "updatedAt": {
             "type": "string"
           },
@@ -1308,7 +1476,8 @@
           "visibility",
           "scope",
           "createdAt",
-          "updatedAt"
+          "updatedAt",
+          "spoilerSafe"
         ],
         "type": "object"
       },
@@ -1637,6 +1806,64 @@
         ],
         "type": "object"
       },
+      "ReportReason": {
+        "enum": [
+          "abuse",
+          "spam",
+          "spoiler",
+          "off_topic",
+          "other"
+        ],
+        "type": "string"
+      },
+      "ReportRequest": {
+        "properties": {
+          "detail": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reason": {
+            "$ref": "#/components/schemas/ReportReason"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "type": "object"
+      },
+      "ReportView": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/CommentReport"
+          },
+          {
+            "properties": {
+              "commentAuthor": {
+                "$ref": "#/components/schemas/AuthorCard"
+              },
+              "commentBody": {
+                "description": "What was said, so the author can judge without going to find it.",
+                "type": "string"
+              },
+              "publicationId": {
+                "type": "string"
+              },
+              "reporter": {
+                "$ref": "#/components/schemas/AuthorCard"
+              }
+            },
+            "required": [
+              "reporter",
+              "commentBody",
+              "commentAuthor",
+              "publicationId"
+            ],
+            "type": "object"
+          }
+        ]
+      },
       "ResolveResponse": {
         "properties": {
           "change": {
@@ -1767,6 +1994,56 @@
           "kind",
           "scope",
           "position",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "RevisionTask": {
+        "properties": {
+          "body": {
+            "type": "string"
+          },
+          "commentId": {
+            "description": "The note it came from, or `None` for one the author typed themselves —\nor one whose comment has since been deleted. The task is the author's\neither way.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "doneAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "sceneId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          },
+          "workId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "workId",
+          "body",
+          "state",
           "createdAt",
           "updatedAt"
         ],
@@ -2139,6 +2416,61 @@
         ],
         "type": "object"
       },
+      "TaskSource": {
+        "properties": {
+          "author": {
+            "$ref": "#/components/schemas/AuthorCard"
+          },
+          "commentId": {
+            "type": "string"
+          },
+          "publicationId": {
+            "type": "string"
+          },
+          "quote": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "commentId",
+          "publicationId",
+          "author"
+        ],
+        "type": "object"
+      },
+      "TaskState": {
+        "enum": [
+          "open",
+          "done"
+        ],
+        "type": "string"
+      },
+      "TaskView": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/RevisionTask"
+          },
+          {
+            "properties": {
+              "source": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/TaskSource",
+                    "description": "The note it came from, if it came from one and that note still stands."
+                  }
+                ]
+              }
+            },
+            "type": "object"
+          }
+        ]
+      },
       "TemplateChapter": {
         "properties": {
           "scenes": {
@@ -2416,6 +2748,12 @@
               "null"
             ]
           },
+          "spoilerSafe": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
           "visibility": {
             "oneOf": [
               {
@@ -2503,6 +2841,33 @@
             "type": [
               "string",
               "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "UpdateTaskRequest": {
+        "properties": {
+          "body": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sceneId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TaskState"
+              }
             ]
           }
         },
@@ -4043,6 +4408,95 @@
         ]
       }
     },
+    "/api/comments/{comment_id}/report": {
+      "post": {
+        "operationId": "report",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "comment_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Reported"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "moderation"
+        ]
+      }
+    },
+    "/api/comments/{comment_id}/task": {
+      "post": {
+        "operationId": "from_comment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "comment_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskView"
+                }
+              }
+            },
+            "description": "On the list"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "Turn a reviewer's note into a line of the author's own work.",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
     "/api/comments/{comment_id}/vote": {
       "post": {
         "operationId": "vote",
@@ -4111,6 +4565,123 @@
         },
         "tags": [
           "health"
+        ]
+      }
+    },
+    "/api/me/blocks": {
+      "get": {
+        "operationId": "list_blocks",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/BlockView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Who cannot read your work"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "moderation"
+        ]
+      },
+      "post": {
+        "operationId": "block",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BlockRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/BlockView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Blocked"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "moderation"
+        ]
+      }
+    },
+    "/api/me/blocks/{user_id}": {
+      "delete": {
+        "operationId": "unblock",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/BlockView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Let back in"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "moderation"
         ]
       }
     },
@@ -4473,6 +5044,58 @@
         ]
       }
     },
+    "/api/publications/{publication_id}/comments/state": {
+      "post": {
+        "description": "Twenty typo reports are twenty rows and one decision. Doing that one row at\na time is how a review queue stops being read at all.",
+        "operationId": "bulk_state",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "publication_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkStateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkStateResponse"
+                }
+              }
+            },
+            "description": "How many moved"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "Resolve or reopen a pile of notes at once.",
+        "tags": [
+          "comments"
+        ]
+      }
+    },
     "/api/publications/{publication_id}/content": {
       "get": {
         "operationId": "content",
@@ -4509,6 +5132,43 @@
           }
         },
         "summary": "The manuscript as reviewers see it: the frozen snapshot, narrowed to the\nslice the author published.",
+        "tags": [
+          "publications"
+        ]
+      }
+    },
+    "/api/publications/{publication_id}/feedback/export": {
+      "get": {
+        "operationId": "export_feedback",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "publication_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {}
+            },
+            "description": "The review as a file"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "Every note on a publication, as a document. The author's only: it carries\neveryone's feedback with their names on it.",
         "tags": [
           "publications"
         ]
@@ -4924,6 +5584,49 @@
         },
         "tags": [
           "feedback"
+        ]
+      }
+    },
+    "/api/publications/{publication_id}/reports": {
+      "get": {
+        "operationId": "list_reports",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "publication_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ReportView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "What readers flagged"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "moderation"
         ]
       }
     },
@@ -5618,6 +6321,92 @@
         "summary": "Cuts one scene into two at a block boundary.",
         "tags": [
           "scenes"
+        ]
+      }
+    },
+    "/api/tasks/{task_id}": {
+      "delete": {
+        "operationId": "delete_task",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Gone"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "tasks"
+        ]
+      },
+      "patch": {
+        "operationId": "update",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTaskRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskView"
+                }
+              }
+            },
+            "description": "Updated"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "tasks"
         ]
       }
     },
@@ -6635,6 +7424,97 @@
         },
         "tags": [
           "works"
+        ]
+      }
+    },
+    "/api/works/{work_id}/tasks": {
+      "get": {
+        "operationId": "list",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TaskView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "What is left to do"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "tasks"
+        ]
+      },
+      "post": {
+        "operationId": "create",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTaskRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskView"
+                }
+              }
+            },
+            "description": "Added"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "tasks"
         ]
       }
     },

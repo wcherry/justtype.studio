@@ -232,6 +232,9 @@ row!(Publication, publications, {
     /// How many people may comment. Beta readers are scarce, and twenty
     /// overlapping opinions are worse than five considered ones.
     max_reviewers: Option<i32>,
+    /// Withhold notes on scenes a reader has not reached yet. Defaulted on for
+    /// a serial, where not knowing yet is the whole point of reading one.
+    spoiler_safe: i32,
 });
 
 row!(PublicationInvite, publication_invites, {
@@ -273,6 +276,37 @@ row!(ReadingProgress, reading_progress, {
     finished_at: Option<String>,
     created_at: String,
     updated_at: String,
+});
+
+row!(RevisionTask, revision_tasks, {
+    id: String,
+    work_id: String,
+    scene_id: Option<String>,
+    /// The note it came from, or `None` for one the author typed themselves —
+    /// or one whose comment has since been deleted. The task is the author's
+    /// either way.
+    comment_id: Option<String>,
+    body: String,
+    state: String,
+    created_at: String,
+    updated_at: String,
+    done_at: Option<String>,
+});
+
+row!(CommentReport, comment_reports, {
+    id: String,
+    comment_id: String,
+    reporter_id: String,
+    reason: String,
+    detail: Option<String>,
+    created_at: String,
+});
+
+row!(BlockedReader, blocked_readers, {
+    id: String,
+    owner_id: String,
+    user_id: String,
+    created_at: String,
 });
 
 row!(Reaction, reactions, {
@@ -437,7 +471,7 @@ new_row!(NewPublication, publications, {
     id: String, work_id: String, version_id: String, visibility: String,
     scope: String, scope_ref_id: Option<String>, review_prompt: Option<String>,
     opens_at: Option<String>, closes_at: Option<String>, created_at: String,
-    updated_at: String, max_reviewers: Option<i32>,
+    updated_at: String, max_reviewers: Option<i32>, spoiler_safe: i32,
 });
 
 new_row!(NewPublicationInvite, publication_invites, {
@@ -464,6 +498,21 @@ new_row!(NewComment, comments, {
     parent_id: Option<String>, author_id: String, body: String, anchor: Option<String>,
     anchor_quote: Option<String>, category: String, state: String, score: i32,
     created_at: String, updated_at: String,
+});
+
+new_row!(NewRevisionTask, revision_tasks, {
+    id: String, work_id: String, scene_id: Option<String>, comment_id: Option<String>,
+    body: String, state: String, created_at: String, updated_at: String,
+    done_at: Option<String>,
+});
+
+new_row!(NewCommentReport, comment_reports, {
+    id: String, comment_id: String, reporter_id: String, reason: String,
+    detail: Option<String>, created_at: String,
+});
+
+new_row!(NewBlockedReader, blocked_readers, {
+    id: String, owner_id: String, user_id: String, created_at: String,
 });
 
 new_row!(NewReaction, reactions, {

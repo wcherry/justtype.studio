@@ -178,6 +178,7 @@ a { color: inherit; text-decoration: none; }
   margin: 16px 0;
 }
 .feed__circles h2 { font-family: var(--serif); font-weight: 500; font-size: 17px; margin: 0 0 4px; }
+.feed__circles h2 ~ h2 { margin-top: 24px; }
 .feed__manage { display: flex; gap: 14px; margin: 6px 0 0 2px; }
 .feed__manage button { font-size: 12px; }
 
@@ -892,6 +893,70 @@ a { color: inherit; text-decoration: none; }
 .comment__body p { margin: 4px 0; font-size: 14px; }
 .comment__actions { display: flex; gap: 8px; }
 .comment__actions button { border: none; background: none; padding: 0; font-size: 12px; color: var(--ink-faint); }
+
+/* --- sorting through the notes ------------------------------------------ */
+
+.comments__filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.comments__filters select { width: auto; flex: 1 1 auto; min-width: 0; font-size: 12px; padding: 4px 6px; }
+.comments__agreed {
+  display: flex; align-items: center; gap: 5px; margin: 0;
+  font-size: 12px; color: var(--ink-soft); white-space: nowrap;
+}
+.comments__agreed input { width: auto; margin: 0; }
+.comments__bulk { display: block; margin-bottom: 10px; font-size: 12px; }
+
+/* A reviewer's record, small enough to ignore and there when it matters. */
+.comment__standing {
+  font-size: 10px; color: var(--ink-faint);
+  border: 1px solid var(--line); border-radius: 8px; padding: 0 5px;
+}
+.comment__report { display: flex; gap: 6px; margin-top: 6px; }
+.comment__report select { width: auto; font-size: 12px; }
+.comment__report button { font-size: 12px; padding: 2px 8px; }
+
+.badge--report { background: var(--del-soft); color: var(--del); }
+
+.reports { border-left: 2px solid var(--del); padding-left: 12px; }
+.reports ul { list-style: none; padding: 0; margin: 0; }
+.reports li { border-top: 1px solid var(--line); padding: 8px 0; font-size: 13px; }
+.reports li p { margin: 4px 0 0; color: var(--ink-soft); }
+.reports__meta { display: flex; align-items: baseline; gap: 8px; font-size: 12px; }
+.reports__actions { display: flex; gap: 12px; margin-top: 6px; }
+.reports__actions button { font-size: 12px; }
+
+.feedback-panel__export { display: flex; gap: 6px; }
+.feedback-panel__export button { font-size: 12px; }
+
+/* --- the author's to-do list -------------------------------------------- */
+
+.tasks__summary {
+  display: flex; align-items: baseline; justify-content: space-between;
+  font-size: 12px; color: var(--ink-soft); margin-bottom: 8px;
+}
+.tasks__summary button { font-size: 12px; }
+.tasks__list { list-style: none; padding: 0; margin: 0; }
+.tasks__list > li { border-top: 1px solid var(--line); padding: 8px 0; }
+.tasks__list label {
+  display: flex; align-items: flex-start; gap: 8px; margin: 0; font-size: 13px; cursor: pointer;
+}
+.tasks__list label input { width: auto; margin: 2px 0 0; }
+.tasks__list li.is-done label span { color: var(--ink-faint); text-decoration: line-through; }
+.tasks__meta { display: flex; gap: 10px; margin: 4px 0 0 22px; align-items: baseline; }
+.tasks__meta .field__hint { margin: 0; }
+.tasks__meta button { font-size: 11px; }
+.tasks__list blockquote {
+  margin: 4px 0 0 22px; padding-left: 8px; border-left: 2px solid var(--line);
+  font-family: var(--serif); font-size: 12px; color: var(--ink-soft);
+}
+.tasks__new { display: flex; gap: 6px; margin-top: 12px; }
+.tasks__new input { flex: 1; }
+
+.offer__check {
+  display: grid; grid-template-columns: auto 1fr; gap: 0 8px; align-items: center;
+  font-size: 13px;
+}
+.offer__check input { width: auto; margin: 0; }
+.offer__check .field__hint { grid-column: 2; }
 
 .new-comment { margin: 12px 0; }
 .new-comment--compact { margin: 8px 0 0; }

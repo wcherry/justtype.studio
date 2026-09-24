@@ -15,6 +15,7 @@ import { GoalBar } from '../components/GoalBar'
 import { Outline } from '../components/Outline'
 import { SceneDetails } from '../components/SceneDetails'
 import { StoryBible } from '../components/StoryBible'
+import { TaskList } from '../components/TaskList'
 import { RevisionPanel } from '../components/RevisionPanel'
 import { Toolbar } from '../components/Toolbar'
 import { WritingPreferencesPanel } from '../components/WritingPreferences'
@@ -47,7 +48,15 @@ export function EditorPage() {
   const [error, setError] = useState<string | null>(null)
   const [panel, setPanel] =
     useState<
-      'none' | 'versions' | 'history' | 'prefs' | 'front' | 'details' | 'bible' | 'changes'
+      | 'none'
+      | 'versions'
+      | 'history'
+      | 'prefs'
+      | 'front'
+      | 'details'
+      | 'bible'
+      | 'changes'
+      | 'tasks'
     >('none')
   const [view, setView] = useState<'write' | 'corkboard'>('write')
   /** What the writer has selected, in the same positions a proposal records. */
@@ -353,6 +362,12 @@ export function EditorPage() {
             </button>
             <button
               type="button"
+              onClick={() => setPanel((p) => (p === 'tasks' ? 'none' : 'tasks'))}
+            >
+              To do
+            </button>
+            <button
+              type="button"
               onClick={() => setPanel((p) => (p === 'front' ? 'none' : 'front'))}
             >
               Front matter
@@ -505,6 +520,26 @@ export function EditorPage() {
             <h3>Story bible</h3>
           </header>
           <StoryBible workId={workId} scene={scene} />
+        </aside>
+      )}
+
+      {panel === 'tasks' && (
+        <aside className="versions">
+          <header className="versions__header">
+            <h3>To do</h3>
+          </header>
+          <TaskList
+            workId={workId}
+            sceneId={scene?.id ?? null}
+            onOpenScene={(id) => {
+              // The list keeps ids; the editor opens whole scenes, so look it
+              // up in the outline rather than fetching a second copy.
+              const target = outline.chapters
+                .flatMap((chapter) => chapter.scenes)
+                .find((candidate) => candidate.id === id)
+              if (target) void openScene(target)
+            }}
+          />
         </aside>
       )}
 
