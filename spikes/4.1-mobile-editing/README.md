@@ -103,8 +103,8 @@ questions now have answers.
 2. A module script will not load over `file://`. Inlining it into the HTML is
    the fix, but an inline classic script in the `<head>` runs before `#editor`
    exists, so it has to go at the end of the body.
-3. **Inlining with `String.replace` and a replacement *string* corrupted the
-   bundle.** `$&`, `` $` `` and friends are interpreted in a replacement
+3. **Inlining is gone, and this is why it had to be.** It corrupted the bundle
+   twice over. `$&`, `` $` `` and friends are interpreted in a replacement
    string, and minified JavaScript is full of dollars and backticks: one
    template literal's opening backtick was eaten a hundred kilobytes in. The
    symptom was a blank page and `SyntaxError: Unexpected identifier 'tiptap'`
@@ -112,8 +112,23 @@ questions now have answers.
    replacement fixes it; `inline.mjs` says so in a comment, because the next
    person will reach for the string.
 
-None of these are arguments against the approach. They are the cost of the
-first hour, and they are now written down.
+   The first was `String.replace` with a replacement *string*:
+
+   `$&`, `` $` `` and friends are interpreted there, minified JavaScript is
+   full of dollars and backticks, and one template literal lost its opening
+   backtick a hundred kilobytes in. A replacement *function* fixed that.
+
+   The second could not be fixed: wrapping 300 KB of minified JavaScript in a
+   `try` block turns its top-level `const`s into block-scoped ones, and on
+   **iOS 17** that is a temporal-dead-zone error — `Can't find variable: An` —
+   from inside ProseMirror's plugin-key counter. The same bytes ran perfectly
+   on iOS 26, which is the worst way to have a bug.
+
+   The editor is now served under a custom scheme by a `WKURLSchemeHandler`
+   (`EditorScheme.swift`). The page gets a real origin, ships exactly as Vite
+   built it, module script and all, and there is no text surgery on minified
+   code anywhere in the pipeline. That was listed here as the alternative; the
+   iPad made it the choice.
 
 **Still open: does the caret clear the keyboard?** The software keyboard never
 presented for the web view in this environment. `app.keyboards` reports a
@@ -163,11 +178,11 @@ cd ../spikes/4.1-mobile-editing/editor/dist && python3 -m http.server 8777
 # in the browser: window.scriptorium.load(doc); window.scriptorium.blocks()
 cd ios/ScriptoriumKit && swift test --filter ProseMirrorContractTests
 
-# The simulator pass. The built page is committed at
-# ios/Scriptorium/Resources/Editor/index.html; rebuild it with
+# The simulator pass. The built page ships as a package resource; rebuild with
 #   cd web && npx vite build --config ../spikes/4.1-mobile-editing/editor/vite.config.ts
-#   node ../spikes/4.1-mobile-editing/editor/inline.mjs
-#   cp ../spikes/4.1-mobile-editing/editor/dist/index.html ../ios/Scriptorium/Resources/Editor/
+#   rm -rf ../ios/ScriptoriumKit/Sources/ScriptoriumUI/Resources/Editor
+#   cp -R ../spikes/4.1-mobile-editing/editor/dist \
+#     ../ios/ScriptoriumKit/Sources/ScriptoriumUI/Resources/Editor
 cd ios && xcodegen generate
 xcodebuild test -project Scriptorium.xcodeproj -scheme Scriptorium \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \

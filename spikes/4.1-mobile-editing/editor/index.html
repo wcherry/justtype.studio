@@ -32,8 +32,13 @@
   </head>
   <body>
     <div id="editor"></div>
-    <!-- Built, this becomes one inlined classic script: WKWebView will not
-         load a module over file://, and says nothing when it does not. -->
+    <!-- Served under a custom scheme rather than from a file URL, so this
+         stays a module and ships exactly as it was built. -->
+    <script>
+      window.addEventListener('error', (e) => {
+        window.__error = (e.message || 'error') + ' @ ' + (e.filename || '') + ':' + (e.lineno || 0)
+      })
+    </script>
     <script type="module" src="./main.ts"></script>
   </body>
 </html>

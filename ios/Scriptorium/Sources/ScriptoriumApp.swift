@@ -1,3 +1,4 @@
+import ScriptoriumKit
 import SwiftUI
 import ScriptoriumUI
 
@@ -6,6 +7,8 @@ import ScriptoriumUI
 /// simulator.
 @main
 struct ScriptoriumApp: App {
+    @StateObject private var deeplink = Deeplink.shared
+
     var body: some SwiftUI.Scene {
         WindowGroup {
             // The 4.1 spike harness, reachable only with `-spike41` on the
@@ -16,7 +19,20 @@ struct ScriptoriumApp: App {
                     reading: CommandLine.arguments.contains("-reading")
                 )
             } else {
-                RootView(baseURL: AppConfig.apiBaseURL)
+                RootView(
+                    baseURL: AppConfig.apiBaseURL,
+                    startWriting: Binding(
+                        get: {
+                            deeplink.open.map {
+                                OpenScene(
+                                    id: $0,
+                                    title: SharedState.load()?.sceneTitle ?? "Writing"
+                                )
+                            }
+                        },
+                        set: { if $0 == nil { deeplink.open = nil } }
+                    )
+                )
             }
         }
     }

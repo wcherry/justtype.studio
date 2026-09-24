@@ -398,10 +398,27 @@ currently mean.
   it is left undone rather than half-built. It belongs with the notification
   work, not with the reader.
 
-### 4.4 Platform polish
-- Widgets for the daily word goal; Shortcuts for "start writing".
-- iPad: split view with the outline, hardware keyboard shortcuts.
-- Dictation capture straight into a scene.
+### 4.4 Platform polish — **done**
+- A home-screen widget for today's words against the goal, with the streak. It
+  reads a small file the app leaves in a shared app group rather than fetching
+  anything: a widget cannot sign in, and giving an extension a refresh token so
+  it can draw a progress bar would be a credential in a second place for no
+  reason. The app rewrites the file and reloads the timeline whenever the
+  number moves.
+- A Shortcut and Siri phrase for "start writing", which opens the scene the
+  writer had last. An intent runs before the interface exists, so it leaves a
+  note and the app picks it up.
+- iPad: `NavigationSplitView`, so the outline sits beside the page — it costs
+  nothing on a phone, where it collapses to exactly the stack it was.
+  ⌘⌥↑/↓ walk the scenes, ⌘B/⌘I/⌘U format, ⌘S checkpoints.
+- Dictation is the system keyboard's. The editor is a standard editable
+  region, so the microphone key types into it like any other field; a separate
+  speech-recognition path would duplicate a platform feature and could not be
+  tested here.
+- **Not verified on a running iPad:** the split view itself. Reaching it needs
+  a signed-in session, and setting one up means typing a password into the
+  simulator. The editor and reader were both exercised on an iPad — which is
+  where the one real iPad bug turned up.
 
 ---
 

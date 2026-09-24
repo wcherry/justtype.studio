@@ -64,10 +64,20 @@ struct SceneEditorView: View {
                 onProblem: { problem = $0 }
             )
 
-            FormatBar(active: activeMarks) { name in
-                issued += 1
-                command = WebEditorView.Command(name: name, issue: issued)
+            FormatBar(active: activeMarks) { send($0) }
+        }
+        // The shortcuts a writer with a keyboard already has muscle memory
+        // for. The web view swallows ⌘B itself when it has focus; these are
+        // for the rest of the time, and for an iPad's Command key overlay.
+        .background {
+            VStack {
+                Button("Bold") { send("bold") }.keyboardShortcut("b")
+                Button("Italic") { send("italic") }.keyboardShortcut("i")
+                Button("Underline") { send("underline") }.keyboardShortcut("u")
+                Button("Save now") { Task { await save(createRevision: true) } }
+                    .keyboardShortcut("s")
             }
+            .opacity(0)
         }
         .navigationTitle(scene?.title ?? title)
         .alert("This scene changed somewhere else", isPresented: $showConflict) {
@@ -110,6 +120,11 @@ struct SceneEditorView: View {
         }
     }
 
+    private func send(_ name: String) {
+        issued += 1
+        command = WebEditorView.Command(name: name, issue: issued)
+    }
+
     private func load() async {
         // Through the sync engine, so an unsent edit wins over the server's
         // older copy — handing a writer their own work back, undone, is the
@@ -121,6 +136,11 @@ struct SceneEditorView: View {
         words = loaded.scene.content.wordCount
         saveState = await session.sync.pending(for: sceneId) == nil ? .idle : .queued
         await session.refreshPendingCount()
+        // So "start writing" comes back here, and the widget knows whose
+        // words it is counting.
+        await session.publishWritingSnapshot(
+            lastScene: (id: loaded.scene.id, title: loaded.scene.title, workId: loaded.scene.workId)
+        )
     }
 
     /// Debounced autosave, with a checkpoint revision when the writer pauses.
@@ -151,6 +171,7 @@ struct SceneEditorView: View {
         case .saved(let hash):
             baseHash = hash
             saveState = .saved
+            await session.publishWritingSnapshot()
         case .queued:
             saveState = .queued
         case .conflict:

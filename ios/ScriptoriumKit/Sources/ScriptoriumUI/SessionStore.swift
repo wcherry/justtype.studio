@@ -1,5 +1,8 @@
 import Foundation
 import ScriptoriumKit
+#if canImport(WidgetKit)
+    import WidgetKit
+#endif
 
 /// Owns the signed-in user and the single `APIClient` every view reaches for.
 @MainActor
@@ -29,10 +32,34 @@ public final class SessionStore: ObservableObject {
         let outcomes = await sync.flush()
         working = !outcomes.values.contains(.queued)
         pending = await sync.pendingCount
+        await publishWritingSnapshot()
     }
 
     public func refreshPendingCount() async {
         pending = await sync.pendingCount
+    }
+
+    /// Leaves today's writing where the widget and the Shortcut can find it.
+    ///
+    /// Written by the app because the app is the only thing here that can
+    /// sign in; an extension holding a refresh token to fetch its own copy
+    /// would be a credential in a second place for a progress bar.
+    public func publishWritingSnapshot(lastScene: (id: String, title: String, workId: String)? = nil) async {
+        let today = ISO8601DateFormatter.localDay.string(from: Date())
+        guard let summary = try? await client.writing(today: today) else { return }
+        SharedState.save(
+            WritingSnapshot(
+                words: summary.wordsToday,
+                goal: summary.dailyWordGoal,
+                streak: summary.streak,
+                sceneId: lastScene?.id ?? SharedState.load()?.sceneId,
+                sceneTitle: lastScene?.title ?? SharedState.load()?.sceneTitle,
+                workId: lastScene?.workId ?? SharedState.load()?.workId
+            )
+        )
+        #if canImport(WidgetKit)
+            WidgetCenter.shared.reloadAllTimelines()
+        #endif
     }
 
     /// A stored refresh token may be stale; asking the server is the only way

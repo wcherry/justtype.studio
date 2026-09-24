@@ -123,6 +123,12 @@ public struct WebEditorView: ViewRepresentable {
     private func makeWebView(_ context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
         configuration.userContentController.add(context.coordinator, name: "scriptorium")
+        // Served rather than loaded from a file URL — see EditorSchemeHandler
+        // for what a file URL costs.
+        configuration.setURLSchemeHandler(
+            context.coordinator.scheme,
+            forURLScheme: EditorSchemeHandler.scheme
+        )
         // `limitsNavigationsToAppBoundDomains` belongs nowhere near this: with
         // no `WKAppBoundDomains` in the Info.plist it refuses every navigation,
         // file URLs included, and does it by rendering nothing. There is no
@@ -139,17 +145,7 @@ public struct WebEditorView: ViewRepresentable {
         #endif
         context.coordinator.webView = webView
 
-        guard
-            let url = Bundle.module.url(
-                forResource: "index",
-                withExtension: "html",
-                subdirectory: "Editor"
-            )
-        else {
-            onProblem?("the editor is missing from the app bundle")
-            return webView
-        }
-        webView.loadFileURL(url, allowingReadAccessTo: url.deletingLastPathComponent())
+        webView.load(URLRequest(url: EditorSchemeHandler.pageURL))
         return webView
     }
 
@@ -179,6 +175,7 @@ public struct WebEditorView: ViewRepresentable {
         weak var webView: WKWebView?
         private(set) var loaded = false
         private(set) var pushed: API.DocNode?
+        let scheme = EditorSchemeHandler()
         var lastCommand: Command?
         var lastEditable: Bool?
         var lastTypography: Typography?

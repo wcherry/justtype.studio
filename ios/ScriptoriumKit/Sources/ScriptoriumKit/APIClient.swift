@@ -200,6 +200,12 @@ public struct APIClient: Sendable {
 
     // MARK: - Writing
 
+    /// Today's words, the goal, and the streak. `today` is the writer's local
+    /// date: only the client knows which day it is where they are.
+    public func writing(today: String) async throws -> API.WritingSummary {
+        try await send("GET", "me/writing?today=\(today)")
+    }
+
     public func templates() async throws -> [API.TemplateView] {
         try await send("GET", "templates")
     }

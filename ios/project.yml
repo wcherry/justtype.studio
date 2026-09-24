@@ -50,6 +50,8 @@ targets:
         product: ScriptoriumUI
       - package: ScriptoriumKit
         product: ScriptoriumKit
+      - target: ScriptoriumWidget
+        embed: true
     # DEVELOPMENT_TEAM lives here rather than in this file: it is a property of
     # whoever is building, not of the project. scripts/ios_signing.sh writes it
     # from scripts/.env before anything runs xcodegen, and Xcode reads the same
@@ -57,11 +59,48 @@ targets:
     configFiles:
       Debug: Signing.xcconfig
       Release: Signing.xcconfig
+    entitlements:
+      path: Scriptorium/Scriptorium.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.app.scriptorium.ios
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.scriptorium.ios
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         TARGETED_DEVICE_FAMILY: "1,2"
+
+  # Today's words on the home screen. It reads a file the app leaves behind
+  # rather than signing in: an extension holding a refresh token for a progress
+  # bar is a credential in a second place for no reason.
+  ScriptoriumWidget:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: ScriptoriumWidget
+    dependencies:
+      - package: ScriptoriumKit
+        product: ScriptoriumKit
+    info:
+      path: ScriptoriumWidget/Info.plist
+      properties:
+        CFBundleDisplayName: Scriptorium
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    entitlements:
+      path: ScriptoriumWidget/ScriptoriumWidget.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.app.scriptorium.ios
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.scriptorium.ios.widget
+        INFOPLIST_KEY_CFBundleDisplayName: Scriptorium
+    configFiles:
+      Debug: Signing.xcconfig
+      Release: Signing.xcconfig
 
   # The editing surface asked of a running simulator: the keyboard, the caret,
   # typing, selection and undo, none of which a command line can answer.
