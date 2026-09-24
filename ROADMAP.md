@@ -331,33 +331,25 @@ currently mean.
 
 ## Phase 4 — iOS parity
 
-### 4.1 Real rich-text editing
-- **Spiked, decided: the embedded editor.** Both paths were built far enough to
-  measure — see `spikes/4.1-mobile-editing/README.md`. An attributed-string
-  model flattens nested lists, merges adjacent blockquotes, and puts every
-  comment anchor through a second coordinate system that drifts with nesting
-  (13 positions by the end of a six-block test document). A `WKWebView` running
-  the same TipTap gives one editor, one document model and one set of
-  positions across all three clients, for 296 KB in the app bundle. A test now
-  checks `DocNode.blocks()` against numbers taken from the real editor.
-- **Simulator pass run.** Four of five questions answered on an iPhone 17 Pro:
-  the document loads and renders from the app bundle, typing reaches Swift, a
-  selection reports itself back, and ⌘Z drives the page's own undo stack. Three
-  bridge bugs found and fixed along the way — app-bound domains refusing file
-  URLs, a module script that will not load over `file://`, and a string
-  replacement eating a backtick in the minified bundle.
-- **Still open:** does the caret clear the keyboard? The software keyboard
-  never presented for the web view under `xcodebuild test` — it is parked off
-  the bottom of the screen with only the accessory bar visible — so the test
-  skips rather than claiming a pass. It needs a device, or a human with
-  Simulator.app. Also open: the heading is missing on first paint until
-  something forces a relayout, which a shipping version has to handle.
-- If the keyboard question fails, the fallback is a *restricted* native editor
-  — paragraphs, headings and inline marks — with lists still opening
-  read-only, written down as the smaller promise it is.
-- Until then the current read-only guard stays; it is the correct failure mode.
-- **Done when** a scene written on the web opens, edits and saves on iPhone
-  without losing a single mark.
+### 4.1 Real rich-text editing — **done**
+- The mobile editor is the same TipTap the browser runs, hosted in a
+  `WKWebView` and shipped inside the app: one editor, one document model and
+  one set of ProseMirror positions across all three clients. Chosen with a
+  spike rather than an argument — `spikes/4.1-mobile-editing/README.md` has the
+  measurements, including what an attributed-string model loses.
+- The read-only guard is gone, and so is `hasRichFormatting`: there is no
+  longer a document the phone refuses to open. A format bar reaches the six
+  things a thumb needs, and the marks a selection carries light up in it.
+- A scene saved through the web client and read back from the server decodes,
+  re-encodes and compares byte-for-byte in `RichSceneTests` — link attributes
+  included, which are the easiest thing in a document to drop.
+- Five UI tests drive the real editor on a simulator: it loads and renders,
+  typing reaches Swift, a selection reports itself, the toolbar's bold reaches
+  the document Swift holds, and ⌘Z puts the words back.
+- **Still open:** whether the caret clears the software keyboard. It never
+  presented for the web view under `xcodebuild test` — parked off the bottom of
+  the screen with only the accessory bar visible — so that test skips rather
+  than claiming a pass it did not earn. It needs a device.
 
 ### 4.2 Offline-first
 - Local mirror of the outline and the scenes the writer has opened.

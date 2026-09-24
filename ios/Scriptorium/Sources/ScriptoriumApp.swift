@@ -11,8 +11,8 @@ struct ScriptoriumApp: App {
             // The 4.1 spike harness, reachable only with `-spike41` on the
             // command line. Delete this branch, `spikes/4.1-mobile-editing`
             // and the Editor resource together when the spike is acted on.
-            if CommandLine.arguments.contains("-spike41") {
-                SpikeEditorScreen()
+            if CommandLine.arguments.contains("-uitest") {
+                EditorHarnessView()
             } else {
                 RootView(baseURL: AppConfig.apiBaseURL)
             }

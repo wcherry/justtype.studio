@@ -1,5 +1,11 @@
 # Spike: rich-text editing on iPhone (Phase 4.1)
 
+> **Acted on.** The embedded editor is the mobile editor now: the page here is
+> the one that ships (`ios/ScriptoriumKit/Sources/ScriptoriumUI/Resources/`),
+> and `WebEditorView` moved into the UI package. The attributed-string
+> converter was deleted once it had answered the question — this file is what
+> it left behind. What stays here is the build for the page and the record.
+
 The mobile editor currently opens any scene carrying marks or non-paragraph
 blocks **read-only**, because flattening an author's italics on save is worse
 than not editing at all. Removing that limitation means choosing between two
@@ -15,8 +21,8 @@ is the one thing that could still change it.
 
 | | Path A — `UITextView` | Path B — `WKWebView` + TipTap |
 |---|---|---|
-| Code | `ios/…/Spike/AttributedDoc.swift` (256 lines) | `WebEditorView.swift` (104) + `editor/main.ts` (98) |
-| Tests | `AttributedDocTests` (9) | `ProseMirrorContractTests` (2) |
+| Code | `AttributedDoc.swift` (256 lines, since deleted) | `WebEditorView.swift` (104) + `editor/main.ts` (98) |
+| Tests | `AttributedDocTests` (9, since deleted) | `ProseMirrorContractTests` (2, kept) |
 | Ships | nothing extra | 292 KB JS + 4 KB HTML (88 KB gzipped) in the app bundle |
 
 Both are in the repository and both run. Neither is wired into the app.
@@ -151,9 +157,6 @@ and it should be written down as one rather than shipped as parity.
 ## Reproducing
 
 ```sh
-# Path A
-cd ios/ScriptoriumKit && swift test --filter AttributedDocTests
-
 # Path B — build the bundle, then serve it and read the positions back
 cd web && npx vite build --config ../spikes/4.1-mobile-editing/editor/vite.config.ts
 cd ../spikes/4.1-mobile-editing/editor/dist && python3 -m http.server 8777

@@ -1,24 +1,29 @@
 import XCTest
 
-/// **Spike — Phase 4.1.** The simulator pass.
+/// The editing surface, on a running phone.
 ///
-/// Four questions the command line could not answer, asked of a running
-/// phone. Each test is one of them, and each attaches a screenshot, because
-/// "the caret is above the keyboard" is a claim somebody should be able to
-/// check with their eyes rather than take on trust.
-final class WebEditorSpikeTests: XCTestCase {
+/// The questions a command line cannot answer: does the keyboard come up, does
+/// typing reach Swift, does a selection report itself, does undo work. Each
+/// test attaches a screenshot, because "the caret is above the keyboard" is a
+/// claim somebody should be able to check with their eyes rather than take on
+/// trust.
+///
+/// They run against `EditorHarnessView` — the real editor with a sample
+/// document and no network, so a failure here is about the editor rather than
+/// about signing in.
+final class WebEditorTests: XCTestCase {
     private var app: XCUIApplication!
 
     override func setUp() {
         continueAfterFailure = false
         app = XCUIApplication()
-        app.launchArguments = ["-spike41"]
+        app.launchArguments = ["-uitest"]
         app.launch()
     }
 
     /// The web view renders the document, and Swift agrees about the blocks.
     func testTheDocumentLoads() throws {
-        let blocks = app.staticTexts["spike.blocks"]
+        let blocks = app.staticTexts["harness.blocks"]
         XCTAssertTrue(blocks.waitForExistence(timeout: 20))
         XCTAssertTrue(app.webViews.firstMatch.waitForExistence(timeout: 10))
         XCTAssertTrue(
@@ -51,7 +56,7 @@ final class WebEditorSpikeTests: XCTestCase {
         // Printed rather than only asserted: these numbers are the evidence,
         // and the screenshot beside them does not always show the keyboard the
         // accessibility tree says is up.
-        print("SPIKE geometry line=\(line) keyboard=\(keyboard.frame) keys=\(app.keys.count)")
+        print("EDITOR geometry line=\(line) keyboard=\(keyboard.frame) keys=\(app.keys.count)")
 
         // With a hardware keyboard attached, the simulator shows only the
         // accessory bar and `app.keyboards` matches that instead — which would
@@ -80,7 +85,7 @@ final class WebEditorSpikeTests: XCTestCase {
 
     /// Question 2: typing reaches the document, and Swift sees it.
     func testTypingReachesTheDocument() throws {
-        let words = app.staticTexts["spike.words"]
+        let words = app.staticTexts["harness.words"]
         XCTAssertTrue(words.waitForExistence(timeout: 20))
         let quote = app.webViews.staticTexts.containing(
             NSPredicate(format: "label CONTAINS 'fenceposts'")
@@ -99,7 +104,7 @@ final class WebEditorSpikeTests: XCTestCase {
     /// Question 3: is there an input accessory view, and does a selection
     /// report itself back to Swift?
     func testSelectionReportsItselfToSwift() throws {
-        let selection = app.staticTexts["spike.selection"]
+        let selection = app.staticTexts["harness.selection"]
         XCTAssertTrue(selection.waitForExistence(timeout: 20))
         let before = selection.label
 
@@ -120,7 +125,7 @@ final class WebEditorSpikeTests: XCTestCase {
     /// Question 4: undo. A web view's own undo stack is the one that matters —
     /// the shake gesture and the keyboard's undo key both drive it.
     func testUndoPutsTheTextBack() throws {
-        let words = app.staticTexts["spike.words"]
+        let words = app.staticTexts["harness.words"]
         XCTAssertTrue(words.waitForExistence(timeout: 20))
         let quote = app.webViews.staticTexts.containing(
             NSPredicate(format: "label CONTAINS 'fenceposts'")
@@ -141,6 +146,34 @@ final class WebEditorSpikeTests: XCTestCase {
         Thread.sleep(forTimeInterval: 1.5)
         attach(named: "undone")
         XCTAssertEqual(words.label, before, "undo did not put the words back")
+    }
+
+    /// The format bar writes a real mark, and Swift sees which marks are on.
+    func testTheToolbarMarksTheSelection() throws {
+        let marks = app.staticTexts["harness.marks"]
+        XCTAssertTrue(marks.waitForExistence(timeout: 20))
+        let quote = app.webViews.staticTexts.containing(
+            NSPredicate(format: "label CONTAINS 'fenceposts'")
+        ).firstMatch
+        XCTAssertTrue(quote.waitForExistence(timeout: 10))
+        quote.press(forDuration: 1.0)
+        Thread.sleep(forTimeInterval: 1.0)
+
+        app.buttons["harness.bold"].tap()
+        Thread.sleep(forTimeInterval: 1.0)
+        attach(named: "bolded")
+
+        // Two claims, and the second is the one that matters: the button lit
+        // up, *and* the document Swift now holds carries a bold mark.
+        XCTAssertTrue(
+            marks.label.contains("bold"),
+            "the toolbar did not report the mark as active: \(marks.label)"
+        )
+        XCTAssertTrue(
+            app.staticTexts["harness.docmarks"].label.contains("bold"),
+            "no bold mark reached the document: "
+                + app.staticTexts["harness.docmarks"].label
+        )
     }
 
     private func attach(named name: String) {

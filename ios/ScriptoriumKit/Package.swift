@@ -12,7 +12,19 @@ let package = Package(
     ],
     targets: [
         .target(name: "ScriptoriumKit"),
-        .target(name: "ScriptoriumUI", dependencies: ["ScriptoriumKit"]),
-        .testTarget(name: "ScriptoriumKitTests", dependencies: ["ScriptoriumKit"]),
+        .target(
+            name: "ScriptoriumUI",
+            dependencies: ["ScriptoriumKit"],
+            // The editor is a web page that ships inside the app: one editor
+            // and one set of ProseMirror positions for every client. Copied
+            // rather than processed, because it is already built — see
+            // spikes/4.1-mobile-editing for how it is made and why.
+            resources: [.copy("Resources/Editor")]
+        ),
+        .testTarget(
+            name: "ScriptoriumKitTests",
+            dependencies: ["ScriptoriumKit"],
+            resources: [.copy("Fixtures")]
+        ),
     ]
 )

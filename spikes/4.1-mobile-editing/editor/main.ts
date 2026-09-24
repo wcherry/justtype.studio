@@ -47,22 +47,32 @@ const editor = new Editor({
       words: editor.state.doc.textBetween(0, editor.state.doc.content.size, ' ').split(/\s+/)
         .filter(Boolean).length,
     })
+    // Toggling a mark changes the document without moving the selection, so
+    // the toolbar would stay unlit until the writer tapped somewhere else.
+    sendSelection(editor)
   },
   onSelectionUpdate({ editor }) {
-    const { from, to } = editor.state.selection
-    send({
-      kind: 'selection',
-      from,
-      to,
-      marks: ['bold', 'italic', 'underline', 'strike', 'code'].filter((m) => editor.isActive(m)),
-    })
+    sendSelection(editor)
   },
 })
+
+function sendSelection(editor: Editor) {
+  const { from, to } = editor.state.selection
+  send({
+    kind: 'selection',
+    from,
+    to,
+    marks: ['bold', 'italic', 'underline', 'strike', 'code']
+      .filter((m) => editor.isActive(m))
+      .concat(editor.isActive('heading', { level: 2 }) ? ['h2'] : [])
+      .concat(editor.isActive('blockquote') ? ['quote'] : [])
+      .concat(editor.isActive('bulletList') ? ['bullet'] : []),
+  })
+}
 
 window.scriptorium = {
   load: (doc) => editor.commands.setContent(doc as never, false),
   toggle: (mark) => {
-    editor.chain().focus()
     const chain = editor.chain().focus()
     switch (mark) {
       case 'bold': chain.toggleBold().run(); break

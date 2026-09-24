@@ -58,19 +58,6 @@ final class DocNodeTests: XCTestCase {
         XCTAssertEqual(node.blocks()[0].to, 4)
     }
 
-    func testRichFormattingIsDetected() throws {
-        let plain = try doc("""
-        {"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"plain"}]}]}
-        """)
-        let marked = try doc("""
-        {"type":"doc","content":[{"type":"paragraph","content":[
-          {"type":"text","text":"bold","marks":[{"type":"bold"}]}
-        ]}]}
-        """)
-        XCTAssertFalse(plain.hasRichFormatting)
-        XCTAssertTrue(marked.hasRichFormatting)
-    }
-
     func testRoundTripThroughPlainTextPreservesParagraphs() {
         let node = API.DocNode.fromPlainText("First para.\n\nSecond para.")
         XCTAssertEqual(node.content?.count, 2)

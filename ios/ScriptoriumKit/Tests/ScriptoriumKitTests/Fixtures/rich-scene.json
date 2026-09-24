@@ -1,0 +1,137 @@
+{
+  "content": [
+    {
+      "attrs": {
+        "level": 2
+      },
+      "content": [
+        {
+          "text": "The Long Field",
+          "type": "text"
+        }
+      ],
+      "type": "heading"
+    },
+    {
+      "content": [
+        {
+          "text": "The field went on ",
+          "type": "text"
+        },
+        {
+          "marks": [
+            {
+              "type": "italic"
+            }
+          ],
+          "text": "past",
+          "type": "text"
+        },
+        {
+          "text": " where the light gave out — ",
+          "type": "text"
+        },
+        {
+          "marks": [
+            {
+              "type": "bold"
+            },
+            {
+              "type": "italic"
+            }
+          ],
+          "text": "well",
+          "type": "text"
+        },
+        {
+          "text": " past. 🜂",
+          "type": "text"
+        },
+        {
+          "type": "hardBreak"
+        },
+        {
+          "marks": [
+            {
+              "type": "underline"
+            }
+          ],
+          "text": "Afterwards",
+          "type": "text"
+        },
+        {
+          "text": ", nothing.",
+          "type": "text"
+        }
+      ],
+      "type": "paragraph"
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "marks": [
+                {
+                  "type": "strike"
+                }
+              ],
+              "text": "She counted fenceposts.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "blockquote"
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "First",
+                  "type": "text"
+                }
+              ],
+              "type": "paragraph"
+            }
+          ],
+          "type": "listItem"
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "attrs": {
+                        "class": null,
+                        "href": "https://example.com",
+                        "rel": "noopener noreferrer nofollow",
+                        "target": "_blank"
+                      },
+                      "type": "link"
+                    }
+                  ],
+                  "text": "Second",
+                  "type": "text"
+                }
+              ],
+              "type": "paragraph"
+            }
+          ],
+          "type": "listItem"
+        }
+      ],
+      "type": "bulletList"
+    },
+    {
+      "type": "horizontalRule"
+    }
+  ],
+  "type": "doc"
+}

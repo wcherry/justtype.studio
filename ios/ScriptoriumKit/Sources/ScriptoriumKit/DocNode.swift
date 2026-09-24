@@ -67,15 +67,6 @@ public extension API.DocNode {
         return API.DocNode(content: paragraphs.isEmpty ? [API.DocNode(type: "paragraph")] : paragraphs, type: "doc")
     }
 
-    /// True when the document carries formatting a plain-text editor cannot
-    /// represent. The iOS editor refuses to open such a scene for editing
-    /// rather than silently flattening the author's italics away.
-    var hasRichFormatting: Bool {
-        if let marks, !marks.isEmpty { return true }
-        if type != "doc", type != "paragraph", type != "text" { return true }
-        return (content ?? []).contains { $0.hasRichFormatting }
-    }
-
     /// Walks the top level of a document and records where each block sits.
     func blocks() -> [DocBlock] {
         var result: [DocBlock] = []

@@ -31,12 +31,6 @@ targets:
     platform: iOS
     sources:
       - path: Scriptorium/Sources
-      # Phase 4.1 spike: the web-view editor and its harness, plus the built
-      # TipTap bundle. Reached only with `-spike41`; see spikes/README.
-      - path: ../spikes/4.1-mobile-editing/WebEditorView.swift
-      - path: ../spikes/4.1-mobile-editing/SpikeEditorScreen.swift
-      - path: Scriptorium/Resources/Editor
-        type: folder
     info:
       # XcodeGen generates this file, so these keys live here rather than in the
       # plist — anything hand-edited there is lost on the next `xcodegen generate`.
@@ -69,14 +63,13 @@ targets:
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         TARGETED_DEVICE_FAMILY: "1,2"
 
-  # Phase 4.1 spike: the questions the command line cannot answer — the
-  # keyboard, the caret, the accessory bar and undo — asked of a running
-  # simulator. Delete with the spike.
+  # The editing surface asked of a running simulator: the keyboard, the caret,
+  # typing, selection and undo, none of which a command line can answer.
   ScriptoriumUITests:
     type: bundle.ui-testing
     platform: iOS
     sources:
-      - path: ../spikes/4.1-mobile-editing/UITests
+      - path: UITests
     dependencies:
       - target: Scriptorium
     settings:
