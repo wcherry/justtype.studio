@@ -313,6 +313,7 @@ chapter three. `finishedAt` is set once the furthest point is the last scene.
 | `PUT` | `/questions/{id}/answers` | `chapterId`, `rating` or `body` |
 | `GET` | `/publications/{id}/answers` | the author's: everyone's; a reader's: their own |
 | `GET` | `/publications/{id}/feedback/export` | every note as a document; `?format=txt\|docx\|pdf` |
+| `GET` | `/publications/{id}/since` | what changed under the notes; `?to=` a version id or `working` |
 | `GET` | `/users/{id}/standing` | how useful this reviewer's notes have been |
 
 A reaction is `loved`, `confusing` or `dragging`, anchored to a **block index**
@@ -331,6 +332,15 @@ about it, and the fifth mark stops meaning anything.
 
 Reactions and answers are governed by `maxReviewers` exactly as comments are:
 the cap is on who may leave feedback, not on which kind.
+
+`since` follows each note's paragraph forward into a newer version — the
+working draft by default. Every note comes back as `untouched` (the paragraph
+reads exactly as it did), `edited` (you have written it since, so the note is
+probably answered), `gone` (the paragraph or the scene is not there any more),
+or `unanchored` (a general note, with no paragraph to have changed). A moved
+paragraph counts as untouched: the words are the ones the reader read. The
+author's view only — it carries everyone's names, and compares against a draft
+no reader is entitled to see.
 
 `standing` is derived, never stored: `votes + 3 x resolved` across everything
 that reviewer has written. A resolve outweighs an upvote because it is the

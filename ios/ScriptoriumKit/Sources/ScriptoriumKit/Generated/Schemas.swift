@@ -1101,6 +1101,75 @@ public enum API {
         }
     }
 
+    public struct NoteCounts: Codable, Hashable, Sendable {
+        public var edited: Int
+        public var gone: Int
+        public var unanchored: Int
+        public var untouched: Int
+
+        public init(
+            edited: Int,
+            gone: Int,
+            unanchored: Int,
+            untouched: Int
+        ) {
+            self.edited = edited
+            self.gone = gone
+            self.unanchored = unanchored
+            self.untouched = untouched
+        }
+    }
+
+    public struct NoteFate: Codable, Hashable, Sendable {
+        public var author: AuthorCard
+        public var body: String
+        public var category: CommentCategory
+        /// Word-level detail for an edited paragraph.
+        public var changes: [TextChange]?
+        public var commentId: String
+        /// What that paragraph says now, when it still says anything.
+        public var now: String?
+        public var quote: String?
+        public var sceneId: String?
+        public var sceneTitle: String
+        public var state: CommentState
+        public var status: NoteStatus
+
+        public init(
+            author: AuthorCard,
+            body: String,
+            category: CommentCategory,
+            changes: [TextChange]? = nil,
+            commentId: String,
+            now: String? = nil,
+            quote: String? = nil,
+            sceneId: String? = nil,
+            sceneTitle: String,
+            state: CommentState,
+            status: NoteStatus
+        ) {
+            self.author = author
+            self.body = body
+            self.category = category
+            self.changes = changes
+            self.commentId = commentId
+            self.now = now
+            self.quote = quote
+            self.sceneId = sceneId
+            self.sceneTitle = sceneTitle
+            self.state = state
+            self.status = status
+        }
+    }
+
+    /// What became of the text a note was attached to.
+    public enum NoteStatus: String, Codable, CaseIterable, Hashable, Sendable {
+        case untouched = "untouched"
+        case edited = "edited"
+        case gone = "gone"
+        case unanchored = "unanchored"
+    }
+
     public enum Op: String, Codable, CaseIterable, Hashable, Sendable {
         case equal = "equal"
         case insert = "insert"
@@ -2043,6 +2112,36 @@ public enum API {
             self.expiresIn = expiresIn
             self.refreshToken = refreshToken
             self.user = user
+        }
+    }
+
+    public struct SinceResponse: Codable, Hashable, Sendable {
+        public var counts: NoteCounts
+        /// The snapshot readers were given.
+        public var from: String
+        public var fromVersionId: String
+        public var notes: [NoteFate]
+        public var summary: DiffSummary
+        /// What it is being measured against.
+        public var to: String
+        public var toVersionId: String?
+
+        public init(
+            counts: NoteCounts,
+            from: String,
+            fromVersionId: String,
+            notes: [NoteFate],
+            summary: DiffSummary,
+            to: String,
+            toVersionId: String? = nil
+        ) {
+            self.counts = counts
+            self.from = from
+            self.fromVersionId = fromVersionId
+            self.notes = notes
+            self.summary = summary
+            self.to = to
+            self.toVersionId = toVersionId
         }
     }
 

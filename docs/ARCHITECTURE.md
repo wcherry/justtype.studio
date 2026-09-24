@@ -37,8 +37,11 @@ free. This is why `publish` exists as a step between "I wrote something" and
 "read this": publishing is what creates the stable thing reviewers point at.
 
 The cost is that feedback on version 3 does not automatically appear on version
-4. That is honest — it is feedback on version 3 — and *Phase 2.4* of the roadmap
-turns it into a feature rather than a gap.
+4. That is honest — it is feedback on version 3 — and the comparison view built
+in *2.4* turns it into a feature rather than a gap: because the anchor is exact
+against a snapshot that cannot move, the paragraph under each note can be
+followed forward into the newer text, and the author is told which notes they
+have already written past.
 
 ### 3. Positions are computed identically on all three clients
 

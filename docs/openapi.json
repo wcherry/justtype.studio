@@ -1346,6 +1346,104 @@
         ],
         "type": "object"
       },
+      "NoteCounts": {
+        "properties": {
+          "edited": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "gone": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "unanchored": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "untouched": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "untouched",
+          "edited",
+          "gone",
+          "unanchored"
+        ],
+        "type": "object"
+      },
+      "NoteFate": {
+        "properties": {
+          "author": {
+            "$ref": "#/components/schemas/AuthorCard"
+          },
+          "body": {
+            "type": "string"
+          },
+          "category": {
+            "$ref": "#/components/schemas/CommentCategory"
+          },
+          "changes": {
+            "description": "Word-level detail for an edited paragraph.",
+            "items": {
+              "$ref": "#/components/schemas/TextChange"
+            },
+            "type": "array"
+          },
+          "commentId": {
+            "type": "string"
+          },
+          "now": {
+            "description": "What that paragraph says now, when it still says anything.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "quote": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sceneId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sceneTitle": {
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/components/schemas/CommentState"
+          },
+          "status": {
+            "$ref": "#/components/schemas/NoteStatus"
+          }
+        },
+        "required": [
+          "commentId",
+          "sceneTitle",
+          "author",
+          "category",
+          "state",
+          "body",
+          "status"
+        ],
+        "type": "object"
+      },
+      "NoteStatus": {
+        "description": "What became of the text a note was attached to.",
+        "enum": [
+          "untouched",
+          "edited",
+          "gone",
+          "unanchored"
+        ],
+        "type": "string"
+      },
       "Op": {
         "enum": [
           "equal",
@@ -2313,6 +2411,48 @@
           "accessToken",
           "refreshToken",
           "expiresIn"
+        ],
+        "type": "object"
+      },
+      "SinceResponse": {
+        "properties": {
+          "counts": {
+            "$ref": "#/components/schemas/NoteCounts"
+          },
+          "from": {
+            "description": "The snapshot readers were given.",
+            "type": "string"
+          },
+          "fromVersionId": {
+            "type": "string"
+          },
+          "notes": {
+            "items": {
+              "$ref": "#/components/schemas/NoteFate"
+            },
+            "type": "array"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/DiffSummary"
+          },
+          "to": {
+            "description": "What it is being measured against.",
+            "type": "string"
+          },
+          "toVersionId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "from",
+          "fromVersionId",
+          "to",
+          "summary",
+          "counts",
+          "notes"
         ],
         "type": "object"
       },
@@ -5627,6 +5767,48 @@
         },
         "tags": [
           "moderation"
+        ]
+      }
+    },
+    "/api/publications/{publication_id}/since": {
+      "get": {
+        "description": "A diff answers \"what did I change\"; this answers the question an author\nactually has in front of a pile of feedback — *which of these have I\nalready dealt with*. Each note is placed against the paragraph it was\nanchored to, and that paragraph is followed forward into the newer text.\n\nThe author's view only. It carries everyone's notes with their names on\nthem, and it compares against the working draft, which is not a thing any\nreader is entitled to see.",
+        "operationId": "since",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "publication_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SinceResponse"
+                }
+              }
+            },
+            "description": "What has moved under the notes"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "What has changed since reviewers saw this, note by note.",
+        "tags": [
+          "publications"
         ]
       }
     },

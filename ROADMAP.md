@@ -252,8 +252,18 @@ its scenes, so the selection-based flow is the whole of what the feature can
 currently mean.
 
 ### 2.4 Comparison across publications
-- "What changed since reviewers last saw this" as a first-class view.
-- Notify prior reviewers when a new version answers their notes.
+- **Done:** "what changed since reviewers last saw this" as a first-class view.
+  A diff answers "what did I change"; this answers the question an author
+  actually has in front of a pile of feedback — *which of these have I already
+  dealt with*. Each note is placed against the paragraph it was anchored to and
+  that paragraph is followed forward, so every note comes back as still
+  standing, written since, on text that has gone, or general. The ones already
+  written can be resolved in one action.
+- **Still open:** notify prior reviewers when a new version answers their
+  notes. This needs a notification system, which does not exist — email means
+  a sending domain and credentials, and the in-app alternative is an inbox
+  nobody has asked for yet. Left undone deliberately rather than half-built:
+  the author-side view above is the half that works without one.
 
 ---
 

@@ -7,7 +7,7 @@ import type {
   BulkResolveResponse, RestoreResponse, VersionSummary, InviteView, CircleView,
   ReaderProgressView, BlockReactions, ReactionKind, ReviewQuestion, AnswerView,
   QuestionKind, QuestionScope, Standing, BulkStateResponse, ReportReason, TaskView,
-  TaskState, ReportView, BlockView,
+  TaskState, ReportView, BlockView, SinceResponse,
 } from './types'
 
 const BASE = '/api'
@@ -331,6 +331,15 @@ export const api = {
       post<InviteView[]>(`/publications/${publicationId}/invites`, input),
     uninvite: (publicationId: string, email: string) =>
       del<{ ok: boolean }>(`/publications/${publicationId}/invites/${encodeURIComponent(email)}`),
+
+    /**
+     * What has moved under the notes since this went out. The author's view:
+     * it carries everyone's names, and compares against the working draft.
+     */
+    since: (publicationId: string, to?: string) =>
+      get<SinceResponse>(
+        `/publications/${publicationId}/since${to ? `?to=${encodeURIComponent(to)}` : ''}`,
+      ),
 
     /** How far each reader got. */
     progress: (publicationId: string) =>

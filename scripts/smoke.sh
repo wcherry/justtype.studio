@@ -514,6 +514,49 @@ for c in json.load(sys.stdin):
     for r in c['replies']:
         print(f\"      ↳ {r['author']['displayName']}: {r['body']}\")"
 
+step "What changed since they read it"
+# The question an author actually has in front of a pile of feedback is not
+# "what did I change" but "which of these have I already dealt with".
+#
+# Grace's note is anchored to the opening line. Rewrite that paragraph in the
+# working draft and it should come back as answered, while a note on a
+# paragraph nobody touched still stands.
+READ_TEXT="The field went on well past where the light gave out, and kept going."
+rewrite() {
+  HASH=$(curl -s "$API/scenes/$SCENE" -H "$AUTH" | field contentHash)
+  curl -s -X PUT "$API/scenes/$SCENE/content" -H "$AUTH" -H 'content-type: application/json' \
+    -d "{\"baseHash\":\"$HASH\",\"content\":{\"type\":\"doc\",\"content\":[
+      {\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"$1\"}]},
+      {\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"A paragraph nobody has said anything about.\"}]}]}}" >/dev/null
+}
+status_of() { curl -s "$API/publications/$PID/since" -H "$AUTH" | python3 -c "
+import sys,json
+for n in json.load(sys.stdin)['notes']:
+    if n['quote']: print(n['status']); break"; }
+
+# Writing around a paragraph is not writing it: the note still stands.
+rewrite "$READ_TEXT"
+STILL=$(status_of)
+[ "$STILL" = "untouched" ] && echo "  a note on a paragraph you wrote around still stands" \
+  || { echo "  EXPECTED untouched, got $STILL"; exit 1; }
+
+rewrite "The field stopped well short of the light, and so did she."
+curl -s "$API/publications/$PID/since" -H "$AUTH" | python3 -c "
+import sys,json
+d=json.load(sys.stdin)
+c=d['counts']
+print(f\"  against the {d['to'].lower()}: {d['summary']['scenesModified']} scene(s), {d['summary']['paragraphsChanged']} paragraph(s)\")
+print(f\"  notes: {c['untouched']} still stand, {c['edited']} answered, {c['gone']} on text that has gone, {c['unanchored']} general\")
+for n in d['notes']:
+    if n['status'] != 'edited': continue
+    rendered=''.join({'insert':'[+%s]','delete':'[-%s]','equal':'%s'}[ch['op']] % ch['value'] for ch in n.get('changes', []))
+    print(f\"   {n['author']['displayName']} on '{n['quote']}' -> {rendered[:80]}\")
+assert c['edited'] >= 1, 'a note on rewritten text should read as answered'
+"
+# A reviewer has no business seeing the working draft, or everyone's names.
+PEEK=$(curl -s -o /dev/null -w '%{http_code}' "$API/publications/$PID/since" -H "$RAUTH")
+[ "$PEEK" = "403" ] && echo "  a reviewer cannot look at the author's draft this way" || { echo "  EXPECTED 403, got $PEEK"; exit 1; }
+
 step "Sorting through the notes"
 count() { curl -s "$API/publications/$PID/comments?$1" -H "$AUTH" | python3 -c "
 import sys,json;print(len(json.load(sys.stdin)))"; }

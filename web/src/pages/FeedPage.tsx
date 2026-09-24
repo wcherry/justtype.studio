@@ -4,6 +4,7 @@ import { api } from '../api/client'
 import { BlockList } from '../components/BlockList'
 import { CircleManager } from '../components/CircleManager'
 import { FeedbackPanel } from '../components/FeedbackPanel'
+import { SincePanel } from '../components/SincePanel'
 import { ReviewPanel } from '../components/ReviewPanel'
 import type { PublicationCard } from '../api/types'
 
@@ -12,6 +13,7 @@ export function FeedPage() {
   const [mine, setMine] = useState(false)
   const [managing, setManaging] = useState<string | null>(null)
   const [reading, setReading] = useState<string | null>(null)
+  const [comparing, setComparing] = useState<string | null>(null)
   const [showCircles, setShowCircles] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -89,9 +91,17 @@ export function FeedPage() {
                   >
                     {reading === card.id ? 'Hide feedback' : 'Reactions and questions'}
                   </button>
+                  <button
+                    type="button"
+                    className="linklike"
+                    onClick={() => setComparing(comparing === card.id ? null : card.id)}
+                  >
+                    {comparing === card.id ? 'Hide changes' : 'Since they read it'}
+                  </button>
                 </div>
                 {managing === card.id && <ReviewPanel publication={card} onChanged={load} />}
                 {reading === card.id && <FeedbackPanel publication={card} />}
+                {comparing === card.id && <SincePanel publication={card} />}
               </>
             )}
           </li>

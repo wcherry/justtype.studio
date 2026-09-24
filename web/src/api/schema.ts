@@ -434,6 +434,32 @@ export interface MergeSceneRequest {
   withBaseHash: string
 }
 
+export interface NoteCounts {
+  edited: number
+  gone: number
+  unanchored: number
+  untouched: number
+}
+
+export interface NoteFate {
+  author: AuthorCard
+  body: string
+  category: CommentCategory
+  // Word-level detail for an edited paragraph.
+  changes?: TextChange[]
+  commentId: string
+  // What that paragraph says now, when it still says anything.
+  now?: string | null
+  quote?: string | null
+  sceneId?: string | null
+  sceneTitle: string
+  state: CommentState
+  status: NoteStatus
+}
+
+// What became of the text a note was attached to.
+export type NoteStatus = 'untouched' | 'edited' | 'gone' | 'unanchored'
+
 export type Op = 'equal' | 'insert' | 'delete'
 
 export interface OutlineChapter {
@@ -802,6 +828,18 @@ export interface SessionResponse {
   expiresIn: number
   refreshToken: string
   user: User
+}
+
+export interface SinceResponse {
+  counts: NoteCounts
+  // The snapshot readers were given.
+  from: string
+  fromVersionId: string
+  notes: NoteFate[]
+  summary: DiffSummary
+  // What it is being measured against.
+  to: string
+  toVersionId?: string | null
 }
 
 export interface SplitSceneRequest {

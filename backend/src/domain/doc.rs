@@ -287,6 +287,46 @@ fn is_blank(blocks: &[Value]) -> bool {
     })
 }
 
+/// The paragraphs a diff is computed over: top-level blocks that say
+/// something. Empty ones are a template's scaffolding, not prose, and pairing
+/// them against each other would report edits nobody made.
+pub fn text_blocks(doc: &Value) -> Vec<String> {
+    doc.get("content")
+        .and_then(Value::as_array)
+        .map(|blocks| {
+            blocks
+                .iter()
+                .map(plain_text)
+                .filter(|text| !text.trim().is_empty())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Which of those paragraphs a ProseMirror position falls in.
+///
+/// The partner of `text_blocks`, and it has to stay one: an index into a list
+/// that skipped the empty paragraphs is wrong the moment the two disagree
+/// about which blocks count.
+pub fn text_block_at(doc: &Value, position: usize) -> Option<usize> {
+    let mut start = 0usize;
+    let mut index = 0usize;
+    for block in doc.get("content").and_then(Value::as_array)? {
+        let size = node_size(block);
+        let has_text = !plain_text(block).trim().is_empty();
+        if position < start + size {
+            // A position inside an empty paragraph belongs to no paragraph the
+            // diff knows about, which is not the same as "the one before it".
+            return has_text.then_some(index);
+        }
+        if has_text {
+            index += 1;
+        }
+        start += size;
+    }
+    None
+}
+
 /// The text of one top-level block, for naming the paragraph a reaction sits
 /// on. `None` when the index is past the end, which is what a reaction left
 /// against an older snapshot looks like.
@@ -316,6 +356,28 @@ mod split_tests {
                 }))
                 .collect::<Vec<_>>()
         })
+    }
+
+    #[test]
+    fn a_position_finds_the_paragraph_it_is_in() {
+        let doc = json!({
+            "type": "doc",
+            "content": [
+                { "type": "paragraph", "content": [{ "type": "text", "text": "First." }] },
+                { "type": "paragraph" },
+                { "type": "paragraph", "content": [{ "type": "text", "text": "Third." }] },
+            ]
+        });
+        assert_eq!(text_blocks(&doc), vec!["First.", "Third."]);
+        // "First." is 6 code units, so the first block spans 0..8.
+        assert_eq!(text_block_at(&doc, 1), Some(0));
+        assert_eq!(text_block_at(&doc, 7), Some(0));
+        // The empty paragraph in between belongs to no paragraph the diff has.
+        assert_eq!(text_block_at(&doc, 8), None);
+        // And the third block is index 1, not 2: the same count `text_blocks`
+        // made, which is the whole point of the pair.
+        assert_eq!(text_block_at(&doc, 11), Some(1));
+        assert_eq!(text_block_at(&doc, 999), None);
     }
 
     #[test]

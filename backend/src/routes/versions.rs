@@ -781,18 +781,305 @@ async fn read_blocks(
 /// A document's top-level blocks as plain text, which is what alignment
 /// compares. Empty blocks are dropped: they are the writer pressing return, and
 /// aligning on them produces noise.
-pub(crate) fn paragraphs_of(document: &Value) -> Vec<String> {
-    document
-        .get("content")
-        .and_then(Value::as_array)
-        .map(|blocks| {
-            blocks
-                .iter()
-                .map(doc::plain_text)
-                .filter(|text| !text.trim().is_empty())
-                .collect()
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SinceQuery {
+    /// A version id, or `working` (the default) for the draft as it stands.
+    #[serde(default)]
+    pub to: Option<String>,
+}
+
+/// What became of the text a note was attached to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum NoteStatus {
+    /// The paragraph still reads exactly as it did. The note still stands.
+    Untouched,
+    /// The author has rewritten that paragraph since. Probably answered.
+    Edited,
+    /// The paragraph, or the whole scene, is no longer there.
+    Gone,
+    /// A general note, anchored to nothing — no paragraph to have changed.
+    Unanchored,
+}
+
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct NoteFate {
+    pub comment_id: String,
+    pub scene_id: Option<String>,
+    pub scene_title: String,
+    pub author: support::AuthorCard,
+    #[schema(value_type = crate::domain::enums::CommentCategory)]
+    pub category: String,
+    #[schema(value_type = crate::domain::enums::CommentState)]
+    pub state: String,
+    pub body: String,
+    pub quote: Option<String>,
+    pub status: NoteStatus,
+    /// What that paragraph says now, when it still says anything.
+    pub now: Option<String>,
+    /// Word-level detail for an edited paragraph.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub changes: Vec<diff::TextChange>,
+}
+
+#[derive(Debug, Serialize, Default, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct NoteCounts {
+    pub untouched: usize,
+    pub edited: usize,
+    pub gone: usize,
+    pub unanchored: usize,
+}
+
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SinceResponse {
+    /// The snapshot readers were given.
+    pub from: String,
+    pub from_version_id: String,
+    /// What it is being measured against.
+    pub to: String,
+    pub to_version_id: Option<String>,
+    pub summary: DiffSummary,
+    pub counts: NoteCounts,
+    pub notes: Vec<NoteFate>,
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/publications/{publication_id}/since",
+    tag = "publications",
+    params(("publication_id" = String, Path)),
+    responses(
+        (status = 200, description = "What has moved under the notes", body = SinceResponse),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
+/// What has changed since reviewers saw this, note by note.
+///
+/// A diff answers "what did I change"; this answers the question an author
+/// actually has in front of a pile of feedback — *which of these have I
+/// already dealt with*. Each note is placed against the paragraph it was
+/// anchored to, and that paragraph is followed forward into the newer text.
+///
+/// The author's view only. It carries everyone's notes with their names on
+/// them, and it compares against the working draft, which is not a thing any
+/// reader is entitled to see.
+pub async fn since(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(publication_id): Path<String>,
+    Query(query): Query<SinceQuery>,
+) -> ApiResult<Json<SinceResponse>> {
+    let to_ref = query.to.unwrap_or_else(|| "working".into());
+
+    let (publication, work, comments, authors, from_side, to_side) =
+        blocking(&state.pool, move |conn| {
+            use crate::db::schema::comments;
+            let (publication, work) = support::publication_for_owner(conn, &publication_id, &user)?;
+            let rows: Vec<Comment> = comments::table
+                .filter(comments::publication_id.eq(&publication.id))
+                .filter(comments::state.ne("deleted"))
+                .order(comments::created_at.asc())
+                .select(Comment::as_select())
+                .load(conn)?;
+            let ids: Vec<String> = rows.iter().map(|c| c.author_id.clone()).collect();
+            let authors = support::author_cards(conn, &ids)?;
+            let from_side = load_side(conn, &work.id, &publication.version_id)?;
+            let to_side = load_side(conn, &work.id, &to_ref)?;
+            Ok((publication, work, rows, authors, from_side, to_side))
         })
-        .unwrap_or_default()
+        .await?;
+
+    // Scenes are read once each, however many notes point at them: a busy
+    // chapter is the normal case, not the exception.
+    let mut summary = DiffSummary::default();
+    let mut aligned: std::collections::HashMap<String, Vec<diff::BlockDiff>> = Default::default();
+    // Comment id to the paragraph it was anchored to, counted in the text the
+    // reader actually read.
+    let mut anchored: std::collections::HashMap<String, usize> = Default::default();
+
+    for entry in &from_side.entries {
+        let after = to_side
+            .entries
+            .iter()
+            .find(|e| e.scene_id == entry.scene_id);
+        let before_doc = read_scene(&state, &work.id, &from_side, &entry.scene_id).await;
+
+        match after {
+            None => {
+                summary.scenes_removed += 1;
+                summary.words_removed += entry.word_count;
+            }
+            Some(after) if after.content_hash == entry.content_hash => {}
+            Some(after) => {
+                summary.scenes_modified += 1;
+                let delta = after.word_count - entry.word_count;
+                if delta >= 0 {
+                    summary.words_added += delta;
+                } else {
+                    summary.words_removed += -delta;
+                }
+                let after_doc = read_scene(&state, &work.id, &to_side, &after.scene_id).await;
+                let blocks = diff::diff_blocks(
+                    &doc::text_blocks(&before_doc),
+                    &doc::text_blocks(&after_doc),
+                );
+                summary.paragraphs_changed += blocks
+                    .iter()
+                    .filter(|b| b.kind != BlockChangeKind::Unchanged)
+                    .count();
+                aligned.insert(entry.scene_id.clone(), blocks);
+            }
+        }
+        anchors_for(&before_doc, entry, &comments, &mut anchored);
+    }
+    for entry in &to_side.entries {
+        if !from_side
+            .entries
+            .iter()
+            .any(|e| e.scene_id == entry.scene_id)
+        {
+            summary.scenes_added += 1;
+            summary.words_added += entry.word_count;
+        }
+    }
+
+    let mut counts = NoteCounts::default();
+    let notes = comments
+        .into_iter()
+        .map(|comment| {
+            let scene_id = comment.scene_id.clone();
+            let entry = scene_id
+                .as_ref()
+                .and_then(|id| from_side.entries.iter().find(|e| &e.scene_id == id));
+            let still_there = scene_id
+                .as_ref()
+                .map(|id| to_side.entries.iter().any(|e| &e.scene_id == id));
+
+            let (status, now, changes) = match (&scene_id, still_there) {
+                (None, _) => (NoteStatus::Unanchored, None, Vec::new()),
+                (Some(_), Some(false)) | (Some(_), None) => (NoteStatus::Gone, None, Vec::new()),
+                (Some(scene_id), Some(true)) => match aligned.get(scene_id) {
+                    // The scene is untouched, so nothing under the note moved.
+                    None => (NoteStatus::Untouched, None, Vec::new()),
+                    Some(blocks) => match anchored.get(&comment.id) {
+                        None => {
+                            // A note on the scene rather than on a passage:
+                            // the scene changed, so the note might be answered.
+                            (NoteStatus::Edited, None, Vec::new())
+                        }
+                        Some(index) => match blocks.iter().find(|b| b.before_index == Some(*index))
+                        {
+                            Some(block) => match block.kind {
+                                BlockChangeKind::Modified => (
+                                    NoteStatus::Edited,
+                                    Some(block.after.clone()),
+                                    block.changes.clone(),
+                                ),
+                                BlockChangeKind::Removed => (NoteStatus::Gone, None, Vec::new()),
+                                // Moved is not edited: the words are the same
+                                // ones the reader read, somewhere else.
+                                _ => (NoteStatus::Untouched, Some(block.after.clone()), Vec::new()),
+                            },
+                            None => (NoteStatus::Gone, None, Vec::new()),
+                        },
+                    },
+                },
+            };
+
+            match status {
+                NoteStatus::Untouched => counts.untouched += 1,
+                NoteStatus::Edited => counts.edited += 1,
+                NoteStatus::Gone => counts.gone += 1,
+                NoteStatus::Unanchored => counts.unanchored += 1,
+            }
+
+            NoteFate {
+                // Empty for a note that was never attached to a scene; a
+                // general note has not lost one.
+                scene_title: match (&scene_id, entry) {
+                    (Some(_), Some(entry)) => entry.scene_title.clone(),
+                    (Some(_), None) => "a scene that has gone".into(),
+                    (None, _) => String::new(),
+                },
+                author: authors
+                    .get(&comment.author_id)
+                    .cloned()
+                    .unwrap_or(support::AuthorCard {
+                        id: comment.author_id.clone(),
+                        display_name: "Unknown".into(),
+                    }),
+                comment_id: comment.id,
+                scene_id,
+                category: comment.category,
+                state: comment.state,
+                body: comment.body,
+                quote: comment.anchor_quote,
+                status,
+                now,
+                changes,
+            }
+        })
+        .collect();
+
+    Ok(Json(SinceResponse {
+        from: from_side.label,
+        from_version_id: publication.version_id,
+        to: to_side.label,
+        to_version_id: to_side.version.map(|v| v.id),
+        summary,
+        counts,
+        notes,
+    }))
+}
+
+/// Resolves each note's anchor into a paragraph index in the text the reader
+/// read, keyed by comment id.
+fn anchors_for(
+    document: &Value,
+    entry: &DiffEntry,
+    comments: &[Comment],
+    out: &mut std::collections::HashMap<String, usize>,
+) {
+    for comment in comments {
+        if comment.scene_id.as_deref() != Some(entry.scene_id.as_str()) {
+            continue;
+        }
+        let Some(anchor) = comment.anchor.as_deref() else {
+            continue;
+        };
+        let Ok(parsed) = serde_json::from_str::<Value>(anchor) else {
+            continue;
+        };
+        let Some(from) = parsed.get("from").and_then(Value::as_u64) else {
+            continue;
+        };
+        if let Some(index) = doc::text_block_at(document, from as usize) {
+            out.insert(comment.id.clone(), index);
+        }
+    }
+}
+
+async fn read_scene(state: &AppState, work_id: &str, side: &Side, scene_id: &str) -> Value {
+    match &side.version {
+        Some(version) => state
+            .store
+            .read_version_scene(work_id, &version.id, scene_id)
+            .await
+            .unwrap_or_else(|_| doc::empty_doc()),
+        None => state
+            .store
+            .read_working_scene(work_id, scene_id)
+            .await
+            .unwrap_or_else(|_| doc::empty_doc()),
+    }
+}
+
+pub(crate) fn paragraphs_of(document: &Value) -> Vec<String> {
+    doc::text_blocks(document)
 }
 
 #[derive(Debug, Deserialize, utoipa::ToSchema)]

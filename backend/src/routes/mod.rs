@@ -105,6 +105,7 @@ fn api_router() -> OpenApiRouter<AppState> {
         .routes(routes!(feedback::standing))
         .routes(routes!(comments::bulk_state))
         .routes(routes!(export::export_feedback))
+        .routes(routes!(versions::since))
         .routes(routes!(tasks::list, tasks::create))
         .routes(routes!(tasks::from_comment))
         .routes(routes!(tasks::update, tasks::delete_task))
