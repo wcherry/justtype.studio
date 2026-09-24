@@ -74,13 +74,56 @@ translation — the question is what the web view costs instead.
 - The bridge is the whole 202 lines: a document in, documents and selections
   out. Nothing about the manuscript lives in the page.
 
-**Not verified, and this is the open risk.** Everything iOS-specific about
-typing in a web view: caret scroll-into-view above the keyboard, selection
-handles and the magnifier, the input accessory view, and undo. None of it can
-be tested from a command line, and it is exactly where a `WKWebView` editor
-disappoints if it is going to. The host already does what can be done blind —
-`keyboardDismissMode = .interactive`, and 40vh of bottom padding so the caret
-has somewhere to sit — but a simulator pass is required before committing.
+## The simulator pass
+
+Run since. `spikes/4.1-mobile-editing/UITests` is a UI test target driving the
+real thing on an iPhone 17 Pro, reachable with `-spike41`; four of the five
+questions now have answers.
+
+| | |
+|---|---|
+| The document loads and renders | **yes** — heading, italic run and blockquote, all from the app bundle with no network |
+| Typing reaches the document | **yes** — the word count moves in Swift as keys land in the page |
+| A selection reports itself | **yes** — a long press sends `{from, to}` back across the bridge |
+| Undo | **yes** — ⌘Z puts the words back; it drives the page's own undo stack |
+| Caret above the keyboard | **unanswered** — see below |
+
+**Three bugs, all of them in the bridge rather than the editor.**
+
+1. `limitsNavigationsToAppBoundDomains = true` with no `WKAppBoundDomains` in
+   the Info.plist refuses every navigation, file URLs included, and renders a
+   blank white rectangle with nothing in the console. Removed — there is no
+   remote code here to restrict.
+2. A module script will not load over `file://`. Inlining it into the HTML is
+   the fix, but an inline classic script in the `<head>` runs before `#editor`
+   exists, so it has to go at the end of the body.
+3. **Inlining with `String.replace` and a replacement *string* corrupted the
+   bundle.** `$&`, `` $` `` and friends are interpreted in a replacement
+   string, and minified JavaScript is full of dollars and backticks: one
+   template literal's opening backtick was eaten a hundred kilobytes in. The
+   symptom was a blank page and `SyntaxError: Unexpected identifier 'tiptap'`
+   — a hundred lines from the actual damage. Passing a *function* as the
+   replacement fixes it; `inline.mjs` says so in a comment, because the next
+   person will reach for the string.
+
+None of these are arguments against the approach. They are the cost of the
+first hour, and they are now written down.
+
+**Still open: does the caret clear the keyboard?** The software keyboard never
+presented for the web view in this environment. `app.keyboards` reports a
+233-point element with 35 keys — parked at y=952 on an 874-point screen, with
+only the input accessory bar visible in every screenshot. Measuring the caret
+against a keyboard that is off the bottom of the screen proves nothing, so the
+test throws `XCTSkip` with those numbers rather than banking a pass it did not
+earn. Answering it needs a real device, or somebody with Simulator.app open to
+turn off I/O ▸ Keyboard ▸ Connect Hardware Keyboard.
+
+**One defect worth fixing in the implementation.** On first paint the heading
+is missing: the accessibility tree has it, but it is not drawn until something
+forces a relayout — tapping into the page brings it back. The document is
+pushed on `ready`, which can land before the web view has laid out. A shipping
+version should push after first layout, or force a repaint after `setContent`.
+
 
 ## Why B
 
@@ -116,4 +159,17 @@ cd web && npx vite build --config ../spikes/4.1-mobile-editing/editor/vite.confi
 cd ../spikes/4.1-mobile-editing/editor/dist && python3 -m http.server 8777
 # in the browser: window.scriptorium.load(doc); window.scriptorium.blocks()
 cd ios/ScriptoriumKit && swift test --filter ProseMirrorContractTests
+
+# The simulator pass. The built page is committed at
+# ios/Scriptorium/Resources/Editor/index.html; rebuild it with
+#   cd web && npx vite build --config ../spikes/4.1-mobile-editing/editor/vite.config.ts
+#   node ../spikes/4.1-mobile-editing/editor/inline.mjs
+#   cp ../spikes/4.1-mobile-editing/editor/dist/index.html ../ios/Scriptorium/Resources/Editor/
+cd ios && xcodegen generate
+xcodebuild test -project Scriptorium.xcodeproj -scheme Scriptorium \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+  -only-testing:ScriptoriumUITests
+
+# Or just look at it:
+xcrun simctl launch booted app.scriptorium.ios -spike41
 ```

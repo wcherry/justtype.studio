@@ -340,12 +340,21 @@ currently mean.
   the same TipTap gives one editor, one document model and one set of
   positions across all three clients, for 296 KB in the app bundle. A test now
   checks `DocNode.blocks()` against numbers taken from the real editor.
-- **Open before building:** the simulator pass. Caret scroll-into-view above
-  the keyboard, selection handles, the input accessory view and undo cannot be
-  tested from a command line, and they are where a web-view editor fails if it
-  is going to. If it fails, the fallback is a *restricted* native editor —
-  paragraphs, headings and inline marks — with lists still opening read-only,
-  written down as the smaller promise it is.
+- **Simulator pass run.** Four of five questions answered on an iPhone 17 Pro:
+  the document loads and renders from the app bundle, typing reaches Swift, a
+  selection reports itself back, and ⌘Z drives the page's own undo stack. Three
+  bridge bugs found and fixed along the way — app-bound domains refusing file
+  URLs, a module script that will not load over `file://`, and a string
+  replacement eating a backtick in the minified bundle.
+- **Still open:** does the caret clear the keyboard? The software keyboard
+  never presented for the web view under `xcodebuild test` — it is parked off
+  the bottom of the screen with only the accessory bar visible — so the test
+  skips rather than claiming a pass. It needs a device, or a human with
+  Simulator.app. Also open: the heading is missing on first paint until
+  something forces a relayout, which a shipping version has to handle.
+- If the keyboard question fails, the fallback is a *restricted* native editor
+  — paragraphs, headings and inline marks — with lists still opening
+  read-only, written down as the smaller promise it is.
 - Until then the current read-only guard stays; it is the correct failure mode.
 - **Done when** a scene written on the web opens, edits and saves on iPhone
   without losing a single mark.

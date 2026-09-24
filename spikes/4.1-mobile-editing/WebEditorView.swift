@@ -16,24 +16,30 @@ struct WebEditorView: UIViewRepresentable {
     /// Fires on every edit, already in the shape the API takes.
     let onChange: (API.DocNode, Int) -> Void
     let onSelection: (Int, Int, Set<String>) -> Void
+    /// Loading failures, which are otherwise a blank white rectangle with
+    /// nothing in it to say what went wrong.
+    var onProblem: ((String) -> Void)?
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
     func makeUIView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
         configuration.userContentController.add(context.coordinator, name: "scriptorium")
-        // No remote code, no remote data: everything this page needs ships
-        // with the app.
-        configuration.limitsNavigationsToAppBoundDomains = true
+        // `limitsNavigationsToAppBoundDomains` belongs nowhere near this: with
+        // no `WKAppBoundDomains` in the Info.plist it refuses every
+        // navigation, file URLs included, and does it by rendering nothing.
+        // There is no remote code here to restrict — the page ships in the
+        // app bundle.
 
         let webView = WKWebView(frame: .zero, configuration: configuration)
+        webView.navigationDelegate = context.coordinator
         webView.isOpaque = false
         webView.backgroundColor = .clear
         webView.scrollView.keyboardDismissMode = .interactive
         context.coordinator.webView = webView
 
         guard let url = Bundle.main.url(forResource: "index", withExtension: "html", subdirectory: "Editor") else {
-            assertionFailure("the editor bundle is missing from the app")
+            onProblem?("the editor bundle is missing from the app")
             return webView
         }
         webView.loadFileURL(url, allowingReadAccessTo: url.deletingLastPathComponent())
@@ -48,7 +54,7 @@ struct WebEditorView: UIViewRepresentable {
         context.coordinator.push(document)
     }
 
-    final class Coordinator: NSObject, WKScriptMessageHandler {
+    final class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
         private let parent: WebEditorView
         weak var webView: WKWebView?
         private(set) var loaded = false
@@ -65,6 +71,39 @@ struct WebEditorView: UIViewRepresentable {
             else { return }
             pushed = document
             webView?.evaluateJavaScript("window.scriptorium.load(\(json))")
+        }
+
+        func webView(
+            _ webView: WKWebView,
+            didFailProvisionalNavigation navigation: WKNavigation!,
+            withError error: Error
+        ) {
+            parent.onProblem?("the page did not load: \(error.localizedDescription)")
+        }
+
+        func webView(
+            _ webView: WKWebView,
+            didFail navigation: WKNavigation!,
+            withError error: Error
+        ) {
+            parent.onProblem?("the page failed: \(error.localizedDescription)")
+        }
+
+        /// The page is up but never said `ready`, which means the script threw.
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+                guard let self, !self.loaded else { return }
+                // Enough to say *where* it stopped rather than only that it did.
+                let probe = "JSON.stringify({error: window.__error || null,"
+                    + " api: typeof window.scriptorium,"
+                    + " editor: !!document.querySelector('.ProseMirror'),"
+                    + " bridge: !!(window.webkit && window.webkit.messageHandlers"
+                    + " && window.webkit.messageHandlers.scriptorium)})"
+                webView.evaluateJavaScript(probe) { value, error in
+                    let detail = (value as? String) ?? error?.localizedDescription ?? "no answer"
+                    self.parent.onProblem?("did not start: \(detail)")
+                }
+            }
         }
 
         func userContentController(

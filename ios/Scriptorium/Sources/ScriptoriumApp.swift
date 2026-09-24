@@ -8,7 +8,14 @@ import ScriptoriumUI
 struct ScriptoriumApp: App {
     var body: some SwiftUI.Scene {
         WindowGroup {
-            RootView(baseURL: AppConfig.apiBaseURL)
+            // The 4.1 spike harness, reachable only with `-spike41` on the
+            // command line. Delete this branch, `spikes/4.1-mobile-editing`
+            // and the Editor resource together when the spike is acted on.
+            if CommandLine.arguments.contains("-spike41") {
+                SpikeEditorScreen()
+            } else {
+                RootView(baseURL: AppConfig.apiBaseURL)
+            }
         }
     }
 }
