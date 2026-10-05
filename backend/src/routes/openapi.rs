@@ -21,6 +21,7 @@ use utoipa::OpenApi;
         (name = "versions", description = "Immutable snapshots"),
         (name = "publications", description = "A version offered for review"),
         (name = "comments", description = "Anchored, threaded, votable feedback"),
+        (name = "profiles", description = "Authors, and who follows them"),
     )
 )]
 pub struct ApiDoc;

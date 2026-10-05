@@ -663,6 +663,45 @@ curl -s -X DELETE "$API/me/blocks/$GRACE" -H "$AUTH" >/dev/null
 BACK=$(curl -s -o /dev/null -w '%{http_code}' "$API/publications/$PID" -H "$RAUTH")
 [ "$BACK" = "200" ] && echo "  and is let back in when the block goes" || { echo "  EXPECTED 200, got $BACK"; exit 1; }
 
+step "Profiles"
+ADA=$(curl -s "$API/auth/me" -H "$AUTH" | field id)
+curl -s -X PATCH "$API/me/profile" -H "$AUTH" -H 'content-type: application/json' \
+  -d '{"bio":"Writes about fields, mostly."}' | python3 -c "
+import sys,json;d=json.load(sys.stdin);assert d['bio']=='Writes about fields, mostly.', d;print('  bio set')"
+EMPTY=$(curl -s -o /dev/null -w '%{http_code}' -X PATCH "$API/me/profile" -H "$AUTH" \
+  -H 'content-type: application/json' -d '{"displayName":"   "}')
+[ "$EMPTY" = "400" ] && echo "  a blank name is refused" || { echo "  EXPECTED 400, got $EMPTY"; exit 1; }
+curl -s "$API/users/$ADA/profile" -H "$SAUTH" | python3 -c "
+import sys,json;d=json.load(sys.stdin)
+assert 'email' not in d, 'a profile must not carry an address'
+assert all(p['visibility'] != 'invited' for p in d['publications']), 'an invited draft leaked onto a profile'
+print(f\"  {d['displayName']}: {len(d['publications'])} on offer to a stranger, bio {d['bio']!r}\")"
+curl -s "$API/users/$GRACE/profile" -H "$SAUTH" | python3 -c "
+import sys,json;d=json.load(sys.stdin)
+assert d['reviews'], 'Grace has reviewed something'
+r=d['reviews'][0]
+print(f\"  {d['displayName']} reviewed {r['workTitle']} by {r['author']['displayName']}: {r['notes']} notes, {r['resolved']} acted on\")"
+
+step "Following"
+curl -s -X PUT "$API/users/$ADA/follow" -H "$SAUTH" | field followers | sed 's/^/  followers after one follow: /'
+curl -s -X PUT "$API/users/$ADA/follow" -H "$SAUTH" | field followers | sed 's/^/  and after following twice: /'
+SELF=$(curl -s -o /dev/null -w '%{http_code}' -X PUT "$API/users/$ADA/follow" -H "$AUTH")
+[ "$SELF" = "400" ] && echo "  following yourself is refused" || { echo "  EXPECTED 400, got $SELF"; exit 1; }
+curl -s "$API/publications?following=true" -H "$SAUTH" | python3 -c "
+import sys,json;rows=json.load(sys.stdin)
+assert rows and all(r['author']['displayName']=='Ada' for r in rows), rows
+print(f\"  the following feed: {len(rows)} from Ada and nothing else\")"
+curl -s "$API/publications?following=true" -H "$RAUTH" | python3 -c "
+import sys,json;assert json.load(sys.stdin)==[], 'Grace follows nobody';print('  someone who follows nobody gets an empty feed')"
+curl -s -X POST "$API/me/blocks" -H "$AUTH" -H 'content-type: application/json' -d "{\"userId\":\"$GRACE\"}" >/dev/null
+curl -s "$API/publications" -H "$RAUTH" | python3 -c "
+import sys,json;assert all(r['author']['displayName']!='Ada' for r in json.load(sys.stdin)), 'a blocked reader is still shown the work'
+print('  a blocked reader is no longer shown the author\\'s work in the feed')"
+SHUTF=$(curl -s -o /dev/null -w '%{http_code}' -X PUT "$API/users/$ADA/follow" -H "$RAUTH")
+[ "$SHUTF" = "403" ] && echo "  nor can they follow her" || { echo "  EXPECTED 403, got $SHUTF"; exit 1; }
+curl -s -X DELETE "$API/me/blocks/$GRACE" -H "$AUTH" >/dev/null
+curl -s -X DELETE "$API/users/$ADA/follow" -H "$SAUTH" | field following | sed 's/^/  unfollowed, following: /'
+
 step "Exporting the published version"
 for fmt in txt docx epub pdf; do
   out="$TMP/export.$fmt"

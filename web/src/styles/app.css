@@ -167,6 +167,27 @@ a { color: inherit; text-decoration: none; }
 }
 .new-work__hint { color: var(--ink-faint); font-size: 13px; margin: -4px 0 12px; }
 
+/* The card holds two links — the work and its author — so it cannot be one. */
+.feed__card h2 a:hover, .feed__meta a:hover { color: var(--accent); }
+.feed__meta a { color: inherit; text-decoration: underline; text-decoration-color: var(--line); }
+
+.segmented { display: inline-flex; }
+.segmented button { border-radius: 0; margin-left: -1px; }
+.segmented button:first-child { border-radius: var(--radius) 0 0 var(--radius); margin-left: 0; }
+.segmented button:last-child { border-radius: 0 var(--radius) var(--radius) 0; }
+.segmented button.is-active, .feed__actions > button.is-active {
+  background: var(--accent-soft); color: var(--accent); border-color: var(--accent);
+  position: relative;
+}
+
+/* --- profiles ------------------------------------------------------------ */
+
+.profile__bio { white-space: pre-wrap; color: var(--ink-soft); font-family: var(--serif); font-size: 16px; line-height: 1.6; max-width: var(--measure); }
+.profile__heading { font-family: var(--serif); font-weight: 500; font-size: 17px; margin: 28px 0 4px; }
+.profile__reviews { list-style: none; padding: 0; margin: 10px 0 0; display: grid; gap: 6px; font-size: 14px; }
+.profile textarea { width: 100%; font: inherit; }
+.shell__user:hover { color: var(--accent); }
+
 /* --- readers, circles and progress -------------------------------------- */
 
 .feed__actions { display: flex; gap: 12px; align-items: center; }

@@ -235,7 +235,7 @@ async fn first_scene_id(state: &AppState, version_id: &str) -> Option<String> {
     .flatten()
 }
 
-#[derive(Debug, Deserialize, utoipa::ToSchema)]
+#[derive(Debug, Default, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct FeedQuery {
     // Deliberately not `#[serde(flatten)] Page`: the urlencoded deserializer
@@ -250,6 +250,12 @@ pub struct FeedQuery {
     /// `true` restricts the feed to the caller's own publications.
     #[serde(default)]
     pub mine: Option<bool>,
+    /// One author's publications — what their profile lists.
+    #[serde(default)]
+    pub author: Option<String>,
+    /// `true` restricts the feed to authors the caller follows.
+    #[serde(default)]
+    pub following: Option<bool>,
 }
 
 /// The review feed. Signed-out readers see only `public` publications.
@@ -267,6 +273,17 @@ pub async fn feed(
     MaybeAuthUser(user): MaybeAuthUser,
     Query(query): Query<FeedQuery>,
 ) -> ApiResult<Json<Vec<PublicationCard>>> {
+    Ok(Json(feed_cards(&state, user, query).await?))
+}
+
+/// What a caller may be shown, narrowed by the query. Shared with the profile
+/// page, which is this list with an author filled in: one rule for what is on
+/// offer rather than two that drift.
+pub async fn feed_cards(
+    state: &AppState,
+    user: Option<AuthUser>,
+    query: FeedQuery,
+) -> ApiResult<Vec<PublicationCard>> {
     let (limit, offset) = Page {
         limit: query.limit.unwrap_or(50),
         offset: query.offset.unwrap_or(0),
@@ -282,7 +299,7 @@ pub async fn feed(
         match (&me, query.mine.unwrap_or(false)) {
             (Some((id, _)), true) => q = q.filter(works::owner_id.eq(id.clone())),
             (Some((id, email)), false) => {
-                use crate::db::schema::publication_invites;
+                use crate::db::schema::{blocked_readers, publication_invites};
                 // Named readers have no other way in: there is no mail going
                 // out yet, so a draft invisible in the feed is a draft they can
                 // only reach if the author sends them the link by hand.
@@ -310,11 +327,30 @@ pub async fn feed(
                         .or(publications::closes_at.ge(now))
                         .or(works::owner_id.eq(id.clone())),
                 );
+                // The same locked door, held shut by the author rather than
+                // the calendar.
+                let shut_out_by = blocked_readers::table
+                    .filter(blocked_readers::user_id.eq(id.clone()))
+                    .select(blocked_readers::owner_id);
+                q = q.filter(diesel::dsl::not(works::owner_id.eq_any(shut_out_by)));
             }
             (None, _) => q = q.filter(publications::visibility.eq("public")),
         }
         if let Some(kind) = &query.kind {
             q = q.filter(works::kind.eq(kind.clone()));
+        }
+        if let Some(author) = &query.author {
+            q = q.filter(works::owner_id.eq(author.clone()));
+        }
+        if query.following.unwrap_or(false) {
+            use crate::db::schema::follows;
+            // Signed out, nobody is followed, and the honest answer is an
+            // empty list rather than everyone's.
+            let me_id = me.as_ref().map(|(id, _)| id.clone()).unwrap_or_default();
+            let followed = follows::table
+                .filter(follows::follower_id.eq(me_id))
+                .select(follows::followee_id);
+            q = q.filter(works::owner_id.eq_any(followed));
         }
 
         let ids: Vec<String> = q
@@ -332,9 +368,9 @@ pub async fn feed(
 
     let mut cards = cards;
     for card in &mut cards {
-        attach_excerpt(&state, card).await;
+        attach_excerpt(state, card).await;
     }
-    Ok(Json(cards))
+    Ok(cards)
 }
 
 #[utoipa::path(

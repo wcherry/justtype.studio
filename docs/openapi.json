@@ -1242,6 +1242,22 @@
         ],
         "type": "object"
       },
+      "FollowState": {
+        "properties": {
+          "followers": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "following": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "following",
+          "followers"
+        ],
+        "type": "object"
+      },
       "HealthResponse": {
         "properties": {
           "service": {
@@ -1493,6 +1509,66 @@
             "type": "object"
           }
         ]
+      },
+      "Profile": {
+        "properties": {
+          "bio": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "followers": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "following": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "id": {
+            "type": "string"
+          },
+          "joinedAt": {
+            "type": "string"
+          },
+          "publications": {
+            "description": "What this author has on offer that the viewer could open — the same\nrule the feed applies, so a profile never lists a locked door.",
+            "items": {
+              "$ref": "#/components/schemas/PublicationCard"
+            },
+            "type": "array"
+          },
+          "reviews": {
+            "description": "Other people's work this person has given notes on, newest first.",
+            "items": {
+              "$ref": "#/components/schemas/ReviewHistoryItem"
+            },
+            "type": "array"
+          },
+          "standing": {
+            "$ref": "#/components/schemas/Standing"
+          },
+          "viewerFollows": {
+            "description": "Whether the person asking follows this author. Always false signed out.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "displayName",
+          "joinedAt",
+          "followers",
+          "following",
+          "viewerFollows",
+          "standing",
+          "publications",
+          "reviews"
+        ],
+        "type": "object"
       },
       "ProgressRequest": {
         "properties": {
@@ -2054,6 +2130,41 @@
           "chapterId",
           "createdAt",
           "updatedAt"
+        ],
+        "type": "object"
+      },
+      "ReviewHistoryItem": {
+        "description": "One publication someone reviewed, as their profile shows it.",
+        "properties": {
+          "author": {
+            "$ref": "#/components/schemas/AuthorCard"
+          },
+          "lastAt": {
+            "type": "string"
+          },
+          "notes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "publicationId": {
+            "type": "string"
+          },
+          "resolved": {
+            "description": "Notes the author marked resolved — that they acted on it.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "workTitle": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "publicationId",
+          "workTitle",
+          "author",
+          "notes",
+          "resolved",
+          "lastAt"
         ],
         "type": "object"
       },
@@ -2860,6 +2971,24 @@
             "format": "int32",
             "type": [
               "integer",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "UpdateProfileRequest": {
+        "properties": {
+          "bio": {
+            "description": "An empty string clears it.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "displayName": {
+            "type": [
+              "string",
               "null"
             ]
           }
@@ -4825,6 +4954,39 @@
         ]
       }
     },
+    "/api/me/following": {
+      "get": {
+        "operationId": "following",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AuthorCard"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Authors you follow"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "profiles"
+        ]
+      }
+    },
     "/api/me/goals": {
       "patch": {
         "operationId": "update_goals",
@@ -4862,6 +5024,46 @@
         },
         "tags": [
           "goals"
+        ]
+      }
+    },
+    "/api/me/profile": {
+      "patch": {
+        "operationId": "update_profile",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProfileRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "profiles"
         ]
       }
     },
@@ -6666,6 +6868,124 @@
         ]
       }
     },
+    "/api/users/{user_id}/follow": {
+      "delete": {
+        "operationId": "unfollow",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FollowState"
+                }
+              }
+            },
+            "description": "Not following"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "profiles"
+        ]
+      },
+      "put": {
+        "operationId": "follow",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FollowState"
+                }
+              }
+            },
+            "description": "Following"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "profiles"
+        ]
+      }
+    },
+    "/api/users/{user_id}/profile": {
+      "get": {
+        "operationId": "profile",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Profile"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "profiles"
+        ]
+      }
+    },
     "/api/users/{user_id}/standing": {
       "get": {
         "operationId": "standing",
@@ -7871,6 +8191,10 @@
     {
       "description": "Anchored, threaded, votable feedback",
       "name": "comments"
+    },
+    {
+      "description": "Authors, and who follows them",
+      "name": "profiles"
     }
   ]
 }

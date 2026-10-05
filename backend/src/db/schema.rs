@@ -369,6 +369,15 @@ diesel::table! {
     }
 }
 
+diesel::table! {
+    follows (id) {
+        id -> Text,
+        follower_id -> Text,
+        followee_id -> Text,
+        created_at -> Text,
+    }
+}
+
 diesel::joinable!(refresh_tokens -> users (user_id));
 diesel::joinable!(writing_days -> users (user_id));
 diesel::joinable!(bible_entries -> works (work_id));
@@ -422,4 +431,5 @@ diesel::allow_tables_to_appear_in_same_query!(
     revision_tasks,
     comment_reports,
     blocked_readers,
+    follows,
 );

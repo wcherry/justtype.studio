@@ -87,6 +87,9 @@ export type {
   StaleChange,
   Work,
   WritingDay,
+  Profile,
+  ReviewHistoryItem,
+  FollowState,
   WritingSummary,
 } from './schema'
 

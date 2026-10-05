@@ -392,6 +392,11 @@ export interface ErrorEnvelope {
   error: ErrorBody
 }
 
+export interface FollowState {
+  followers: number
+  following: boolean
+}
+
 export interface HealthResponse {
   service: string
   status: string
@@ -498,6 +503,23 @@ export interface OutlineResponse {
   updatedAt: string
   wordCount: number
   chapters: OutlineChapter[]
+}
+
+export interface Profile {
+  bio?: string | null
+  displayName: string
+  followers: number
+  following: number
+  id: string
+  joinedAt: string
+  // What this author has on offer that the viewer could open — the same
+  // rule the feed applies, so a profile never lists a locked door.
+  publications: PublicationCard[]
+  // Other people's work this person has given notes on, newest first.
+  reviews: ReviewHistoryItem[]
+  standing: Standing
+  // Whether the person asking follows this author. Always false signed out.
+  viewerFollows: boolean
 }
 
 export interface ProgressRequest {
@@ -709,6 +731,17 @@ export interface ReviewAnswer {
   rating?: number | null
   updatedAt: string
   userId: string
+}
+
+// One publication someone reviewed, as their profile shows it.
+export interface ReviewHistoryItem {
+  author: AuthorCard
+  lastAt: string
+  notes: number
+  publicationId: string
+  // Notes the author marked resolved — that they acted on it.
+  resolved: number
+  workTitle: string
 }
 
 export interface ReviewQuestion {
@@ -982,6 +1015,12 @@ export interface UpdateEntryRequest {
 export interface UpdateGoalsRequest {
   // `null` clears the target.
   dailyWordGoal?: number | null
+}
+
+export interface UpdateProfileRequest {
+  // An empty string clears it.
+  bio?: string | null
+  displayName?: string | null
 }
 
 export interface UpdatePublicationRequest {

@@ -7,7 +7,7 @@ import type {
   BulkResolveResponse, RestoreResponse, VersionSummary, InviteView, CircleView,
   ReaderProgressView, BlockReactions, ReactionKind, ReviewQuestion, AnswerView,
   QuestionKind, QuestionScope, Standing, BulkStateResponse, ReportReason, TaskView,
-  TaskState, ReportView, BlockView, SinceResponse,
+  TaskState, ReportView, BlockView, SinceResponse, Profile, FollowState, AuthorCard,
 } from './types'
 
 const BASE = '/api'
@@ -307,10 +307,12 @@ export const api = {
       maxReviewers?: number
       spoilerSafe?: boolean
     }) => post<PublicationCard>(`/versions/${versionId}/publications`, input),
-    feed: (opts: { mine?: boolean; kind?: string } = {}) => {
+    feed: (opts: { mine?: boolean; following?: boolean; kind?: string; author?: string } = {}) => {
       const params = new URLSearchParams()
       if (opts.mine) params.set('mine', 'true')
+      if (opts.following) params.set('following', 'true')
       if (opts.kind) params.set('kind', opts.kind)
+      if (opts.author) params.set('author', opts.author)
       const qs = params.toString()
       return get<PublicationCard[]>(`/publications${qs ? `?${qs}` : ''}`)
     },
@@ -462,6 +464,16 @@ export const api = {
     update: (taskId: string, input: { body?: string; state?: TaskState; sceneId?: string }) =>
       patch<TaskView>(`/tasks/${taskId}`, input),
     remove: (taskId: string) => del<{ deleted: boolean }>(`/tasks/${taskId}`),
+  },
+
+  /** Who someone is, what they have on offer, and whether you follow them. */
+  profiles: {
+    get: (userId: string) => get<Profile>(`/users/${userId}/profile`),
+    /** An empty bio clears it. */
+    update: (input: { displayName?: string; bio?: string }) => patch<User>('/me/profile', input),
+    follow: (userId: string) => put<FollowState>(`/users/${userId}/follow`, {}),
+    unfollow: (userId: string) => del<FollowState>(`/users/${userId}/follow`),
+    following: () => get<AuthorCard[]>('/me/following'),
   },
 
   moderation: {

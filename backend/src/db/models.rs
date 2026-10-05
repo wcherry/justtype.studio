@@ -515,6 +515,10 @@ new_row!(NewBlockedReader, blocked_readers, {
     id: String, owner_id: String, user_id: String, created_at: String,
 });
 
+new_row!(NewFollow, follows, {
+    id: String, follower_id: String, followee_id: String, created_at: String,
+});
+
 new_row!(NewReaction, reactions, {
     id: String, publication_id: String, user_id: String, scene_id: String,
     block_index: i32, kind: String, created_at: String,

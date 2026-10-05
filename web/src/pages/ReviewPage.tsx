@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { api } from '../api/client'
 import type { CommentFilters } from '../api/client'
 import { parseAnchor } from '../api/types'
@@ -142,7 +142,8 @@ export function ReviewPage() {
         <header className="reader__header">
           <h1>{card.workTitle}</h1>
           <p className="reader__meta">
-            {card.author.displayName} · {card.versionLabel} ·{' '}
+            <Link to={`/people/${card.author.id}`}>{card.author.displayName}</Link> ·{' '}
+            {card.versionLabel} ·{' '}
             {card.wordCount.toLocaleString()} words
             <span className={`badge badge--${card.visibility}`}>{card.visibility}</span>
           </p>

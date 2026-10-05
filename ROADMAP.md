@@ -424,9 +424,19 @@ currently mean.
 
 ## Phase 5 — Community and discovery
 
-### 5.1 Profiles and following
-- Author profiles: bio, published works, review history.
-- Follow authors; a feed of new publications from people you follow.
+### 5.1 Profiles and following — **done**
+- Author profiles: a bio, what the author has on offer, and their record as a
+  reviewer. What is on offer is the feed with an author filled in, not a second
+  query, so a profile lists exactly what the viewer could open — never a
+  locked door, never an invited draft. The review history is limited to work
+  the viewer could see too: a note on a privately shared draft, listed on a
+  profile, would tell strangers the draft exists.
+- Follow an author, and a "Following" view of the feed with only their work.
+  No approval step, because a follow buys nothing the author did not already
+  choose to show. An author who has blocked you cannot be followed — and the
+  feed now hides a blocking author's work altogether, which it did not before:
+  the click was refused, but the card was still there inviting it.
+- Names on cards, notes and the reader header lead to the profile.
 
 ### 5.2 Discovery
 - Browse by form, genre, length and review-window state.

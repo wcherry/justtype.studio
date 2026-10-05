@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { api } from '../api/client'
 import type { CommentFilters } from '../api/client'
 import type { CommentCategory, CommentView, ReportReason } from '../api/types'
@@ -194,7 +195,7 @@ function CommentThread({
 
       <div className="comment__body">
         <div className="comment__meta">
-          <strong>{comment.author.displayName}</strong>
+          <strong><Link to={`/people/${comment.author.id}`}>{comment.author.displayName}</Link></strong>
           {/* What this reviewer's notes have been worth elsewhere, so a reader
               with a record of being right is legible as one. */}
           {comment.authorScore > 0 && (

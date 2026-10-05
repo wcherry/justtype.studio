@@ -997,6 +997,19 @@ public enum API {
         }
     }
 
+    public struct FollowState: Codable, Hashable, Sendable {
+        public var followers: Int
+        public var following: Bool
+
+        public init(
+            followers: Int,
+            following: Bool
+        ) {
+            self.followers = followers
+            self.following = following
+        }
+    }
+
     public struct HealthResponse: Codable, Hashable, Sendable {
         public var service: String
         public var status: String
@@ -1275,6 +1288,47 @@ public enum API {
             self.updatedAt = updatedAt
             self.wordCount = wordCount
             self.chapters = chapters
+        }
+    }
+
+    public struct Profile: Codable, Hashable, Sendable {
+        public var bio: String?
+        public var displayName: String
+        public var followers: Int
+        public var following: Int
+        public var id: String
+        public var joinedAt: String
+        /// What this author has on offer that the viewer could open — the same
+        /// rule the feed applies, so a profile never lists a locked door.
+        public var publications: [PublicationCard]
+        /// Other people's work this person has given notes on, newest first.
+        public var reviews: [ReviewHistoryItem]
+        public var standing: Standing
+        /// Whether the person asking follows this author. Always false signed out.
+        public var viewerFollows: Bool
+
+        public init(
+            bio: String? = nil,
+            displayName: String,
+            followers: Int,
+            following: Int,
+            id: String,
+            joinedAt: String,
+            publications: [PublicationCard],
+            reviews: [ReviewHistoryItem],
+            standing: Standing,
+            viewerFollows: Bool
+        ) {
+            self.bio = bio
+            self.displayName = displayName
+            self.followers = followers
+            self.following = following
+            self.id = id
+            self.joinedAt = joinedAt
+            self.publications = publications
+            self.reviews = reviews
+            self.standing = standing
+            self.viewerFollows = viewerFollows
         }
     }
 
@@ -1790,6 +1844,33 @@ public enum API {
             self.rating = rating
             self.updatedAt = updatedAt
             self.userId = userId
+        }
+    }
+
+    /// One publication someone reviewed, as their profile shows it.
+    public struct ReviewHistoryItem: Codable, Hashable, Sendable {
+        public var author: AuthorCard
+        public var lastAt: String
+        public var notes: Int
+        public var publicationId: String
+        /// Notes the author marked resolved — that they acted on it.
+        public var resolved: Int
+        public var workTitle: String
+
+        public init(
+            author: AuthorCard,
+            lastAt: String,
+            notes: Int,
+            publicationId: String,
+            resolved: Int,
+            workTitle: String
+        ) {
+            self.author = author
+            self.lastAt = lastAt
+            self.notes = notes
+            self.publicationId = publicationId
+            self.resolved = resolved
+            self.workTitle = workTitle
         }
     }
 
@@ -2483,6 +2564,20 @@ public enum API {
             dailyWordGoal: Int? = nil
         ) {
             self.dailyWordGoal = dailyWordGoal
+        }
+    }
+
+    public struct UpdateProfileRequest: Codable, Hashable, Sendable {
+        /// An empty string clears it.
+        public var bio: String?
+        public var displayName: String?
+
+        public init(
+            bio: String? = nil,
+            displayName: String? = nil
+        ) {
+            self.bio = bio
+            self.displayName = displayName
         }
     }
 

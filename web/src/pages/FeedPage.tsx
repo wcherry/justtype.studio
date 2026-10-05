@@ -1,16 +1,25 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { api } from '../api/client'
 import { BlockList } from '../components/BlockList'
 import { CircleManager } from '../components/CircleManager'
 import { FeedbackPanel } from '../components/FeedbackPanel'
 import { SincePanel } from '../components/SincePanel'
+import { PublicationTile } from '../components/PublicationTile'
 import { ReviewPanel } from '../components/ReviewPanel'
 import type { PublicationCard } from '../api/types'
 
+type Scope = 'everyone' | 'following' | 'mine'
+
+const HEADINGS: Record<Scope, string> = {
+  everyone: 'Looking for readers',
+  following: 'From people you follow',
+  mine: 'Your publications',
+}
+
 export function FeedPage() {
   const [cards, setCards] = useState<PublicationCard[]>([])
-  const [mine, setMine] = useState(false)
+  const [scope, setScope] = useState<Scope>('everyone')
+  const mine = scope === 'mine'
   const [managing, setManaging] = useState<string | null>(null)
   const [reading, setReading] = useState<string | null>(null)
   const [comparing, setComparing] = useState<string | null>(null)
@@ -19,10 +28,10 @@ export function FeedPage() {
 
   const load = useCallback(() => {
     api.publications
-      .feed({ mine })
+      .feed({ mine, following: scope === 'following' })
       .then(setCards)
       .catch((e) => setError(e.message))
-  }, [mine])
+  }, [mine, scope])
 
   useEffect(() => {
     load()
@@ -31,13 +40,22 @@ export function FeedPage() {
   return (
     <main className="feed">
       <header className="feed__header">
-        <h1>{mine ? 'Your publications' : 'Looking for readers'}</h1>
+        <h1>{HEADINGS[scope]}</h1>
         <div className="feed__actions">
+          <div className="segmented" role="group" aria-label="Whose work">
+            {(['everyone', 'following', 'mine'] as const).map((value) => (
+              <button
+                key={value}
+                type="button"
+                className={scope === value ? 'is-active' : undefined}
+                onClick={() => setScope(value)}
+              >
+                {value === 'everyone' ? 'Everyone' : value === 'following' ? 'Following' : 'Mine'}
+              </button>
+            ))}
+          </div>
           <button type="button" onClick={() => setShowCircles((c) => !c)}>
             {showCircles ? 'Hide circles' : 'Reader circles'}
-          </button>
-          <button type="button" onClick={() => setMine((m) => !m)}>
-            {mine ? 'Show everyone’s' : 'Show only mine'}
           </button>
         </div>
       </header>
@@ -57,23 +75,18 @@ export function FeedPage() {
       )}
 
       {error && <p className="error">{error}</p>}
-      {cards.length === 0 && <p className="empty">Nothing on offer right now.</p>}
+      {cards.length === 0 && (
+        <p className="empty">
+          {scope === 'following'
+            ? 'Nobody you follow has anything open right now. Follow an author from their name on any card.'
+            : 'Nothing on offer right now.'}
+        </p>
+      )}
 
       <ul className="feed__list">
         {cards.map((card) => (
           <li key={card.id}>
-            <Link to={`/review/${card.id}`} className="feed__card">
-              <h2>{card.workTitle}</h2>
-              <p className="feed__meta">
-                {card.author.displayName} · {card.workKind.replace('_', ' ')} ·{' '}
-                {card.wordCount.toLocaleString()} words · {card.versionLabel}
-                <span className="feed__count">
-                  {card.commentCount} comment{card.commentCount === 1 ? '' : 's'}
-                </span>
-              </p>
-              {card.reviewPrompt && <p className="feed__prompt">“{card.reviewPrompt}”</p>}
-              {card.excerpt && <p className="feed__excerpt">{card.excerpt}</p>}
-            </Link>
+            <PublicationTile card={card} />
             {mine && (
               <>
                 <div className="feed__manage">

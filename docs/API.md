@@ -256,7 +256,7 @@ shape against the scene as it stands now — what restoring it would change.
 | Method | Path | Notes |
 |---|---|---|
 | `POST` | `/versions/{id}/publications` | `visibility`, `scope`, `scopeRefId`, `reviewPrompt`, `opensAt`, `closesAt`, `maxReviewers` |
-| `GET` | `/publications` | review feed; `?mine=true`, `?kind=`, `limit`, `offset` |
+| `GET` | `/publications` | review feed; `?mine=true`, `?following=true`, `?author=`, `?kind=`, `limit`, `offset` |
 | `GET` | `/publications/{id}` | card with author, counts and excerpt |
 | `GET` | `/publications/{id}/content` | the snapshot, narrowed to the published scope |
 | `PATCH` | `/publications/{id}` | `visibility`, `reviewPrompt`, `closesAt`, `maxReviewers` (`0` removes the cap) |
@@ -270,7 +270,8 @@ before it can be offered for review.
 `opensAt` and `closesAt` bound the review window. Outside it every reader is
 refused with `403`, the author excepted — they can always open their own. The
 feed applies the same rules it would apply to the click: a reader is shown the
-publications they were invited to, and is not shown one whose window has shut.
+publications they were invited to, and is not shown one whose window has shut
+or whose author has blocked them.
 
 `maxReviewers` caps how many distinct people may comment. Someone already
 inside the cap may keep talking; a new voice is refused once it is full.
@@ -412,3 +413,23 @@ many seconds to wait. The counters live in the process — see `backend/src/limi
 reached, using the same furthest-point index that reader progress keeps. It
 defaults on for a serial, where not knowing yet is the point of reading one,
 and off for anything else. The author always sees everything.
+
+## Profiles and following
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/users/{id}/profile` | name, bio, follower counts, standing, what is on offer, review history; signed out is fine |
+| `PATCH` | `/me/profile` | `displayName`, `bio` (an empty string clears it) |
+| `PUT` | `/users/{id}/follow` | idempotent; `{ following, followers }` |
+| `DELETE` | `/users/{id}/follow` | |
+| `GET` | `/me/following` | author cards, most recent first |
+
+A profile never carries an email address. Its `publications` are the feed with
+`?author=` filled in, so it lists exactly what the viewer could open and no
+more. Its `reviews` are the notes this person left on other people's work, but
+only on `public` and `platform` publications (or the viewer's own): a note on a
+draft shared with named readers would tell strangers the draft exists.
+
+There is no approval step on a follow. What it buys is a feed of work the
+author already chose to show, so it reveals nothing they did not offer. An
+author who has blocked you cannot be followed.

@@ -7,6 +7,7 @@ pub mod feedback;
 pub mod goals;
 pub mod moderation;
 pub mod openapi;
+pub mod profiles;
 pub mod publications;
 pub mod readers;
 pub mod scenes;
@@ -113,6 +114,10 @@ fn api_router() -> OpenApiRouter<AppState> {
         .routes(routes!(moderation::list_reports))
         .routes(routes!(moderation::list_blocks, moderation::block))
         .routes(routes!(moderation::unblock))
+        .routes(routes!(profiles::profile))
+        .routes(routes!(profiles::update_profile))
+        .routes(routes!(profiles::follow, profiles::unfollow))
+        .routes(routes!(profiles::following))
 }
 
 pub fn router(state: AppState) -> Router {

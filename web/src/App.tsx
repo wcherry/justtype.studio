@@ -3,6 +3,7 @@ import { EditorPage } from './pages/EditorPage'
 import { FeedPage } from './pages/FeedPage'
 import { LibraryPage } from './pages/LibraryPage'
 import { LoginPage } from './pages/LoginPage'
+import { ProfilePage } from './pages/ProfilePage'
 import { ReviewPage } from './pages/ReviewPage'
 import { useAuth } from './state/auth'
 
@@ -25,7 +26,7 @@ function Chrome({ children }: { children: React.ReactNode }) {
         <span className="shell__spacer" />
         {user && (
           <>
-            <span className="shell__user">{user.displayName}</span>
+            <Link to={`/people/${user.id}`} className="shell__user">{user.displayName}</Link>
             <button type="button" className="linklike" onClick={() => void logout()}>Sign out</button>
           </>
         )}
@@ -54,6 +55,10 @@ export function App() {
       <Route
         path="/review/:publicationId"
         element={<RequireAuth><Chrome><ReviewPage /></Chrome></RequireAuth>}
+      />
+      <Route
+        path="/people/:userId"
+        element={<RequireAuth><Chrome><ProfilePage /></Chrome></RequireAuth>}
       />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

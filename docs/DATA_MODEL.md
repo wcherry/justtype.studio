@@ -29,6 +29,7 @@ users ──┬─< works ──┬─< chapters ──< scenes ──┬─< sc
 | `publications` | An offer of a version to readers | Visibility and scope live here |
 | `comments` | Reviewer feedback | Anchored, threaded, categorised; soft-deleted |
 | `comment_votes` | One vote per person per comment | Score recomputed, never incremented |
+| `follows` | Who follows whom | One row per pair; nobody follows themselves |
 
 ## Lifecycles
 
