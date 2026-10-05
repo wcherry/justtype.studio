@@ -1,6 +1,7 @@
 pub mod auth;
 pub mod bible;
 pub mod changes;
+pub mod collaborators;
 pub mod comments;
 pub mod discovery;
 pub mod export;
@@ -119,6 +120,9 @@ fn api_router() -> OpenApiRouter<AppState> {
         .routes(routes!(profiles::update_profile))
         .routes(routes!(profiles::follow, profiles::unfollow))
         .routes(routes!(profiles::following))
+        .routes(routes!(collaborators::list, collaborators::add))
+        .routes(routes!(collaborators::update, collaborators::remove))
+        .routes(routes!(collaborators::activity))
 }
 
 pub fn router(state: AppState) -> Router {

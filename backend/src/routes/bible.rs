@@ -19,7 +19,7 @@ use crate::domain::{new_id, now_iso};
 use crate::error::{ApiError, ApiResult, ErrorEnvelope};
 use crate::state::AppState;
 
-use super::support;
+use super::support::{self, Ability};
 
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -80,10 +80,11 @@ fn load_entry(conn: &mut crate::db::Conn, entry_id: &str) -> ApiResult<EntryView
 }
 
 /// The caller owns the work this entry belongs to.
-fn entry_for_owner(
+fn entry_for(
     conn: &mut crate::db::Conn,
     entry_id: &str,
     user: &AuthUser,
+    need: Ability,
 ) -> ApiResult<BibleEntry> {
     let entry: BibleEntry = bible_entries::table
         .find(entry_id)
@@ -91,7 +92,7 @@ fn entry_for_owner(
         .first(conn)
         .optional()?
         .ok_or_else(|| ApiError::NotFound("entry not found".into()))?;
-    support::work_for_owner(conn, &entry.work_id, user)?;
+    support::work_for(conn, &entry.work_id, user, need)?;
     Ok(entry)
 }
 
@@ -112,7 +113,7 @@ pub async fn list(
     Query(query): Query<EntryQuery>,
 ) -> ApiResult<Json<Vec<EntryView>>> {
     let entries = blocking(&state.pool, move |conn| {
-        support::work_for_owner(conn, &work_id, &user)?;
+        support::work_for(conn, &work_id, &user, Ability::Read)?;
 
         let ids: Vec<String> = match &query.scene_id {
             Some(scene_id) => scene_bible_links::table
@@ -167,7 +168,7 @@ pub async fn create(
     }
 
     let entry = blocking(&state.pool, move |conn| {
-        support::work_for_owner(conn, &work_id, &user)?;
+        support::work_for(conn, &work_id, &user, Ability::Write)?;
         let now = now_iso();
         let row = NewBibleEntry {
             id: new_id(),
@@ -206,7 +207,7 @@ pub async fn update(
     Json(body): Json<UpdateEntryRequest>,
 ) -> ApiResult<Json<EntryView>> {
     let entry = blocking(&state.pool, move |conn| {
-        entry_for_owner(conn, &entry_id, &user)?;
+        entry_for(conn, &entry_id, &user, Ability::Write)?;
         if let Some(name) = &body.name {
             if name.trim().is_empty() {
                 return Err(ApiError::BadRequest("an entry needs a name".into()));
@@ -250,7 +251,7 @@ pub async fn delete_entry(
     Path(entry_id): Path<String>,
 ) -> ApiResult<Json<serde_json::Value>> {
     blocking(&state.pool, move |conn| {
-        entry_for_owner(conn, &entry_id, &user)?;
+        entry_for(conn, &entry_id, &user, Ability::Write)?;
         diesel::delete(bible_entries::table.find(&entry_id)).execute(conn)?;
         Ok(())
     })
@@ -284,8 +285,8 @@ pub async fn link(
     Json(body): Json<LinkRequest>,
 ) -> ApiResult<Json<EntryView>> {
     let entry = blocking(&state.pool, move |conn| {
-        let entry = entry_for_owner(conn, &entry_id, &user)?;
-        let (scene, _) = support::scene_for_owner(conn, &body.scene_id, &user)?;
+        let entry = entry_for(conn, &entry_id, &user, Ability::Write)?;
+        let (scene, _) = support::scene_for(conn, &body.scene_id, &user, Ability::Read)?;
         if scene.work_id != entry.work_id {
             return Err(ApiError::BadRequest(
                 "an entry can only be linked to scenes in its own work".into(),
@@ -323,7 +324,7 @@ pub async fn unlink(
     Path((entry_id, scene_id)): Path<(String, String)>,
 ) -> ApiResult<Json<EntryView>> {
     let entry = blocking(&state.pool, move |conn| {
-        entry_for_owner(conn, &entry_id, &user)?;
+        entry_for(conn, &entry_id, &user, Ability::Write)?;
         diesel::delete(
             scene_bible_links::table
                 .filter(scene_bible_links::entry_id.eq(&entry_id))

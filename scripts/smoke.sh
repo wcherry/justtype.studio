@@ -743,6 +743,88 @@ curl -s "$API/publications/$PID" -H "$HAUTH" | python3 -c "
 import sys,json;d=json.load(sys.stdin);assert d['authorReviewsGiven']==1, d['authorReviewsGiven']
 print(f\"  Ada has now read for {d['authorReviewsGiven']} other writer, which her card carries\")"
 
+step "Co-authors and their roles"
+OUT=$(curl -s "$API/works/$WID/outline" -H "$AUTH")
+CH1=$(echo "$OUT" | field chapters.0.id)
+CH2=$(echo "$OUT" | field chapters.1.id)
+S1=$(echo "$OUT" | field chapters.0.scenes.0.id)
+S2=$(echo "$OUT" | field chapters.1.scenes.0.id)
+collab() { curl -s -o /dev/null -w '%{http_code}' -X POST "$API/works/$WID/collaborators" -H "$AUTH" \
+  -H 'content-type: application/json' -d "$1"; }
+[ "$(collab '{"email":"ADA@example.com","role":"writer"}')" = "400" ] && echo "  the creator cannot be added to her own book" || { echo "  EXPECTED 400"; exit 1; }
+[ "$(collab "{\"email\":\"x@example.com\",\"role\":\"owner\",\"chapterIds\":[\"$CH2\"]}")" = "400" ] && echo "  an owner cannot be narrowed to a chapter" || { echo "  EXPECTED 400"; exit 1; }
+curl -s -X POST "$API/works/$WID/collaborators" -H "$AUTH" -H 'content-type: application/json' \
+  -d '{"email":"hal@example.com","role":"editor"}' >/dev/null
+# Ivy has no account yet: the invitation waits for her address.
+curl -s -X POST "$API/works/$WID/collaborators" -H "$AUTH" -H 'content-type: application/json' \
+  -d "{\"email\":\"ivy@example.com\",\"role\":\"writer\",\"chapterIds\":[\"$CH2\"]}" | python3 -c "
+import sys,json
+for c in json.load(sys.stdin):
+    who = c['person']['displayName'] if c['person'] else c['email'] + ' (no account yet)'
+    print(f\"  {who}: {c['role']}{' on ' + str(len(c['chapterIds'])) + ' chapter' if c['chapterIds'] is not None else ''}\")"
+ITOKEN=$(curl -s -X POST "$API/auth/register" -H 'content-type: application/json' \
+  -d '{"email":"ivy@example.com","password":"correcthorse","displayName":"Ivy"}' | field accessToken)
+IAUTH="Authorization: Bearer $ITOKEN"
+curl -s "$API/works" -H "$HAUTH" | python3 -c "
+import sys,json;rows=json.load(sys.stdin);assert any(w['title']=='The Long Field' for w in rows), rows
+print('  the shared work is on the editor\\'s desk')"
+curl -s "$API/works/$WID/outline" -H "$IAUTH" | python3 -c "
+import sys,json;a=json.load(sys.stdin)['access']
+assert a['role']=='writer' and len(a['chapterIds'])==1 and not a['creator'], a
+print(f\"  Ivy's outline says: {a['role']}, {len(a['chapterIds'])} chapter, owned by {a['owner']['displayName']}\")"
+
+code() { curl -s -o /dev/null -w '%{http_code}' "$@"; }
+expect() { [ "$2" = "$3" ] && echo "  $1" || { echo "  $1 — EXPECTED $3, got $2"; exit 1; }; }
+DOC='{"content":{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Ivy was here."}]}]}}'
+expect "an editor cannot change the text" \
+  "$(code -X PUT "$API/scenes/$S1/content" -H "$HAUTH" -H 'content-type: application/json' -d "$DOC")" 403
+expect "but can propose a change" \
+  "$(code -X POST "$API/scenes/$S1/changes" -H "$HAUTH" -H 'content-type: application/json' -d '{"kind":"insert","anchorFrom":1,"anchorTo":1,"payload":{"text":"Still, "}}')" 200
+expect "and add to the to-do list" \
+  "$(code -X POST "$API/works/$WID/tasks" -H "$HAUTH" -H 'content-type: application/json' -d '{"body":"The middle sags."}')" 200
+expect "but not snapshot the book" \
+  "$(code -X POST "$API/works/$WID/versions" -H "$HAUTH" -H 'content-type: application/json' -d '{}')" 403
+expect "a writer handed chapter two can write in it" \
+  "$(code -X PUT "$API/scenes/$S2/content" -H "$IAUTH" -H 'content-type: application/json' -d "$DOC")" 200
+curl -s -X PUT "$API/scenes/$S2/content" -H "$IAUTH" -H 'content-type: application/json' \
+  -d '{"content":{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Ivy was here twice."}]}]}}' >/dev/null
+expect "not in chapter one" \
+  "$(code -X PUT "$API/scenes/$S1/content" -H "$IAUTH" -H 'content-type: application/json' -d "$DOC")" 403
+expect "though she can read it" "$(code "$API/scenes/$S1" -H "$IAUTH")" 200
+expect "and cannot add a chapter, which changes the book's shape" \
+  "$(code -X POST "$API/works/$WID/chapters" -H "$IAUTH" -H 'content-type: application/json' -d '{"title":"Mine now"}')" 403
+expect "a stranger still gets nothing" "$(code "$API/works/$WID/outline" -H "$SAUTH")" 403
+curl -s "$API/works/$WID/collaborators" -H "$IAUTH" | python3 -c "
+import sys,json;assert all(c['email'] is None for c in json.load(sys.stdin)), 'addresses leaked to a non-owner'
+print('  a writer sees who else is on the book, but not their addresses')"
+HALC=$(curl -s "$API/works/$WID/collaborators" -H "$AUTH" | python3 -c "
+import sys,json;print(next(c['id'] for c in json.load(sys.stdin) if c['email']=='hal@example.com'))")
+curl -s -X PATCH "$API/works/$WID/collaborators/$HALC" -H "$AUTH" -H 'content-type: application/json' -d '{"role":"owner"}' >/dev/null
+expect "promoted to owner, Hal can snapshot" \
+  "$(code -X POST "$API/works/$WID/versions" -H "$HAUTH" -H 'content-type: application/json' -d '{"label":"Hal was here"}')" 200
+expect "but not delete the book out from under the person who started it" "$(code -X DELETE "$API/works/$WID" -H "$HAUTH")" 403
+
+step "The work's activity"
+curl -s "$API/works/$WID/activity" -H "$IAUTH" | python3 -c "
+import sys,json
+rows=json.load(sys.stdin)
+for r in rows[:6]:
+    times = f\" x{r['times']}\" if r['times'] > 1 else ''
+    print(f\"  {r['actor']['displayName']:5} {r['kind']:22} {r['subject']}{times}\")
+edits=[r for r in rows if r['kind']=='scene_edited' and r['actor']['displayName']=='Ivy']
+assert len(edits)==1 and edits[0]['times']==2, 'two saves in a sitting should be one line'
+assert not any('@' in r['subject'] for r in rows), 'an address leaked into the activity feed'"
+BEFORE_R=$(curl -s "$API/publications/$PID" -H "$AUTH" | field readerCount)
+curl -s -X PUT "$API/publications/$PID/progress" -H "$IAUTH" -H 'content-type: application/json' -d "{\"sceneId\":\"$S2\"}" >/dev/null
+AFTER_R=$(curl -s "$API/publications/$PID" -H "$AUTH" | field readerCount)
+[ "$BEFORE_R" = "$AFTER_R" ] && echo "  a co-author opening the book is not counted as a reader ($AFTER_R)" || { echo "  READER COUNT MOVED: $BEFORE_R -> $AFTER_R"; exit 1; }
+IVYC=$(curl -s "$API/works/$WID/collaborators" -H "$AUTH" | python3 -c "
+import sys,json;print(next(c['id'] for c in json.load(sys.stdin) if c['email']=='ivy@example.com'))")
+expect "Ivy steps off the book" "$(code -X DELETE "$API/works/$WID/collaborators/$IVYC" -H "$IAUTH")" 200
+expect "and is shut out of it" "$(code "$API/works/$WID/outline" -H "$IAUTH")" 403
+expect "and an owner can take someone else off" \
+  "$(code -X DELETE "$API/works/$WID/collaborators/$HALC" -H "$AUTH")" 200
+
 step "Exporting the published version"
 for fmt in txt docx epub pdf; do
   out="$TMP/export.$fmt"

@@ -69,10 +69,12 @@ routes/        one module per resource, plus `support` for access checks
 hops onto Tokio's blocking pool and hands back an `ApiResult`. Handlers never
 touch the connection pool directly.
 
-**Authorisation lives in one file.** `routes/support.rs` holds
-`work_for_owner`, `scene_for_owner`, `publication_for_reader` and friends. Every
-handler that touches a work goes through one of them, so the rules are stated
-once rather than re-derived in twenty places.
+**Authorisation lives in one file.** `routes/support.rs` holds `Access` — the
+caller's role on a work and the chapters they were handed — and the lookups
+built on it: `work_for`, `scene_for`, `chapter_for`, `version_for`,
+`publication_for_reader` and friends. Each takes the `Ability` the handler needs
+(read, suggest, write, own), so every handler states what it requires and the
+rules for meeting it are written once rather than re-derived in twenty places.
 
 **SQLite is configured per connection**: WAL, foreign keys on, a busy timeout.
 A test asserts foreign keys are actually enabled, because a silently ignored

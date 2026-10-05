@@ -8,12 +8,13 @@ use crate::auth::AuthUser;
 use crate::db::blocking;
 use crate::db::models::*;
 use crate::db::schema::{scene_revisions, scenes};
-use crate::domain::enums::SceneStatus;
+use crate::domain::enums::{ActivityKind, SceneStatus};
 use crate::domain::{doc, new_id, now_iso};
 use crate::error::{ApiError, ApiResult, ErrorEnvelope};
 use crate::state::AppState;
 
-use super::support::{self, Page};
+use super::collaborators::record;
+use super::support::{self, Ability, Page};
 use super::works::ReorderRequest;
 
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
@@ -141,7 +142,7 @@ pub async fn create(
     let content_for_db = content.clone();
 
     let scene = blocking(&state.pool, move |conn| {
-        let (chapter, work) = support::chapter_for_owner(conn, &chapter_id, &user)?;
+        let (chapter, work) = support::chapter_for(conn, &chapter_id, &user, Ability::Write)?;
         let now = now_iso();
         let row = NewScene {
             id: new_id(),
@@ -164,6 +165,14 @@ pub async fn create(
             .values(&row)
             .execute(conn)?;
         support::recount_work(conn, &work.id, &now)?;
+        record(
+            conn,
+            &work.id,
+            &user.id,
+            ActivityKind::SceneAdded,
+            Some(&row.id),
+            &row.title,
+        )?;
         Ok(scenes::table
             .find(&row.id)
             .select(Scene::as_select())
@@ -194,7 +203,7 @@ pub async fn get_one(
     Path(scene_id): Path<String>,
 ) -> ApiResult<Json<SceneWithContent>> {
     let scene = blocking(&state.pool, move |conn| {
-        let (scene, _) = support::scene_for_owner(conn, &scene_id, &user)?;
+        let (scene, _) = support::scene_for(conn, &scene_id, &user, Ability::Read)?;
         Ok(scene)
     })
     .await?;
@@ -231,7 +240,7 @@ pub async fn update(
         }
     }
     let scene = blocking(&state.pool, move |conn| {
-        let (scene, work) = support::scene_for_owner(conn, &scene_id, &user)?;
+        let (scene, work) = support::scene_for(conn, &scene_id, &user, Ability::Write)?;
         let now = now_iso();
         if let Some(title) = &body.title {
             diesel::update(scenes::table.find(&scene.id))
@@ -277,7 +286,7 @@ pub async fn update(
                 .execute(conn)?;
         }
         if let Some(target_chapter) = &body.chapter_id {
-            let (chapter, _) = support::chapter_for_owner(conn, target_chapter, &user)?;
+            let (chapter, _) = support::chapter_for(conn, target_chapter, &user, Ability::Write)?;
             if chapter.work_id != work.id {
                 return Err(ApiError::BadRequest(
                     "a scene can only move within its own work".into(),
@@ -330,7 +339,7 @@ pub async fn put_content(
     let lookup_id = scene_id.clone();
     let lookup_user = user.clone();
     let scene = blocking(&state.pool, move |conn| {
-        let (scene, _) = support::scene_for_owner(conn, &lookup_id, &lookup_user)?;
+        let (scene, _) = support::scene_for(conn, &lookup_id, &lookup_user, Ability::Write)?;
         Ok(scene)
     })
     .await?;
@@ -374,6 +383,8 @@ pub async fn put_content(
     let scene_id_db = scene.id.clone();
     let revision_for_db = revision_id.clone();
     let author_id = user.id.clone();
+    let actor_id = user.id.clone();
+    let scene_title = scene.title.clone();
     let local_day = body.local_day.clone();
     let (scene, work_word_count) = blocking(&state.pool, move |conn| {
         let now = now_iso();
@@ -403,6 +414,16 @@ pub async fn put_content(
                 .execute(conn)?;
         }
         let total = support::recount_work(conn, &work_id, &now)?;
+        if !unchanged {
+            record(
+                conn,
+                &work_id,
+                &actor_id,
+                ActivityKind::SceneEdited,
+                Some(&scene_id_db),
+                &scene_title,
+            )?;
+        }
         let scene: Scene = scenes::table
             .find(&scene_id_db)
             .select(Scene::as_select())
@@ -434,8 +455,16 @@ pub async fn delete_scene(
     Path(scene_id): Path<String>,
 ) -> ApiResult<Json<Value>> {
     let (work_id, scene_id) = blocking(&state.pool, move |conn| {
-        let (scene, work) = support::scene_for_owner(conn, &scene_id, &user)?;
+        let (scene, work) = support::scene_for(conn, &scene_id, &user, Ability::Write)?;
         diesel::delete(scenes::table.find(&scene.id)).execute(conn)?;
+        record(
+            conn,
+            &work.id,
+            &user.id,
+            ActivityKind::SceneRemoved,
+            Some(&scene.id),
+            &scene.title,
+        )?;
         support::recount_work(conn, &work.id, &now_iso())?;
         Ok((work.id, scene.id))
     })
@@ -462,7 +491,7 @@ pub async fn reorder(
     Json(body): Json<ReorderRequest>,
 ) -> ApiResult<Json<Vec<Scene>>> {
     let rows = blocking(&state.pool, move |conn| {
-        let (chapter, _) = support::chapter_for_owner(conn, &chapter_id, &user)?;
+        let (chapter, _) = support::chapter_for(conn, &chapter_id, &user, Ability::Write)?;
         let now = now_iso();
         conn.transaction::<_, ApiError, _>(|conn| {
             for (index, id) in body.ids.iter().enumerate() {
@@ -507,7 +536,7 @@ pub async fn list_revisions(
 ) -> ApiResult<Json<Vec<SceneRevision>>> {
     let (limit, offset) = page.clamped();
     let rows = blocking(&state.pool, move |conn| {
-        let (scene, _) = support::scene_for_owner(conn, &scene_id, &user)?;
+        let (scene, _) = support::scene_for(conn, &scene_id, &user, Ability::Read)?;
         Ok(scene_revisions::table
             .filter(scene_revisions::scene_id.eq(&scene.id))
             .order(scene_revisions::created_at.desc())
@@ -549,7 +578,7 @@ pub async fn get_revision(
 ) -> ApiResult<Json<RevisionWithContent>> {
     let revision_lookup = revision_id.clone();
     let (scene, revision) = blocking(&state.pool, move |conn| {
-        let (scene, _) = support::scene_for_owner(conn, &scene_id, &user)?;
+        let (scene, _) = support::scene_for(conn, &scene_id, &user, Ability::Read)?;
         let revision: SceneRevision = scene_revisions::table
             .find(&revision_lookup)
             .filter(scene_revisions::scene_id.eq(&scene.id))
@@ -604,7 +633,7 @@ pub async fn restore_revision(
     let lookup_user = user.clone();
     let lookup_revision = revision_id.clone();
     let (scene, revision) = blocking(&state.pool, move |conn| {
-        let (scene, _) = support::scene_for_owner(conn, &scene_id, &lookup_user)?;
+        let (scene, _) = support::scene_for(conn, &scene_id, &lookup_user, Ability::Write)?;
         let revision: SceneRevision = scene_revisions::table
             .find(&lookup_revision)
             .filter(scene_revisions::scene_id.eq(&scene.id))
@@ -693,7 +722,7 @@ pub async fn split_scene(
     let lookup_user = user.clone();
     let lookup_id = scene_id.clone();
     let scene = blocking(&state.pool, move |conn| {
-        let (scene, _) = support::scene_for_owner(conn, &lookup_id, &lookup_user)?;
+        let (scene, _) = support::scene_for(conn, &lookup_id, &lookup_user, Ability::Write)?;
         Ok(scene)
     })
     .await?;
@@ -850,8 +879,8 @@ pub async fn merge_scene(
     let lookup_id = scene_id.clone();
     let other_id = body.with.clone();
     let (keep, absorb) = blocking(&state.pool, move |conn| {
-        let (keep, _) = support::scene_for_owner(conn, &lookup_id, &lookup_user)?;
-        let (absorb, _) = support::scene_for_owner(conn, &other_id, &lookup_user)?;
+        let (keep, _) = support::scene_for(conn, &lookup_id, &lookup_user, Ability::Write)?;
+        let (absorb, _) = support::scene_for(conn, &other_id, &lookup_user, Ability::Write)?;
         if keep.chapter_id != absorb.chapter_id {
             return Err(ApiError::BadRequest(
                 "scenes can only be merged within one chapter — move it first".into(),

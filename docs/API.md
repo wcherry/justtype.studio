@@ -458,3 +458,43 @@ draft shared with named readers would tell strangers the draft exists.
 There is no approval step on a follow. What it buys is a feed of work the
 author already chose to show, so it reveals nothing they did not offer. An
 author who has blocked you cannot be followed.
+
+## Collaboration
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/works/{id}/collaborators` | anyone on the work; addresses only for owners |
+| `POST` | `/works/{id}/collaborators` | `email`, `role`, optional `chapterIds` (owners) |
+| `PATCH` | `/works/{id}/collaborators/{cid}` | `role`, and `chapterIds` or `wholeWork: true` (owners) |
+| `DELETE` | `/works/{id}/collaborators/{cid}` | an owner takes someone off, or you step off yourself |
+| `GET` | `/works/{id}/activity` | what happened and who did it, newest first; `limit`, `offset` |
+
+Roles, each including the ones before it:
+
+| Role | May |
+|---|---|
+| `reader` | open the working draft, its history, its snapshots, its publications |
+| `editor` | propose tracked changes; add to and tick off the to-do list |
+| `writer` | change the text and the structure; accept or reject proposals; edit the bible |
+| `owner` | snapshots, publishing, publications, front matter, who is on the book |
+
+The person who started the work is an owner and is not a row in the list, so
+nothing in it can remove them; they are the only one who can delete the work.
+
+`chapterIds` hands a writer or an editor only some chapters — a ghostwriter, an
+editorial hand-off. It narrows what they may **change**, never what they may
+read: chapter nine is written against the eight before it. Adding, ordering or
+removing chapters needs the whole work. An empty list is allowed and means
+nowhere to write, not everywhere; an owner cannot be narrowed.
+
+A collaborator is addressed by email, like an invited reader, and may not have
+an account yet. Shared works appear in `GET /works` beside the caller's own,
+and every outline carries `access` — `role`, `chapterIds`, `creator` and
+`owner` — so a client offers only what the server will accept. The rules are
+`support::Access`; every handler that touches a work asks it for an ability.
+
+Activity is written by the handlers as they act rather than derived, because a
+derived feed cannot say who removed a chapter. A run of saves to one scene by
+one person within half an hour is one line with a `times` count. Collaborators
+are named, never shown by address. Co-authors are not counted as readers of
+their own book in `readerCount`, and notes on it are not reading for others.

@@ -313,6 +313,36 @@ row!(BlockedReader, blocked_readers, {
     created_at: String,
 });
 
+row!(WorkCollaborator, work_collaborators, {
+    id: String,
+    work_id: String,
+    email: String,
+    /// Empty until they first open the work.
+    user_id: Option<String>,
+    #[schema(value_type = crate::domain::enums::CollaboratorRole)]
+    role: String,
+    chapter_scoped: i32,
+    invited_by: Option<String>,
+    accepted_at: Option<String>,
+    created_at: String,
+    updated_at: String,
+});
+
+row!(WorkActivity, work_activity, {
+    id: String,
+    work_id: String,
+    actor_id: String,
+    #[schema(value_type = crate::domain::enums::ActivityKind)]
+    kind: String,
+    subject_id: Option<String>,
+    /// The title as it was at the time.
+    subject: String,
+    /// How many acts this line stands for.
+    times: i32,
+    created_at: String,
+    updated_at: String,
+});
+
 row!(Reaction, reactions, {
     id: String,
     publication_id: String,
@@ -521,6 +551,22 @@ new_row!(NewBlockedReader, blocked_readers, {
 
 new_row!(NewFollow, follows, {
     id: String, follower_id: String, followee_id: String, created_at: String,
+});
+
+new_row!(NewWorkCollaborator, work_collaborators, {
+    id: String, work_id: String, email: String, user_id: Option<String>, role: String,
+    chapter_scoped: i32, invited_by: Option<String>, accepted_at: Option<String>,
+    created_at: String, updated_at: String,
+});
+
+new_row!(NewCollaboratorChapter, collaborator_chapters, {
+    id: String, collaborator_id: String, chapter_id: String,
+});
+
+new_row!(NewWorkActivity, work_activity, {
+    id: String, work_id: String, actor_id: String, kind: String,
+    subject_id: Option<String>, subject: String, times: i32,
+    created_at: String, updated_at: String,
 });
 
 new_row!(NewReaction, reactions, {

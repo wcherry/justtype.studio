@@ -29,6 +29,7 @@ use utoipa::OpenApi;
         (name = "publications", description = "A version offered for review"),
         (name = "comments", description = "Anchored, threaded, votable feedback"),
         (name = "profiles", description = "Authors, and who follows them"),
+        (name = "collaboration", description = "Co-authors, their roles, and what they did"),
     )
 )]
 pub struct ApiDoc;

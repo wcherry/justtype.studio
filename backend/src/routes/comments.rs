@@ -170,7 +170,7 @@ pub async fn list(
         // Spoilers are withheld before anything else looks at the rows, so no
         // filter or sort downstream can leak one back.
         if let Some(reader) = user.as_ref() {
-            if publication.spoiler_safe != 0 && work.owner_id != reader.id {
+            if publication.spoiler_safe != 0 && !support::is_author(conn, &work, reader)? {
                 let reached = support::scenes_reached(conn, &publication, reader)?;
                 rows.retain(|c| match &c.scene_id {
                     Some(scene_id) => reached.contains(scene_id),

@@ -1,6 +1,70 @@
 {
   "components": {
     "schemas": {
+      "ActivityKind": {
+        "enum": [
+          "scene_edited",
+          "scene_added",
+          "scene_removed",
+          "chapter_added",
+          "chapter_removed",
+          "change_proposed",
+          "change_accepted",
+          "change_rejected",
+          "task_added",
+          "task_done",
+          "version_saved",
+          "version_published",
+          "publication_opened",
+          "collaborator_added",
+          "collaborator_changed",
+          "collaborator_removed"
+        ],
+        "type": "string"
+      },
+      "ActivityView": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/WorkActivity"
+          },
+          {
+            "properties": {
+              "actor": {
+                "$ref": "#/components/schemas/AuthorCard"
+              }
+            },
+            "required": [
+              "actor"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "AddCollaboratorRequest": {
+        "properties": {
+          "chapterIds": {
+            "description": "Narrow what they may change to these chapters. Omitted, the whole work.",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "email": {
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/CollaboratorRole"
+          }
+        },
+        "required": [
+          "email",
+          "role"
+        ],
+        "type": "object"
+      },
       "AddMemberRequest": {
         "properties": {
           "email": {
@@ -497,6 +561,68 @@
             "type": "object"
           }
         ]
+      },
+      "CollaboratorRole": {
+        "enum": [
+          "owner",
+          "writer",
+          "editor",
+          "reader"
+        ],
+        "type": "string"
+      },
+      "CollaboratorView": {
+        "properties": {
+          "acceptedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "chapterIds": {
+            "description": "The chapters they may change, when they were handed only some. Absent\nmeans the whole work.",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "email": {
+            "description": "The address it went to. Shown to owners only: the people on a book do\nnot need each other's addresses to work on it.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "person": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AuthorCard",
+                "description": "Who they are, once they have an account and have opened the work."
+              }
+            ]
+          },
+          "role": {
+            "$ref": "#/components/schemas/CollaboratorRole"
+          }
+        },
+        "required": [
+          "id",
+          "role",
+          "createdAt"
+        ],
+        "type": "object"
       },
       "Comment": {
         "properties": {
@@ -1537,6 +1663,17 @@
           },
           {
             "properties": {
+              "access": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/WorkAccess",
+                    "description": "The caller's standing on the work, so a client can offer only what the\nserver will accept. Sent on every outline; optional so an outline a\nclient cached before collaboration existed still decodes."
+                  }
+                ]
+              },
               "chapters": {
                 "items": {
                   "$ref": "#/components/schemas/OutlineChapter"
@@ -2986,6 +3123,38 @@
         },
         "type": "object"
       },
+      "UpdateCollaboratorRequest": {
+        "properties": {
+          "chapterIds": {
+            "description": "Narrow them to exactly these chapters. An empty list leaves them\nnowhere to write, which is not the same as everywhere.",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "role": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CollaboratorRole"
+              }
+            ]
+          },
+          "wholeWork": {
+            "description": "`true` hands them the whole work again.",
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
       "UpdateCommentRequest": {
         "properties": {
           "body": {
@@ -3736,6 +3905,86 @@
           "kind",
           "status",
           "wordCount",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "WorkAccess": {
+        "description": "What the outline tells a client about who it is to this work.",
+        "properties": {
+          "chapterIds": {
+            "description": "The chapters they may change, when they were handed only some. Absent\nmeans the whole work. Reading is never narrowed.",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "creator": {
+            "description": "Whether they started the work — the one thing an added owner is not.",
+            "type": "boolean"
+          },
+          "owner": {
+            "$ref": "#/components/schemas/AuthorCard",
+            "description": "Whose book it is."
+          },
+          "role": {
+            "$ref": "#/components/schemas/CollaboratorRole"
+          }
+        },
+        "required": [
+          "role",
+          "creator",
+          "owner"
+        ],
+        "type": "object"
+      },
+      "WorkActivity": {
+        "properties": {
+          "actorId": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ActivityKind"
+          },
+          "subject": {
+            "description": "The title as it was at the time.",
+            "type": "string"
+          },
+          "subjectId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "times": {
+            "description": "How many acts this line stands for.",
+            "format": "int32",
+            "type": "integer"
+          },
+          "updatedAt": {
+            "type": "string"
+          },
+          "workId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "workId",
+          "actorId",
+          "kind",
+          "subject",
+          "times",
           "createdAt",
           "updatedAt"
         ],
@@ -7783,6 +8032,49 @@
         ]
       }
     },
+    "/api/works/{work_id}/activity": {
+      "get": {
+        "operationId": "activity",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ActivityView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "What has happened to this work, newest first"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "collaboration"
+        ]
+      }
+    },
     "/api/works/{work_id}/bible": {
       "get": {
         "operationId": "list",
@@ -7974,6 +8266,205 @@
         },
         "tags": [
           "chapters"
+        ]
+      }
+    },
+    "/api/works/{work_id}/collaborators": {
+      "get": {
+        "operationId": "list",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CollaboratorView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Who else is on this work"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "collaboration"
+        ]
+      },
+      "post": {
+        "operationId": "add",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddCollaboratorRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CollaboratorView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Everyone on the work, the new one included"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "collaboration"
+        ]
+      }
+    },
+    "/api/works/{work_id}/collaborators/{collaborator_id}": {
+      "delete": {
+        "operationId": "remove",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "collaborator_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Removed, or left"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "collaboration"
+        ]
+      },
+      "patch": {
+        "operationId": "update",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "collaborator_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCollaboratorRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CollaboratorView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Everyone on the work"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "collaboration"
         ]
       }
     },
@@ -8283,6 +8774,10 @@
     {
       "description": "Authors, and who follows them",
       "name": "profiles"
+    },
+    {
+      "description": "Co-authors, their roles, and what they did",
+      "name": "collaboration"
     }
   ]
 }

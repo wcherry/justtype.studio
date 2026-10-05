@@ -1,6 +1,8 @@
 //! Lookups that also enforce access. Every handler that touches a work goes
 //! through one of these, so authorisation lives in one file instead of being
 //! re-derived in twenty handlers.
+use std::collections::HashSet;
+
 use diesel::prelude::*;
 use serde::Deserialize;
 
@@ -47,26 +49,192 @@ pub fn find_user(conn: &mut Conn, user_id: &str) -> ApiResult<User> {
         .ok_or_else(|| ApiError::NotFound("user not found".into()))
 }
 
-/// A work the caller owns. Collaborator roles land here when sharing ships.
-pub fn work_for_owner(conn: &mut Conn, work_id: &str, user: &AuthUser) -> ApiResult<Work> {
-    let work: Work = works::table
+/// What someone may do with a work. Each includes the ones before it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Ability {
+    /// Open the working draft, its history and its snapshots.
+    Read,
+    /// Propose changes and keep the to-do list, without changing the text.
+    Suggest,
+    /// Change the text and the structure.
+    Write,
+    /// Everything else: snapshots, publications, front matter, who is on it.
+    Own,
+}
+
+/// A caller's standing on one work.
+#[derive(Debug, Clone)]
+pub struct Access {
+    /// `owner`, `writer`, `editor` or `reader`. The creator is an `owner`.
+    pub role: String,
+    /// The chapters they may change, when they were handed only some. `None`
+    /// is the whole work. Reading is never narrowed: a ghostwriter on chapter
+    /// nine still needs the eight before it.
+    pub chapters: Option<HashSet<String>>,
+    /// The person who started the work, as opposed to an owner they added.
+    pub creator: bool,
+}
+
+impl Access {
+    pub fn ability(&self) -> Ability {
+        match self.role.as_str() {
+            "owner" => Ability::Own,
+            "writer" => Ability::Write,
+            "editor" => Ability::Suggest,
+            _ => Ability::Read,
+        }
+    }
+
+    pub fn can(&self, need: Ability) -> bool {
+        self.ability() >= need
+    }
+
+    fn require(&self, need: Ability) -> ApiResult<()> {
+        if self.can(need) {
+            return Ok(());
+        }
+        Err(ApiError::Forbidden(match (self.role.as_str(), need) {
+            ("reader", _) => "you were added to this work as a reader".into(),
+            ("editor", Ability::Write) => {
+                "editors propose changes rather than making them — suggest it instead".into()
+            }
+            _ => "only an owner of this work can do that".into(),
+        }))
+    }
+
+    /// For changes aimed at one chapter. Reading is never narrowed.
+    fn require_in(&self, need: Ability, chapter_id: &str) -> ApiResult<()> {
+        self.require(need)?;
+        match &self.chapters {
+            Some(chapters) if need > Ability::Read && !chapters.contains(chapter_id) => Err(
+                ApiError::Forbidden("that chapter is not one of yours on this work".into()),
+            ),
+            _ => Ok(()),
+        }
+    }
+
+    /// For changes to the shape of the whole work — adding, ordering or
+    /// removing chapters — which someone handed only some chapters cannot make.
+    fn require_whole(&self, need: Ability) -> ApiResult<()> {
+        self.require(need)?;
+        if need > Ability::Read && self.chapters.is_some() {
+            return Err(ApiError::Forbidden(
+                "you were handed some chapters of this work, not its structure".into(),
+            ));
+        }
+        Ok(())
+    }
+}
+
+/// Who the caller is to this work, if anyone.
+///
+/// A collaborator is found by address — the invitation went to an email, and
+/// may have gone out before they had an account — and the first time they turn
+/// up, their account is recorded against it.
+pub fn access(conn: &mut Conn, work: &Work, user: &AuthUser) -> ApiResult<Option<Access>> {
+    use crate::db::schema::{collaborator_chapters, work_collaborators};
+    if work.owner_id == user.id {
+        return Ok(Some(Access {
+            role: "owner".into(),
+            chapters: None,
+            creator: true,
+        }));
+    }
+    let email = user.email.trim().to_lowercase();
+    let Some(row) = work_collaborators::table
+        .filter(work_collaborators::work_id.eq(&work.id))
+        .filter(work_collaborators::email.eq(&email))
+        .select(WorkCollaborator::as_select())
+        .first(conn)
+        .optional()?
+    else {
+        return Ok(None);
+    };
+    // Turning up is what accepts it — even for someone whose account was
+    // known when they were added, and so has an id but has not opened it.
+    if row.accepted_at.is_none() {
+        diesel::update(work_collaborators::table.find(&row.id))
+            .set((
+                work_collaborators::user_id.eq(&user.id),
+                work_collaborators::accepted_at.eq(crate::domain::now_iso()),
+            ))
+            .execute(conn)?;
+    }
+    let chapters = if row.chapter_scoped != 0 {
+        Some(
+            collaborator_chapters::table
+                .filter(collaborator_chapters::collaborator_id.eq(&row.id))
+                .select(collaborator_chapters::chapter_id)
+                .load::<String>(conn)?
+                .into_iter()
+                .collect(),
+        )
+    } else {
+        None
+    };
+    Ok(Some(Access {
+        role: row.role,
+        chapters,
+        creator: false,
+    }))
+}
+
+fn find_work(conn: &mut Conn, work_id: &str) -> ApiResult<Work> {
+    works::table
         .find(work_id)
         .select(Work::as_select())
         .first(conn)
         .optional()?
-        .ok_or_else(|| ApiError::NotFound("work not found".into()))?;
-    if work.owner_id != user.id {
-        return Err(ApiError::Forbidden(
+        .ok_or_else(|| ApiError::NotFound("work not found".into()))
+}
+
+/// A work and the caller's standing on it; refused if they have none.
+pub fn work_access(conn: &mut Conn, work_id: &str, user: &AuthUser) -> ApiResult<(Work, Access)> {
+    let work = find_work(conn, work_id)?;
+    match access(conn, &work, user)? {
+        Some(access) => Ok((work, access)),
+        None => Err(ApiError::Forbidden(
             "you do not have access to this work".into(),
-        ));
+        )),
     }
+}
+
+/// A work the caller may act on as `need` asks, anywhere in it that is not a
+/// particular chapter — the bible, the to-do list, the snapshots.
+pub fn work_for(conn: &mut Conn, work_id: &str, user: &AuthUser, need: Ability) -> ApiResult<Work> {
+    let (work, access) = work_access(conn, work_id, user)?;
+    access.require(need)?;
     Ok(work)
 }
 
-pub fn chapter_for_owner(
+/// A work whose structure the caller may change.
+pub fn whole_work_for(
+    conn: &mut Conn,
+    work_id: &str,
+    user: &AuthUser,
+    need: Ability,
+) -> ApiResult<Work> {
+    let (work, access) = work_access(conn, work_id, user)?;
+    access.require_whole(need)?;
+    Ok(work)
+}
+
+/// A work the caller owns — the creator, or an owner they added.
+pub fn work_for_owner(conn: &mut Conn, work_id: &str, user: &AuthUser) -> ApiResult<Work> {
+    work_for(conn, work_id, user, Ability::Own)
+}
+
+/// Whether the caller is the author as far as readers are concerned: they see
+/// every reader's reactions and answers rather than only their own.
+pub fn is_author(conn: &mut Conn, work: &Work, user: &AuthUser) -> ApiResult<bool> {
+    Ok(access(conn, work, user)?.is_some_and(|a| a.can(Ability::Own)))
+}
+
+pub fn chapter_for(
     conn: &mut Conn,
     chapter_id: &str,
     user: &AuthUser,
+    need: Ability,
 ) -> ApiResult<(Chapter, Work)> {
     let chapter: Chapter = chapters::table
         .find(chapter_id)
@@ -74,14 +242,16 @@ pub fn chapter_for_owner(
         .first(conn)
         .optional()?
         .ok_or_else(|| ApiError::NotFound("chapter not found".into()))?;
-    let work = work_for_owner(conn, &chapter.work_id, user)?;
+    let (work, access) = work_access(conn, &chapter.work_id, user)?;
+    access.require_in(need, &chapter.id)?;
     Ok((chapter, work))
 }
 
-pub fn scene_for_owner(
+pub fn scene_for(
     conn: &mut Conn,
     scene_id: &str,
     user: &AuthUser,
+    need: Ability,
 ) -> ApiResult<(Scene, Work)> {
     let scene: Scene = scenes::table
         .find(scene_id)
@@ -89,14 +259,16 @@ pub fn scene_for_owner(
         .first(conn)
         .optional()?
         .ok_or_else(|| ApiError::NotFound("scene not found".into()))?;
-    let work = work_for_owner(conn, &scene.work_id, user)?;
+    let (work, access) = work_access(conn, &scene.work_id, user)?;
+    access.require_in(need, &scene.chapter_id)?;
     Ok((scene, work))
 }
 
-pub fn version_for_owner(
+pub fn version_for(
     conn: &mut Conn,
     version_id: &str,
     user: &AuthUser,
+    need: Ability,
 ) -> ApiResult<(Version, Work)> {
     let version: Version = versions::table
         .find(version_id)
@@ -104,8 +276,16 @@ pub fn version_for_owner(
         .first(conn)
         .optional()?
         .ok_or_else(|| ApiError::NotFound("version not found".into()))?;
-    let work = work_for_owner(conn, &version.work_id, user)?;
+    let work = work_for(conn, &version.work_id, user, need)?;
     Ok((version, work))
+}
+
+pub fn version_for_owner(
+    conn: &mut Conn,
+    version_id: &str,
+    user: &AuthUser,
+) -> ApiResult<(Version, Work)> {
+    version_for(conn, version_id, user, Ability::Own)
 }
 
 pub fn find_publication(conn: &mut Conn, publication_id: &str) -> ApiResult<Publication> {
@@ -137,8 +317,11 @@ pub fn publication_for_reader(
         .find(&publication.work_id)
         .select(Work::as_select())
         .first(conn)?;
-    if user.map(|u| u.id == work.owner_id).unwrap_or(false) {
-        return Ok((publication, work));
+    // The people writing it can always open it, whatever the window says.
+    if let Some(user) = user {
+        if access(conn, &work, user)?.is_some() {
+            return Ok((publication, work));
+        }
     }
 
     // A block is one writer's door, not a platform ban, and it is checked here
@@ -447,4 +630,68 @@ pub fn author_cards(
         .into_iter()
         .map(|(id, display_name)| (id.clone(), AuthorCard { id, display_name }))
         .collect())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn access(role: &str, chapters: Option<&[&str]>) -> Access {
+        Access {
+            role: role.into(),
+            chapters: chapters.map(|c| c.iter().map(|s| s.to_string()).collect()),
+            creator: false,
+        }
+    }
+
+    #[test]
+    fn each_role_includes_the_ones_below_it() {
+        let ladder = [
+            ("reader", Ability::Read),
+            ("editor", Ability::Suggest),
+            ("writer", Ability::Write),
+            ("owner", Ability::Own),
+        ];
+        for (role, top) in ladder {
+            let a = access(role, None);
+            for need in [
+                Ability::Read,
+                Ability::Suggest,
+                Ability::Write,
+                Ability::Own,
+            ] {
+                assert_eq!(a.can(need), need <= top, "{role} and {need:?}");
+            }
+        }
+        // Anything unrecognised reads and does nothing else.
+        assert!(!access("ghost", None).can(Ability::Suggest));
+    }
+
+    #[test]
+    fn a_chapter_grant_narrows_changes_but_never_reading() {
+        let ghost = access("writer", Some(&["nine"]));
+        assert!(ghost.require_in(Ability::Write, "nine").is_ok());
+        assert!(ghost.require_in(Ability::Write, "eight").is_err());
+        assert!(ghost.require_in(Ability::Suggest, "eight").is_err());
+        // The eight chapters before it are what makes chapter nine writable.
+        assert!(ghost.require_in(Ability::Read, "eight").is_ok());
+    }
+
+    #[test]
+    fn an_empty_grant_is_nowhere_not_everywhere() {
+        let stranded = access("writer", Some(&[]));
+        assert!(stranded.require_in(Ability::Write, "one").is_err());
+        assert!(stranded.require_in(Ability::Read, "one").is_ok());
+    }
+
+    #[test]
+    fn only_the_whole_work_may_change_its_shape() {
+        assert!(access("writer", None).require_whole(Ability::Write).is_ok());
+        assert!(access("writer", Some(&["nine"]))
+            .require_whole(Ability::Write)
+            .is_err());
+        assert!(access("editor", None)
+            .require_whole(Ability::Write)
+            .is_err());
+    }
 }

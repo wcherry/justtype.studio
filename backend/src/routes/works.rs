@@ -8,13 +8,14 @@ use crate::auth::AuthUser;
 use crate::db::blocking;
 use crate::db::models::*;
 use crate::db::schema::{chapters, scenes, templates, works};
-use crate::domain::enums::{Genre, WorkKind};
+use crate::domain::enums::{ActivityKind, Genre, WorkKind};
 use crate::domain::templates::TemplateStructure;
 use crate::domain::{doc, new_id, now_iso};
 use crate::error::{ApiError, ApiResult, ErrorEnvelope};
 use crate::state::AppState;
 
-use super::support::{self, Page};
+use super::collaborators::record;
+use super::support::{self, Ability, Page};
 
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -71,6 +72,50 @@ pub struct OutlineResponse {
     #[serde(flatten)]
     pub work: Work,
     pub chapters: Vec<OutlineChapter>,
+    /// The caller's standing on the work, so a client can offer only what the
+    /// server will accept. Sent on every outline; optional so an outline a
+    /// client cached before collaboration existed still decodes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub access: Option<WorkAccess>,
+}
+
+/// What the outline tells a client about who it is to this work.
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkAccess {
+    #[schema(value_type = crate::domain::enums::CollaboratorRole)]
+    pub role: String,
+    /// The chapters they may change, when they were handed only some. Absent
+    /// means the whole work. Reading is never narrowed.
+    pub chapter_ids: Option<Vec<String>>,
+    /// Whether they started the work — the one thing an added owner is not.
+    pub creator: bool,
+    /// Whose book it is.
+    pub owner: support::AuthorCard,
+}
+
+/// The outline with the caller's standing attached.
+pub(crate) fn outline_for(
+    conn: &mut crate::db::Conn,
+    work_id: &str,
+    user: &AuthUser,
+) -> ApiResult<OutlineResponse> {
+    let (work, access) = support::work_access(conn, work_id, user)?;
+    let owner = support::author_cards(conn, std::slice::from_ref(&work.owner_id))?
+        .remove(&work.owner_id)
+        .ok_or_else(|| ApiError::internal("a work without an owner"))?;
+    let mut outline = load_outline(conn, work_id)?;
+    outline.access = Some(WorkAccess {
+        role: access.role,
+        chapter_ids: access.chapters.map(|c| {
+            let mut ids: Vec<String> = c.into_iter().collect();
+            ids.sort();
+            ids
+        }),
+        creator: access.creator,
+        owner,
+    });
+    Ok(outline)
 }
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
@@ -114,8 +159,14 @@ pub async fn list(
 ) -> ApiResult<Json<Vec<Work>>> {
     let (limit, offset) = page.clamped();
     let rows = blocking(&state.pool, move |conn| {
+        use crate::db::schema::work_collaborators;
+        // Shared work sits on the desk beside the writer's own; the outline
+        // says what they may do with it.
+        let shared = work_collaborators::table
+            .filter(work_collaborators::email.eq(user.email.trim().to_lowercase()))
+            .select(work_collaborators::work_id);
         Ok(works::table
-            .filter(works::owner_id.eq(&user.id))
+            .filter(works::owner_id.eq(&user.id).or(works::id.eq_any(shared)))
             .order(works::updated_at.desc())
             .limit(limit)
             .offset(offset)
@@ -142,7 +193,7 @@ pub async fn get_one(
     Path(work_id): Path<String>,
 ) -> ApiResult<Json<Work>> {
     let work = blocking(&state.pool, move |conn| {
-        support::work_for_owner(conn, &work_id, &user)
+        support::work_for(conn, &work_id, &user, Ability::Read)
     })
     .await?;
     Ok(Json(work))
@@ -178,6 +229,7 @@ pub async fn create(
     let work_id = new_id();
     let owner_id = user.id.clone();
     let db_work_id = work_id.clone();
+    let creator = user.clone();
 
     let (outline, pending) = blocking(&state.pool, move |conn| {
         let structure = match &body.template_id {
@@ -282,7 +334,7 @@ pub async fn create(
             Ok(())
         })?;
 
-        let outline = load_outline(conn, &db_work_id)?;
+        let outline = outline_for(conn, &db_work_id, &creator)?;
         Ok((outline, pending))
     })
     .await?;
@@ -420,7 +472,14 @@ pub async fn delete_work(
 ) -> ApiResult<Json<Value>> {
     let owned = work_id.clone();
     blocking(&state.pool, move |conn| {
-        support::work_for_owner(conn, &owned, &user)?;
+        let (_, access) = support::work_access(conn, &owned, &user)?;
+        // An owner someone added can do everything but this: the book is
+        // still the person's who started it.
+        if !access.creator {
+            return Err(ApiError::Forbidden(
+                "only the person who started this work can delete it".into(),
+            ));
+        }
         diesel::delete(works::table.find(&owned)).execute(conn)?;
         Ok(())
     })
@@ -444,11 +503,7 @@ pub async fn outline(
     user: AuthUser,
     Path(work_id): Path<String>,
 ) -> ApiResult<Json<OutlineResponse>> {
-    let outline = blocking(&state.pool, move |conn| {
-        support::work_for_owner(conn, &work_id, &user)?;
-        load_outline(conn, &work_id)
-    })
-    .await?;
+    let outline = blocking(&state.pool, move |conn| outline_for(conn, &work_id, &user)).await?;
     Ok(Json(outline))
 }
 
@@ -486,6 +541,7 @@ pub(crate) fn load_outline(
     Ok(OutlineResponse {
         work,
         chapters: chapters_out,
+        access: None,
     })
 }
 
@@ -533,7 +589,7 @@ pub async fn create_chapter(
     Json(body): Json<CreateChapterRequest>,
 ) -> ApiResult<Json<Chapter>> {
     let chapter = blocking(&state.pool, move |conn| {
-        support::work_for_owner(conn, &work_id, &user)?;
+        support::whole_work_for(conn, &work_id, &user, Ability::Write)?;
         let now = now_iso();
         let row = NewChapter {
             id: new_id(),
@@ -547,6 +603,14 @@ pub async fn create_chapter(
         diesel::insert_into(chapters::table)
             .values(&row)
             .execute(conn)?;
+        record(
+            conn,
+            &row.work_id,
+            &user.id,
+            ActivityKind::ChapterAdded,
+            Some(&row.id),
+            &row.title,
+        )?;
         Ok(chapters::table
             .find(&row.id)
             .select(Chapter::as_select())
@@ -574,7 +638,7 @@ pub async fn update_chapter(
     Json(body): Json<UpdateChapterRequest>,
 ) -> ApiResult<Json<Chapter>> {
     let chapter = blocking(&state.pool, move |conn| {
-        support::chapter_for_owner(conn, &chapter_id, &user)?;
+        support::chapter_for(conn, &chapter_id, &user, Ability::Write)?;
         let now = now_iso();
         if let Some(title) = &body.title {
             diesel::update(chapters::table.find(&chapter_id))
@@ -614,13 +678,24 @@ pub async fn delete_chapter(
     Path(chapter_id): Path<String>,
 ) -> ApiResult<Json<Value>> {
     let scene_ids = blocking(&state.pool, move |conn| {
-        let (chapter, work) = support::chapter_for_owner(conn, &chapter_id, &user)?;
+        let (chapter, work) = support::chapter_for(conn, &chapter_id, &user, Ability::Write)?;
+        // Removing a chapter changes the shape of the book, which someone
+        // handed that chapter alone does not get to do.
+        support::whole_work_for(conn, &work.id, &user, Ability::Write)?;
         let ids: Vec<String> = scenes::table
             .filter(scenes::chapter_id.eq(&chapter.id))
             .select(scenes::id)
             .load(conn)?;
         diesel::delete(chapters::table.find(&chapter.id)).execute(conn)?;
         support::recount_work(conn, &work.id, &now_iso())?;
+        record(
+            conn,
+            &work.id,
+            &user.id,
+            ActivityKind::ChapterRemoved,
+            Some(&chapter.id),
+            &chapter.title,
+        )?;
         Ok((work.id, ids))
     })
     .await?;
@@ -649,7 +724,7 @@ pub async fn reorder_chapters(
     Json(body): Json<ReorderRequest>,
 ) -> ApiResult<Json<Vec<Chapter>>> {
     let rows = blocking(&state.pool, move |conn| {
-        support::work_for_owner(conn, &work_id, &user)?;
+        support::whole_work_for(conn, &work_id, &user, Ability::Write)?;
         let now = now_iso();
         conn.transaction::<_, ApiError, _>(|conn| {
             for (index, id) in body.ids.iter().enumerate() {

@@ -14,7 +14,7 @@ use crate::db::blocking;
 use crate::db::models::*;
 use crate::db::schema::{comments, publications, users, versions, works};
 use crate::domain::enums::{
-    FeedSort, Genre, LengthBand, PublicationScope, Visibility, WindowFilter, WorkKind,
+    ActivityKind, FeedSort, Genre, LengthBand, PublicationScope, Visibility, WindowFilter, WorkKind,
 };
 use crate::domain::{new_id, now_iso};
 use crate::error::{ApiError, ApiResult, ErrorEnvelope};
@@ -159,6 +159,14 @@ pub async fn create(
         diesel::insert_into(publications::table)
             .values(&row)
             .execute(conn)?;
+        super::collaborators::record(
+            conn,
+            &work.id,
+            &user.id,
+            ActivityKind::PublicationOpened,
+            Some(&row.id),
+            &format!("{} to {} readers", version.label, row.visibility),
+        )?;
         load_card(conn, &row.id)
     })
     .await?;

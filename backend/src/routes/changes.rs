@@ -25,12 +25,13 @@ use crate::auth::AuthUser;
 use crate::db::blocking;
 use crate::db::models::{NewTrackedChange, Scene, TrackedChange};
 use crate::db::schema::{scenes, tracked_changes};
-use crate::domain::enums::ChangeKind;
+use crate::domain::enums::{ActivityKind, ChangeKind};
 use crate::domain::{doc, edit, new_id, now_iso};
 use crate::error::{ApiError, ApiResult, ErrorEnvelope};
 use crate::state::AppState;
 
-use super::support;
+use super::collaborators::record;
+use super::support::{self, Ability};
 
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -165,7 +166,7 @@ pub async fn list(
 ) -> ApiResult<Json<Vec<TrackedChange>>> {
     let wanted = query.state.unwrap_or_else(|| "pending".into());
     let rows = blocking(&state.pool, move |conn| {
-        let (scene, _) = support::scene_for_owner(conn, &scene_id, &user)?;
+        let (scene, _) = support::scene_for(conn, &scene_id, &user, Ability::Read)?;
         let mut q = tracked_changes::table
             .filter(tracked_changes::scene_id.eq(&scene.id))
             .into_boxed();
@@ -210,7 +211,7 @@ pub async fn create(
     }
 
     let change = blocking(&state.pool, move |conn| {
-        let (scene, work) = support::scene_for_owner(conn, &scene_id, &user)?;
+        let (scene, work) = support::scene_for(conn, &scene_id, &user, Ability::Suggest)?;
         let row = NewTrackedChange {
             base_hash: Some(scene.content_hash.clone()),
             id: new_id(),
@@ -231,6 +232,14 @@ pub async fn create(
         diesel::insert_into(tracked_changes::table)
             .values(&row)
             .execute(conn)?;
+        record(
+            conn,
+            &row.work_id,
+            &user.id,
+            ActivityKind::ChangeProposed,
+            Some(&scene.id),
+            &scene.title,
+        )?;
         Ok(tracked_changes::table
             .find(&row.id)
             .select(TrackedChange::as_select())
@@ -288,15 +297,16 @@ fn pending_change(
         .first(conn)
         .optional()?
         .ok_or_else(|| ApiError::NotFound("change not found".into()))?;
-    // Only the author of the work decides what lands in it.
-    support::work_for_owner(conn, &change.work_id, user)?;
+    // Deciding what lands in the text is writing it: an editor proposes, a
+    // writer or an owner disposes.
+    support::work_for(conn, &change.work_id, user, Ability::Write)?;
     if change.state != "pending" {
         return Err(ApiError::Conflict(format!(
             "change was already {}",
             change.state
         )));
     }
-    let (scene, _) = support::scene_for_owner(conn, &change.scene_id, user)?;
+    let (scene, _) = support::scene_for(conn, &change.scene_id, user, Ability::Write)?;
     Ok((change, scene))
 }
 
@@ -342,10 +352,46 @@ fn mark_resolved(
             tracked_changes::resolved_at.eq(now_iso()),
         ))
         .execute(conn)?;
-    Ok(tracked_changes::table
+    let change: TrackedChange = tracked_changes::table
         .find(change_id)
         .select(TrackedChange::as_select())
-        .first(conn)?)
+        .first(conn)?;
+    note_resolved(conn, &change.work_id, &change.scene_id, user, accepted, 1)?;
+    Ok(change)
+}
+
+/// One line for one decision, however many proposals it covered.
+fn note_resolved(
+    conn: &mut crate::db::Conn,
+    work_id: &str,
+    scene_id: &str,
+    user: &AuthUser,
+    accepted: bool,
+    count: usize,
+) -> ApiResult<()> {
+    let title: String = scenes::table
+        .find(scene_id)
+        .select(scenes::title)
+        .first(conn)
+        .optional()?
+        .unwrap_or_default();
+    let subject = if count == 1 {
+        title
+    } else {
+        format!("{count} changes in {title}")
+    };
+    record(
+        conn,
+        work_id,
+        &user.id,
+        if accepted {
+            ActivityKind::ChangeAccepted
+        } else {
+            ActivityKind::ChangeRejected
+        },
+        Some(scene_id),
+        &subject,
+    )
 }
 
 async fn resolve_one(
@@ -440,7 +486,7 @@ pub async fn resolve_all(
     let lookup_id = scene_id.clone();
     let author = body.author_id.clone();
     let (scene, mut pending) = blocking(&state.pool, move |conn| {
-        let (scene, _) = support::scene_for_owner(conn, &lookup_id, &lookup_user)?;
+        let (scene, _) = support::scene_for(conn, &lookup_id, &lookup_user, Ability::Write)?;
         let mut query = tracked_changes::table
             .filter(tracked_changes::scene_id.eq(&scene.id))
             .filter(tracked_changes::state.eq("pending"))
@@ -496,6 +542,8 @@ pub async fn resolve_all(
 
     let resolved_count = applied.len();
     let resolve_user = user.clone();
+    let note_work = scene.work_id.clone();
+    let note_scene = scene.id.clone();
     blocking(&state.pool, move |conn| {
         let now = now_iso();
         for id in &applied {
@@ -506,6 +554,16 @@ pub async fn resolve_all(
                     tracked_changes::resolved_at.eq(&now),
                 ))
                 .execute(conn)?;
+        }
+        if !applied.is_empty() {
+            note_resolved(
+                conn,
+                &note_work,
+                &note_scene,
+                &resolve_user,
+                accepted,
+                applied.len(),
+            )?;
         }
         Ok(())
     })

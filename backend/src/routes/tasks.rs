@@ -16,12 +16,13 @@ use crate::auth::AuthUser;
 use crate::db::blocking;
 use crate::db::models::*;
 use crate::db::schema::{comments, revision_tasks};
-use crate::domain::enums::TaskState;
+use crate::domain::enums::{ActivityKind, TaskState};
 use crate::domain::{new_id, now_iso};
 use crate::error::{ApiError, ApiResult, ErrorEnvelope};
 use crate::state::AppState;
 
-use super::support;
+use super::collaborators::record;
+use super::support::{self, Ability};
 
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -88,7 +89,7 @@ pub async fn list(
     Query(query): Query<TaskQuery>,
 ) -> ApiResult<Json<Vec<TaskView>>> {
     let views = blocking(&state.pool, move |conn| {
-        support::work_for_owner(conn, &work_id, &user)?;
+        support::work_for(conn, &work_id, &user, Ability::Read)?;
         let mut q = revision_tasks::table
             .filter(revision_tasks::work_id.eq(&work_id))
             .into_boxed();
@@ -177,13 +178,14 @@ pub async fn create(
         return Err(ApiError::BadRequest("a task needs a line of text".into()));
     }
     let view = blocking(&state.pool, move |conn| {
-        support::work_for_owner(conn, &work_id, &user)?;
+        support::work_for(conn, &work_id, &user, Ability::Suggest)?;
         if let Some(scene_id) = &body.scene_id {
-            support::scene_for_owner(conn, scene_id, &user)?;
+            support::scene_for(conn, scene_id, &user, Ability::Suggest)?;
         }
         let row = insert(
             conn,
             &work_id,
+            &user.id,
             body.scene_id.clone(),
             None,
             body.body.trim(),
@@ -197,6 +199,7 @@ pub async fn create(
 fn insert(
     conn: &mut crate::db::Conn,
     work_id: &str,
+    actor_id: &str,
     scene_id: Option<String>,
     comment_id: Option<String>,
     body: &str,
@@ -216,10 +219,31 @@ fn insert(
     diesel::insert_into(revision_tasks::table)
         .values(&row)
         .execute(conn)?;
+    record(
+        conn,
+        work_id,
+        actor_id,
+        ActivityKind::TaskAdded,
+        Some(&row.id),
+        &headline(body),
+    )?;
     Ok(revision_tasks::table
         .find(&row.id)
         .select(RevisionTask::as_select())
         .first(conn)?)
+}
+
+/// A task as one line of the activity feed: a reviewer's note can run to
+/// paragraphs, and the feed only needs to say which one.
+fn headline(body: &str) -> String {
+    const LONGEST: usize = 120;
+    let first = body.lines().next().unwrap_or_default().trim();
+    if first.chars().count() <= LONGEST {
+        first.to_string()
+    } else {
+        let cut: String = first.chars().take(LONGEST).collect();
+        format!("{}…", cut.trim_end())
+    }
 }
 
 #[utoipa::path(
@@ -260,6 +284,7 @@ pub async fn from_comment(
             None => insert(
                 conn,
                 &work.id,
+                &user.id,
                 comment.scene_id.clone(),
                 Some(comment.id.clone()),
                 &comment.body,
@@ -289,7 +314,7 @@ pub async fn update(
     Json(body): Json<UpdateTaskRequest>,
 ) -> ApiResult<Json<TaskView>> {
     let view = blocking(&state.pool, move |conn| {
-        let task = task_for_owner(conn, &task_id, &user)?;
+        let task = task_for(conn, &task_id, &user, Ability::Suggest)?;
         let now = now_iso();
 
         if let Some(text) = body.body.as_ref().map(|b| b.trim()) {
@@ -314,9 +339,19 @@ pub async fn update(
                     revision_tasks::done_at.eq((new_state == "done").then(|| now.clone())),
                 ))
                 .execute(conn)?;
+            if new_state == "done" && task.state != "done" {
+                record(
+                    conn,
+                    &task.work_id,
+                    &user.id,
+                    ActivityKind::TaskDone,
+                    Some(&task.id),
+                    &headline(&task.body),
+                )?;
+            }
         }
         if let Some(scene_id) = &body.scene_id {
-            support::scene_for_owner(conn, scene_id, &user)?;
+            support::scene_for(conn, scene_id, &user, Ability::Suggest)?;
             diesel::update(revision_tasks::table.find(&task.id))
                 .set(revision_tasks::scene_id.eq(scene_id))
                 .execute(conn)?;
@@ -351,7 +386,7 @@ pub async fn delete_task(
     Path(task_id): Path<String>,
 ) -> ApiResult<Json<serde_json::Value>> {
     blocking(&state.pool, move |conn| {
-        let task = task_for_owner(conn, &task_id, &user)?;
+        let task = task_for(conn, &task_id, &user, Ability::Suggest)?;
         diesel::delete(revision_tasks::table.find(&task.id)).execute(conn)?;
         Ok(())
     })
@@ -359,10 +394,11 @@ pub async fn delete_task(
     Ok(Json(serde_json::json!({ "deleted": true })))
 }
 
-fn task_for_owner(
+fn task_for(
     conn: &mut crate::db::Conn,
     task_id: &str,
     user: &AuthUser,
+    need: Ability,
 ) -> ApiResult<RevisionTask> {
     let task: RevisionTask = revision_tasks::table
         .find(task_id)
@@ -370,6 +406,6 @@ fn task_for_owner(
         .first(conn)
         .optional()?
         .ok_or_else(|| ApiError::NotFound("no such task".into()))?;
-    support::work_for_owner(conn, &task.work_id, user)?;
+    support::work_for(conn, &task.work_id, user, need)?;
     Ok(task)
 }

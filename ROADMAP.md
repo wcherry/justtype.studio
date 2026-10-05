@@ -44,7 +44,7 @@ These are deliberate, not oversights. Each has a home below.
   local filesystem. At the expected 3–4 transactions per second this costs
   nothing; what it does need is replication and backups. → *Phase 7.1*
 - **No collaboration.** One author per work; no co-writers, no live editing.
-  → *Phase 5.3*, *Phase 7.3*
+  → *Phase 5.3* (co-authors, done), *Phase 7.3* (live editing)
 - **Tracked changes are recorded, not applied.** The server stores the proposal
   and its resolution; the editor applies an accepted change. → *Phase 2.3*
 - **Types are hand-mirrored** across Rust, TypeScript and Swift. → *Phase 1.5*
@@ -455,10 +455,34 @@ currently mean.
   read for others, so the queue's order is legible rather than mysterious.
   Both numbers are derived on read, like reviewer standing.
 
-### 5.3 Collaboration
-- Co-authors on a work, with roles (owner, writer, editor, reader).
-- Per-chapter permissions for ghostwriting and editorial hand-offs.
-- Activity feed per work.
+### 5.3 Collaboration — **done**
+- Co-authors on a work, addressed by email like invited readers, with four
+  roles: a reader reads the working draft, an editor proposes changes and keeps
+  the to-do list, a writer changes the text and structure, an owner does
+  everything else. The person who started the work is not a row on the list,
+  so nothing on it can remove them, and only they can delete it.
+- Access is one type, `support::Access`, and every handler that touches a work
+  now asks it for an ability rather than asking "is this the owner". The old
+  owner-only lookups for scenes and chapters were removed rather than kept as
+  aliases, so the compiler walked every call site and each one says what it
+  needs.
+- Per-chapter grants for a ghostwriter or an editorial hand-off. They narrow
+  what someone may change, never what they may read — chapter nine is written
+  against the eight before it. Changing the book's shape needs the whole work.
+  A grant is a flag plus a list, so deleting the last chapter on it leaves the
+  collaborator nowhere, not everywhere.
+- An activity feed per work, written by the handlers as they act rather than
+  derived, because a derived feed cannot say who removed a chapter. A sitting
+  of autosaves is one line, not two hundred. Collaborators are named there,
+  never shown by address — only owners see addresses.
+- The clients follow the server: the outline carries the caller's role, the
+  web editor drops the caret and the format bar where the text is not theirs
+  (an editor can still select words to propose a change), and the phone opens
+  those scenes read-only rather than queueing saves that could never land.
+- Co-authors are not readers: opening their own book does not count towards
+  `readerCount`, and notes on it do not count as reading for others.
+- **Not built: live co-editing.** Two writers on one scene still meet the
+  1.1 conflict rules. Presence and CRDTs are *7.3*.
 
 ---
 

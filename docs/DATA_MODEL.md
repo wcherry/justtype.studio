@@ -30,6 +30,9 @@ users ──┬─< works ──┬─< chapters ──< scenes ──┬─< sc
 | `comments` | Reviewer feedback | Anchored, threaded, categorised; soft-deleted |
 | `comment_votes` | One vote per person per comment | Score recomputed, never incremented |
 | `follows` | Who follows whom | One row per pair; nobody follows themselves |
+| `work_collaborators` | Co-authors on a work | Addressed by email; the creator is never a row |
+| `collaborator_chapters` | The chapters a collaborator was handed | Only read when `chapter_scoped` is set, so none means nowhere |
+| `work_activity` | What happened to a work, and who did it | Written as it happens; edits fold into one line per sitting |
 
 ## Lifecycles
 

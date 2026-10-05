@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
 import type { Genre, Template, Work, WorkKind } from '../api/types'
 import { GENRES } from '../components/labels'
+import { useAuth } from '../state/auth'
 
 const KINDS: { value: WorkKind; label: string }[] = [
   { value: 'novel', label: 'Novel' },
@@ -17,6 +18,7 @@ export function LibraryPage() {
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const navigate = useNavigate()
+  const { user } = useAuth()
 
   const load = () => {
     api.works.list().then(setWorks).catch((e) => setError(e.message))
@@ -56,6 +58,7 @@ export function LibraryPage() {
               <h2>{work.title}</h2>
               <p className="library__meta">
                 <span className={`badge badge--${work.status}`}>{work.status}</span>
+                {user && work.ownerId !== user.id && <span className="badge">shared with you</span>}
                 {KINDS.find((k) => k.value === work.kind)?.label} · {work.wordCount.toLocaleString()} words
               </p>
               {work.synopsis && <p className="library__synopsis">{work.synopsis}</p>}

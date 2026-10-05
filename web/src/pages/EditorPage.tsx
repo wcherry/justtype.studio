@@ -7,7 +7,9 @@ import Placeholder from '@tiptap/extension-placeholder'
 
 import { api } from '../api/client'
 import type { Outline as OutlineType, Scene, SceneWithContent, VersionSummary } from '../api/types'
+import { ActivityPanel } from '../components/ActivityPanel'
 import { ChangesPanel } from '../components/ChangesPanel'
+import { CollaboratorsPanel } from '../components/CollaboratorsPanel'
 import { ConflictBanner } from '../components/ConflictBanner'
 import { Corkboard } from '../components/Corkboard'
 import { FrontMatter } from '../components/FrontMatter'
@@ -28,6 +30,7 @@ import { useAutosave } from '../editor/useAutosave'
 import { useSessionGoals } from '../editor/useSessionGoals'
 import { cache } from '../offline/cache'
 import { pendingFor, startQueueReplay } from '../offline/queue'
+import { permissions } from '../state/permissions'
 
 const SAVE_LABEL: Record<string, string> = {
   idle: '',
@@ -57,6 +60,8 @@ export function EditorPage() {
       | 'bible'
       | 'changes'
       | 'tasks'
+      | 'people'
+      | 'activity'
     >('none')
   const [view, setView] = useState<'write' | 'corkboard'>('write')
   /** What the writer has selected, in the same positions a proposal records. */
@@ -90,6 +95,14 @@ export function EditorPage() {
     if (typewriter) typewriter.options.enabled = preferences.typewriter
     editor.view.dispatch(editor.state.tr)
   }, [editor, preferences.focusMode, preferences.typewriter])
+
+  const can = permissions(outline?.access)
+  // Someone handed only some chapters, or here to read or suggest, gets the
+  // text without a caret: still selectable, so an editor can point at words.
+  const writable = scene ? can.canWrite(scene.chapterId) : false
+  useEffect(() => {
+    if (editor && editor.isEditable !== writable) editor.setEditable(writable)
+  }, [editor, writable])
 
   const onSaved = useCallback((workWordCount: number) => {
     setSavedAt(Date.now())
@@ -286,6 +299,8 @@ export function EditorPage() {
           await api.scenes.update(sceneId, { title })
           void loadOutline()
         }}
+        canWrite={can.canWrite}
+        canShape={can.canShape}
       />
 
       <section className="editor__main">
@@ -305,7 +320,7 @@ export function EditorPage() {
                 </span>
               )}
             </span>
-            {scene && (
+            {scene && writable && (
               <select
                 value={scene.status}
                 onChange={async (e) => {
@@ -366,11 +381,25 @@ export function EditorPage() {
             >
               To do
             </button>
+            {can.isOwner && (
+              <button
+                type="button"
+                onClick={() => setPanel((p) => (p === 'front' ? 'none' : 'front'))}
+              >
+                Front matter
+              </button>
+            )}
             <button
               type="button"
-              onClick={() => setPanel((p) => (p === 'front' ? 'none' : 'front'))}
+              onClick={() => setPanel((p) => (p === 'people' ? 'none' : 'people'))}
             >
-              Front matter
+              People
+            </button>
+            <button
+              type="button"
+              onClick={() => setPanel((p) => (p === 'activity' ? 'none' : 'activity'))}
+            >
+              Activity
             </button>
             <button
               type="button"
@@ -378,12 +407,14 @@ export function EditorPage() {
             >
               History
             </button>
-            <button
-              type="button"
-              onClick={() => setPanel((p) => (p === 'versions' ? 'none' : 'versions'))}
-            >
-              {panel === 'versions' ? 'Hide versions' : 'Versions'}
-            </button>
+            {can.isOwner && (
+              <button
+                type="button"
+                onClick={() => setPanel((p) => (p === 'versions' ? 'none' : 'versions'))}
+              >
+                {panel === 'versions' ? 'Hide versions' : 'Versions'}
+              </button>
+            )}
           </div>
         </header>
 
@@ -407,7 +438,17 @@ export function EditorPage() {
           />
         )}
 
-        <Toolbar editor={editor} />
+        {scene && !writable && (
+          <p className="access-note">
+            {can.role === 'reader'
+              ? `You are reading ${outline.access?.owner.displayName ?? 'this'}’s draft. The text is read only.`
+              : can.role === 'editor'
+                ? 'You are on this book as an editor: select a passage and open Changes to propose an edit.'
+                : 'This chapter is not one of yours. You can read it; the chapters you were handed are marked in the outline.'}
+          </p>
+        )}
+
+        {writable && <Toolbar editor={editor} />}
 
         <GoalBar
           summary={summary}
@@ -504,6 +545,8 @@ export function EditorPage() {
           <ChangesPanel
             scene={scene}
             selection={selection}
+            canPropose={can.canSuggest(scene.chapterId)}
+            canResolve={writable}
             // The server edited the document, so the editor has to re-read it
             // rather than keep the copy it was holding.
             onApplied={() => {
@@ -554,6 +597,24 @@ export function EditorPage() {
               setOutline((current) => (current ? { ...current, ...work } : current))
             }
           />
+        </aside>
+      )}
+
+      {panel === 'people' && (
+        <aside className="versions">
+          <header className="versions__header">
+            <h3>People</h3>
+          </header>
+          <CollaboratorsPanel outline={outline} permissions={can} />
+        </aside>
+      )}
+
+      {panel === 'activity' && (
+        <aside className="versions">
+          <header className="versions__header">
+            <h3>Activity</h3>
+          </header>
+          <ActivityPanel workId={workId} refreshKey={savedAt} />
         </aside>
       )}
 

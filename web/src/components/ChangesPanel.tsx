@@ -8,6 +8,10 @@ interface Props {
   selection: { from: number; to: number; quote: string } | null
   /** Called after anything that changed the document, so the editor can reload. */
   onApplied: () => void
+  /** Whether this person may propose changes here. */
+  canPropose?: boolean
+  /** Whether this person decides what lands — accepting is writing. */
+  canResolve?: boolean
 }
 
 /**
@@ -40,7 +44,9 @@ const KIND_LABEL: Record<TrackedChange['kind'], string> = {
  * any client and a batch is one operation rather than twenty round trips
  * through an editor.
  */
-export function ChangesPanel({ scene, selection, onApplied }: Props) {
+export function ChangesPanel({
+  scene, selection, onApplied, canPropose = true, canResolve = true,
+}: Props) {
   const [changes, setChanges] = useState<TrackedChange[]>([])
   const [stale, setStale] = useState<StaleChange[]>([])
   const [suggesting, setSuggesting] = useState(false)
@@ -79,12 +85,15 @@ export function ChangesPanel({ scene, selection, onApplied }: Props) {
     <div className="changes">
       {error && <p className="error">{error}</p>}
 
-      {selection && !suggesting && (
+      {!canPropose && (
+        <p className="field__hint">You can read what has been proposed here, not add to it.</p>
+      )}
+      {canPropose && selection && !suggesting && (
         <button type="button" className="changes__suggest" onClick={() => setSuggesting(true)}>
           Suggest a change to “{selection.quote.slice(0, 30)}{selection.quote.length > 30 ? '…' : ''}”
         </button>
       )}
-      {!selection && !suggesting && (
+      {canPropose && !selection && !suggesting && (
         <p className="field__hint">Select a passage in the scene to suggest a change to it.</p>
       )}
 
@@ -97,7 +106,7 @@ export function ChangesPanel({ scene, selection, onApplied }: Props) {
         />
       )}
 
-      {changes.length > 0 && (
+      {canResolve && changes.length > 0 && (
         <div className="changes__bulk">
           <button type="button" disabled={busy} onClick={() => resolveAll('accept')}>
             Accept all {changes.length}
@@ -132,6 +141,7 @@ export function ChangesPanel({ scene, selection, onApplied }: Props) {
                 )}
               </p>
             )}
+            {canResolve && (
             <div className="change__actions">
               <button type="button" disabled={busy} onClick={() => run(() => api.changes.accept(change.id))}>
                 Accept
@@ -140,6 +150,7 @@ export function ChangesPanel({ scene, selection, onApplied }: Props) {
                 Reject
               </button>
             </div>
+            )}
           </li>
         ))}
       </ul>

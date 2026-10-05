@@ -10,6 +10,9 @@ import ScriptoriumKit
 struct SceneEditorView: View {
     let sceneId: String
     let title: String
+    /// False for someone on the book to read or suggest, or handed other
+    /// chapters: the text opens without a caret rather than refusing saves.
+    var editable = true
 
     @EnvironmentObject private var session: SessionStore
     @State private var scene: API.SceneWithContent?
@@ -52,9 +55,18 @@ struct SceneEditorView: View {
                     .background(.yellow.opacity(0.15))
             }
 
+            if !editable {
+                Label("Read only — this chapter is not yours to change.", systemImage: "lock")
+                    .font(.footnote)
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(.secondary.opacity(0.1))
+            }
+
             WebEditorView(
                 document: document,
                 command: command,
+                editable: editable,
                 onChange: { doc, count in
                     document = doc
                     words = count
@@ -64,7 +76,9 @@ struct SceneEditorView: View {
                 onProblem: { problem = $0 }
             )
 
-            FormatBar(active: activeMarks) { send($0) }
+            if editable {
+                FormatBar(active: activeMarks) { send($0) }
+            }
         }
         // The shortcuts a writer with a keyboard already has muscle memory
         // for. The web view swallows ⌘B itself when it has focus; these are
@@ -121,6 +135,8 @@ struct SceneEditorView: View {
     }
 
     private func send(_ name: String) {
+        // The shortcuts outlive the format bar; a command is an edit.
+        guard editable else { return }
         issued += 1
         command = WebEditorView.Command(name: name, issue: issued)
     }
@@ -145,7 +161,7 @@ struct SceneEditorView: View {
 
     /// Debounced autosave, with a checkpoint revision when the writer pauses.
     private func scheduleSave() {
-        guard scene != nil else { return }
+        guard scene != nil, editable else { return }
         saveState = .dirty
         saveTask?.cancel()
         saveTask = Task {
@@ -159,7 +175,7 @@ struct SceneEditorView: View {
     }
 
     private func save(createRevision: Bool) async {
-        guard let scene else { return }
+        guard let scene, editable else { return }
         saveState = .saving
         let outcome = await session.sync.save(
             sceneId: scene.id,

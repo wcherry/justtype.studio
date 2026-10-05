@@ -22,8 +22,12 @@ struct WorkView: View {
             outlineList
         } detail: {
             if let selected {
-                SceneEditorView(sceneId: selected.id, title: selected.title)
-                    .id(selected.id)
+                SceneEditorView(
+                    sceneId: selected.id,
+                    title: selected.title,
+                    editable: outline?.canWrite(chapterId: selected.chapterId) ?? true
+                )
+                .id(selected.id)
             } else {
                 ContentUnavailableView(
                     "Pick a scene",

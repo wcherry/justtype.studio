@@ -13,6 +13,81 @@ import Foundation
 /// view file. `API.Scene` is unambiguous and says where the type came from.
 public enum API {
 
+    public enum ActivityKind: String, Codable, CaseIterable, Hashable, Sendable {
+        case scene_edited = "scene_edited"
+        case scene_added = "scene_added"
+        case scene_removed = "scene_removed"
+        case chapter_added = "chapter_added"
+        case chapter_removed = "chapter_removed"
+        case change_proposed = "change_proposed"
+        case change_accepted = "change_accepted"
+        case change_rejected = "change_rejected"
+        case task_added = "task_added"
+        case task_done = "task_done"
+        case version_saved = "version_saved"
+        case version_published = "version_published"
+        case publication_opened = "publication_opened"
+        case collaborator_added = "collaborator_added"
+        case collaborator_changed = "collaborator_changed"
+        case collaborator_removed = "collaborator_removed"
+    }
+
+    public struct ActivityView: Codable, Hashable, Sendable {
+        public var actorId: String
+        public var createdAt: String
+        public var id: String
+        public var kind: ActivityKind
+        /// The title as it was at the time.
+        public var subject: String
+        public var subjectId: String?
+        /// How many acts this line stands for.
+        public var times: Int
+        public var updatedAt: String
+        public var workId: String
+        public var actor: AuthorCard
+
+        public init(
+            actorId: String,
+            createdAt: String,
+            id: String,
+            kind: ActivityKind,
+            subject: String,
+            subjectId: String? = nil,
+            times: Int,
+            updatedAt: String,
+            workId: String,
+            actor: AuthorCard
+        ) {
+            self.actorId = actorId
+            self.createdAt = createdAt
+            self.id = id
+            self.kind = kind
+            self.subject = subject
+            self.subjectId = subjectId
+            self.times = times
+            self.updatedAt = updatedAt
+            self.workId = workId
+            self.actor = actor
+        }
+    }
+
+    public struct AddCollaboratorRequest: Codable, Hashable, Sendable {
+        /// Narrow what they may change to these chapters. Omitted, the whole work.
+        public var chapterIds: [String]?
+        public var email: String
+        public var role: CollaboratorRole
+
+        public init(
+            chapterIds: [String]? = nil,
+            email: String,
+            role: CollaboratorRole
+        ) {
+            self.chapterIds = chapterIds
+            self.email = email
+            self.role = role
+        }
+    }
+
     public struct AddMemberRequest: Codable, Hashable, Sendable {
         public var email: String
         /// What to call them, since an address is a poor way to recognise a friend.
@@ -413,6 +488,45 @@ public enum API {
             self.ownerId = ownerId
             self.updatedAt = updatedAt
             self.members = members
+        }
+    }
+
+    public enum CollaboratorRole: String, Codable, CaseIterable, Hashable, Sendable {
+        case owner = "owner"
+        case writer = "writer"
+        case editor = "editor"
+        case reader = "reader"
+    }
+
+    public struct CollaboratorView: Codable, Hashable, Sendable {
+        public var acceptedAt: String?
+        /// The chapters they may change, when they were handed only some. Absent
+        /// means the whole work.
+        public var chapterIds: [String]?
+        public var createdAt: String
+        /// The address it went to. Shown to owners only: the people on a book do
+        /// not need each other's addresses to work on it.
+        public var email: String?
+        public var id: String
+        public var person: AuthorCard?
+        public var role: CollaboratorRole
+
+        public init(
+            acceptedAt: String? = nil,
+            chapterIds: [String]? = nil,
+            createdAt: String,
+            email: String? = nil,
+            id: String,
+            person: AuthorCard? = nil,
+            role: CollaboratorRole
+        ) {
+            self.acceptedAt = acceptedAt
+            self.chapterIds = chapterIds
+            self.createdAt = createdAt
+            self.email = email
+            self.id = id
+            self.person = person
+            self.role = role
         }
     }
 
@@ -1273,6 +1387,7 @@ public enum API {
         public var title: String
         public var updatedAt: String
         public var wordCount: Int
+        public var access: WorkAccess?
         public var chapters: [OutlineChapter]
 
         public init(
@@ -1296,6 +1411,7 @@ public enum API {
             title: String,
             updatedAt: String,
             wordCount: Int,
+            access: WorkAccess? = nil,
             chapters: [OutlineChapter]
         ) {
             self.copyrightLine = copyrightLine
@@ -1318,6 +1434,7 @@ public enum API {
             self.title = title
             self.updatedAt = updatedAt
             self.wordCount = wordCount
+            self.access = access
             self.chapters = chapters
         }
     }
@@ -2569,6 +2686,25 @@ public enum API {
         }
     }
 
+    public struct UpdateCollaboratorRequest: Codable, Hashable, Sendable {
+        /// Narrow them to exactly these chapters. An empty list leaves them
+        /// nowhere to write, which is not the same as everywhere.
+        public var chapterIds: [String]?
+        public var role: CollaboratorRole?
+        /// `true` hands them the whole work again.
+        public var wholeWork: Bool?
+
+        public init(
+            chapterIds: [String]? = nil,
+            role: CollaboratorRole? = nil,
+            wholeWork: Bool? = nil
+        ) {
+            self.chapterIds = chapterIds
+            self.role = role
+            self.wholeWork = wholeWork
+        }
+    }
+
     public struct UpdateCommentRequest: Codable, Hashable, Sendable {
         public var body: String?
         /// `open` or `resolved`; only the author of the work may resolve.
@@ -3178,6 +3314,66 @@ public enum API {
             self.title = title
             self.updatedAt = updatedAt
             self.wordCount = wordCount
+        }
+    }
+
+    /// What the outline tells a client about who it is to this work.
+    public struct WorkAccess: Codable, Hashable, Sendable {
+        /// The chapters they may change, when they were handed only some. Absent
+        /// means the whole work. Reading is never narrowed.
+        public var chapterIds: [String]?
+        /// Whether they started the work — the one thing an added owner is not.
+        public var creator: Bool
+        /// Whose book it is.
+        public var owner: AuthorCard
+        public var role: CollaboratorRole
+
+        public init(
+            chapterIds: [String]? = nil,
+            creator: Bool,
+            owner: AuthorCard,
+            role: CollaboratorRole
+        ) {
+            self.chapterIds = chapterIds
+            self.creator = creator
+            self.owner = owner
+            self.role = role
+        }
+    }
+
+    public struct WorkActivity: Codable, Hashable, Sendable {
+        public var actorId: String
+        public var createdAt: String
+        public var id: String
+        public var kind: ActivityKind
+        /// The title as it was at the time.
+        public var subject: String
+        public var subjectId: String?
+        /// How many acts this line stands for.
+        public var times: Int
+        public var updatedAt: String
+        public var workId: String
+
+        public init(
+            actorId: String,
+            createdAt: String,
+            id: String,
+            kind: ActivityKind,
+            subject: String,
+            subjectId: String? = nil,
+            times: Int,
+            updatedAt: String,
+            workId: String
+        ) {
+            self.actorId = actorId
+            self.createdAt = createdAt
+            self.id = id
+            self.kind = kind
+            self.subject = subject
+            self.subjectId = subjectId
+            self.times = times
+            self.updatedAt = updatedAt
+            self.workId = workId
         }
     }
 

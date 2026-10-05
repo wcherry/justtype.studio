@@ -15,12 +15,13 @@ use crate::db::blocking;
 use crate::db::models::*;
 use crate::db::schema::{chapters, scenes, version_entries, version_tags, versions, works};
 use crate::domain::diff::{self, BlockChangeKind, DiffSummary, SceneChangeKind, SceneDiff};
-use crate::domain::enums::PublicationScope;
+use crate::domain::enums::{ActivityKind, PublicationScope};
 use crate::domain::{doc, new_id, now_iso};
 use crate::error::{ApiError, ApiResult, ErrorEnvelope};
 use crate::state::AppState;
 
-use super::support::{self, Page};
+use super::collaborators::record;
+use super::support::{self, Ability, Page};
 
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -151,7 +152,7 @@ pub async fn list(
 ) -> ApiResult<Json<Vec<VersionSummary>>> {
     let (limit, offset) = page.clamped();
     let rows = blocking(&state.pool, move |conn| {
-        let work = support::work_for_owner(conn, &work_id, &user)?;
+        let work = support::work_for(conn, &work_id, &user, Ability::Read)?;
         let versions: Vec<Version> = versions::table
             .filter(versions::work_id.eq(&work_id))
             .order(versions::number.desc())
@@ -300,6 +301,14 @@ pub async fn create(
         let label = label.unwrap_or_else(|| format!("v{number}"));
 
         conn.transaction::<_, ApiError, _>(|conn| {
+            record(
+                conn,
+                &db_work_id,
+                &created_by,
+                ActivityKind::VersionSaved,
+                Some(&db_version_id),
+                &label,
+            )?;
             diesel::insert_into(versions::table)
                 .values(&NewVersion {
                     scope: scope.clone(),
@@ -413,7 +422,7 @@ pub async fn get_one(
     Path(version_id): Path<String>,
 ) -> ApiResult<Json<VersionDetail>> {
     let detail = blocking(&state.pool, move |conn| {
-        support::version_for_owner(conn, &version_id, &user)?;
+        support::version_for(conn, &version_id, &user, Ability::Read)?;
         load_detail(conn, &version_id)
     })
     .await?;
@@ -439,7 +448,7 @@ pub async fn content(
 ) -> ApiResult<Json<VersionContent>> {
     let user = user.ok_or_else(|| ApiError::Unauthorized("sign in to read a version".into()))?;
     let detail = blocking(&state.pool, move |conn| {
-        support::version_for_owner(conn, &version_id, &user)?;
+        support::version_for(conn, &version_id, &user, Ability::Read)?;
         load_detail(conn, &version_id)
     })
     .await?;
@@ -571,6 +580,18 @@ async fn transition(
                     works::updated_at.eq(&now),
                 ))
                 .execute(conn)?;
+            record(
+                conn,
+                &work.id,
+                &user.id,
+                ActivityKind::VersionPublished,
+                Some(&version.id),
+                &if target == "final" {
+                    format!("{}, as final", version.label)
+                } else {
+                    version.label.clone()
+                },
+            )?;
             Ok(())
         })?;
         Ok(versions::table
@@ -609,7 +630,7 @@ pub async fn diff(
     let to_ref = query.to.clone();
 
     let (from_side, to_side) = blocking(&state.pool, move |conn| {
-        support::work_for_owner(conn, &guard_work, &guard_user)?;
+        support::work_for(conn, &guard_work, &guard_user, Ability::Read)?;
         Ok((
             load_side(conn, &guard_work, &from_ref)?,
             load_side(conn, &guard_work, &to_ref)?,
@@ -1326,6 +1347,7 @@ pub async fn restore(
     let scope_ref = detail.version.scope_ref_id.clone();
     let work_id = work.id.clone();
     let restored = entries.len();
+    let outline_user = user.clone();
 
     let (outline, removed) = blocking(&state.pool, move |conn| {
         let now = now_iso();
@@ -1414,7 +1436,10 @@ pub async fn restore(
         })?;
 
         support::recount_work(conn, &work_id, &now)?;
-        Ok((super::works::load_outline(conn, &work_id)?, removed))
+        Ok((
+            super::works::outline_for(conn, &work_id, &outline_user)?,
+            removed,
+        ))
     })
     .await?;
 

@@ -40,6 +40,13 @@ macro_rules! api_enum {
             pub fn options() -> String {
                 Self::ALL.join(", ")
             }
+
+            /// The value as it goes over the wire and into the column.
+            pub fn as_str(&self) -> &'static str {
+                match self {
+                    $(Self::$variant => $wire),*
+                }
+            }
         }
     };
 }
@@ -198,4 +205,34 @@ api_enum!(FeedSort {
     Newest => "newest",
     /// Least-read first, raised by how much the author has read for others.
     NeedsReaders => "needs_readers",
+});
+
+api_enum!(CollaboratorRole {
+    /// Everything the creator can do but delete the work.
+    Owner => "owner",
+    /// Changes the text and the structure.
+    Writer => "writer",
+    /// Proposes changes and keeps the to-do list; does not change the text.
+    Editor => "editor",
+    /// Reads the working draft.
+    Reader => "reader",
+});
+
+api_enum!(ActivityKind {
+    SceneEdited => "scene_edited",
+    SceneAdded => "scene_added",
+    SceneRemoved => "scene_removed",
+    ChapterAdded => "chapter_added",
+    ChapterRemoved => "chapter_removed",
+    ChangeProposed => "change_proposed",
+    ChangeAccepted => "change_accepted",
+    ChangeRejected => "change_rejected",
+    TaskAdded => "task_added",
+    TaskDone => "task_done",
+    VersionSaved => "version_saved",
+    VersionPublished => "version_published",
+    PublicationOpened => "publication_opened",
+    CollaboratorAdded => "collaborator_added",
+    CollaboratorChanged => "collaborator_changed",
+    CollaboratorRemoved => "collaborator_removed",
 });

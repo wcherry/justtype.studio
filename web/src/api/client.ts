@@ -8,7 +8,7 @@ import type {
   ReaderProgressView, BlockReactions, ReactionKind, ReviewQuestion, AnswerView,
   QuestionKind, QuestionScope, Standing, BulkStateResponse, ReportReason, TaskView,
   TaskState, ReportView, BlockView, SinceResponse, Profile, FollowState, AuthorCard,
-  Genre, LengthBand, WindowFilter, FeedSort,
+  Genre, LengthBand, WindowFilter, FeedSort, CollaboratorRole, CollaboratorView, ActivityView,
 } from './types'
 
 const BASE = '/api'
@@ -473,6 +473,24 @@ export const api = {
     update: (taskId: string, input: { body?: string; state?: TaskState; sceneId?: string }) =>
       patch<TaskView>(`/tasks/${taskId}`, input),
     remove: (taskId: string) => del<{ deleted: boolean }>(`/tasks/${taskId}`),
+  },
+
+  /** Who else is on a work, what they may do, and what they have done. */
+  collaborators: {
+    list: (workId: string) => get<CollaboratorView[]>(`/works/${workId}/collaborators`),
+    /** `chapterIds` narrows what they may change; omitted, the whole work. */
+    add: (workId: string, input: { email: string; role: CollaboratorRole; chapterIds?: string[] }) =>
+      post<CollaboratorView[]>(`/works/${workId}/collaborators`, input),
+    update: (
+      workId: string,
+      collaboratorId: string,
+      input: { role?: CollaboratorRole; chapterIds?: string[]; wholeWork?: boolean },
+    ) => patch<CollaboratorView[]>(`/works/${workId}/collaborators/${collaboratorId}`, input),
+    /** Take someone off, or step off yourself. */
+    remove: (workId: string, collaboratorId: string) =>
+      del<{ removed: boolean }>(`/works/${workId}/collaborators/${collaboratorId}`),
+    activity: (workId: string, limit = 50) =>
+      get<ActivityView[]>(`/works/${workId}/activity?limit=${limit}`),
   },
 
   /** Who someone is, what they have on offer, and whether you follow them. */

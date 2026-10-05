@@ -379,7 +379,47 @@ diesel::table! {
     }
 }
 
+diesel::table! {
+    work_collaborators (id) {
+        id -> Text,
+        work_id -> Text,
+        email -> Text,
+        user_id -> Nullable<Text>,
+        role -> Text,
+        chapter_scoped -> Integer,
+        invited_by -> Nullable<Text>,
+        accepted_at -> Nullable<Text>,
+        created_at -> Text,
+        updated_at -> Text,
+    }
+}
+
+diesel::table! {
+    collaborator_chapters (id) {
+        id -> Text,
+        collaborator_id -> Text,
+        chapter_id -> Text,
+    }
+}
+
+diesel::table! {
+    work_activity (id) {
+        id -> Text,
+        work_id -> Text,
+        actor_id -> Text,
+        kind -> Text,
+        subject_id -> Nullable<Text>,
+        subject -> Text,
+        times -> Integer,
+        created_at -> Text,
+        updated_at -> Text,
+    }
+}
+
 diesel::joinable!(refresh_tokens -> users (user_id));
+diesel::joinable!(work_collaborators -> works (work_id));
+diesel::joinable!(collaborator_chapters -> work_collaborators (collaborator_id));
+diesel::joinable!(work_activity -> works (work_id));
 diesel::joinable!(writing_days -> users (user_id));
 diesel::joinable!(bible_entries -> works (work_id));
 diesel::joinable!(scene_bible_links -> bible_entries (entry_id));
@@ -433,4 +473,7 @@ diesel::allow_tables_to_appear_in_same_query!(
     comment_reports,
     blocked_readers,
     follows,
+    work_collaborators,
+    collaborator_chapters,
+    work_activity,
 );

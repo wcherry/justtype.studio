@@ -9,6 +9,10 @@ interface Props {
   onAddScene: (chapterId: string, title: string) => void
   onMoveScene: (chapterId: string, sceneIds: string[]) => void
   onRenameScene: (sceneId: string, title: string) => void
+  /** Whether this chapter's scenes may be added, moved or renamed. */
+  canWrite?: (chapterId: string) => boolean
+  /** Whether chapters may be added. */
+  canShape?: boolean
 }
 
 const STATUS_DOT: Record<Scene['status'], string> = {
@@ -20,6 +24,7 @@ const STATUS_DOT: Record<Scene['status'], string> = {
 
 export function Outline({
   outline, activeSceneId, onSelectScene, onAddChapter, onAddScene, onMoveScene, onRenameScene,
+  canWrite = () => true, canShape = true,
 }: Props) {
   const [adding, setAdding] = useState<string | null>(null)
   const [draftTitle, setDraftTitle] = useState('')
@@ -41,9 +46,17 @@ export function Outline({
         </p>
       </header>
 
-      {outline.chapters.map((chapter) => (
-        <section key={chapter.id} className="outline__chapter">
-          <h3>{chapter.title}</h3>
+      {outline.chapters.map((chapter) => {
+        const writable = canWrite(chapter.id)
+        return (
+        <section
+          key={chapter.id}
+          className={writable ? 'outline__chapter' : 'outline__chapter is-read-only'}
+        >
+          <h3>
+            {chapter.title}
+            {!writable && <span className="outline__lock" title="You can read this chapter but not change it"> · read only</span>}
+          </h3>
           <ul>
             {chapter.scenes.map((scene, index) => (
               <li
@@ -55,6 +68,7 @@ export function Outline({
                   <span
                     className="outline__title"
                     onDoubleClick={() => {
+                      if (!writable) return
                       const title = window.prompt('Scene title', scene.title)
                       if (title && title !== scene.title) onRenameScene(scene.id, title)
                     }}
@@ -63,15 +77,17 @@ export function Outline({
                   </span>
                   <span className="outline__words">{scene.wordCount}</span>
                 </button>
-                <span className="outline__move">
-                  <button type="button" onClick={() => move(chapter.id, chapter.scenes, index, -1)} title="Move up">↑</button>
-                  <button type="button" onClick={() => move(chapter.id, chapter.scenes, index, 1)} title="Move down">↓</button>
-                </span>
+                {writable && (
+                  <span className="outline__move">
+                    <button type="button" onClick={() => move(chapter.id, chapter.scenes, index, -1)} title="Move up">↑</button>
+                    <button type="button" onClick={() => move(chapter.id, chapter.scenes, index, 1)} title="Move down">↓</button>
+                  </span>
+                )}
               </li>
             ))}
           </ul>
 
-          {adding === chapter.id ? (
+          {!writable ? null : adding === chapter.id ? (
             <form
               className="outline__add"
               onSubmit={(event) => {
@@ -95,8 +111,10 @@ export function Outline({
             </button>
           )}
         </section>
-      ))}
+        )
+      })}
 
+      {canShape && (
       <button
         type="button"
         className="outline__add-btn outline__add-btn--chapter"
@@ -107,6 +125,7 @@ export function Outline({
       >
         + Chapter
       </button>
+      )}
     </nav>
   )
 }

@@ -17,6 +17,23 @@ public extension API.WorkKind {
     }
 }
 
+public extension API.OutlineResponse {
+    /// Whether the caller may change this chapter's text.
+    ///
+    /// The server decides; this keeps the phone from offering a caret it would
+    /// refuse, and from queueing saves that could never go up. An outline
+    /// cached before collaboration existed carries no access, and then every
+    /// work had one person on it — its owner.
+    func canWrite(chapterId: String) -> Bool {
+        guard let access else { return true }
+        switch access.role {
+        case .owner: return true
+        case .writer: return access.chapterIds?.contains(chapterId) ?? true
+        case .editor, .reader: return false
+        }
+    }
+}
+
 public extension API.Visibility {
     var label: String {
         switch self {

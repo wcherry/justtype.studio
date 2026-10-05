@@ -86,7 +86,7 @@ pub async fn list_reactions(
         move |conn| {
             let (publication, work) =
                 support::publication_for_reader(conn, &publication_id, Some(&user))?;
-            let is_author = work.owner_id == user.id;
+            let is_author = support::is_author(conn, &work, &user)?;
             let mut q = reactions::table
                 .filter(reactions::publication_id.eq(&publication.id))
                 .into_boxed();
@@ -149,7 +149,7 @@ pub async fn react(
         move |conn| {
             let (publication, work) =
                 support::publication_for_reader(conn, &publication_id, Some(&user))?;
-            let is_author = work.owner_id == user.id;
+            let is_author = support::is_author(conn, &work, &user)?;
             if !is_author {
                 support::within_reviewer_cap(conn, &publication, &user)?;
                 support::mark_invite_accepted(conn, &publication.id, &user)?;
@@ -570,7 +570,7 @@ pub async fn answer(
             .ok_or_else(|| ApiError::NotFound("no such question".into()))?;
         let (publication, work) =
             support::publication_for_reader(conn, &question.publication_id, Some(&user))?;
-        if work.owner_id != user.id {
+        if !support::is_author(conn, &work, &user)? {
             support::within_reviewer_cap(conn, &publication, &user)?;
             support::mark_invite_accepted(conn, &publication.id, &user)?;
         }
@@ -695,7 +695,7 @@ pub async fn list_answers(
         let mut q = review_answers::table
             .filter(review_answers::question_id.eq_any(ids))
             .into_boxed();
-        if work.owner_id != user.id {
+        if !support::is_author(conn, &work, &user)? {
             q = q.filter(review_answers::user_id.eq(&user.id));
         }
         let rows: Vec<ReviewAnswer> = q

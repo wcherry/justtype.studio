@@ -7,6 +7,30 @@
 /** Arbitrary JSON, where the server accepts or returns `serde_json::Value`. */
 export type JsonValue = unknown
 
+export type ActivityKind = 'scene_edited' | 'scene_added' | 'scene_removed' | 'chapter_added' | 'chapter_removed' | 'change_proposed' | 'change_accepted' | 'change_rejected' | 'task_added' | 'task_done' | 'version_saved' | 'version_published' | 'publication_opened' | 'collaborator_added' | 'collaborator_changed' | 'collaborator_removed'
+
+export interface ActivityView {
+  actorId: string
+  createdAt: string
+  id: string
+  kind: ActivityKind
+  // The title as it was at the time.
+  subject: string
+  subjectId?: string | null
+  // How many acts this line stands for.
+  times: number
+  updatedAt: string
+  workId: string
+  actor: AuthorCard
+}
+
+export interface AddCollaboratorRequest {
+  // Narrow what they may change to these chapters. Omitted, the whole work.
+  chapterIds?: string[] | null
+  email: string
+  role: CollaboratorRole
+}
+
 export interface AddMemberRequest {
   email: string
   // What to call them, since an address is a poor way to recognise a friend.
@@ -163,6 +187,22 @@ export interface CircleView {
   ownerId: string
   updatedAt: string
   members: CircleMember[]
+}
+
+export type CollaboratorRole = 'owner' | 'writer' | 'editor' | 'reader'
+
+export interface CollaboratorView {
+  acceptedAt?: string | null
+  // The chapters they may change, when they were handed only some. Absent
+  // means the whole work.
+  chapterIds?: string[] | null
+  createdAt: string
+  // The address it went to. Shown to owners only: the people on a book do
+  // not need each other's addresses to work on it.
+  email?: string | null
+  id: string
+  person?: AuthorCard | null
+  role: CollaboratorRole
 }
 
 export interface Comment {
@@ -510,6 +550,7 @@ export interface OutlineResponse {
   title: string
   updatedAt: string
   wordCount: number
+  access?: WorkAccess | null
   chapters: OutlineChapter[]
 }
 
@@ -1014,6 +1055,15 @@ export interface UpdateChapterRequest {
   title?: string | null
 }
 
+export interface UpdateCollaboratorRequest {
+  // Narrow them to exactly these chapters. An empty list leaves them
+  // nowhere to write, which is not the same as everywhere.
+  chapterIds?: string[] | null
+  role?: CollaboratorRole | null
+  // `true` hands them the whole work again.
+  wholeWork?: boolean | null
+}
+
 export interface UpdateCommentRequest {
   body?: string | null
   // `open` or `resolved`; only the author of the work may resolve.
@@ -1248,6 +1298,32 @@ export interface Work {
   title: string
   updatedAt: string
   wordCount: number
+}
+
+// What the outline tells a client about who it is to this work.
+export interface WorkAccess {
+  // The chapters they may change, when they were handed only some. Absent
+  // means the whole work. Reading is never narrowed.
+  chapterIds?: string[] | null
+  // Whether they started the work — the one thing an added owner is not.
+  creator: boolean
+  // Whose book it is.
+  owner: AuthorCard
+  role: CollaboratorRole
+}
+
+export interface WorkActivity {
+  actorId: string
+  createdAt: string
+  id: string
+  kind: ActivityKind
+  // The title as it was at the time.
+  subject: string
+  subjectId?: string | null
+  // How many acts this line stands for.
+  times: number
+  updatedAt: string
+  workId: string
 }
 
 export type WorkKind = 'novel' | 'novella' | 'short_story' | 'serial'

@@ -8,7 +8,7 @@ use std::collections::{HashMap, HashSet};
 
 use diesel::prelude::*;
 
-use crate::db::schema::{comments, publications, reading_progress, works};
+use crate::db::schema::{comments, publications, reading_progress, work_collaborators, works};
 use crate::db::Conn;
 use crate::error::ApiResult;
 
@@ -19,8 +19,10 @@ use crate::error::ApiResult;
 /// has only just arrived.
 pub const RECIPROCITY_CAP: i64 = 10;
 
-/// Distinct people who have read or remarked on each publication, the author
-/// excepted. `owners` maps publication id to its author.
+/// Distinct people who have read or remarked on each publication, the people
+/// writing it excepted — the author and anyone on the book with them. A
+/// co-author opening their own draft is not a reader. `owners` maps
+/// publication id to its author.
 pub fn reader_counts(
     conn: &mut Conn,
     owners: &HashMap<String, String>,
@@ -39,8 +41,23 @@ pub fn reader_counts(
         .filter(comments::state.ne("deleted"))
         .select((comments::publication_id, comments::author_id))
         .load(conn)?;
+    let insiders: HashSet<(String, String)> = publications::table
+        .inner_join(
+            work_collaborators::table.on(work_collaborators::work_id.eq(publications::work_id)),
+        )
+        .filter(publications::id.eq_any(&ids))
+        .filter(work_collaborators::user_id.is_not_null())
+        .select((
+            publications::id,
+            work_collaborators::user_id.assume_not_null(),
+        ))
+        .load::<(String, String)>(conn)?
+        .into_iter()
+        .collect();
     for (publication_id, user_id) in progress.into_iter().chain(notes) {
-        if owners.get(&publication_id) == Some(&user_id) {
+        if owners.get(&publication_id) == Some(&user_id)
+            || insiders.contains(&(publication_id.clone(), user_id.clone()))
+        {
             continue;
         }
         readers.entry(publication_id).or_default().insert(user_id);
@@ -54,20 +71,35 @@ pub fn reader_counts(
 /// How many of other people's publications each author has left notes on.
 ///
 /// A publication counts once however many notes went on it — twenty typo
-/// reports on one chapter are one act of reading, not twenty.
+/// reports on one chapter are one act of reading, not twenty. Notes on a book
+/// you are a collaborator on are not reading for someone else.
 pub fn reviews_given(conn: &mut Conn, authors: &[String]) -> ApiResult<HashMap<String, i64>> {
     if authors.is_empty() {
         return Ok(HashMap::new());
     }
-    let rows: Vec<(String, String)> = comments::table
+    let rows = comments::table
         .inner_join(publications::table.on(publications::id.eq(comments::publication_id)))
         .inner_join(works::table.on(works::id.eq(publications::work_id)))
         .filter(comments::author_id.eq_any(authors))
         .filter(comments::state.ne("deleted"))
         .filter(works::owner_id.ne(comments::author_id))
-        .select((comments::author_id, publications::id))
+        .select((comments::author_id, publications::id, publications::work_id))
         .distinct()
-        .load(conn)?;
+        .load::<(String, String, String)>(conn)?;
+    let on_the_book: HashSet<(String, String)> = work_collaborators::table
+        .filter(work_collaborators::user_id.eq_any(authors))
+        .select((
+            work_collaborators::user_id.assume_not_null(),
+            work_collaborators::work_id,
+        ))
+        .load::<(String, String)>(conn)?
+        .into_iter()
+        .collect();
+    let rows: Vec<(String, String)> = rows
+        .into_iter()
+        .filter(|(author, _, work)| !on_the_book.contains(&(author.clone(), work.clone())))
+        .map(|(author, publication, _)| (author, publication))
+        .collect();
     let mut given: HashMap<String, i64> = HashMap::new();
     for (author, _) in rows {
         *given.entry(author).or_default() += 1;
