@@ -60,6 +60,7 @@ Tasks:
   test               Rust, Swift and web test suites
   check              fmt, clippy, and the web type-check
   smoke              End-to-end API walkthrough on a throwaway database
+  backup             Back up the database and manuscripts, then restore-drill it
   fmt                Format the Rust sources";
 
 fn main() {
@@ -89,6 +90,9 @@ fn main() {
         "test" => run_tests(&cfg),
         "check" => run_checks(&cfg),
         "smoke" => run_smoke(&cfg.workspace_root, &extra),
+        // A backup is only as good as its last restore, so the one command
+        // does both; `--drill-only` re-proves the newest.
+        "backup" => run_script(&cfg.workspace_root, "scripts/backup.sh", &extra),
         "fmt" => run("cargo", &["fmt", "--all"], &cfg.workspace_root),
         other => {
             eprintln!("Unknown task: {other}\n\n{USAGE}");

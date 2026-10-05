@@ -529,13 +529,29 @@ currently mean.
   agreed at sign-up, versioned so a change asks again. Written in plain
   language for the product; **they need a lawyer's review** before anyone pays.
 
-### 6.3 Operations
-- Structured request logging with a request id through to the client.
-- Error tracking, uptime checks, and a status page.
-- Nightly backups of both the database and the manuscript tree, with a
-  restore drill that is actually run.
+### 6.3 Operations — **the in-repo half done**
+- A request id on every response, every log line and every error envelope.
+  The web client sends its own, so the id the browser saw is the id in the
+  log, and a server failure shows the writer a reference to quote. JSON logs
+  on request, one `served`/`failed` line per request with its timing, and a
+  panicking handler answers in the usual envelope instead of dropping the
+  connection.
+- `/api/status` checks what actually fails — the database and its migrations,
+  whether a save could land, whether last night's backup exists *and was
+  restored* — and answers 503 when any does. `/status` shows it to a person.
+- Backups (`cargo backup`): a consistent copy of the database taken while the
+  server runs, the manuscript tree, and a manifest with a digest of every
+  file. Each run then restores what it took somewhere disposable and checks it
+  would serve — integrity, migrations, counts, digests, and that every draft
+  and every snapshot scene has its file. A unit test and the smoke walkthrough
+  both delete one file from a backup and watch the drill fail. Cron and launchd
+  examples are in `docs/OPERATIONS.md`; nothing is installed on its own.
+- **Not built: hosted error tracking, external uptime checks, a hosted status
+  page.** They need providers. The endpoint to point them at exists.
 
-### 6.4 Plans and billing
+### 6.4 Plans and billing — **deferred**
+Not started, by decision: it needs Stripe keys and pricing that has not been
+chosen. What it would cover:
 - Stripe subscriptions; free tier capped on works, snapshot retention and
   concurrent review windows.
 - Usage metering on storage and snapshot count.

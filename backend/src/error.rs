@@ -64,6 +64,11 @@ impl IntoResponse for ApiError {
             tracing::error!(error = %self, "request failed");
         }
         let mut error = json!({ "code": code, "message": self.to_string() });
+        // The id to quote when something goes wrong: the same one is on every
+        // log line the request wrote.
+        if let Some(id) = crate::ops::current_request_id() {
+            error["requestId"] = json!(id);
+        }
         if let ApiError::ConflictWith { details, .. } = &self {
             error["details"] = details.clone();
         }
@@ -124,4 +129,7 @@ pub struct ErrorBody {
     /// Present when the client is expected to act on it — see a scene save conflict.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub details: Option<serde_json::Value>,
+    /// The request's id, as in its `x-request-id` header and its log lines.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_id: Option<String>,
 }

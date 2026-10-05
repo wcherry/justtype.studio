@@ -19,6 +19,12 @@ pub struct Config {
     pub second_factor_rate: i64,
     /// Where the web client lives, for the links in mail.
     pub public_url: String,
+    /// Where backups go. Unset, the status check says nothing is being kept.
+    pub backup_dir: Option<PathBuf>,
+    /// How many backups to keep.
+    pub backup_keep: usize,
+    /// `json` for one JSON object per log line; anything else is for people.
+    pub log_format: String,
 }
 
 fn env_or(key: &str, default: &str) -> String {
@@ -53,6 +59,12 @@ impl Config {
             public_url: env_or("SCRIPTORIUM_PUBLIC_URL", "http://localhost:5183")
                 .trim_end_matches('/')
                 .to_string(),
+            backup_dir: std::env::var("SCRIPTORIUM_BACKUP_DIR")
+                .ok()
+                .filter(|s| !s.is_empty())
+                .map(PathBuf::from),
+            backup_keep: env_or("SCRIPTORIUM_BACKUP_KEEP", "14").parse()?,
+            log_format: env_or("SCRIPTORIUM_LOG_FORMAT", "text"),
         })
     }
 }

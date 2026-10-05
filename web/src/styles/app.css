@@ -222,6 +222,13 @@ button.danger { border-color: var(--del); color: var(--del); }
 .terms { max-width: var(--measure); font-family: var(--serif); line-height: 1.6; }
 .terms h1, .terms h2 { font-weight: 500; }
 
+/* --- status ------------------------------------------------------------- */
+
+.status__checks { list-style: none; padding: 0; display: grid; gap: 10px; }
+.status__checks li { display: grid; grid-template-columns: 18px 120px 1fr; gap: 8px; align-items: baseline; }
+.status__checks .is-ok .status__dot { color: var(--add); }
+.status__checks .is-failing .status__dot { color: var(--del); }
+
 /* --- collaboration ------------------------------------------------------- */
 
 .access-note {

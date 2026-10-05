@@ -601,6 +601,25 @@
         ],
         "type": "object"
       },
+      "Check": {
+        "properties": {
+          "detail": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "ok": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "ok",
+          "detail"
+        ],
+        "type": "object"
+      },
       "CircleMember": {
         "properties": {
           "circleId": {
@@ -1519,6 +1538,13 @@
           },
           "message": {
             "type": "string"
+          },
+          "requestId": {
+            "description": "The request's id, as in its `x-request-id` header and its log lines.",
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -3127,6 +3153,35 @@
           "resolved",
           "votes",
           "score"
+        ],
+        "type": "object"
+      },
+      "StatusReport": {
+        "properties": {
+          "checks": {
+            "items": {
+              "$ref": "#/components/schemas/Check"
+            },
+            "type": "array"
+          },
+          "status": {
+            "description": "`ok`, or `degraded` when any check fails.",
+            "type": "string"
+          },
+          "uptimeSeconds": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "version",
+          "uptimeSeconds",
+          "checks"
         ],
         "type": "object"
       },
@@ -7943,6 +7998,36 @@
         "summary": "Cuts one scene into two at a block boundary.",
         "tags": [
           "scenes"
+        ]
+      }
+    },
+    "/api/status": {
+      "get": {
+        "operationId": "status",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusReport"
+                }
+              }
+            },
+            "description": "Every check passed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusReport"
+                }
+              }
+            },
+            "description": "Something needs looking at"
+          }
+        },
+        "tags": [
+          "health"
         ]
       }
     },

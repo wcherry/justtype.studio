@@ -2,7 +2,7 @@
 # Everything here has a shorter cargo alias — see .cargo/config.toml.
 SHELL := /bin/bash
 
-.PHONY: help setup backend web ios sim testflight dev test check smoke fmt clean
+.PHONY: help setup backend web ios sim testflight dev test check smoke backup fmt clean
 
 help:
 	@grep -E '^[a-z-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-10s\033[0m %s\n", $$1, $$2}'
@@ -36,6 +36,9 @@ check: ## What CI enforces: fmt, clippy, web types  (cargo checks)
 
 smoke: ## End-to-end API walkthrough  (cargo smoke)
 	cargo xtask smoke
+
+backup: ## Back up, then prove it with a restore drill  (cargo backup)
+	cargo xtask backup
 
 fmt: ## Format the Rust sources
 	cargo xtask fmt

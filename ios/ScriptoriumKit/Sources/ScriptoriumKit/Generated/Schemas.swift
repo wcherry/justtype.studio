@@ -517,6 +517,22 @@ public enum API {
         }
     }
 
+    public struct Check: Codable, Hashable, Sendable {
+        public var detail: String
+        public var name: String
+        public var ok: Bool
+
+        public init(
+            detail: String,
+            name: String,
+            ok: Bool
+        ) {
+            self.detail = detail
+            self.name = name
+            self.ok = ok
+        }
+    }
+
     public struct CircleMember: Codable, Hashable, Sendable {
         public var circleId: String
         public var createdAt: String
@@ -1227,15 +1243,19 @@ public enum API {
         /// Present when the client is expected to act on it — see a scene save conflict.
         public var details: JSONValue?
         public var message: String
+        /// The request's id, as in its `x-request-id` header and its log lines.
+        public var requestId: String?
 
         public init(
             code: String,
             details: JSONValue? = nil,
-            message: String
+            message: String,
+            requestId: String? = nil
         ) {
             self.code = code
             self.details = details
             self.message = message
+            self.requestId = requestId
         }
     }
 
@@ -2704,6 +2724,26 @@ public enum API {
             self.resolved = resolved
             self.score = score
             self.votes = votes
+        }
+    }
+
+    public struct StatusReport: Codable, Hashable, Sendable {
+        public var checks: [Check]
+        /// `ok`, or `degraded` when any check fails.
+        public var status: String
+        public var uptimeSeconds: Int
+        public var version: String
+
+        public init(
+            checks: [Check],
+            status: String,
+            uptimeSeconds: Int,
+            version: String
+        ) {
+            self.checks = checks
+            self.status = status
+            self.uptimeSeconds = uptimeSeconds
+            self.version = version
         }
     }
 

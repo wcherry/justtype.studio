@@ -44,9 +44,10 @@ SCRIPTORIUM_JWT_SECRET="smoke-test-secret-value-1234567890" \
 SCRIPTORIUM_VOTE_RATE=3 \
 SCRIPTORIUM_SECOND_FACTOR_RATE=20 \
 SCRIPTORIUM_MAIL=outbox \
+SCRIPTORIUM_BACKUP_DIR="$TMP/backups" \
 SCRIPTORIUM_OUTBOX="$TMP/outbox.jsonl" \
 SCRIPTORIUM_PUBLIC_URL="http://scriptorium.test" \
-RUST_LOG=warn \
+RUST_LOG=warn,scriptorium_backend::ops=info \
   "$ROOT/target/debug/scriptorium-backend" >"$TMP/server.log" 2>&1 &
 SERVER_PID=$!
 
@@ -994,5 +995,35 @@ done
 # A style the server does not know has to be refused, not quietly ignored.
 bad=$(curl -s -o /dev/null -w '%{http_code}' "$API/versions/$V2/export?format=docx&style=fancy" -H "$AUTH")
 [ "$bad" = "400" ] && echo "  unknown style rejected with 400" || { echo "  EXPECTED 400, got $bad"; exit 1; }
+
+step "Request ids"
+HDR=$(curl -s -D - -o /dev/null "$API/works" -H "$AUTH" | tr -d '\r' | awk -F': ' 'tolower($1)=="x-request-id"{print $2}')
+[ ${#HDR} -ge 8 ] && echo "  every response carries one: $HDR" || { echo "  NO REQUEST ID"; exit 1; }
+curl -s "$API/works/not-a-work" -H "$AUTH" -H 'x-request-id: smoke-trace-0001' | python3 -c "
+import sys,json;e=json.load(sys.stdin)['error'];assert e['requestId']=='smoke-trace-0001', e
+print('  a client\'s own id comes back in the error, to quote:', e['requestId'])"
+grep -q 'smoke-trace-0001' "$TMP/server.log" && echo "  and is on the server's log line for it" || { echo "  NOT IN THE LOG"; exit 1; }
+
+step "Status, backups and a restore drill"
+status() { curl -s "$API/status" | python3 -c "
+import sys,json;d=json.load(sys.stdin)
+b=next(c for c in d['checks'] if c['name']=='backups')
+print(d['status'], '|', b['detail'])"; }
+echo "  before any backup: $(status)"
+BENV=(env SCRIPTORIUM_DATABASE_URL="$TMP/scriptorium.db" SCRIPTORIUM_DATA_DIR="$TMP/works" \
+  SCRIPTORIUM_BACKUP_DIR="$TMP/backups" SCRIPTORIUM_JWT_SECRET="smoke-test-secret-value-1234567890" RUST_LOG=warn)
+TAKEN=$("${BENV[@]}" "$ROOT/target/debug/scriptorium-backend" --backup)
+echo "  taken while the server runs: $(basename "$TAKEN")"
+echo "  backed up but not yet restored: $(status)"
+"${BENV[@]}" "$ROOT/target/debug/scriptorium-backend" --restore-drill "$TAKEN" | sed 's/^/  /'
+S=$(status); echo "  after the drill: $S"
+[[ "$S" == ok* ]] || { echo "  EXPECTED ok"; exit 1; }
+# A backup that has lost a file has to fail its drill, or the drill proves nothing.
+rm "$(find "$TAKEN/works" -name '*.json' -path '*working*' | head -1)"
+if "${BENV[@]}" "$ROOT/target/debug/scriptorium-backend" --restore-drill "$TAKEN" >/dev/null 2>&1; then
+  echo "  A DAMAGED BACKUP PASSED"; exit 1
+fi
+echo "  a backup missing one scene fails its drill: $(status)"
+[ "$(curl -s -o /dev/null -w '%{http_code}' "$API/status")" = "503" ] && echo "  and the status check says so with a 503" || { echo "  EXPECTED 503"; exit 1; }
 
 printf '\n\033[32mAll good.\033[0m\n'

@@ -9,7 +9,7 @@ import type {
   QuestionKind, QuestionScope, Standing, BulkStateResponse, ReportReason, TaskView,
   TaskState, ReportView, BlockView, SinceResponse, Profile, FollowState, AuthorCard,
   Genre, LengthBand, WindowFilter, FeedSort, CollaboratorRole, CollaboratorView, ActivityView,
-  SessionView, TwoFactorSetup, RecoveryCodes, AuditEvent, Terms,
+  SessionView, TwoFactorSetup, RecoveryCodes, AuditEvent, Terms, StatusReport,
 } from './types'
 
 const BASE = '/api'
@@ -23,9 +23,21 @@ export class ApiError extends Error {
     message: string,
     /** Structured state a client is expected to act on — see the 409 from a scene save. */
     readonly details?: unknown,
+    /** The id on the server's log lines for this request, to quote. */
+    readonly requestId?: string,
   ) {
-    super(message)
+    // A failure on our side is one the writer cannot fix, so it says what to
+    // quote to someone who can.
+    super(status >= 500 && requestId ? `${message} (reference ${requestId})` : message)
   }
+}
+
+/** Ours, so a failure can be matched to the server's log before it answers. */
+function newRequestId(): string {
+  const random = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID().replace(/-/g, '')
+    : Math.random().toString(16).slice(2) + Date.now().toString(16)
+  return `web-${random.slice(0, 20)}`
 }
 
 export const tokens = {
@@ -75,7 +87,7 @@ async function request<T>(
   body?: unknown,
   retry = true,
 ): Promise<T> {
-  const headers: Record<string, string> = {}
+  const headers: Record<string, string> = { 'x-request-id': newRequestId() }
   if (body !== undefined) headers['content-type'] = 'application/json'
   const access = tokens.access()
   if (access) headers.authorization = `Bearer ${access}`
@@ -97,6 +109,7 @@ async function request<T>(
       error?.code ?? 'unknown',
       error?.message ?? res.statusText,
       error?.details,
+      error?.requestId ?? res.headers.get('x-request-id') ?? undefined,
     )
   }
   if (res.status === 204) return undefined as T
@@ -518,6 +531,13 @@ export const api = {
     sessions: () => get<SessionView[]>('/me/sessions'),
     revokeSession: (sessionId: string) => del<{ ok: boolean }>(`/me/sessions/${sessionId}`),
     signOutOthers: () => post<{ ok: boolean }>('/me/sessions/sign-out-others'),
+  },
+
+  /** Whether the service is fit to serve. Public. */
+  status: async (): Promise<StatusReport> => {
+    // A 503 still carries the report, and the report is the point.
+    const res = await fetch(`${BASE}/status`)
+    return (await res.json()) as StatusReport
   },
 
   /** The terms, the record, and leaving. */

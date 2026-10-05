@@ -120,8 +120,14 @@ A running server also serves the document at `/api/openapi.json`.
 | `SCRIPTORIUM_SMTP_USER`, `SCRIPTORIUM_SMTP_PASSWORD` | *(none)* | Relay credentials, if it wants them |
 | `SCRIPTORIUM_MAIL_FROM` | *(required for smtp)* | The sender address |
 | `SCRIPTORIUM_SECOND_FACTOR_RATE` | `5` | Two-factor tries per account per minute |
+| `SCRIPTORIUM_LOG_FORMAT` | `text` | `json` for one JSON object per log line |
+| `SCRIPTORIUM_BACKUP_DIR` | *(none)* | Where `cargo backup` puts backups; `/api/status` checks them |
+| `SCRIPTORIUM_BACKUP_KEEP` | `14` | How many backups to keep |
 
 In development nothing is ever sent: a verification or reset link lands in the
 outbox file, and following it from there is the same as following it from an
 inbox. The SMTP path compiles and is configured as above, but has not been run
 against a real relay — that needs a sending domain and credentials.
+
+Backups, the restore drill, request ids and the status check are in
+[`docs/OPERATIONS.md`](docs/OPERATIONS.md).

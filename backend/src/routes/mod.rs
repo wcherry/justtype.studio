@@ -16,6 +16,7 @@ pub mod profiles;
 pub mod publications;
 pub mod readers;
 pub mod scenes;
+pub mod status;
 pub mod support;
 pub mod tasks;
 pub mod templates;
@@ -35,6 +36,7 @@ use crate::state::AppState;
 fn api_router() -> OpenApiRouter<AppState> {
     OpenApiRouter::with_openapi(openapi::ApiDoc::openapi())
         .routes(routes!(health))
+        .routes(routes!(status::status))
         .routes(routes!(auth::register))
         .routes(routes!(auth::login))
         .routes(routes!(auth::refresh))

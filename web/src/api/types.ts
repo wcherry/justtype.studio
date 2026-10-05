@@ -97,6 +97,8 @@ export type {
   AuditEvent,
   AuditAction,
   Terms,
+  StatusReport,
+  Check,
   WorkAccess,
   CollaboratorRole,
   CollaboratorView,

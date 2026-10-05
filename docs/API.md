@@ -574,3 +574,13 @@ The audit log records publications offered, changed and withdrawn; readers
 invited, uninvited, blocked and unblocked; co-authors added, changed and
 removed; works and accounts deleted; and changes to an account's own security.
 It has no foreign keys, so the line saying an account was deleted outlives it.
+
+## Operations
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/status` | public; `200` when every check passes, `503` otherwise — see `docs/OPERATIONS.md` |
+
+Every response has an `x-request-id` header, and every error envelope repeats
+it as `error.requestId`. A client may send its own (8–64 letters, digits, `-`
+or `_`) and it is kept.

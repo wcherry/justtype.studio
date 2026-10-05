@@ -8,6 +8,7 @@ import { LibraryPage } from './pages/LibraryPage'
 import { LoginPage } from './pages/LoginPage'
 import { ProfilePage } from './pages/ProfilePage'
 import { SettingsPage } from './pages/SettingsPage'
+import { StatusPage } from './pages/StatusPage'
 import { ReviewPage } from './pages/ReviewPage'
 import { useAuth } from './state/auth'
 
@@ -96,6 +97,7 @@ export function App() {
       <Route path="/reset" element={<ResetPage />} />
       <Route path="/verify" element={<VerifyPage />} />
       <Route path="/terms" element={<TermsPage />} />
+      <Route path="/status" element={<StatusPage />} />
       <Route
         path="/settings"
         element={<RequireAuth><Chrome><SettingsPage /></Chrome></RequireAuth>}

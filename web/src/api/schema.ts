@@ -194,6 +194,12 @@ export interface Chapter {
   workId: string
 }
 
+export interface Check {
+  detail: string
+  name: string
+  ok: boolean
+}
+
 export interface CircleMember {
   circleId: string
   createdAt: string
@@ -475,6 +481,8 @@ export interface ErrorBody {
   // Present when the client is expected to act on it — see a scene save conflict.
   details?: JsonValue
   message: string
+  // The request's id, as in its `x-request-id` header and its log lines.
+  requestId?: string | null
 }
 
 // The shape every failure comes back as. Declared for the generated schema so
@@ -1062,6 +1070,14 @@ export interface Standing {
   score: number
   // Net votes across everything this reviewer has written.
   votes: number
+}
+
+export interface StatusReport {
+  checks: Check[]
+  // `ok`, or `degraded` when any check fails.
+  status: string
+  uptimeSeconds: number
+  version: string
 }
 
 export interface TagRequest {

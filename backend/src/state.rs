@@ -15,4 +15,5 @@ pub struct AppState {
     /// handler counts into the same buckets.
     pub limiter: Arc<RateLimiter>,
     pub mailer: Mailer,
+    pub started_at: std::time::Instant,
 }

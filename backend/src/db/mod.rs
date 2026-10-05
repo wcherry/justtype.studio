@@ -31,6 +31,13 @@ impl CustomizeConnection<SqliteConnection, diesel::r2d2::Error> for SqlitePragma
 }
 
 pub fn build_pool(database_url: &str) -> anyhow::Result<Pool> {
+    build_pool_of(database_url, 8)
+}
+
+/// A pool of a given size. One, for maintenance on a file nothing else has
+/// open: eight connections each switching a fresh file to WAL at once is a
+/// burst of lock errors that mean nothing.
+pub fn build_pool_of(database_url: &str, size: u32) -> anyhow::Result<Pool> {
     if let Some(parent) = std::path::Path::new(database_url).parent() {
         if !parent.as_os_str().is_empty() {
             std::fs::create_dir_all(parent)?;
@@ -38,7 +45,7 @@ pub fn build_pool(database_url: &str) -> anyhow::Result<Pool> {
     }
     let manager = ConnectionManager::<SqliteConnection>::new(database_url);
     let pool = R2d2Pool::builder()
-        .max_size(8)
+        .max_size(size)
         .connection_customizer(Box::new(SqlitePragmas))
         .build(manager)?;
     Ok(pool)
