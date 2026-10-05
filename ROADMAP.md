@@ -438,10 +438,22 @@ currently mean.
   the click was refused, but the card was still there inviting it.
 - Names on cards, notes and the reader header lead to the profile.
 
-### 5.2 Discovery
-- Browse by form, genre, length and review-window state.
-- "Needs readers" queue that surfaces under-reviewed work first.
-- Reciprocity: reviewing others' work raises your own placement.
+### 5.2 Discovery — **done**
+- Browse by form, genre, length and review window. Genre is a new, optional
+  field on the work — a writer who does not know yet is not made to guess.
+  Length goes by the published version's word count in the bands the awards
+  use; the window by whether it closes within three days or never does. An
+  unknown value is refused rather than matching nothing, so a typo cannot pass
+  for an empty feed.
+- A "needs readers" queue: least-read first, where "read" means someone
+  opened it or left a note, and leaving out the caller's own work and anything
+  they have already read — those have had the reader this caller could give.
+- Reciprocity: each piece of someone else's work an author has left notes on
+  lifts their own by one place, capped at ten so it nudges rather than buys.
+  A publication counts once however many notes went on it; twenty typo reports
+  on one chapter are one act of reading. The card says how much the author has
+  read for others, so the queue's order is legible rather than mysterious.
+  Both numbers are derived on read, like reviewer standing.
 
 ### 5.3 Collaboration
 - Co-authors on a work, with roles (owner, writer, editor, reader).

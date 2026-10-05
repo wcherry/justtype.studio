@@ -11,6 +11,13 @@ use utoipa::OpenApi;
         version = env!("CARGO_PKG_VERSION"),
         description = "A writing tool for long-form fiction, and a review surface for readers."
     ),
+    // Query strings are not request bodies, so nothing reaches these from a
+    // handler; listed so the clients get the unions for building a feed URL.
+    components(schemas(
+        crate::domain::enums::LengthBand,
+        crate::domain::enums::WindowFilter,
+        crate::domain::enums::FeedSort,
+    )),
     tags(
         (name = "auth", description = "Accounts and sessions"),
         (name = "templates", description = "Structural skeletons for new works"),

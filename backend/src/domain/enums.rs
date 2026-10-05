@@ -161,3 +161,41 @@ api_enum!(ReportReason {
     OffTopic => "off_topic",
     Other => "other",
 });
+
+api_enum!(Genre {
+    Literary => "literary",
+    Fantasy => "fantasy",
+    ScienceFiction => "science_fiction",
+    Mystery => "mystery",
+    Thriller => "thriller",
+    Romance => "romance",
+    Horror => "horror",
+    Historical => "historical",
+    YoungAdult => "young_adult",
+    Other => "other",
+});
+
+api_enum!(LengthBand {
+    /// Under 7,500 words.
+    Short => "short",
+    /// 7,500 to 17,499.
+    Novelette => "novelette",
+    /// 17,500 to 39,999.
+    Novella => "novella",
+    /// 40,000 and up.
+    Novel => "novel",
+});
+
+api_enum!(WindowFilter {
+    /// Closes within the next three days.
+    ClosingSoon => "closing_soon",
+    /// Has no closing date at all.
+    OpenEnded => "open_ended",
+});
+
+api_enum!(FeedSort {
+    /// Most recently offered first.
+    Newest => "newest",
+    /// Least-read first, raised by how much the author has read for others.
+    NeedsReaders => "needs_readers",
+});

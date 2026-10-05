@@ -80,6 +80,10 @@ row!(Work, works, {
     /// The snapshot the writer wants to find without looking — what they last
     /// sent out.
     pinned_version_id: Option<String>,
+    /// What to browse it under. Unset is allowed: plenty of writers do not
+    /// know yet.
+    #[schema(value_type = Option<crate::domain::enums::Genre>)]
+    genre: Option<String>,
 });
 
 row!(Chapter, chapters, {
@@ -413,7 +417,7 @@ new_row!(NewWork, works, {
     created_at: String, updated_at: String, pen_name: Option<String>,
     short_title: Option<String>, dedication: Option<String>, epigraph: Option<String>,
     epigraph_source: Option<String>, copyright_line: Option<String>,
-    pinned_version_id: Option<String>,
+    pinned_version_id: Option<String>, genre: Option<String>,
 });
 
 new_row!(NewChapter, chapters, {

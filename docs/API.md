@@ -256,7 +256,7 @@ shape against the scene as it stands now — what restoring it would change.
 | Method | Path | Notes |
 |---|---|---|
 | `POST` | `/versions/{id}/publications` | `visibility`, `scope`, `scopeRefId`, `reviewPrompt`, `opensAt`, `closesAt`, `maxReviewers` |
-| `GET` | `/publications` | review feed; `?mine=true`, `?following=true`, `?author=`, `?kind=`, `limit`, `offset` |
+| `GET` | `/publications` | review feed; `?mine=true`, `?following=true`, `?author=`, `?kind=`, `?genre=`, `?length=`, `?window=`, `?sort=`, `limit`, `offset` |
 | `GET` | `/publications/{id}` | card with author, counts and excerpt |
 | `GET` | `/publications/{id}/content` | the snapshot, narrowed to the published scope |
 | `PATCH` | `/publications/{id}` | `visibility`, `reviewPrompt`, `closesAt`, `maxReviewers` (`0` removes the cap) |
@@ -272,6 +272,31 @@ refused with `403`, the author excepted — they can always open their own. The
 feed applies the same rules it would apply to the click: a reader is shown the
 publications they were invited to, and is not shown one whose window has shut
 or whose author has blocked them.
+
+### Browsing and the needs-readers queue
+
+The feed narrows by form (`kind`), `genre`, `length` and review `window`. A
+value outside the set is a `400`, not an empty list, so a typo cannot pass for
+"nothing here". `length` reads the published version's word count:
+
+| `length` | Words |
+|---|---|
+| `short` | under 7,500 |
+| `novelette` | 7,500 – 17,499 |
+| `novella` | 17,500 – 39,999 |
+| `novel` | 40,000 and up |
+
+`window=closing_soon` is a window that shuts within three days;
+`window=open_ended` has no closing date at all.
+
+`sort=needs_readers` is the queue: least-read first, leaving out the caller's
+own work and anything they have already opened or left a note on. Each card's
+`readerCount` is the distinct people who have opened it or remarked on it, the
+author excepted. Reciprocity lifts a publication by its author's
+`authorReviewsGiven` — the other people's publications they have left notes on,
+each counted once however many notes went on it, and capped at ten so it nudges
+rather than buys. Placement is `min(given, 10) − readers`, ties going to fewer
+readers and then to whoever has waited longest (`routes/discovery.rs`).
 
 `maxReviewers` caps how many distinct people may comment. Someone already
 inside the cap may keep talking; a new voice is refused once it is full.

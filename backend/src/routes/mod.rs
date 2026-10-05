@@ -2,6 +2,7 @@ pub mod auth;
 pub mod bible;
 pub mod changes;
 pub mod comments;
+pub mod discovery;
 pub mod export;
 pub mod feedback;
 pub mod goals;

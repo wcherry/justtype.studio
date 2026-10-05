@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
-import type { Work } from '../api/types'
+import type { Genre, Work } from '../api/types'
+import { GENRES } from './labels'
 
 interface Props {
   work: Work
@@ -22,6 +23,7 @@ export function FrontMatter({ work, onSaved }: Props) {
     epigraph: work.epigraph ?? '',
     epigraphSource: work.epigraphSource ?? '',
     copyrightLine: work.copyrightLine ?? '',
+    genre: (work.genre ?? '') as Genre | '',
   })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -48,6 +50,17 @@ export function FrontMatter({ work, onSaved }: Props) {
 
   return (
     <form className="front-matter" onSubmit={submit}>
+      <label>
+        Genre
+        <select value={draft.genre} onChange={(e) => field('genre', e.target.value)}>
+          <option value="">Not sure yet</option>
+          {GENRES.map((g) => (
+            <option key={g.value} value={g.value}>{g.label}</option>
+          ))}
+        </select>
+        <span className="field__hint">What readers browsing the review feed find it under.</span>
+      </label>
+
       <label>
         Byline
         <input

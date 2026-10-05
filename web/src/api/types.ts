@@ -90,6 +90,10 @@ export type {
   Profile,
   ReviewHistoryItem,
   FollowState,
+  Genre,
+  LengthBand,
+  WindowFilter,
+  FeedSort,
   WritingSummary,
 } from './schema'
 

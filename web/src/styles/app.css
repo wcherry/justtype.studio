@@ -180,6 +180,10 @@ a { color: inherit; text-decoration: none; }
   position: relative;
 }
 
+.feed__filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 4px 0 12px; }
+.feed__filters select { font-size: 13px; }
+.feed__reciprocity { color: var(--ink-faint); font-size: 12px; margin: 8px 0 0; }
+
 /* --- profiles ------------------------------------------------------------ */
 
 .profile__bio { white-space: pre-wrap; color: var(--ink-soft); font-family: var(--serif); font-size: 16px; line-height: 1.6; max-width: var(--measure); }

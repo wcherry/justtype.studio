@@ -1018,6 +1018,16 @@
       },
       "CreateWorkRequest": {
         "properties": {
+          "genre": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Genre"
+              }
+            ]
+          },
           "kind": {
             "$ref": "#/components/schemas/WorkKind"
           },
@@ -1242,6 +1252,13 @@
         ],
         "type": "object"
       },
+      "FeedSort": {
+        "enum": [
+          "newest",
+          "needs_readers"
+        ],
+        "type": "string"
+      },
       "FollowState": {
         "properties": {
           "followers": {
@@ -1257,6 +1274,21 @@
           "followers"
         ],
         "type": "object"
+      },
+      "Genre": {
+        "enum": [
+          "literary",
+          "fantasy",
+          "science_fiction",
+          "mystery",
+          "thriller",
+          "romance",
+          "horror",
+          "historical",
+          "young_adult",
+          "other"
+        ],
+        "type": "string"
       },
       "HealthResponse": {
         "properties": {
@@ -1314,6 +1346,15 @@
             "type": "object"
           }
         ]
+      },
+      "LengthBand": {
+        "enum": [
+          "short",
+          "novelette",
+          "novella",
+          "novel"
+        ],
+        "type": "string"
       },
       "LinkRequest": {
         "properties": {
@@ -1665,6 +1706,11 @@
               "author": {
                 "$ref": "#/components/schemas/AuthorCard"
               },
+              "authorReviewsGiven": {
+                "description": "Other people's publications this author has left notes on — what lifts\ntheir work in the needs-readers queue.",
+                "format": "int64",
+                "type": "integer"
+              },
               "commentCount": {
                 "format": "int64",
                 "type": "integer"
@@ -1672,6 +1718,21 @@
               "excerpt": {
                 "description": "First lines of the published slice, for the feed. Filled in after the\ndatabase round trip because it comes off disk — always sent, even when\nempty, so clients do not have to treat it as optional.",
                 "type": "string"
+              },
+              "genre": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/Genre"
+                  }
+                ]
+              },
+              "readerCount": {
+                "description": "Distinct people who have opened it or left a note, the author excepted.",
+                "format": "int64",
+                "type": "integer"
               },
               "versionLabel": {
                 "type": "string"
@@ -1694,6 +1755,8 @@
               "versionLabel",
               "wordCount",
               "commentCount",
+              "readerCount",
+              "authorReviewsGiven",
               "excerpt"
             ],
             "type": "object"
@@ -3186,6 +3249,13 @@
               "null"
             ]
           },
+          "genre": {
+            "description": "An empty string clears it.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "penName": {
             "description": "Front matter. Each is sent only when it changes; an empty string clears\none, which is what a writer emptying the field in the UI means.",
             "type": [
@@ -3544,6 +3614,13 @@
         ],
         "type": "object"
       },
+      "WindowFilter": {
+        "enum": [
+          "closing_soon",
+          "open_ended"
+        ],
+        "type": "string"
+      },
       "Work": {
         "properties": {
           "copyrightLine": {
@@ -3577,6 +3654,17 @@
             "type": [
               "string",
               "null"
+            ]
+          },
+          "genre": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Genre",
+                "description": "What to browse it under. Unset is allowed: plenty of writers do not\nknow yet."
+              }
             ]
           },
           "id": {

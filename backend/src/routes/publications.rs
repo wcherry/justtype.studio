@@ -1,6 +1,8 @@
 //! A publication is the offer of one frozen version to readers. It carries the
 //! visibility, the slice of the work on offer, and the prompt the author wants
 //! feedback against.
+use std::collections::HashMap;
+
 use axum::extract::{Path, Query, State};
 use axum::Json;
 use diesel::prelude::*;
@@ -11,11 +13,14 @@ use crate::auth::{AuthUser, MaybeAuthUser};
 use crate::db::blocking;
 use crate::db::models::*;
 use crate::db::schema::{comments, publications, users, versions, works};
-use crate::domain::enums::{PublicationScope, Visibility};
+use crate::domain::enums::{
+    FeedSort, Genre, LengthBand, PublicationScope, Visibility, WindowFilter, WorkKind,
+};
 use crate::domain::{new_id, now_iso};
 use crate::error::{ApiError, ApiResult, ErrorEnvelope};
 use crate::state::AppState;
 
+use super::discovery;
 use super::support::{self, Page};
 use super::versions::{VersionContent, VersionDetail};
 
@@ -77,6 +82,13 @@ pub struct PublicationCard {
     pub version_label: String,
     pub word_count: i32,
     pub comment_count: i64,
+    #[schema(value_type = Option<crate::domain::enums::Genre>)]
+    pub genre: Option<String>,
+    /// Distinct people who have opened it or left a note, the author excepted.
+    pub reader_count: i64,
+    /// Other people's publications this author has left notes on — what lifts
+    /// their work in the needs-readers queue.
+    pub author_reviews_given: i64,
     /// First lines of the published slice, for the feed. Filled in after the
     /// database round trip because it comes off disk — always sent, even when
     /// empty, so clients do not have to treat it as optional.
@@ -177,8 +189,18 @@ fn load_card(conn: &mut crate::db::Conn, publication_id: &str) -> ApiResult<Publ
         .filter(comments::state.ne("deleted"))
         .count()
         .get_result(conn)?;
+    let owners = HashMap::from([(publication.id.clone(), work.owner_id.clone())]);
+    let reader_count = discovery::reader_counts(conn, &owners)?
+        .remove(&publication.id)
+        .unwrap_or(0);
+    let author_reviews_given = discovery::reviews_given(conn, std::slice::from_ref(&author_id))?
+        .remove(&author_id)
+        .unwrap_or(0);
 
     Ok(PublicationCard {
+        genre: work.genre,
+        reader_count,
+        author_reviews_given,
         work_title: work.title,
         work_kind: work.kind,
         author: support::AuthorCard {
@@ -256,7 +278,70 @@ pub struct FeedQuery {
     /// `true` restricts the feed to authors the caller follows.
     #[serde(default)]
     pub following: Option<bool>,
+    #[serde(default)]
+    #[schema(value_type = Option<crate::domain::enums::Genre>)]
+    pub genre: Option<String>,
+    /// By the published version's word count.
+    #[serde(default)]
+    #[schema(value_type = Option<crate::domain::enums::LengthBand>)]
+    pub length: Option<String>,
+    #[serde(default)]
+    #[schema(value_type = Option<crate::domain::enums::WindowFilter>)]
+    pub window: Option<String>,
+    /// `newest` (the default) or `needs_readers`.
+    #[serde(default)]
+    #[schema(value_type = Option<crate::domain::enums::FeedSort>)]
+    pub sort: Option<String>,
 }
+
+impl FeedQuery {
+    fn validate(&self) -> ApiResult<()> {
+        fn one_of(
+            name: &str,
+            value: &Option<String>,
+            accepts: fn(&str) -> bool,
+            options: fn() -> String,
+        ) -> ApiResult<()> {
+            match value {
+                Some(value) if !accepts(value) => Err(ApiError::BadRequest(format!(
+                    "{name} must be one of {}",
+                    options()
+                ))),
+                _ => Ok(()),
+            }
+        }
+        one_of("kind", &self.kind, WorkKind::accepts, WorkKind::options)?;
+        one_of("genre", &self.genre, Genre::accepts, Genre::options)?;
+        one_of(
+            "length",
+            &self.length,
+            LengthBand::accepts,
+            LengthBand::options,
+        )?;
+        one_of(
+            "window",
+            &self.window,
+            WindowFilter::accepts,
+            WindowFilter::options,
+        )?;
+        one_of("sort", &self.sort, FeedSort::accepts, FeedSort::options)
+    }
+}
+
+/// The word counts behind each `LengthBand`, as the awards define them.
+fn length_bounds(band: &str) -> (i32, i32) {
+    match band {
+        "short" => (0, 7_499),
+        "novelette" => (7_500, 17_499),
+        "novella" => (17_500, 39_999),
+        _ => (40_000, i32::MAX),
+    }
+}
+
+/// How far back the needs-readers queue looks. It is ranked in memory, so it
+/// needs a bound; at the scale this runs at, five hundred open publications is
+/// every one of them.
+const QUEUE_CANDIDATES: i64 = 500;
 
 /// The review feed. Signed-out readers see only `public` publications.
 #[utoipa::path(
@@ -284,16 +369,19 @@ pub async fn feed_cards(
     user: Option<AuthUser>,
     query: FeedQuery,
 ) -> ApiResult<Vec<PublicationCard>> {
+    query.validate()?;
     let (limit, offset) = Page {
         limit: query.limit.unwrap_or(50),
         offset: query.offset.unwrap_or(0),
     }
     .clamped();
     let me = user.map(|u| (u.id, u.email.trim().to_lowercase()));
+    let needs_readers = query.sort.as_deref() == Some("needs_readers");
 
     let cards = blocking(&state.pool, move |conn| {
         let mut q = publications::table
             .inner_join(works::table.on(works::id.eq(publications::work_id)))
+            .inner_join(versions::table.on(versions::id.eq(publications::version_id)))
             .into_boxed();
 
         match (&me, query.mine.unwrap_or(false)) {
@@ -352,13 +440,83 @@ pub async fn feed_cards(
                 .select(follows::followee_id);
             q = q.filter(works::owner_id.eq_any(followed));
         }
+        if let Some(genre) = &query.genre {
+            q = q.filter(works::genre.eq(genre.clone()));
+        }
+        if let Some(band) = &query.length {
+            let (low, high) = length_bounds(band);
+            q = q.filter(versions::word_count.between(low, high));
+        }
+        match query.window.as_deref() {
+            Some("closing_soon") => {
+                let now = chrono::Utc::now();
+                let soon = (now + chrono::Duration::days(3))
+                    .to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+                q = q
+                    .filter(publications::closes_at.ge(now_iso()))
+                    .filter(publications::closes_at.le(soon));
+            }
+            Some("open_ended") => q = q.filter(publications::closes_at.is_null()),
+            _ => {}
+        }
 
-        let ids: Vec<String> = q
+        if !needs_readers {
+            let ids: Vec<String> = q
+                .order(publications::created_at.desc())
+                .limit(limit)
+                .offset(offset)
+                .select(publications::id)
+                .load(conn)?;
+            return ids
+                .iter()
+                .map(|id| load_card(conn, id))
+                .collect::<ApiResult<Vec<_>>>();
+        }
+
+        // The queue is for finding something to read, so it leaves out the
+        // caller's own work and anything they have already opened or remarked
+        // on — those have had the reader this caller could give them.
+        if let Some((id, _)) = &me {
+            use crate::db::schema::reading_progress;
+            let opened = reading_progress::table
+                .filter(reading_progress::user_id.eq(id.clone()))
+                .select(reading_progress::publication_id);
+            let remarked = comments::table
+                .filter(comments::author_id.eq(id.clone()))
+                .select(comments::publication_id);
+            q = q
+                .filter(works::owner_id.ne(id.clone()))
+                .filter(diesel::dsl::not(publications::id.eq_any(opened)))
+                .filter(diesel::dsl::not(publications::id.eq_any(remarked)));
+        }
+        let rows: Vec<(String, String, String)> = q
             .order(publications::created_at.desc())
-            .limit(limit)
-            .offset(offset)
-            .select(publications::id)
+            .limit(QUEUE_CANDIDATES)
+            .select((publications::id, works::owner_id, publications::created_at))
             .load(conn)?;
+        let owners: HashMap<String, String> = rows
+            .iter()
+            .map(|(id, owner, _)| (id.clone(), owner.clone()))
+            .collect();
+        let readers = discovery::reader_counts(conn, &owners)?;
+        let authors: Vec<String> = owners.values().cloned().collect();
+        let given = discovery::reviews_given(conn, &authors)?;
+        let mut candidates: Vec<discovery::Candidate> = rows
+            .into_iter()
+            .map(|(id, owner, created_at)| discovery::Candidate {
+                readers: readers.get(&id).copied().unwrap_or(0),
+                given: given.get(&owner).copied().unwrap_or(0),
+                id,
+                created_at,
+            })
+            .collect();
+        discovery::rank(&mut candidates);
+        let ids: Vec<String> = candidates
+            .into_iter()
+            .skip(offset as usize)
+            .take(limit as usize)
+            .map(|c| c.id)
+            .collect();
 
         ids.iter()
             .map(|id| load_card(conn, id))

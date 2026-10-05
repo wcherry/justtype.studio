@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
-import type { Template, Work, WorkKind } from '../api/types'
+import type { Genre, Template, Work, WorkKind } from '../api/types'
+import { GENRES } from '../components/labels'
 
 const KINDS: { value: WorkKind; label: string }[] = [
   { value: 'novel', label: 'Novel' },
@@ -77,6 +78,7 @@ function NewWorkForm({
   const [title, setTitle] = useState('')
   const [kind, setKind] = useState<WorkKind>('novel')
   const [templateId, setTemplateId] = useState<string>('tpl-blank')
+  const [genre, setGenre] = useState<Genre | ''>('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -90,7 +92,7 @@ function NewWorkForm({
         setBusy(true)
         setError(null)
         try {
-          const outline = await api.works.create({ title, kind, templateId })
+          const outline = await api.works.create({ title, kind, templateId, genre: genre || undefined })
           onCreated(outline.id)
         } catch (e) {
           setError(e instanceof Error ? e.message : 'Could not create that work')
@@ -108,6 +110,15 @@ function NewWorkForm({
         <select value={kind} onChange={(e) => setKind(e.target.value as WorkKind)}>
           {KINDS.map((k) => (
             <option key={k.value} value={k.value}>{k.label}</option>
+          ))}
+        </select>
+      </label>
+      <label>
+        Genre
+        <select value={genre} onChange={(e) => setGenre(e.target.value as Genre | '')}>
+          <option value="">Not sure yet</option>
+          {GENRES.map((g) => (
+            <option key={g.value} value={g.value}>{g.label}</option>
           ))}
         </select>
       </label>

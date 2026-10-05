@@ -60,6 +60,7 @@ diesel::table! {
         epigraph_source -> Nullable<Text>,
         copyright_line -> Nullable<Text>,
         pinned_version_id -> Nullable<Text>,
+        genre -> Nullable<Text>,
     }
 }
 

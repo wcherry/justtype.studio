@@ -814,6 +814,7 @@ public enum API {
     }
 
     public struct CreateWorkRequest: Codable, Hashable, Sendable {
+        public var genre: Genre?
         public var kind: WorkKind
         public var subtitle: String?
         public var synopsis: String?
@@ -822,12 +823,14 @@ public enum API {
         public var title: String
 
         public init(
+            genre: Genre? = nil,
             kind: WorkKind,
             subtitle: String? = nil,
             synopsis: String? = nil,
             templateId: String? = nil,
             title: String
         ) {
+            self.genre = genre
             self.kind = kind
             self.subtitle = subtitle
             self.synopsis = synopsis
@@ -997,6 +1000,11 @@ public enum API {
         }
     }
 
+    public enum FeedSort: String, Codable, CaseIterable, Hashable, Sendable {
+        case newest = "newest"
+        case needs_readers = "needs_readers"
+    }
+
     public struct FollowState: Codable, Hashable, Sendable {
         public var followers: Int
         public var following: Bool
@@ -1008,6 +1016,19 @@ public enum API {
             self.followers = followers
             self.following = following
         }
+    }
+
+    public enum Genre: String, Codable, CaseIterable, Hashable, Sendable {
+        case literary = "literary"
+        case fantasy = "fantasy"
+        case science_fiction = "science_fiction"
+        case mystery = "mystery"
+        case thriller = "thriller"
+        case romance = "romance"
+        case horror = "horror"
+        case historical = "historical"
+        case young_adult = "young_adult"
+        case other = "other"
     }
 
     public struct HealthResponse: Codable, Hashable, Sendable {
@@ -1071,6 +1092,13 @@ public enum API {
             self.publicationId = publicationId
             self.accepted = accepted
         }
+    }
+
+    public enum LengthBand: String, Codable, CaseIterable, Hashable, Sendable {
+        case short = "short"
+        case novelette = "novelette"
+        case novella = "novella"
+        case novel = "novel"
     }
 
     public struct LinkRequest: Codable, Hashable, Sendable {
@@ -1227,6 +1255,7 @@ public enum API {
         public var dedication: String?
         public var epigraph: String?
         public var epigraphSource: String?
+        public var genre: Genre?
         public var id: String
         public var kind: WorkKind
         public var ownerId: String
@@ -1253,6 +1282,7 @@ public enum API {
             dedication: String? = nil,
             epigraph: String? = nil,
             epigraphSource: String? = nil,
+            genre: Genre? = nil,
             id: String,
             kind: WorkKind,
             ownerId: String,
@@ -1274,6 +1304,7 @@ public enum API {
             self.dedication = dedication
             self.epigraph = epigraph
             self.epigraphSource = epigraphSource
+            self.genre = genre
             self.id = id
             self.kind = kind
             self.ownerId = ownerId
@@ -1412,11 +1443,17 @@ public enum API {
         public var visibility: Visibility
         public var workId: String
         public var author: AuthorCard
+        /// Other people's publications this author has left notes on — what lifts
+        /// their work in the needs-readers queue.
+        public var authorReviewsGiven: Int
         public var commentCount: Int
         /// First lines of the published slice, for the feed. Filled in after the
         /// database round trip because it comes off disk — always sent, even when
         /// empty, so clients do not have to treat it as optional.
         public var excerpt: String
+        public var genre: Genre?
+        /// Distinct people who have opened it or left a note, the author excepted.
+        public var readerCount: Int
         public var versionLabel: String
         public var wordCount: Int
         public var workKind: String
@@ -1437,8 +1474,11 @@ public enum API {
             visibility: Visibility,
             workId: String,
             author: AuthorCard,
+            authorReviewsGiven: Int,
             commentCount: Int,
             excerpt: String,
+            genre: Genre? = nil,
+            readerCount: Int,
             versionLabel: String,
             wordCount: Int,
             workKind: String,
@@ -1458,8 +1498,11 @@ public enum API {
             self.visibility = visibility
             self.workId = workId
             self.author = author
+            self.authorReviewsGiven = authorReviewsGiven
             self.commentCount = commentCount
             self.excerpt = excerpt
+            self.genre = genre
+            self.readerCount = readerCount
             self.versionLabel = versionLabel
             self.wordCount = wordCount
             self.workKind = workKind
@@ -2688,6 +2731,8 @@ public enum API {
         public var dedication: String?
         public var epigraph: String?
         public var epigraphSource: String?
+        /// An empty string clears it.
+        public var genre: String?
         /// Front matter. Each is sent only when it changes; an empty string clears
         /// one, which is what a writer emptying the field in the UI means.
         public var penName: String?
@@ -2702,6 +2747,7 @@ public enum API {
             dedication: String? = nil,
             epigraph: String? = nil,
             epigraphSource: String? = nil,
+            genre: String? = nil,
             penName: String? = nil,
             shortTitle: String? = nil,
             status: WorkStatus? = nil,
@@ -2713,6 +2759,7 @@ public enum API {
             self.dedication = dedication
             self.epigraph = epigraph
             self.epigraphSource = epigraphSource
+            self.genre = genre
             self.penName = penName
             self.shortTitle = shortTitle
             self.status = status
@@ -3058,6 +3105,11 @@ public enum API {
         }
     }
 
+    public enum WindowFilter: String, Codable, CaseIterable, Hashable, Sendable {
+        case closing_soon = "closing_soon"
+        case open_ended = "open_ended"
+    }
+
     public struct Work: Codable, Hashable, Sendable {
         public var copyrightLine: String?
         public var createdAt: String
@@ -3065,6 +3117,7 @@ public enum API {
         public var dedication: String?
         public var epigraph: String?
         public var epigraphSource: String?
+        public var genre: Genre?
         public var id: String
         public var kind: WorkKind
         public var ownerId: String
@@ -3090,6 +3143,7 @@ public enum API {
             dedication: String? = nil,
             epigraph: String? = nil,
             epigraphSource: String? = nil,
+            genre: Genre? = nil,
             id: String,
             kind: WorkKind,
             ownerId: String,
@@ -3110,6 +3164,7 @@ public enum API {
             self.dedication = dedication
             self.epigraph = epigraph
             self.epigraphSource = epigraphSource
+            self.genre = genre
             self.id = id
             self.kind = kind
             self.ownerId = ownerId

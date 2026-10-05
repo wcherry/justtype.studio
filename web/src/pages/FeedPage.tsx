@@ -1,12 +1,21 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '../api/client'
+import type { FeedFilters } from '../api/client'
 import { BlockList } from '../components/BlockList'
 import { CircleManager } from '../components/CircleManager'
 import { FeedbackPanel } from '../components/FeedbackPanel'
 import { SincePanel } from '../components/SincePanel'
 import { PublicationTile } from '../components/PublicationTile'
 import { ReviewPanel } from '../components/ReviewPanel'
-import type { PublicationCard } from '../api/types'
+import { GENRES, LENGTHS, SORTS, WINDOWS } from '../components/labels'
+import type { PublicationCard, WorkKind } from '../api/types'
+
+const FORMS: { value: WorkKind; label: string }[] = [
+  { value: 'novel', label: 'Novel' },
+  { value: 'novella', label: 'Novella' },
+  { value: 'short_story', label: 'Short story' },
+  { value: 'serial', label: 'Serial' },
+]
 
 type Scope = 'everyone' | 'following' | 'mine'
 
@@ -19,7 +28,9 @@ const HEADINGS: Record<Scope, string> = {
 export function FeedPage() {
   const [cards, setCards] = useState<PublicationCard[]>([])
   const [scope, setScope] = useState<Scope>('everyone')
+  const [filters, setFilters] = useState<FeedFilters>({})
   const mine = scope === 'mine'
+  const queue = filters.sort === 'needs_readers' && !mine
   const [managing, setManaging] = useState<string | null>(null)
   const [reading, setReading] = useState<string | null>(null)
   const [comparing, setComparing] = useState<string | null>(null)
@@ -28,10 +39,16 @@ export function FeedPage() {
 
   const load = useCallback(() => {
     api.publications
-      .feed({ mine, following: scope === 'following' })
-      .then(setCards)
+      .feed({ ...filters, mine, following: scope === 'following' })
+      .then((next) => {
+        setCards(next)
+        setError(null)
+      })
       .catch((e) => setError(e.message))
-  }, [mine, scope])
+  }, [mine, scope, filters])
+
+  const narrow = <K extends keyof FeedFilters>(key: K, value: string) =>
+    setFilters((current) => ({ ...current, [key]: (value || undefined) as FeedFilters[K] }))
 
   useEffect(() => {
     load()
@@ -40,7 +57,7 @@ export function FeedPage() {
   return (
     <main className="feed">
       <header className="feed__header">
-        <h1>{HEADINGS[scope]}</h1>
+        <h1>{queue ? 'Waiting for a first reader' : HEADINGS[scope]}</h1>
         <div className="feed__actions">
           <div className="segmented" role="group" aria-label="Whose work">
             {(['everyone', 'following', 'mine'] as const).map((value) => (
@@ -72,6 +89,45 @@ export function FeedPage() {
           <h2>Blocked readers</h2>
           <BlockList />
         </section>
+      )}
+
+      <div className="feed__filters">
+        <select aria-label="Form" value={filters.kind ?? ''} onChange={(e) => narrow('kind', e.target.value)}>
+          <option value="">Any form</option>
+          {FORMS.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
+        </select>
+        <select aria-label="Genre" value={filters.genre ?? ''} onChange={(e) => narrow('genre', e.target.value)}>
+          <option value="">Any genre</option>
+          {GENRES.map((g) => <option key={g.value} value={g.value}>{g.label}</option>)}
+        </select>
+        <select aria-label="Length" value={filters.length ?? ''} onChange={(e) => narrow('length', e.target.value)}>
+          <option value="">Any length</option>
+          {LENGTHS.map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}
+        </select>
+        <select aria-label="Review window" value={filters.window ?? ''} onChange={(e) => narrow('window', e.target.value)}>
+          <option value="">Any window</option>
+          {WINDOWS.map((w) => <option key={w.value} value={w.value}>{w.label}</option>)}
+        </select>
+        {!mine && (
+          <div className="segmented" role="group" aria-label="Order">
+            {SORTS.map((sort) => (
+              <button
+                key={sort.value}
+                type="button"
+                className={(filters.sort ?? 'newest') === sort.value ? 'is-active' : undefined}
+                onClick={() => narrow('sort', sort.value === 'newest' ? '' : sort.value)}
+              >
+                {sort.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      {queue && (
+        <p className="field__hint">
+          Least-read first, leaving out your own and anything you have already opened. Reading for
+          other writers moves your own work up this list for everyone else.
+        </p>
       )}
 
       {error && <p className="error">{error}</p>}

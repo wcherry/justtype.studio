@@ -8,7 +8,7 @@ use crate::auth::AuthUser;
 use crate::db::blocking;
 use crate::db::models::*;
 use crate::db::schema::{chapters, scenes, templates, works};
-use crate::domain::enums::WorkKind;
+use crate::domain::enums::{Genre, WorkKind};
 use crate::domain::templates::TemplateStructure;
 use crate::domain::{doc, new_id, now_iso};
 use crate::error::{ApiError, ApiResult, ErrorEnvelope};
@@ -29,6 +29,9 @@ pub struct CreateWorkRequest {
     /// Omit for a single empty chapter and scene.
     #[serde(default)]
     pub template_id: Option<String>,
+    #[serde(default)]
+    #[schema(value_type = Option<crate::domain::enums::Genre>)]
+    pub genre: Option<String>,
 }
 
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
@@ -57,6 +60,9 @@ pub struct UpdateWorkRequest {
     pub epigraph_source: Option<String>,
     #[serde(default)]
     pub copyright_line: Option<String>,
+    /// An empty string clears it.
+    #[serde(default)]
+    pub genre: Option<String>,
 }
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
@@ -73,6 +79,16 @@ pub struct OutlineChapter {
     #[serde(flatten)]
     pub chapter: Chapter,
     pub scenes: Vec<Scene>,
+}
+
+fn check_genre(genre: Option<&str>) -> ApiResult<()> {
+    match genre {
+        Some(genre) if !Genre::accepts(genre) => Err(ApiError::BadRequest(format!(
+            "genre must be one of {}",
+            Genre::options()
+        ))),
+        _ => Ok(()),
+    }
 }
 
 /// Scene bodies produced while materialising a template, written to disk after
@@ -157,6 +173,7 @@ pub async fn create(
             WorkKind::options()
         )));
     }
+    check_genre(body.genre.as_deref())?;
 
     let work_id = new_id();
     let owner_id = user.id.clone();
@@ -211,6 +228,7 @@ pub async fn create(
                     epigraph_source: None,
                     copyright_line: None,
                     pinned_version_id: None,
+                    genre: body.genre.clone(),
                 })
                 .execute(conn)?;
 
@@ -365,6 +383,12 @@ pub async fn update(
         if let Some(value) = text(&body.copyright_line) {
             diesel::update(works::table.find(&work_id))
                 .set(works::copyright_line.eq(value))
+                .execute(conn)?;
+        }
+        if let Some(value) = text(&body.genre) {
+            check_genre(value.as_deref())?;
+            diesel::update(works::table.find(&work_id))
+                .set(works::genre.eq(value))
                 .execute(conn)?;
         }
         diesel::update(works::table.find(&work_id))

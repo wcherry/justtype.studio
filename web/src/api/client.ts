@@ -8,6 +8,7 @@ import type {
   ReaderProgressView, BlockReactions, ReactionKind, ReviewQuestion, AnswerView,
   QuestionKind, QuestionScope, Standing, BulkStateResponse, ReportReason, TaskView,
   TaskState, ReportView, BlockView, SinceResponse, Profile, FollowState, AuthorCard,
+  Genre, LengthBand, WindowFilter, FeedSort,
 } from './types'
 
 const BASE = '/api'
@@ -195,8 +196,9 @@ export const api = {
     list: () => get<Work[]>('/works'),
     get: (workId: string) => get<Work>(`/works/${workId}`),
     outline: (workId: string) => get<Outline>(`/works/${workId}/outline`),
-    create: (input: { title: string; kind: WorkKind; templateId?: string; synopsis?: string }) =>
-      post<Outline>('/works', input),
+    create: (input: {
+      title: string; kind: WorkKind; templateId?: string; synopsis?: string; genre?: Genre
+    }) => post<Outline>('/works', input),
     update: (
       workId: string,
       input: Partial<
@@ -206,7 +208,10 @@ export const api = {
           | 'penName' | 'shortTitle' | 'dedication' | 'epigraph'
           | 'epigraphSource' | 'copyrightLine'
         >
-      >,
+      > & {
+        /** An empty string clears it. */
+        genre?: Genre | ''
+      },
     ) => patch<Work>(`/works/${workId}`, input),
     remove: (workId: string) => del<{ ok: boolean }>(`/works/${workId}`),
   },
@@ -307,12 +312,16 @@ export const api = {
       maxReviewers?: number
       spoilerSafe?: boolean
     }) => post<PublicationCard>(`/versions/${versionId}/publications`, input),
-    feed: (opts: { mine?: boolean; following?: boolean; kind?: string; author?: string } = {}) => {
+    feed: (opts: FeedFilters & { mine?: boolean; following?: boolean; author?: string } = {}) => {
       const params = new URLSearchParams()
       if (opts.mine) params.set('mine', 'true')
       if (opts.following) params.set('following', 'true')
-      if (opts.kind) params.set('kind', opts.kind)
       if (opts.author) params.set('author', opts.author)
+      if (opts.kind) params.set('kind', opts.kind)
+      if (opts.genre) params.set('genre', opts.genre)
+      if (opts.length) params.set('length', opts.length)
+      if (opts.window) params.set('window', opts.window)
+      if (opts.sort) params.set('sort', opts.sort)
       const qs = params.toString()
       return get<PublicationCard[]>(`/publications${qs ? `?${qs}` : ''}`)
     },
@@ -492,4 +501,13 @@ export interface CommentFilters {
   state?: 'open' | 'resolved'
   authorId?: string
   minScore?: number
+}
+
+/** How the review feed is narrowed and ordered. */
+export interface FeedFilters {
+  kind?: WorkKind
+  genre?: Genre
+  length?: LengthBand
+  window?: WindowFilter
+  sort?: FeedSort
 }

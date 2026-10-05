@@ -702,6 +702,47 @@ SHUTF=$(curl -s -o /dev/null -w '%{http_code}' -X PUT "$API/users/$ADA/follow" -
 curl -s -X DELETE "$API/me/blocks/$GRACE" -H "$AUTH" >/dev/null
 curl -s -X DELETE "$API/users/$ADA/follow" -H "$SAUTH" | field following | sed 's/^/  unfollowed, following: /'
 
+step "Browsing by genre, length and window"
+curl -s -X PATCH "$API/works/$WID" -H "$AUTH" -H 'content-type: application/json' -d '{"genre":"literary"}' | field genre | sed 's/^/  genre set: /'
+has() { curl -s "$API/publications?$1" -H "$SAUTH" | python3 -c "
+import sys,json;print(sum(1 for r in json.load(sys.stdin) if r['id']=='$PID'))"; }
+[ "$(has genre=literary)" = "1" ] && [ "$(has genre=horror)" = "0" ] && echo "  literary finds it, horror does not" || { echo "  GENRE FILTER WRONG"; exit 1; }
+[ "$(has length=short)" = "1" ] && [ "$(has length=novel)" = "0" ] && echo "  a few hundred words is short, not a novel" || { echo "  LENGTH FILTER WRONG"; exit 1; }
+[ "$(has window=open_ended)" = "1" ] && [ "$(has window=closing_soon)" = "0" ] && echo "  no closing date is open-ended" || { echo "  WINDOW FILTER WRONG"; exit 1; }
+SOON=$(python3 -c "import datetime;print((datetime.datetime.now(datetime.UTC)+datetime.timedelta(days=1)).isoformat().replace('+00:00','Z'))")
+curl -s -X PATCH "$API/publications/$PID" -H "$AUTH" -H 'content-type: application/json' -d "{\"closesAt\":\"$SOON\"}" >/dev/null
+[ "$(has window=closing_soon)" = "1" ] && echo "  and closing tomorrow is closing soon" || { echo "  CLOSING SOON WRONG"; exit 1; }
+BADG=$(curl -s -o /dev/null -w '%{http_code}' "$API/publications?genre=space_opera" -H "$SAUTH")
+[ "$BADG" = "400" ] && echo "  an unknown genre is refused rather than matching nothing" || { echo "  EXPECTED 400, got $BADG"; exit 1; }
+
+step "The needs-readers queue"
+# A second author with something nobody has read yet.
+SW=$(curl -s -X POST "$API/works" -H "$SAUTH" -H 'content-type: application/json' -d '{"title":"Low Tide","kind":"short_story"}')
+SWID=$(echo "$SW" | field id)
+SSCENE=$(echo "$SW" | field chapters.0.scenes.0.id)
+curl -s -X PUT "$API/scenes/$SSCENE/content" -H "$SAUTH" -H 'content-type: application/json' \
+  -d '{"content":{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"The water went out further than anyone remembered."}]}]}}' >/dev/null
+SV=$(curl -s -X POST "$API/works/$SWID/versions" -H "$SAUTH" -H 'content-type: application/json' -d '{}' | field id)
+curl -s -X POST "$API/versions/$SV/publish" -H "$SAUTH" >/dev/null
+SPID=$(curl -s -X POST "$API/versions/$SV/publications" -H "$SAUTH" -H 'content-type: application/json' -d '{"visibility":"platform"}' | field id)
+HTOKEN=$(curl -s -X POST "$API/auth/register" -H 'content-type: application/json' \
+  -d '{"email":"hal@example.com","password":"correcthorse","displayName":"Hal"}' | field accessToken)
+HAUTH="Authorization: Bearer $HTOKEN"
+queue() { curl -s "$API/publications?sort=needs_readers" -H "$1" | python3 -c "
+import sys,json;print(', '.join(f\"{r['workTitle']} ({r['readerCount']} read)\" for r in json.load(sys.stdin)) or 'nothing')"; }
+Q=$(queue "$HAUTH")
+echo "  a newcomer's queue: $Q"
+[[ "$Q" == "Low Tide"* ]] || { echo "  EXPECTED the unread story first"; exit 1; }
+QS=$(queue "$SAUTH")
+echo "  the stranger's own queue: $QS"
+[[ "$QS" != *"Low Tide"* && "$QS" != *"The Long Field"* ]] || { echo "  EXPECTED neither their own work nor one they have read"; exit 1; }
+# Reading for someone else is what lifts your own work.
+curl -s -X POST "$API/publications/$SPID/comments" -H "$AUTH" -H 'content-type: application/json' \
+  -d '{"body":"The first line is the story."}' >/dev/null
+curl -s "$API/publications/$PID" -H "$HAUTH" | python3 -c "
+import sys,json;d=json.load(sys.stdin);assert d['authorReviewsGiven']==1, d['authorReviewsGiven']
+print(f\"  Ada has now read for {d['authorReviewsGiven']} other writer, which her card carries\")"
+
 step "Exporting the published version"
 for fmt in txt docx epub pdf; do
   out="$TMP/export.$fmt"

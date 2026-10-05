@@ -317,6 +317,7 @@ export interface CreateVersionRequest {
 }
 
 export interface CreateWorkRequest {
+  genre?: Genre | null
   kind: WorkKind
   subtitle?: string | null
   synopsis?: string | null
@@ -392,10 +393,14 @@ export interface ErrorEnvelope {
   error: ErrorBody
 }
 
+export type FeedSort = 'newest' | 'needs_readers'
+
 export interface FollowState {
   followers: number
   following: boolean
 }
+
+export type Genre = 'literary' | 'fantasy' | 'science_fiction' | 'mystery' | 'thriller' | 'romance' | 'horror' | 'historical' | 'young_adult' | 'other'
 
 export interface HealthResponse {
   service: string
@@ -421,6 +426,8 @@ export interface InviteView {
   // Whether that reader has opened it yet.
   accepted: boolean
 }
+
+export type LengthBand = 'short' | 'novelette' | 'novella' | 'novel'
 
 export interface LinkRequest {
   sceneId: string
@@ -485,6 +492,7 @@ export interface OutlineResponse {
   dedication?: string | null
   epigraph?: string | null
   epigraphSource?: string | null
+  genre?: Genre | null
   id: string
   kind: WorkKind
   ownerId: string
@@ -566,11 +574,17 @@ export interface PublicationCard {
   visibility: Visibility
   workId: string
   author: AuthorCard
+  // Other people's publications this author has left notes on — what lifts
+  // their work in the needs-readers queue.
+  authorReviewsGiven: number
   commentCount: number
   // First lines of the published slice, for the feed. Filled in after the
   // database round trip because it comes off disk — always sent, even when
   // empty, so clients do not have to treat it as optional.
   excerpt: string
+  genre?: Genre | null
+  // Distinct people who have opened it or left a note, the author excepted.
+  readerCount: number
   versionLabel: string
   wordCount: number
   workKind: string
@@ -1070,6 +1084,8 @@ export interface UpdateWorkRequest {
   dedication?: string | null
   epigraph?: string | null
   epigraphSource?: string | null
+  // An empty string clears it.
+  genre?: string | null
   // Front matter. Each is sent only when it changes; an empty string clears
   // one, which is what a writer emptying the field in the UI means.
   penName?: string | null
@@ -1205,6 +1221,8 @@ export interface VoteResponse {
   viewerVote: number
 }
 
+export type WindowFilter = 'closing_soon' | 'open_ended'
+
 export interface Work {
   copyrightLine?: string | null
   createdAt: string
@@ -1212,6 +1230,7 @@ export interface Work {
   dedication?: string | null
   epigraph?: string | null
   epigraphSource?: string | null
+  genre?: Genre | null
   id: string
   kind: WorkKind
   ownerId: string
