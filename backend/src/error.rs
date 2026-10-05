@@ -26,6 +26,11 @@ pub enum ApiError {
     /// something better than "try again".
     #[error("{message}")]
     TooManyRequests { message: String, retry_after: i64 },
+    /// The password was right and the account wants a code from an
+    /// authenticator as well. Its own code, so a client knows to ask for one
+    /// rather than report a failure.
+    #[error("{0}")]
+    TwoFactorRequired(String),
     #[error("{0}")]
     Internal(String),
 }
@@ -46,6 +51,7 @@ impl ApiError {
             ApiError::TooManyRequests { .. } => {
                 (StatusCode::TOO_MANY_REQUESTS, "too_many_requests")
             }
+            ApiError::TwoFactorRequired(_) => (StatusCode::UNAUTHORIZED, "two_factor_required"),
             ApiError::Internal(_) => (StatusCode::INTERNAL_SERVER_ERROR, "internal"),
         }
     }
@@ -111,7 +117,8 @@ pub struct ErrorEnvelope {
 #[derive(Debug, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ErrorBody {
-    /// `bad_request`, `unauthorized`, `forbidden`, `not_found`, `conflict`, `internal`.
+    /// `bad_request`, `unauthorized`, `two_factor_required`, `forbidden`,
+    /// `not_found`, `conflict`, `too_many_requests`, `internal`.
     pub code: String,
     pub message: String,
     /// Present when the client is expected to act on it — see a scene save conflict.

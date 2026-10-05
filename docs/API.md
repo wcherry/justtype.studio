@@ -498,3 +498,79 @@ derived feed cannot say who removed a chapter. A run of saves to one scene by
 one person within half an hour is one line with a `times` count. Collaborators
 are named, never shown by address. Co-authors are not counted as readers of
 their own book in `readerCount`, and notes on it are not reading for others.
+
+## Account
+
+| Method | Path | Notes |
+|---|---|---|
+| `POST` | `/auth/register` | now also `acceptTerms: true`, required; mails a link to prove the address |
+| `POST` | `/auth/login` | `code` once refused with `two_factor_required` — an authenticator code or a recovery code |
+| `POST` | `/me/verification` | mail the proving link again |
+| `POST` | `/auth/verify` | `token` from that link |
+| `POST` | `/auth/password/forgot` | `email`; the same answer whether or not there is such an account |
+| `POST` | `/auth/password/reset` | `token`, `password`; signs out every session |
+| `POST` | `/me/password` | `currentPassword`, `newPassword`; signs out every other session |
+| `POST` | `/me/two-factor/setup` | a new key and its `otpauth://` link, not yet in force |
+| `POST` | `/me/two-factor/enable` | `code` from that key; returns ten recovery codes, once |
+| `POST` | `/me/two-factor/disable` | `password` and `code` — both factors to remove one |
+| `GET` | `/me/sessions` | every signed-in device, `current` marking this one |
+| `DELETE` | `/me/sessions/{id}` | sign one out |
+| `POST` | `/me/sessions/sign-out-others` | |
+
+**Invitations wait for a proved address.** A reader invitation and a seat on a
+book are both addressed to an email, so until an account has proved its
+address, anyone could have typed it in at sign-up and collected them. An
+unproved account sees none of what was sent to its address, and opening it is
+refused with a message saying to confirm first. Holding a reset link proves the
+address too.
+
+**Sessions are real.** Every access token names its session, and the session is
+checked on every request, so signing a device out — or resetting a password —
+takes effect at once rather than when the token runs out. Refresh tokens rotate
+inside a session; signing out ends the session, not just the token in hand. A
+token from before sessions existed is refused, and the client's refresh gives
+it one.
+
+**Two-factor sign-in** is RFC 6238: thirty-second steps, six digits, one step
+of drift either side. A code works once — the step it matched is remembered —
+and tries are limited per account per minute. The key counts only once a code
+from it has been checked, so a mistyped key cannot lock anyone out.
+
+Links last 72 hours (proving an address) or an hour (a reset), work once, and a
+newer one retires the older. Mail to one address is limited to three a minute.
+
+**Not built: OAuth sign-in** (Apple, Google). It needs registered apps and keys.
+
+## Trust
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/terms` | `{ version, text }`, the Markdown of `docs/TERMS.md`; signed out is fine |
+| `POST` | `/me/terms` | `version` — agree to the terms in force |
+| `GET` | `/me/export` | a zip of everything held about the caller |
+| `DELETE` | `/me` | `password`, `code` if two-factor is on, `deleteSharedWorks` |
+| `GET` | `/me/audit` | what you did, and what anyone did to a work you own |
+
+The terms say, first, that the writer keeps their copyright. Raising
+`TERMS_VERSION` in `routes/privacy.rs` asks everyone to agree again.
+
+The export is a zip: `account.json`, `works.json` (every work you started, with
+its outline, snapshots, publications, the feedback on them by name only, bible,
+to-do list, co-authors and activity), `contributions.json` (what you did on
+other people's work), `audit.json`, and `manuscripts/` with every file behind
+each of your works exactly as stored. No password hash.
+
+Deleting an account deletes the works it started, rows and files both. A work
+other people are on is refused with a `409` naming it until the caller says
+`deleteSharedWorks`. What the account made inside other people's books is not
+cascaded away with it: snapshots, saved revisions and invitations there are
+credited to that book's owner; notes are blanked and credited to a placeholder
+"former member", so replies under them still have something to answer; votes
+are removed and the scores recounted. A removed note that someone answered
+stays in the thread as an empty placeholder — which is also now true when
+someone deletes their own note.
+
+The audit log records publications offered, changed and withdrawn; readers
+invited, uninvited, blocked and unblocked; co-authors added, changed and
+removed; works and accounts deleted; and changes to an account's own security.
+It has no foreign keys, so the line saying an account was deleted outlives it.

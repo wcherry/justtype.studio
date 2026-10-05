@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import { ApiError } from '../api/client'
 import { useAuth } from '../state/auth'
 
 export function LoginPage() {
@@ -9,6 +10,10 @@ export function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [displayName, setDisplayName] = useState('')
+  const [acceptTerms, setAcceptTerms] = useState(false)
+  /** Shown once the password was right and the account wants a second factor. */
+  const [needsCode, setNeedsCode] = useState(false)
+  const [code, setCode] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -17,11 +22,15 @@ export function LoginPage() {
     setBusy(true)
     setError(null)
     try {
-      if (mode === 'login') await login(email, password)
-      else await register(email, password, displayName)
+      if (mode === 'login') await login(email, password, needsCode ? code : undefined)
+      else await register(email, password, displayName, acceptTerms)
       navigate('/')
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not sign you in')
+      if (e instanceof ApiError && e.code === 'two_factor_required') {
+        setNeedsCode(true)
+      } else {
+        setError(e instanceof Error ? e.message : 'Could not sign you in')
+      }
     } finally {
       setBusy(false)
     }
@@ -54,19 +63,53 @@ export function LoginPage() {
               required
             />
           </label>
+          {needsCode && mode === 'login' && (
+            <label>
+              Code from your authenticator
+              <input
+                value={code}
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                autoFocus
+                onChange={(e) => setCode(e.target.value)}
+                required
+              />
+              <span className="field__hint">Or one of your recovery codes.</span>
+            </label>
+          )}
+          {mode === 'register' && (
+            <label className="auth__check">
+              <input
+                type="checkbox"
+                checked={acceptTerms}
+                onChange={(e) => setAcceptTerms(e.target.checked)}
+              />
+              <span>
+                I agree to the <Link to="/terms" target="_blank">terms</Link> — which say my
+                writing stays mine.
+              </span>
+            </label>
+          )}
           {error && <p className="error">{error}</p>}
-          <button type="submit" disabled={busy}>
+          <button type="submit" disabled={busy || (mode === 'register' && !acceptTerms)}>
             {mode === 'login' ? 'Sign in' : 'Create account'}
           </button>
         </form>
 
-        <button
-          type="button"
-          className="linklike"
-          onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(null) }}
-        >
-          {mode === 'login' ? 'Need an account?' : 'Already have an account?'}
-        </button>
+        <div className="auth__links">
+          <button
+            type="button"
+            className="linklike"
+            onClick={() => {
+              setMode(mode === 'login' ? 'register' : 'login')
+              setError(null)
+              setNeedsCode(false)
+            }}
+          >
+            {mode === 'login' ? 'Need an account?' : 'Already have an account?'}
+          </button>
+          {mode === 'login' && <Link to="/forgot">Forgot your password?</Link>}
+        </div>
       </div>
     </main>
   )

@@ -6,6 +6,9 @@ struct SignInView: View {
     @State private var email = ""
     @State private var password = ""
     @State private var displayName = ""
+    @State private var code = ""
+    @State private var acceptTerms = false
+    @State private var showTerms = false
     @State private var busy = false
 
     var body: some View {
@@ -31,8 +34,23 @@ struct SignInView: View {
                     #endif
                 SecureField("Password", text: $password)
                     .textContentType(registering ? .newPassword : .password)
+                if session.needsCode && !registering {
+                    TextField("Code from your authenticator", text: $code)
+                        .textContentType(.oneTimeCode)
+                        #if os(iOS)
+                        .keyboardType(.numberPad)
+                        #endif
+                }
             }
             .textFieldStyle(.roundedBorder)
+
+            if registering {
+                VStack(alignment: .leading, spacing: 4) {
+                    Toggle("I agree to the terms", isOn: $acceptTerms)
+                    Button("Read them — they say my writing stays mine") { showTerms = true }
+                        .font(.footnote)
+                }
+            }
 
             if let error = session.errorMessage {
                 Text(error).font(.footnote).foregroundStyle(.red)
@@ -42,15 +60,21 @@ struct SignInView: View {
                 busy = true
                 Task {
                     if registering {
-                        await session.register(email: email, password: password, displayName: displayName)
+                        await session.register(
+                            email: email, password: password, displayName: displayName,
+                            acceptTerms: acceptTerms
+                        )
                     } else {
-                        await session.signIn(email: email, password: password)
+                        await session.signIn(
+                            email: email, password: password,
+                            code: session.needsCode ? code : nil
+                        )
                     }
                     busy = false
                 }
             }
             .buttonStyle(.borderedProminent)
-            .disabled(busy || email.isEmpty || password.count < 8)
+            .disabled(busy || email.isEmpty || password.count < 8 || (registering && !acceptTerms))
 
             Button(registering ? "Already have an account?" : "Need an account?") {
                 registering.toggle()
@@ -59,5 +83,31 @@ struct SignInView: View {
         }
         .padding(28)
         .frame(maxWidth: 420)
+        .sheet(isPresented: $showTerms) { TermsSheet() }
+    }
+}
+
+/// The terms, as the server serves them, so the phone shows the same words the
+/// browser does.
+private struct TermsSheet: View {
+    @EnvironmentObject private var session: SessionStore
+    @Environment(\.dismiss) private var dismiss
+    @State private var text = ""
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                Text(text.isEmpty ? "Loading…" : text)
+                    .font(.system(.body, design: .serif))
+                    .padding()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .navigationTitle("Terms")
+            .toolbar { Button("Done") { dismiss() } }
+        }
+        .task {
+            text = (try? await session.client.terms().text)
+                .map { $0.replacingOccurrences(of: "#", with: "") } ?? "Could not load the terms."
+        }
     }
 }

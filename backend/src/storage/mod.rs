@@ -187,6 +187,42 @@ impl FileStore {
         }
     }
 
+    /// Every file under a work, as paths relative to the work's folder and
+    /// their bytes — for handing a writer everything we hold of theirs.
+    pub async fn work_files(&self, work_id: &str) -> ApiResult<Vec<(String, Vec<u8>)>> {
+        let dir = self.work_dir(work_id)?;
+        tokio::task::spawn_blocking(move || {
+            fn walk(
+                root: &Path,
+                dir: &Path,
+                out: &mut Vec<(String, Vec<u8>)>,
+            ) -> std::io::Result<()> {
+                let mut entries: Vec<_> = std::fs::read_dir(dir)?.collect::<Result<_, _>>()?;
+                entries.sort_by_key(|e| e.path());
+                for entry in entries {
+                    let path = entry.path();
+                    if entry.file_type()?.is_dir() {
+                        walk(root, &path, out)?;
+                    } else if let Ok(relative) = path.strip_prefix(root) {
+                        out.push((
+                            relative.to_string_lossy().replace('\\', "/"),
+                            std::fs::read(&path)?,
+                        ));
+                    }
+                }
+                Ok(())
+            }
+            let mut out = Vec::new();
+            match walk(&dir, &dir, &mut out) {
+                Ok(()) => Ok(out),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Vec::new()),
+                Err(e) => Err(e.into()),
+            }
+        })
+        .await
+        .map_err(|e| crate::error::ApiError::internal(format!("task panicked: {e}")))?
+    }
+
     pub async fn delete_work(&self, work_id: &str) -> ApiResult<()> {
         let dir = self.work_dir(work_id)?;
         match tokio::fs::remove_dir_all(&dir).await {

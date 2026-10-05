@@ -169,22 +169,44 @@ public struct APIClient: Sendable {
         return try JSONDecoder().decode(API.SessionResponse.self, from: data)
     }
 
-    public func register(email: String, password: String, displayName: String) async throws -> API.SessionResponse {
+    private struct RegisterBody: Encodable {
+        let email, password, displayName: String
+        let acceptTerms: Bool
+    }
+
+    private struct SignInBody: Encodable {
+        let email, password: String
+        let code: String?
+    }
+
+    /// `acceptTerms` is the person agreeing to `terms()`; the server refuses
+    /// an account without it.
+    public func register(
+        email: String, password: String, displayName: String, acceptTerms: Bool
+    ) async throws -> API.SessionResponse {
         let session: API.SessionResponse = try await send(
             "POST", "auth/register",
-            body: ["email": email, "password": password, "displayName": displayName]
+            body: RegisterBody(
+                email: email, password: password, displayName: displayName, acceptTerms: acceptTerms
+            )
         )
         await tokens.save(session)
         return session
     }
 
-    public func signIn(email: String, password: String) async throws -> API.SessionResponse {
+    /// `code` only once the server has asked for one with
+    /// `two_factor_required`: from an authenticator, or a recovery code.
+    public func signIn(email: String, password: String, code: String? = nil) async throws -> API.SessionResponse {
         let session: API.SessionResponse = try await send(
             "POST", "auth/login",
-            body: ["email": email, "password": password]
+            body: SignInBody(email: email, password: password, code: code)
         )
         await tokens.save(session)
         return session
+    }
+
+    public func terms() async throws -> API.Terms {
+        try await send("GET", "terms")
     }
 
     public func signOut() async {

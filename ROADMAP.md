@@ -488,15 +488,46 @@ currently mean.
 
 ## Phase 6 — The SaaS parts
 
-### 6.1 Accounts
-- OAuth sign-in (Apple, Google) alongside the existing password flow.
-- Email verification and password reset.
-- Two-factor authentication; session list with remote revoke.
+### 6.1 Accounts — **mostly done**
+- Mail, behind one `Mailer`: an outbox file in development and in the smoke
+  walkthrough, where a link is read back and followed exactly as from an inbox,
+  and SMTP configured from the environment. The SMTP path compiles and is
+  configured; it has not been run against a real relay, which needs a sending
+  domain.
+- Email verification, and the reason it matters: reader invitations and seats
+  on a book are both addressed to an email, and until now anyone could register
+  someone else's address and collect what was sent to it. An unproved account
+  now sees nothing addressed to it.
+- Password reset by mailed link: an hour, once, the newest only, and using it
+  signs out every device. The same answer whether or not the address has an
+  account, and limited per address so it is not a way to fill someone's inbox.
+- Two-factor sign-in (TOTP, pinned to the RFC 6238 vectors), recovery codes,
+  each code good once, tries limited. The key only counts once a code from it
+  checks out, so a typo in setup cannot lock anyone out.
+- Sessions: one per device, named in every access token and checked on every
+  request, so signing a device out takes effect now rather than in half an
+  hour. A list with "this one" marked, sign out one, sign out everywhere else.
+- The iOS app asks for the code and for agreement to the terms.
+- **Not built: OAuth** (Apple, Google) — it needs registered apps and keys, and
+  was deferred rather than written blind.
 
-### 6.2 Trust
-- GDPR export and delete, covering the filesystem as well as the database.
-- Audit log of publications, permission changes and deletions.
-- Terms that make it unambiguous the author keeps their copyright.
+### 6.2 Trust — **done**
+- Export: one zip of everything held about a person — the records as JSON and
+  every manuscript file exactly as stored — with no password hash in it.
+- Delete: the account, the works it started and their files. A work with
+  co-authors is refused by name until the person says to go ahead. What they
+  made inside other people's books is not cascaded away: snapshots and
+  revisions there go to that book's owner, notes are blanked and credited to a
+  "former member" so the replies under them still read.
+- That last part found a bug as old as comments: a deleted note took every
+  reply under it out of the thread, which soft-deletion existed to prevent. A
+  removed note someone answered now stays as an empty placeholder.
+- An audit log of publications, invitations, blocks, co-authors, deletions and
+  account security, readable by the people it concerns. No foreign keys: the
+  line saying an account was deleted has to outlive the account.
+- Terms (`docs/TERMS.md`) that say first that the writer keeps their copyright,
+  agreed at sign-up, versioned so a change asks again. Written in plain
+  language for the product; **they need a lawyer's review** before anyone pays.
 
 ### 6.3 Operations
 - Structured request logging with a request id through to the client.

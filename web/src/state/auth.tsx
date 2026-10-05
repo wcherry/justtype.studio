@@ -28,8 +28,10 @@ function cacheUser(user: User | null) {
 interface AuthContextValue {
   user: User | null
   loading: boolean
-  login: (email: string, password: string) => Promise<void>
-  register: (email: string, password: string, displayName: string) => Promise<void>
+  login: (email: string, password: string, code?: string) => Promise<void>
+  register: (email: string, password: string, displayName: string, acceptTerms: boolean) => Promise<void>
+  /** Re-reads the account, e.g. after the address has been proved elsewhere. */
+  refreshUser: () => Promise<void>
   logout: () => Promise<void>
   /** After the profile is edited, so the name in the chrome follows it. */
   updateUser: (user: User) => void
@@ -72,15 +74,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const login = useCallback(async (email: string, password: string) => {
-    const session = await api.auth.login(email, password)
+  const login = useCallback(async (email: string, password: string, code?: string) => {
+    const session = await api.auth.login(email, password, code)
     tokens.set(session)
     cacheUser(session.user)
     setUser(session.user)
   }, [])
 
-  const register = useCallback(async (email: string, password: string, displayName: string) => {
-    const session = await api.auth.register(email, password, displayName)
+  const register = useCallback(async (
+    email: string, password: string, displayName: string, acceptTerms: boolean,
+  ) => {
+    const session = await api.auth.register(email, password, displayName, acceptTerms)
     tokens.set(session)
     cacheUser(session.user)
     setUser(session.user)
@@ -98,9 +102,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(next)
   }, [])
 
+  const refreshUser = useCallback(async () => {
+    const me = await api.auth.me()
+    cacheUser(me)
+    setUser(me)
+  }, [])
+
   const value = useMemo(
-    () => ({ user, loading, login, register, logout, updateUser }),
-    [user, loading, login, register, logout, updateUser],
+    () => ({ user, loading, login, register, logout, updateUser, refreshUser }),
+    [user, loading, login, register, logout, updateUser, refreshUser],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

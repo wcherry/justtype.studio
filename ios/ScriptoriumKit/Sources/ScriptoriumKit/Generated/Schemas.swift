@@ -13,6 +13,17 @@ import Foundation
 /// view file. `API.Scene` is unambiguous and says where the type came from.
 public enum API {
 
+    public struct AcceptTermsRequest: Codable, Hashable, Sendable {
+        /// The version being agreed to — the one the person was shown.
+        public var version: Int
+
+        public init(
+            version: Int
+        ) {
+            self.version = version
+        }
+    }
+
     public enum ActivityKind: String, Codable, CaseIterable, Hashable, Sendable {
         case scene_edited = "scene_edited"
         case scene_added = "scene_added"
@@ -165,6 +176,55 @@ public enum API {
             self.updatedAt = updatedAt
             self.userId = userId
             self.reader = reader
+        }
+    }
+
+    public enum AuditAction: String, Codable, CaseIterable, Hashable, Sendable {
+        case password_reset = "password_reset"
+        case password_changed = "password_changed"
+        case two_factor_enabled = "two_factor_enabled"
+        case two_factor_disabled = "two_factor_disabled"
+        case session_revoked = "session_revoked"
+        case sessions_revoked = "sessions_revoked"
+        case account_exported = "account_exported"
+        case account_deleted = "account_deleted"
+        case work_deleted = "work_deleted"
+        case publication_created = "publication_created"
+        case publication_changed = "publication_changed"
+        case publication_withdrawn = "publication_withdrawn"
+        case collaborator_added = "collaborator_added"
+        case collaborator_changed = "collaborator_changed"
+        case collaborator_removed = "collaborator_removed"
+        case reader_invited = "reader_invited"
+        case reader_uninvited = "reader_uninvited"
+        case reader_blocked = "reader_blocked"
+        case reader_unblocked = "reader_unblocked"
+        case terms_accepted = "terms_accepted"
+    }
+
+    public struct AuditEvent: Codable, Hashable, Sendable {
+        public var action: AuditAction
+        /// Who did it. Kept after their account is gone.
+        public var actorId: String?
+        public var createdAt: String
+        public var detail: String
+        public var id: String
+        public var workId: String?
+
+        public init(
+            action: AuditAction,
+            actorId: String? = nil,
+            createdAt: String,
+            detail: String,
+            id: String,
+            workId: String? = nil
+        ) {
+            self.action = action
+            self.actorId = actorId
+            self.createdAt = createdAt
+            self.detail = detail
+            self.id = id
+            self.workId = workId
         }
     }
 
@@ -410,6 +470,19 @@ public enum API {
         case format = "format"
     }
 
+    public struct ChangePasswordRequest: Codable, Hashable, Sendable {
+        public var currentPassword: String
+        public var newPassword: String
+
+        public init(
+            currentPassword: String,
+            newPassword: String
+        ) {
+            self.currentPassword = currentPassword
+            self.newPassword = newPassword
+        }
+    }
+
     public enum ChangeState: String, Codable, CaseIterable, Hashable, Sendable {
         case pending = "pending"
         case accepted = "accepted"
@@ -488,6 +561,16 @@ public enum API {
             self.ownerId = ownerId
             self.updatedAt = updatedAt
             self.members = members
+        }
+    }
+
+    public struct CodeRequest: Codable, Hashable, Sendable {
+        public var code: String
+
+        public init(
+            code: String
+        ) {
+            self.code = code
         }
     }
 
@@ -953,6 +1036,35 @@ public enum API {
         }
     }
 
+    public struct DeleteAccountRequest: Codable, Hashable, Sendable {
+        /// From the authenticator, when two-factor sign-in is on.
+        public var code: String?
+        /// Required when a work being deleted has co-authors on it, after they
+        /// have been told which.
+        public var deleteSharedWorks: Bool?
+        public var password: String
+
+        public init(
+            code: String? = nil,
+            deleteSharedWorks: Bool? = nil,
+            password: String
+        ) {
+            self.code = code
+            self.deleteSharedWorks = deleteSharedWorks
+            self.password = password
+        }
+    }
+
+    public struct DeletedAccount: Codable, Hashable, Sendable {
+        public var worksDeleted: Int
+
+        public init(
+            worksDeleted: Int
+        ) {
+            self.worksDeleted = worksDeleted
+        }
+    }
+
     public struct DiffResponse: Codable, Hashable, Sendable {
         /// What each side is called — a version's label, or "Working draft".
         public var from: String
@@ -1007,6 +1119,20 @@ public enum API {
         }
     }
 
+    public struct DisableTwoFactorRequest: Codable, Hashable, Sendable {
+        /// From the authenticator, or a recovery code.
+        public var code: String
+        public var password: String
+
+        public init(
+            code: String,
+            password: String
+        ) {
+            self.code = code
+            self.password = password
+        }
+    }
+
     public struct DocMark: Codable, Hashable, Sendable {
         public var attrs: JSONValue?
         public var type: String
@@ -1049,6 +1175,16 @@ public enum API {
         }
     }
 
+    public struct Done: Codable, Hashable, Sendable {
+        public var ok: Bool
+
+        public init(
+            ok: Bool
+        ) {
+            self.ok = ok
+        }
+    }
+
     public struct EntryView: Codable, Hashable, Sendable {
         public var body: String?
         public var createdAt: String
@@ -1085,7 +1221,8 @@ public enum API {
     }
 
     public struct ErrorBody: Codable, Hashable, Sendable {
-        /// `bad_request`, `unauthorized`, `forbidden`, `not_found`, `conflict`, `internal`.
+        /// `bad_request`, `unauthorized`, `two_factor_required`, `forbidden`,
+        /// `not_found`, `conflict`, `too_many_requests`, `internal`.
         public var code: String
         /// Present when the client is expected to act on it — see a scene save conflict.
         public var details: JSONValue?
@@ -1129,6 +1266,16 @@ public enum API {
         ) {
             self.followers = followers
             self.following = following
+        }
+    }
+
+    public struct ForgotRequest: Codable, Hashable, Sendable {
+        public var email: String
+
+        public init(
+            email: String
+        ) {
+            self.email = email
         }
     }
 
@@ -1226,13 +1373,19 @@ public enum API {
     }
 
     public struct LoginRequest: Codable, Hashable, Sendable {
+        /// The six digits from an authenticator, or a recovery code, for an
+        /// account with two-factor sign-in on. Asked for with a
+        /// `two_factor_required` refusal when it is missing.
+        public var code: String?
         public var email: String
         public var password: String
 
         public init(
+            code: String? = nil,
             email: String,
             password: String
         ) {
+            self.code = code
             self.email = email
             self.password = password
         }
@@ -1843,6 +1996,17 @@ public enum API {
         }
     }
 
+    public struct RecoveryCodes: Codable, Hashable, Sendable {
+        /// Shown once. Each gets someone in once if the authenticator is lost.
+        public var codes: [String]
+
+        public init(
+            codes: [String]
+        ) {
+            self.codes = codes
+        }
+    }
+
     public struct RefreshRequest: Codable, Hashable, Sendable {
         public var refreshToken: String
 
@@ -1854,15 +2018,19 @@ public enum API {
     }
 
     public struct RegisterRequest: Codable, Hashable, Sendable {
+        /// Agreement to the terms in force (`GET /api/terms`). Required.
+        public var acceptTerms: Bool?
         public var displayName: String
         public var email: String
         public var password: String
 
         public init(
+            acceptTerms: Bool? = nil,
             displayName: String,
             email: String,
             password: String
         ) {
+            self.acceptTerms = acceptTerms
             self.displayName = displayName
             self.email = email
             self.password = password
@@ -1936,6 +2104,19 @@ public enum API {
             self.commentBody = commentBody
             self.publicationId = publicationId
             self.reporter = reporter
+        }
+    }
+
+    public struct ResetRequest: Codable, Hashable, Sendable {
+        public var password: String
+        public var token: String
+
+        public init(
+            password: String,
+            token: String
+        ) {
+            self.password = password
+            self.token = token
         }
     }
 
@@ -2337,6 +2518,35 @@ public enum API {
         }
     }
 
+    public struct Session: Codable, Hashable, Sendable {
+        public var createdAt: String
+        public var id: String
+        public var ip: String?
+        public var lastSeenAt: String
+        public var revokedAt: String?
+        /// What the device said it was, for telling sessions apart in a list.
+        public var userAgent: String?
+        public var userId: String
+
+        public init(
+            createdAt: String,
+            id: String,
+            ip: String? = nil,
+            lastSeenAt: String,
+            revokedAt: String? = nil,
+            userAgent: String? = nil,
+            userId: String
+        ) {
+            self.createdAt = createdAt
+            self.id = id
+            self.ip = ip
+            self.lastSeenAt = lastSeenAt
+            self.revokedAt = revokedAt
+            self.userAgent = userAgent
+            self.userId = userId
+        }
+    }
+
     public struct SessionResponse: Codable, Hashable, Sendable {
         public var accessToken: String
         public var expiresIn: Int
@@ -2353,6 +2563,39 @@ public enum API {
             self.expiresIn = expiresIn
             self.refreshToken = refreshToken
             self.user = user
+        }
+    }
+
+    public struct SessionView: Codable, Hashable, Sendable {
+        public var createdAt: String
+        public var id: String
+        public var ip: String?
+        public var lastSeenAt: String
+        public var revokedAt: String?
+        /// What the device said it was, for telling sessions apart in a list.
+        public var userAgent: String?
+        public var userId: String
+        /// The session this request came from.
+        public var current: Bool
+
+        public init(
+            createdAt: String,
+            id: String,
+            ip: String? = nil,
+            lastSeenAt: String,
+            revokedAt: String? = nil,
+            userAgent: String? = nil,
+            userId: String,
+            current: Bool
+        ) {
+            self.createdAt = createdAt
+            self.id = id
+            self.ip = ip
+            self.lastSeenAt = lastSeenAt
+            self.revokedAt = revokedAt
+            self.userAgent = userAgent
+            self.userId = userId
+            self.current = current
         }
     }
 
@@ -2606,6 +2849,20 @@ public enum API {
         }
     }
 
+    public struct Terms: Codable, Hashable, Sendable {
+        /// Markdown.
+        public var text: String
+        public var version: Int
+
+        public init(
+            text: String,
+            version: Int
+        ) {
+            self.text = text
+            self.version = version
+        }
+    }
+
     public struct TextChange: Codable, Hashable, Sendable {
         public var op: Op
         public var value: String
@@ -2616,6 +2873,16 @@ public enum API {
         ) {
             self.op = op
             self.value = value
+        }
+    }
+
+    public struct TokenRequest: Codable, Hashable, Sendable {
+        public var token: String
+
+        public init(
+            token: String
+        ) {
+            self.token = token
         }
     }
 
@@ -2670,6 +2937,21 @@ public enum API {
             self.sceneId = sceneId
             self.state = state
             self.workId = workId
+        }
+    }
+
+    public struct TwoFactorSetup: Codable, Hashable, Sendable {
+        /// The key to type into an authenticator by hand.
+        public var secret: String
+        /// The same key as an `otpauth://` link, for a QR code or a tap.
+        public var url: String
+
+        public init(
+            secret: String,
+            url: String
+        ) {
+            self.secret = secret
+            self.url = url
         }
     }
 
@@ -2912,12 +3194,20 @@ public enum API {
         public var dailyWordGoal: Int?
         public var displayName: String
         public var email: String
+        /// When the address was proved. Invitations addressed to it reach this
+        /// account only once it has been.
+        public var emailVerifiedAt: String?
         public var id: String
         /// Contact details for a submission's first page. Kept on the writer rather
         /// than the work, since they are the same for every submission.
         public var legalName: String?
         public var mailingAddress: String?
         public var phone: String?
+        public var termsAcceptedAt: String?
+        /// The version of the terms they last agreed to.
+        public var termsVersion: Int?
+        /// When two-factor sign-in was turned on.
+        public var totpEnabledAt: String?
         public var updatedAt: String
 
         public init(
@@ -2926,10 +3216,14 @@ public enum API {
             dailyWordGoal: Int? = nil,
             displayName: String,
             email: String,
+            emailVerifiedAt: String? = nil,
             id: String,
             legalName: String? = nil,
             mailingAddress: String? = nil,
             phone: String? = nil,
+            termsAcceptedAt: String? = nil,
+            termsVersion: Int? = nil,
+            totpEnabledAt: String? = nil,
             updatedAt: String
         ) {
             self.bio = bio
@@ -2937,10 +3231,14 @@ public enum API {
             self.dailyWordGoal = dailyWordGoal
             self.displayName = displayName
             self.email = email
+            self.emailVerifiedAt = emailVerifiedAt
             self.id = id
             self.legalName = legalName
             self.mailingAddress = mailingAddress
             self.phone = phone
+            self.termsAcceptedAt = termsAcceptedAt
+            self.termsVersion = termsVersion
+            self.totpEnabledAt = totpEnabledAt
             self.updatedAt = updatedAt
         }
     }

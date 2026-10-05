@@ -22,6 +22,17 @@ print(d)"; }
 
 step() { printf '\n\033[1m%s\033[0m\n' "$*"; }
 
+# The newest link of one kind mailed to an address, read back from the outbox
+# the server writes instead of sending mail.
+link_token() { python3 -c "
+import json,re,sys
+rows=[json.loads(l) for l in open('$TMP/outbox.jsonl')]
+rows=[r for r in rows if r['to']=='$1' and '/$2?token=' in r['body']]
+print(re.search(r'token=([0-9a-f]+)', rows[-1]['body']).group(1))"; }
+# Proves an address the way a person would: by following the mailed link.
+confirm() { curl -s -X POST "$API/auth/verify" -H 'content-type: application/json' \
+  -d "{\"token\":\"$(link_token "$1" verify)\"}" >/dev/null; }
+
 step "Building"
 cargo build -q -p scriptorium-backend --manifest-path "$ROOT/Cargo.toml"
 
@@ -31,6 +42,10 @@ SCRIPTORIUM_DATABASE_URL="$TMP/scriptorium.db" \
 SCRIPTORIUM_DATA_DIR="$TMP/works" \
 SCRIPTORIUM_JWT_SECRET="smoke-test-secret-value-1234567890" \
 SCRIPTORIUM_VOTE_RATE=3 \
+SCRIPTORIUM_SECOND_FACTOR_RATE=20 \
+SCRIPTORIUM_MAIL=outbox \
+SCRIPTORIUM_OUTBOX="$TMP/outbox.jsonl" \
+SCRIPTORIUM_PUBLIC_URL="http://scriptorium.test" \
 RUST_LOG=warn \
   "$ROOT/target/debug/scriptorium-backend" >"$TMP/server.log" 2>&1 &
 SERVER_PID=$!
@@ -43,7 +58,8 @@ curl -sf "$API/health" | field status
 
 step "Registering an author"
 TOKEN=$(curl -s -X POST "$API/auth/register" -H 'content-type: application/json' \
-  -d '{"email":"ada@example.com","password":"correcthorse","displayName":"Ada"}' | field accessToken)
+  -d '{"email":"ada@example.com","password":"correcthorse","displayName":"Ada","acceptTerms":true}' | field accessToken)
+confirm ada@example.com
 AUTH="Authorization: Bearer $TOKEN"
 
 step "Creating a novel from the three-act template"
@@ -333,7 +349,8 @@ echo "  excerpt: $(echo "$PUB" | field excerpt)"
 
 step "A second writer reviews it"
 RTOKEN=$(curl -s -X POST "$API/auth/register" -H 'content-type: application/json' \
-  -d '{"email":"grace@example.com","password":"correcthorse","displayName":"Grace"}' | field accessToken)
+  -d '{"email":"grace@example.com","password":"correcthorse","displayName":"Grace","acceptTerms":true}' | field accessToken)
+confirm grace@example.com
 RAUTH="Authorization: Bearer $RTOKEN"
 curl -s "$API/publications" -H "$RAUTH" | python3 -c "import sys,json;print('  feed:',[(c['workTitle'],c['author']['displayName']) for c in json.load(sys.stdin)])"
 
@@ -346,7 +363,8 @@ curl -s -X POST "$API/comments/$CID/vote" -H "$AUTH" -H 'content-type: applicati
 step "Invited readers only"
 # A third writer nobody invited, to check the door is actually locked.
 STOKEN=$(curl -s -X POST "$API/auth/register" -H 'content-type: application/json' \
-  -d '{"email":"stranger@example.com","password":"correcthorse","displayName":"Stranger"}' | field accessToken)
+  -d '{"email":"stranger@example.com","password":"correcthorse","displayName":"Stranger","acceptTerms":true}' | field accessToken)
+confirm stranger@example.com
 SAUTH="Authorization: Bearer $STOKEN"
 
 INV=$(curl -s -X POST "$API/versions/$V2/publications" -H "$AUTH" -H 'content-type: application/json' \
@@ -726,7 +744,8 @@ SV=$(curl -s -X POST "$API/works/$SWID/versions" -H "$SAUTH" -H 'content-type: a
 curl -s -X POST "$API/versions/$SV/publish" -H "$SAUTH" >/dev/null
 SPID=$(curl -s -X POST "$API/versions/$SV/publications" -H "$SAUTH" -H 'content-type: application/json' -d '{"visibility":"platform"}' | field id)
 HTOKEN=$(curl -s -X POST "$API/auth/register" -H 'content-type: application/json' \
-  -d '{"email":"hal@example.com","password":"correcthorse","displayName":"Hal"}' | field accessToken)
+  -d '{"email":"hal@example.com","password":"correcthorse","displayName":"Hal","acceptTerms":true}' | field accessToken)
+confirm hal@example.com
 HAUTH="Authorization: Bearer $HTOKEN"
 queue() { curl -s "$API/publications?sort=needs_readers" -H "$1" | python3 -c "
 import sys,json;print(', '.join(f\"{r['workTitle']} ({r['readerCount']} read)\" for r in json.load(sys.stdin)) or 'nothing')"; }
@@ -763,7 +782,8 @@ for c in json.load(sys.stdin):
     who = c['person']['displayName'] if c['person'] else c['email'] + ' (no account yet)'
     print(f\"  {who}: {c['role']}{' on ' + str(len(c['chapterIds'])) + ' chapter' if c['chapterIds'] is not None else ''}\")"
 ITOKEN=$(curl -s -X POST "$API/auth/register" -H 'content-type: application/json' \
-  -d '{"email":"ivy@example.com","password":"correcthorse","displayName":"Ivy"}' | field accessToken)
+  -d '{"email":"ivy@example.com","password":"correcthorse","displayName":"Ivy","acceptTerms":true}' | field accessToken)
+confirm ivy@example.com
 IAUTH="Authorization: Bearer $ITOKEN"
 curl -s "$API/works" -H "$HAUTH" | python3 -c "
 import sys,json;rows=json.load(sys.stdin);assert any(w['title']=='The Long Field' for w in rows), rows
@@ -824,6 +844,145 @@ expect "Ivy steps off the book" "$(code -X DELETE "$API/works/$WID/collaborators
 expect "and is shut out of it" "$(code "$API/works/$WID/outline" -H "$IAUTH")" 403
 expect "and an owner can take someone else off" \
   "$(code -X DELETE "$API/works/$WID/collaborators/$HALC" -H "$AUTH")" 200
+
+step "Terms"
+curl -s "$API/terms" | python3 -c "
+import sys,json;d=json.load(sys.stdin);assert 'belongs to you' in d['text'] and not d['text'].startswith('<!--'), d['text'][:80]
+print(f\"  version {d['version']}, and it says the writing belongs to the writer\")"
+NOTERMS=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$API/auth/register" -H 'content-type: application/json' \
+  -d '{"email":"nope@example.com","password":"correcthorse","displayName":"Nope"}')
+[ "$NOTERMS" = "400" ] && echo "  an account without agreement is refused" || { echo "  EXPECTED 400, got $NOTERMS"; exit 1; }
+
+step "Proving an address"
+KTOKEN=$(curl -s -X POST "$API/auth/register" -H 'content-type: application/json' \
+  -d '{"email":"kit@example.com","password":"correcthorse","displayName":"Kit","acceptTerms":true}' | field accessToken)
+KAUTH="Authorization: Bearer $KTOKEN"
+curl -s -X POST "$API/publications/$INV/invites" -H "$AUTH" -H 'content-type: application/json' -d '{"emails":["kit@example.com"]}' >/dev/null
+UNPROVED=$(curl -s "$API/publications/$INV" -H "$KAUTH")
+echo "$UNPROVED" | python3 -c "
+import sys,json;e=json.load(sys.stdin)['error'];assert e['code']=='forbidden' and 'confirm' in e['message'], e
+print('  invited, but not let in until the address is proved:', e['message'])"
+FIRST=$(link_token kit@example.com verify)
+curl -s -X POST "$API/me/verification" -H "$KAUTH" >/dev/null
+SECOND=$(link_token kit@example.com verify)
+STALE=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$API/auth/verify" -H 'content-type: application/json' -d "{\"token\":\"$FIRST\"}")
+[ "$STALE" = "400" ] && echo "  asking again retires the first link" || { echo "  EXPECTED 400, got $STALE"; exit 1; }
+curl -s -X POST "$API/auth/verify" -H 'content-type: application/json' -d "{\"token\":\"$SECOND\"}" >/dev/null
+[ "$(curl -s -o /dev/null -w '%{http_code}' "$API/publications/$INV" -H "$KAUTH")" = "200" ] \
+  && echo "  following the mailed link opens the draft, with the same session" || { echo "  STILL SHUT OUT"; exit 1; }
+AGAIN=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$API/auth/verify" -H 'content-type: application/json' -d "{\"token\":\"$SECOND\"}")
+[ "$AGAIN" = "400" ] && echo "  a link works once" || { echo "  EXPECTED 400, got $AGAIN"; exit 1; }
+
+step "Getting back in"
+curl -s -X POST "$API/auth/password/forgot" -H 'content-type: application/json' -d '{"email":"nobody@example.com"}' | field ok | sed 's/^/  an unknown address gets the same answer: ok=/'
+curl -s -X POST "$API/auth/password/forgot" -H 'content-type: application/json' -d '{"email":"kit@example.com"}' >/dev/null
+RESET=$(link_token kit@example.com reset)
+curl -s -X POST "$API/auth/password/reset" -H 'content-type: application/json' \
+  -d "{\"token\":\"$RESET\",\"password\":\"batterystaple\"}" >/dev/null
+[ "$(curl -s -o /dev/null -w '%{http_code}' "$API/auth/me" -H "$KAUTH")" = "401" ] \
+  && echo "  the reset signed out the session that was open" || { echo "  OLD SESSION SURVIVED"; exit 1; }
+[ "$(curl -s -o /dev/null -w '%{http_code}' -X POST "$API/auth/login" -H 'content-type: application/json' -d '{"email":"kit@example.com","password":"correcthorse"}')" = "401" ] \
+  && echo "  the old password no longer works" || { echo "  OLD PASSWORD WORKS"; exit 1; }
+KTOKEN=$(curl -s -X POST "$API/auth/login" -H 'content-type: application/json' -d '{"email":"kit@example.com","password":"batterystaple"}' | field accessToken)
+KAUTH="Authorization: Bearer $KTOKEN"
+echo "  the new one does"
+
+step "Two-factor sign-in"
+totp() { python3 -c "
+import hmac,hashlib,struct,time,base64
+s='$1';k=base64.b32decode(s+'='*(-len(s)%8));c=int(time.time()//30)+${2:-0}
+h=hmac.new(k,struct.pack('>q',c),hashlib.sha1).digest();o=h[-1]&15
+print('%06d'%((struct.unpack('>I',h[o:o+4])[0]&0x7fffffff)%1000000))"; }
+SECRET=$(curl -s -X POST "$API/me/two-factor/setup" -H "$KAUTH" | field secret)
+CODES=$(curl -s -X POST "$API/me/two-factor/enable" -H "$KAUTH" -H 'content-type: application/json' -d "{\"code\":\"$(totp $SECRET)\"}")
+RECOVERY=$(echo "$CODES" | field codes.0)
+RECOVERY2=$(echo "$CODES" | field codes.1)
+echo "  on, with $(echo "$CODES" | python3 -c 'import sys,json;print(len(json.load(sys.stdin)["codes"]))') recovery codes"
+login() { curl -s -X POST "$API/auth/login" -H 'content-type: application/json' -d "{\"email\":\"kit@example.com\",\"password\":\"batterystaple\"$1}"; }
+login '' | python3 -c "
+import sys,json;e=json.load(sys.stdin)['error'];assert e['code']=='two_factor_required', e
+print('  the right password alone now asks for a code')"
+REPLAY=$(login ",\"code\":\"$(totp $SECRET)\"" | python3 -c "import sys,json;print(json.load(sys.stdin).get('error',{}).get('code','ok'))")
+[ "$REPLAY" = "unauthorized" ] && echo "  the code that switched it on cannot be used again" || { echo "  EXPECTED a refused replay, got $REPLAY"; exit 1; }
+login ",\"code\":\"$(totp $SECRET 1)\"" | field accessToken >/dev/null && echo "  the next code signs in"
+login ",\"code\":\"$RECOVERY\"" | field accessToken >/dev/null && echo "  so does a recovery code"
+SPENT=$(login ",\"code\":\"$RECOVERY\"" | python3 -c "import sys,json;print(json.load(sys.stdin).get('error',{}).get('code','ok'))")
+[ "$SPENT" = "unauthorized" ] && echo "  once" || { echo "  EXPECTED a spent recovery code, got $SPENT"; exit 1; }
+
+step "Sessions"
+OTHER=$(login ",\"code\":\"$RECOVERY2\"" 2>/dev/null | python3 -c "import sys,json;print(json.load(sys.stdin).get('accessToken',''))")
+curl -s "$API/me/sessions" -H "$KAUTH" | python3 -c "
+import sys,json;rows=json.load(sys.stdin);assert sum(r['current'] for r in rows)==1
+print(f'  {len(rows)} devices signed in, one of them this one')"
+VICTIM=$(curl -s "$API/me/sessions" -H "$KAUTH" | python3 -c "
+import sys,json;print(next(r['id'] for r in json.load(sys.stdin) if not r['current']))")
+curl -s -X DELETE "$API/me/sessions/$VICTIM" -H "$KAUTH" >/dev/null
+curl -s -X POST "$API/me/sessions/sign-out-others" -H "$KAUTH" >/dev/null
+[ -n "$OTHER" ] && [ "$(curl -s -o /dev/null -w '%{http_code}' "$API/auth/me" -H "Authorization: Bearer $OTHER")" = "401" ] \
+  && echo "  signing the others out works at once, not when their tokens run out" || { echo "  A REVOKED SESSION STILL WORKS"; exit 1; }
+curl -s "$API/me/sessions" -H "$KAUTH" | python3 -c "
+import sys,json;rows=json.load(sys.stdin);assert len(rows)==1 and rows[0]['current'], rows
+print('  this one is left')"
+
+step "The audit log"
+curl -s "$API/me/audit" -H "$AUTH" | python3 -c "
+import sys,json
+seen={r['action'] for r in json.load(sys.stdin)}
+for want in ['publication_created','publication_changed','reader_invited','collaborator_added','collaborator_removed','reader_blocked']:
+    assert want in seen, (want, seen)
+print('  Ada can see who published, who was let in and who was shut out:', ', '.join(sorted(seen)))"
+
+step "A copy of everything"
+curl -s -o "$TMP/export.zip" "$API/me/export" -H "$AUTH"
+python3 - "$TMP/export.zip" <<'PY'
+import sys, zipfile, json
+z = zipfile.ZipFile(sys.argv[1])
+names = z.namelist()
+for want in ['README.txt', 'account.json', 'works.json', 'contributions.json', 'audit.json']:
+    assert want in names, (want, names[:10])
+scenes = [n for n in names if n.startswith('manuscripts/') and '/working/' in n]
+assert scenes, 'no manuscript files'
+everything = b''.join(z.read(n) for n in names)
+assert b'argon2' not in everything and b'passwordHash' not in everything, 'a password hash got into the export'
+account = json.loads(z.read('account.json'))
+print(f"  {len(names)} files: the records, and {len(scenes)} working scenes exactly as stored — no password hash")
+PY
+
+step "Deleting an account"
+curl -s -X POST "$API/works/$SWID/collaborators" -H "$SAUTH" -H 'content-type: application/json' -d '{"email":"hal@example.com","role":"reader"}' >/dev/null
+SHARED=$(curl -s -X DELETE "$API/me" -H "$SAUTH" -H 'content-type: application/json' -d '{"password":"correcthorse"}')
+echo "$SHARED" | python3 -c "
+import sys,json;e=json.load(sys.stdin)['error'];assert e['details']['sharedWorks']==['Low Tide'], e
+print('  refused until told:', e['message'])"
+WRONG=$(curl -s -o /dev/null -w '%{http_code}' -X DELETE "$API/me" -H "$SAUTH" -H 'content-type: application/json' -d '{"password":"wrong-password","deleteSharedWorks":true}')
+[ "$WRONG" = "401" ] && echo "  and never without the password" || { echo "  EXPECTED 401, got $WRONG"; exit 1; }
+[ -d "$TMP/works/$SWID" ] || { echo "  EXPECTED Low Tide's files before deletion"; exit 1; }
+curl -s -X DELETE "$API/me" -H "$SAUTH" -H 'content-type: application/json' -d '{"password":"correcthorse","deleteSharedWorks":true}' | field worksDeleted | sed 's/^/  deleted, with works: /'
+[ ! -d "$TMP/works/$SWID" ] && echo "  and Low Tide's files are gone from disk" || { echo "  FILES LEFT BEHIND"; exit 1; }
+[ "$(curl -s -o /dev/null -w '%{http_code}' -X POST "$API/auth/login" -H 'content-type: application/json' -d '{"email":"stranger@example.com","password":"correcthorse"}')" = "401" ] \
+  && echo "  the account no longer signs in" || { echo "  STILL SIGNS IN"; exit 1; }
+# Someone else answers one of Grace's notes; deleting her must not take
+# their reply with it.
+REPLYRAW=$(curl -s -X POST "$API/publications/$PID/comments" -H "$KAUTH" -H 'content-type: application/json' \
+  -d "{\"body\":\"I read it the other way.\",\"parentId\":\"$CID\"}")
+REPLY=$(echo "$REPLYRAW" | field id 2>/dev/null) || { echo "  COULD NOT REPLY: $REPLYRAW"; exit 1; }
+curl -s -X DELETE "$API/me" -H "$RAUTH" -H 'content-type: application/json' -d '{"password":"correcthorse"}' >/dev/null
+curl -s "$API/publications/$PID/comments" -H "$AUTH" | python3 -c "
+import sys,json
+rows=json.load(sys.stdin)
+def every(cs):
+    for c in cs:
+        yield c
+        yield from every(c['replies'])
+flat=list(every(rows))
+assert not any(c['author']['displayName']=='Grace' for c in flat), 'Grace is still named'
+root=[c for c in rows if c['id']=='$CID']
+assert root and root[0]['state']=='deleted' and root[0]['body']=='', 'her note should be a blank placeholder'
+assert any(r['id']=='$REPLY' for r in root[0]['replies']), 'the reply under her note went with her'
+print(\"  Grace's notes are blanked, and Kit's reply under one of them is still there\")"
+curl -s "$API/me/audit" -H "$AUTH" | python3 -c "
+import sys,json;assert any(r['action']=='collaborator_added' for r in json.load(sys.stdin))
+print('  and the audit trail outlives the accounts it mentions')"
 
 step "Exporting the published version"
 for fmt in txt docx epub pdf; do

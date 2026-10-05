@@ -9,6 +9,7 @@ import type {
   QuestionKind, QuestionScope, Standing, BulkStateResponse, ReportReason, TaskView,
   TaskState, ReportView, BlockView, SinceResponse, Profile, FollowState, AuthorCard,
   Genre, LengthBand, WindowFilter, FeedSort, CollaboratorRole, CollaboratorView, ActivityView,
+  SessionView, TwoFactorSetup, RecoveryCodes, AuditEvent, Terms,
 } from './types'
 
 const BASE = '/api'
@@ -124,6 +125,31 @@ export function downloadExport(versionId: string, format: string, style: string)
 }
 
 /** Every note on a publication, as a document the author can work from. */
+/** Everything held about the caller, as one zip. */
+export async function downloadAccountExport(): Promise<void> {
+  const headers: Record<string, string> = {}
+  let access = tokens.access()
+  if (access) headers.authorization = `Bearer ${access}`
+  let res = await fetch(`${BASE}/me/export`, { headers })
+  if (res.status === 401 && (await tryRefresh())) {
+    access = tokens.access()
+    if (access) headers.authorization = `Bearer ${access}`
+    res = await fetch(`${BASE}/me/export`, { headers })
+  }
+  if (!res.ok) {
+    const payload = await res.json().catch(() => null)
+    throw new ApiError(res.status, payload?.error?.code ?? 'unknown', payload?.error?.message ?? res.statusText)
+  }
+  const url = URL.createObjectURL(await res.blob())
+  const link = document.createElement('a')
+  link.href = url
+  link.download = 'scriptorium-export.zip'
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 10_000)
+}
+
 export function downloadFeedback(publicationId: string, format: string): Promise<void> {
   return download(`/publications/${publicationId}/feedback/export`, format, 'manuscript')
 }
@@ -180,10 +206,11 @@ export const api = {
   },
 
   auth: {
-    register: (email: string, password: string, displayName: string) =>
-      post<Session>('/auth/register', { email, password, displayName }),
-    login: (email: string, password: string) =>
-      post<Session>('/auth/login', { email, password }),
+    register: (email: string, password: string, displayName: string, acceptTerms: boolean) =>
+      post<Session>('/auth/register', { email, password, displayName, acceptTerms }),
+    /** `code` only once the server has refused with `two_factor_required`. */
+    login: (email: string, password: string, code?: string) =>
+      post<Session>('/auth/login', { email, password, code }),
     logout: () => post<{ ok: boolean }>('/auth/logout', { refreshToken: tokens.refresh() }),
     me: () => get<Session['user']>('/auth/me'),
   },
@@ -473,6 +500,34 @@ export const api = {
     update: (taskId: string, input: { body?: string; state?: TaskState; sceneId?: string }) =>
       patch<TaskView>(`/tasks/${taskId}`, input),
     remove: (taskId: string) => del<{ deleted: boolean }>(`/tasks/${taskId}`),
+  },
+
+  /** Proving the address, getting back in, the second factor, sessions. */
+  account: {
+    resendVerification: () => post<{ ok: boolean }>('/me/verification'),
+    verify: (token: string) => post<{ ok: boolean }>('/auth/verify', { token }),
+    forgot: (email: string) => post<{ ok: boolean }>('/auth/password/forgot', { email }),
+    reset: (token: string, password: string) =>
+      post<{ ok: boolean }>('/auth/password/reset', { token, password }),
+    changePassword: (currentPassword: string, newPassword: string) =>
+      post<{ ok: boolean }>('/me/password', { currentPassword, newPassword }),
+    setupTwoFactor: () => post<TwoFactorSetup>('/me/two-factor/setup'),
+    enableTwoFactor: (code: string) => post<RecoveryCodes>('/me/two-factor/enable', { code }),
+    disableTwoFactor: (password: string, code: string) =>
+      post<{ ok: boolean }>('/me/two-factor/disable', { password, code }),
+    sessions: () => get<SessionView[]>('/me/sessions'),
+    revokeSession: (sessionId: string) => del<{ ok: boolean }>(`/me/sessions/${sessionId}`),
+    signOutOthers: () => post<{ ok: boolean }>('/me/sessions/sign-out-others'),
+  },
+
+  /** The terms, the record, and leaving. */
+  trust: {
+    terms: () => get<Terms>('/terms'),
+    acceptTerms: (version: number) => post<User>('/me/terms', { version }),
+    audit: () => get<AuditEvent[]>('/me/audit'),
+    /** Refused with a 409 naming them if works with co-authors would go too. */
+    deleteAccount: (input: { password: string; code?: string; deleteSharedWorks?: boolean }) =>
+      request<{ worksDeleted: number }>('DELETE', '/me', input),
   },
 
   /** Who else is on a work, what they may do, and what they have done. */

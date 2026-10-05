@@ -10,6 +10,8 @@ public final class SessionStore: ObservableObject {
     @Published public private(set) var user: API.User?
     @Published public private(set) var isLoading = true
     @Published public var errorMessage: String?
+    /// The password was right; the account wants a code as well.
+    @Published public var needsCode = false
 
     public let client: APIClient
     /// Everything the views read and write goes through this, not the client:
@@ -70,13 +72,17 @@ public final class SessionStore: ObservableObject {
         user = try? await client.me()
     }
 
-    public func signIn(email: String, password: String) async {
-        await attempt { try await self.client.signIn(email: email, password: password).user }
+    public func signIn(email: String, password: String, code: String? = nil) async {
+        await attempt {
+            try await self.client.signIn(email: email, password: password, code: code).user
+        }
     }
 
-    public func register(email: String, password: String, displayName: String) async {
+    public func register(email: String, password: String, displayName: String, acceptTerms: Bool) async {
         await attempt {
-            try await self.client.register(email: email, password: password, displayName: displayName).user
+            try await self.client.register(
+                email: email, password: password, displayName: displayName, acceptTerms: acceptTerms
+            ).user
         }
     }
 
@@ -92,6 +98,10 @@ public final class SessionStore: ObservableObject {
         errorMessage = nil
         do {
             user = try await work()
+            needsCode = false
+        } catch APIError.http(_, "two_factor_required", _) {
+            // Not a failure: ask for the code and go again.
+            needsCode = true
         } catch {
             errorMessage = error.localizedDescription
         }

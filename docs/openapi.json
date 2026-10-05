@@ -1,6 +1,19 @@
 {
   "components": {
     "schemas": {
+      "AcceptTermsRequest": {
+        "properties": {
+          "version": {
+            "description": "The version being agreed to — the one the person was shown.",
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "type": "object"
+      },
       "ActivityKind": {
         "enum": [
           "scene_edited",
@@ -143,6 +156,67 @@
             "type": "object"
           }
         ]
+      },
+      "AuditAction": {
+        "enum": [
+          "password_reset",
+          "password_changed",
+          "two_factor_enabled",
+          "two_factor_disabled",
+          "session_revoked",
+          "sessions_revoked",
+          "account_exported",
+          "account_deleted",
+          "work_deleted",
+          "publication_created",
+          "publication_changed",
+          "publication_withdrawn",
+          "collaborator_added",
+          "collaborator_changed",
+          "collaborator_removed",
+          "reader_invited",
+          "reader_uninvited",
+          "reader_blocked",
+          "reader_unblocked",
+          "terms_accepted"
+        ],
+        "type": "string"
+      },
+      "AuditEvent": {
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/AuditAction"
+          },
+          "actorId": {
+            "description": "Who did it. Kept after their account is gone.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "workId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "action",
+          "detail",
+          "createdAt"
+        ],
+        "type": "object"
       },
       "AuthorCard": {
         "description": "Author cards attached to comments so the clients need no second round trip.",
@@ -466,6 +540,21 @@
         ],
         "type": "string"
       },
+      "ChangePasswordRequest": {
+        "properties": {
+          "currentPassword": {
+            "type": "string"
+          },
+          "newPassword": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "currentPassword",
+          "newPassword"
+        ],
+        "type": "object"
+      },
       "ChangeState": {
         "enum": [
           "pending",
@@ -561,6 +650,17 @@
             "type": "object"
           }
         ]
+      },
+      "CodeRequest": {
+        "properties": {
+          "code": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "type": "object"
       },
       "CollaboratorRole": {
         "enum": [
@@ -1186,6 +1286,40 @@
         ],
         "type": "object"
       },
+      "DeleteAccountRequest": {
+        "properties": {
+          "code": {
+            "description": "From the authenticator, when two-factor sign-in is on.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "deleteSharedWorks": {
+            "description": "Required when a work being deleted has co-authors on it, after they\nhave been told which.",
+            "type": "boolean"
+          },
+          "password": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "password"
+        ],
+        "type": "object"
+      },
+      "DeletedAccount": {
+        "properties": {
+          "worksDeleted": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "worksDeleted"
+        ],
+        "type": "object"
+      },
       "DiffResponse": {
         "properties": {
           "from": {
@@ -1276,6 +1410,22 @@
         ],
         "type": "object"
       },
+      "DisableTwoFactorRequest": {
+        "properties": {
+          "code": {
+            "description": "From the authenticator, or a recovery code.",
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "password",
+          "code"
+        ],
+        "type": "object"
+      },
       "DocMark": {
         "properties": {
           "attrs": {},
@@ -1325,6 +1475,17 @@
         ],
         "type": "object"
       },
+      "Done": {
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "type": "object"
+      },
       "EntryView": {
         "allOf": [
           {
@@ -1350,7 +1511,7 @@
       "ErrorBody": {
         "properties": {
           "code": {
-            "description": "`bad_request`, `unauthorized`, `forbidden`, `not_found`, `conflict`, `internal`.",
+            "description": "`bad_request`, `unauthorized`, `two_factor_required`, `forbidden`,\n`not_found`, `conflict`, `too_many_requests`, `internal`.",
             "type": "string"
           },
           "details": {
@@ -1398,6 +1559,17 @@
         "required": [
           "following",
           "followers"
+        ],
+        "type": "object"
+      },
+      "ForgotRequest": {
+        "properties": {
+          "email": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "email"
         ],
         "type": "object"
       },
@@ -1495,6 +1667,13 @@
       },
       "LoginRequest": {
         "properties": {
+          "code": {
+            "description": "The six digits from an authenticator, or a recovery code, for an\naccount with two-factor sign-in on. Asked for with a\n`two_factor_required` refusal when it is missing.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "email": {
             "type": "string"
           },
@@ -2135,6 +2314,21 @@
         ],
         "type": "object"
       },
+      "RecoveryCodes": {
+        "properties": {
+          "codes": {
+            "description": "Shown once. Each gets someone in once if the authenticator is lost.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "codes"
+        ],
+        "type": "object"
+      },
       "RefreshRequest": {
         "properties": {
           "refreshToken": {
@@ -2148,6 +2342,10 @@
       },
       "RegisterRequest": {
         "properties": {
+          "acceptTerms": {
+            "description": "Agreement to the terms in force (`GET /api/terms`). Required.",
+            "type": "boolean"
+          },
           "displayName": {
             "type": "string"
           },
@@ -2237,6 +2435,21 @@
             "type": "object"
           }
         ]
+      },
+      "ResetRequest": {
+        "properties": {
+          "password": {
+            "type": "string"
+          },
+          "token": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "token",
+          "password"
+        ],
+        "type": "object"
       },
       "ResolveResponse": {
         "properties": {
@@ -2701,6 +2914,48 @@
           }
         ]
       },
+      "Session": {
+        "properties": {
+          "createdAt": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "ip": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lastSeenAt": {
+            "type": "string"
+          },
+          "revokedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "userAgent": {
+            "description": "What the device said it was, for telling sessions apart in a list.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "userId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "userId",
+          "createdAt",
+          "lastSeenAt"
+        ],
+        "type": "object"
+      },
       "SessionResponse": {
         "properties": {
           "accessToken": {
@@ -2724,6 +2979,25 @@
           "expiresIn"
         ],
         "type": "object"
+      },
+      "SessionView": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Session"
+          },
+          {
+            "properties": {
+              "current": {
+                "description": "The session this request came from.",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "current"
+            ],
+            "type": "object"
+          }
+        ]
       },
       "SinceResponse": {
         "properties": {
@@ -3011,6 +3285,23 @@
         ],
         "type": "object"
       },
+      "Terms": {
+        "properties": {
+          "text": {
+            "description": "Markdown.",
+            "type": "string"
+          },
+          "version": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version",
+          "text"
+        ],
+        "type": "object"
+      },
       "TextChange": {
         "properties": {
           "op": {
@@ -3023,6 +3314,17 @@
         "required": [
           "op",
           "value"
+        ],
+        "type": "object"
+      },
+      "TokenRequest": {
+        "properties": {
+          "token": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "token"
         ],
         "type": "object"
       },
@@ -3103,6 +3405,23 @@
           "payload",
           "state",
           "createdAt"
+        ],
+        "type": "object"
+      },
+      "TwoFactorSetup": {
+        "properties": {
+          "secret": {
+            "description": "The key to type into an authenticator by hand.",
+            "type": "string"
+          },
+          "url": {
+            "description": "The same key as an `otpauth://` link, for a QR code or a tap.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "secret",
+          "url"
         ],
         "type": "object"
       },
@@ -3494,6 +3813,13 @@
           "email": {
             "type": "string"
           },
+          "emailVerifiedAt": {
+            "description": "When the address was proved. Invitations addressed to it reach this\naccount only once it has been.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "id": {
             "type": "string"
           },
@@ -3511,6 +3837,27 @@
             ]
           },
           "phone": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "termsAcceptedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "termsVersion": {
+            "description": "The version of the terms they last agreed to.",
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "totpEnabledAt": {
+            "description": "When two-factor sign-in was turned on.",
             "type": [
               "string",
               "null"
@@ -4206,6 +4553,86 @@
         ]
       }
     },
+    "/api/auth/password/forgot": {
+      "post": {
+        "operationId": "forgot",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ForgotRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Done"
+                }
+              }
+            },
+            "description": "Sent if there is such an account"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "account"
+        ]
+      }
+    },
+    "/api/auth/password/reset": {
+      "post": {
+        "operationId": "reset",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Done"
+                }
+              }
+            },
+            "description": "Password changed; every device signed out"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "account"
+        ]
+      }
+    },
     "/api/auth/refresh": {
       "post": {
         "operationId": "refresh",
@@ -4283,6 +4710,46 @@
         },
         "tags": [
           "auth"
+        ]
+      }
+    },
+    "/api/auth/verify": {
+      "post": {
+        "operationId": "verify",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TokenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Done"
+                }
+              }
+            },
+            "description": "Address confirmed"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "account"
         ]
       }
     },
@@ -5174,6 +5641,90 @@
         ]
       }
     },
+    "/api/me": {
+      "delete": {
+        "operationId": "delete_account",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteAccountRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeletedAccount"
+                }
+              }
+            },
+            "description": "Gone"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Works with co-authors would go too"
+          }
+        },
+        "tags": [
+          "trust"
+        ]
+      }
+    },
+    "/api/me/audit": {
+      "get": {
+        "operationId": "list",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AuditEvent"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "The record"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "What you did, and what anyone did to a work you own. Newest first.",
+        "tags": [
+          "trust"
+        ]
+      }
+    },
     "/api/me/blocks": {
       "get": {
         "operationId": "list_blocks",
@@ -5291,6 +5842,33 @@
         ]
       }
     },
+    "/api/me/export": {
+      "get": {
+        "operationId": "export",
+        "responses": {
+          "200": {
+            "content": {
+              "application/zip": {}
+            },
+            "description": "A zip of everything"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "Everything held about the caller, as one zip they can open without us:\nJSON for the records, and the manuscript files exactly as they are stored.",
+        "tags": [
+          "trust"
+        ]
+      }
+    },
     "/api/me/following": {
       "get": {
         "operationId": "following",
@@ -5364,6 +5942,46 @@
         ]
       }
     },
+    "/api/me/password": {
+      "post": {
+        "operationId": "change_password",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Done"
+                }
+              }
+            },
+            "description": "Changed; other devices signed out"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "account"
+        ]
+      }
+    },
     "/api/me/profile": {
       "patch": {
         "operationId": "update_profile",
@@ -5401,6 +6019,289 @@
         },
         "tags": [
           "profiles"
+        ]
+      }
+    },
+    "/api/me/sessions": {
+      "get": {
+        "operationId": "list_sessions",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SessionView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Every device signed in, most recent first"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "account"
+        ]
+      }
+    },
+    "/api/me/sessions/sign-out-others": {
+      "post": {
+        "operationId": "sign_out_others",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Done"
+                }
+              }
+            },
+            "description": "Every other device signed out"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "account"
+        ]
+      }
+    },
+    "/api/me/sessions/{session_id}": {
+      "delete": {
+        "operationId": "revoke_session",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Done"
+                }
+              }
+            },
+            "description": "Signed out"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "account"
+        ]
+      }
+    },
+    "/api/me/terms": {
+      "post": {
+        "operationId": "accept_terms",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptTermsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            },
+            "description": "Recorded"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "trust"
+        ]
+      }
+    },
+    "/api/me/two-factor/disable": {
+      "post": {
+        "operationId": "disable_two_factor",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DisableTwoFactorRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Done"
+                }
+              }
+            },
+            "description": "Off"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "account"
+        ]
+      }
+    },
+    "/api/me/two-factor/enable": {
+      "post": {
+        "operationId": "enable_two_factor",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CodeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecoveryCodes"
+                }
+              }
+            },
+            "description": "On; the recovery codes, shown once"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "account"
+        ]
+      }
+    },
+    "/api/me/two-factor/setup": {
+      "post": {
+        "operationId": "setup_two_factor",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TwoFactorSetup"
+                }
+              }
+            },
+            "description": "A new key, not yet in force"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "account"
+        ]
+      }
+    },
+    "/api/me/verification": {
+      "post": {
+        "operationId": "resend_verification",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Done"
+                }
+              }
+            },
+            "description": "Sent, or already proved"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "account"
         ]
       }
     },
@@ -7205,6 +8106,26 @@
         ]
       }
     },
+    "/api/terms": {
+      "get": {
+        "operationId": "terms",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Terms"
+                }
+              }
+            },
+            "description": "The terms in force"
+          }
+        },
+        "tags": [
+          "trust"
+        ]
+      }
+    },
     "/api/users/{user_id}/follow": {
       "delete": {
         "operationId": "unfollow",
@@ -8774,6 +9695,14 @@
     {
       "description": "Authors, and who follows them",
       "name": "profiles"
+    },
+    {
+      "description": "Proving an address, getting back in, a second factor, sessions",
+      "name": "account"
+    },
+    {
+      "description": "Your data, the audit log, the terms",
+      "name": "trust"
     },
     {
       "description": "Co-authors, their roles, and what they did",

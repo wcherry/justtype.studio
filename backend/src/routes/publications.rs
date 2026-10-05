@@ -14,7 +14,8 @@ use crate::db::blocking;
 use crate::db::models::*;
 use crate::db::schema::{comments, publications, users, versions, works};
 use crate::domain::enums::{
-    ActivityKind, FeedSort, Genre, LengthBand, PublicationScope, Visibility, WindowFilter, WorkKind,
+    ActivityKind, AuditAction, FeedSort, Genre, LengthBand, PublicationScope, Visibility,
+    WindowFilter, WorkKind,
 };
 use crate::domain::{new_id, now_iso};
 use crate::error::{ApiError, ApiResult, ErrorEnvelope};
@@ -159,6 +160,13 @@ pub async fn create(
         diesel::insert_into(publications::table)
             .values(&row)
             .execute(conn)?;
+        super::audit::record(
+            conn,
+            Some(&user.id),
+            Some(&work.id),
+            AuditAction::PublicationCreated,
+            &format!("{} offered to {} readers", version.label, row.visibility),
+        )?;
         super::collaborators::record(
             conn,
             &work.id,
@@ -383,7 +391,16 @@ pub async fn feed_cards(
         offset: query.offset.unwrap_or(0),
     }
     .clamped();
-    let me = user.map(|u| (u.id, u.email.trim().to_lowercase()));
+    // An unproved address has been invited to nothing: anyone could have
+    // typed it in at sign-up.
+    let me = user.map(|u| {
+        let email = if u.email_verified {
+            u.email.trim().to_lowercase()
+        } else {
+            String::new()
+        };
+        (u.id, email)
+    });
     let needs_readers = query.sort.as_deref() == Some("needs_readers");
 
     let cards = blocking(&state.pool, move |conn| {
@@ -655,8 +672,35 @@ pub async fn update(
         }
     }
     let card = blocking(&state.pool, move |conn| {
-        support::publication_for_owner(conn, &publication_id, &user)?;
+        let (_, work) = support::publication_for_owner(conn, &publication_id, &user)?;
         let now = now_iso();
+        // What changed, in words, for the record: visibility and dates decide
+        // who can read a manuscript, which is what an audit is for.
+        let mut changed: Vec<String> = Vec::new();
+        if let Some(v) = &body.visibility {
+            changed.push(format!("visibility {v}"));
+        }
+        if let Some(at) = &body.closes_at {
+            changed.push(format!("closes {at}"));
+        }
+        if let Some(cap) = body.max_reviewers {
+            changed.push(format!("reviewer cap {cap}"));
+        }
+        if let Some(on) = body.spoiler_safe {
+            changed.push(format!("spoiler-safe {on}"));
+        }
+        if body.review_prompt.is_some() {
+            changed.push("prompt".into());
+        }
+        if !changed.is_empty() {
+            super::audit::record(
+                conn,
+                Some(&user.id),
+                Some(&work.id),
+                AuditAction::PublicationChanged,
+                &format!("{publication_id}: {}", changed.join(", ")),
+            )?;
+        }
         if let Some(visibility) = &body.visibility {
             diesel::update(publications::table.find(&publication_id))
                 .set(publications::visibility.eq(visibility))
@@ -709,8 +753,15 @@ pub async fn delete_publication(
     Path(publication_id): Path<String>,
 ) -> ApiResult<Json<Value>> {
     blocking(&state.pool, move |conn| {
-        support::publication_for_owner(conn, &publication_id, &user)?;
+        let (_, work) = support::publication_for_owner(conn, &publication_id, &user)?;
         diesel::delete(publications::table.find(&publication_id)).execute(conn)?;
+        super::audit::record(
+            conn,
+            Some(&user.id),
+            Some(&work.id),
+            AuditAction::PublicationWithdrawn,
+            &format!("{publication_id}, with its comments"),
+        )?;
         Ok(())
     })
     .await?;

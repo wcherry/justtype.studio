@@ -33,6 +33,18 @@ row!(User, users, {
     legal_name: Option<String>,
     mailing_address: Option<String>,
     phone: Option<String>,
+    /// When the address was proved. Invitations addressed to it reach this
+    /// account only once it has been.
+    email_verified_at: Option<String>,
+    #[serde(skip)]
+    totp_secret: Option<String>,
+    /// When two-factor sign-in was turned on.
+    totp_enabled_at: Option<String>,
+    #[serde(skip)]
+    totp_last_step: Option<i64>,
+    /// The version of the terms they last agreed to.
+    terms_version: Option<i32>,
+    terms_accepted_at: Option<String>,
 });
 
 row!(RefreshToken, refresh_tokens, {
@@ -41,6 +53,40 @@ row!(RefreshToken, refresh_tokens, {
     token_hash: String,
     expires_at: String,
     revoked_at: Option<String>,
+    created_at: String,
+    session_id: Option<String>,
+});
+
+row!(Session, sessions, {
+    id: String,
+    user_id: String,
+    /// What the device said it was, for telling sessions apart in a list.
+    user_agent: Option<String>,
+    ip: Option<String>,
+    created_at: String,
+    last_seen_at: String,
+    revoked_at: Option<String>,
+});
+
+row!(EmailToken, email_tokens, {
+    id: String,
+    user_id: String,
+    purpose: String,
+    email: String,
+    token_hash: String,
+    expires_at: String,
+    used_at: Option<String>,
+    created_at: String,
+});
+
+row!(AuditEvent, audit_events, {
+    id: String,
+    /// Who did it. Kept after their account is gone.
+    actor_id: Option<String>,
+    work_id: Option<String>,
+    #[schema(value_type = crate::domain::enums::AuditAction)]
+    action: String,
+    detail: String,
     created_at: String,
 });
 
@@ -423,6 +469,9 @@ new_row!(NewUser, users, {
     bio: Option<String>, created_at: String, updated_at: String,
     daily_word_goal: Option<i32>, legal_name: Option<String>,
     mailing_address: Option<String>, phone: Option<String>,
+    email_verified_at: Option<String>, totp_secret: Option<String>,
+    totp_enabled_at: Option<String>, totp_last_step: Option<i64>,
+    terms_version: Option<i32>, terms_accepted_at: Option<String>,
 });
 
 new_row!(NewWritingDay, writing_days, {
@@ -432,7 +481,26 @@ new_row!(NewWritingDay, writing_days, {
 
 new_row!(NewRefreshToken, refresh_tokens, {
     id: String, user_id: String, token_hash: String, expires_at: String,
-    revoked_at: Option<String>, created_at: String,
+    revoked_at: Option<String>, created_at: String, session_id: Option<String>,
+});
+
+new_row!(NewAuditEvent, audit_events, {
+    id: String, actor_id: Option<String>, work_id: Option<String>, action: String,
+    detail: String, created_at: String,
+});
+
+new_row!(NewSession, sessions, {
+    id: String, user_id: String, user_agent: Option<String>, ip: Option<String>,
+    created_at: String, last_seen_at: String, revoked_at: Option<String>,
+});
+
+new_row!(NewEmailToken, email_tokens, {
+    id: String, user_id: String, purpose: String, email: String, token_hash: String,
+    expires_at: String, used_at: Option<String>, created_at: String,
+});
+
+new_row!(NewRecoveryCode, recovery_codes, {
+    id: String, user_id: String, code_hash: String, used_at: Option<String>,
 });
 
 new_row!(NewTemplate, templates, {

@@ -112,3 +112,16 @@ A running server also serves the document at `/api/openapi.json`.
 | `SCRIPTORIUM_ACCESS_TTL_MINUTES` | `30` | Access-token lifetime |
 | `SCRIPTORIUM_REFRESH_TTL_DAYS` | `30` | Refresh-token lifetime |
 | `SCRIPTORIUM_CORS_ORIGINS` | `http://localhost:5183` | Comma-separated allowed origins |
+| `SCRIPTORIUM_PUBLIC_URL` | `http://localhost:5183` | Where the web client lives, for links in mail |
+| `SCRIPTORIUM_MAIL` | `outbox` | `outbox` writes mail to a file; `smtp` sends it |
+| `SCRIPTORIUM_OUTBOX` | `<data dir>/../outbox.jsonl` | The outbox file, one JSON message per line |
+| `SCRIPTORIUM_SMTP_HOST` | *(required for smtp)* | Relay, spoken to with STARTTLS |
+| `SCRIPTORIUM_SMTP_PORT` | `587` | |
+| `SCRIPTORIUM_SMTP_USER`, `SCRIPTORIUM_SMTP_PASSWORD` | *(none)* | Relay credentials, if it wants them |
+| `SCRIPTORIUM_MAIL_FROM` | *(required for smtp)* | The sender address |
+| `SCRIPTORIUM_SECOND_FACTOR_RATE` | `5` | Two-factor tries per account per minute |
+
+In development nothing is ever sent: a verification or reset link lands in the
+outbox file, and following it from there is the same as following it from an
+inbox. The SMTP path compiles and is configured as above, but has not been run
+against a real relay — that needs a sending domain and credentials.

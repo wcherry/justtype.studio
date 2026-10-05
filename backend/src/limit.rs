@@ -22,6 +22,12 @@ pub enum Action {
     Comment,
     Vote,
     React,
+    /// Mail sent to one address: a reset link is cheap to ask for and a
+    /// nuisance to receive forty of.
+    Mail,
+    /// Guesses at a second factor. A six-digit code is a million tries from
+    /// open, so tries are what is limited.
+    SecondFactor,
 }
 
 impl Action {
@@ -30,6 +36,8 @@ impl Action {
             Action::Comment => "comments",
             Action::Vote => "votes",
             Action::React => "reactions",
+            Action::Mail => "messages",
+            Action::SecondFactor => "codes",
         }
     }
 }

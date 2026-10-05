@@ -29,6 +29,8 @@ use utoipa::OpenApi;
         (name = "publications", description = "A version offered for review"),
         (name = "comments", description = "Anchored, threaded, votable feedback"),
         (name = "profiles", description = "Authors, and who follows them"),
+        (name = "account", description = "Proving an address, getting back in, a second factor, sessions"),
+        (name = "trust", description = "Your data, the audit log, the terms"),
         (name = "collaboration", description = "Co-authors, their roles, and what they did"),
     )
 )]

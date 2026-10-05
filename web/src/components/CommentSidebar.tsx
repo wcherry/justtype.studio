@@ -170,6 +170,7 @@ function CommentThread({
   const [reporting, setReporting] = useState(false)
   const [reason, setReason] = useState<ReportReason>('off_topic')
   const [done, setDone] = useState<string | null>(null)
+  const removed = comment.state === 'deleted'
 
   const vote = async (value: -1 | 1) => {
     // Sending the same value again clears it, which the server enforces too.
@@ -187,13 +188,18 @@ function CommentThread({
       ].filter(Boolean).join(' ')}
       onClick={() => onActivate(comment.id)}
     >
+      {!removed && (
       <div className="comment__vote">
         <button type="button" className={comment.viewerVote === 1 ? 'is-on' : ''} onClick={() => vote(1)} title="Useful">▲</button>
         <span>{comment.score}</span>
         <button type="button" className={comment.viewerVote === -1 ? 'is-on' : ''} onClick={() => vote(-1)} title="Not useful">▼</button>
       </div>
+      )}
 
       <div className="comment__body">
+        {/* Kept only because someone answered it; the answers follow. */}
+        {removed && <p className="comment__removed">This note was removed.</p>}
+        {!removed && (<>
         <div className="comment__meta">
           <strong><Link to={`/people/${comment.author.id}`}>{comment.author.displayName}</Link></strong>
           {/* What this reviewer's notes have been worth elsewhere, so a reader
@@ -238,6 +244,7 @@ function CommentThread({
           )}
           {done && <span className="field__hint">{done}</span>}
         </div>
+        </>)}
 
         {reporting && (
           <form

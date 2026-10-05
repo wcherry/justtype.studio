@@ -98,7 +98,14 @@ struct CommentRow: View {
                                 Rectangle().frame(width: 2).foregroundStyle(.tint)
                             }
                     }
-                    Text(comment.body).font(.callout)
+                    if comment.state == .deleted {
+                        // Kept only because someone answered it.
+                        Text("This note was removed.")
+                            .font(.callout.italic())
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text(comment.body).font(.callout)
+                    }
 
                     HStack(spacing: 14) {
                         Button("Reply") { onReply(comment) }

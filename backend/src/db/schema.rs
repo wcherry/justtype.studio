@@ -13,6 +13,12 @@ diesel::table! {
         legal_name -> Nullable<Text>,
         mailing_address -> Nullable<Text>,
         phone -> Nullable<Text>,
+        email_verified_at -> Nullable<Text>,
+        totp_secret -> Nullable<Text>,
+        totp_enabled_at -> Nullable<Text>,
+        totp_last_step -> Nullable<BigInt>,
+        terms_version -> Nullable<Integer>,
+        terms_accepted_at -> Nullable<Text>,
     }
 }
 
@@ -24,6 +30,7 @@ diesel::table! {
         expires_at -> Text,
         revoked_at -> Nullable<Text>,
         created_at -> Text,
+        session_id -> Nullable<Text>,
     }
 }
 
@@ -416,7 +423,53 @@ diesel::table! {
     }
 }
 
+diesel::table! {
+    sessions (id) {
+        id -> Text,
+        user_id -> Text,
+        user_agent -> Nullable<Text>,
+        ip -> Nullable<Text>,
+        created_at -> Text,
+        last_seen_at -> Text,
+        revoked_at -> Nullable<Text>,
+    }
+}
+
+diesel::table! {
+    email_tokens (id) {
+        id -> Text,
+        user_id -> Text,
+        purpose -> Text,
+        email -> Text,
+        token_hash -> Text,
+        expires_at -> Text,
+        used_at -> Nullable<Text>,
+        created_at -> Text,
+    }
+}
+
+diesel::table! {
+    recovery_codes (id) {
+        id -> Text,
+        user_id -> Text,
+        code_hash -> Text,
+        used_at -> Nullable<Text>,
+    }
+}
+
+diesel::table! {
+    audit_events (id) {
+        id -> Text,
+        actor_id -> Nullable<Text>,
+        work_id -> Nullable<Text>,
+        action -> Text,
+        detail -> Text,
+        created_at -> Text,
+    }
+}
+
 diesel::joinable!(refresh_tokens -> users (user_id));
+diesel::joinable!(sessions -> users (user_id));
 diesel::joinable!(work_collaborators -> works (work_id));
 diesel::joinable!(collaborator_chapters -> work_collaborators (collaborator_id));
 diesel::joinable!(work_activity -> works (work_id));
@@ -476,4 +529,8 @@ diesel::allow_tables_to_appear_in_same_query!(
     work_collaborators,
     collaborator_chapters,
     work_activity,
+    sessions,
+    email_tokens,
+    recovery_codes,
+    audit_events,
 );

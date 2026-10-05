@@ -13,6 +13,7 @@ use crate::auth::AuthUser;
 use crate::db::blocking;
 use crate::db::models::*;
 use crate::db::schema::{circle_members, publication_invites, reader_circles, reading_progress};
+use crate::domain::enums::AuditAction;
 use crate::domain::{new_id, now_iso};
 use crate::error::{ApiError, ApiResult, ErrorEnvelope};
 use crate::state::AppState;
@@ -108,7 +109,7 @@ pub async fn invite(
     }
 
     let invites = blocking(&state.pool, move |conn| {
-        support::publication_for_owner(conn, &publication_id, &user)?;
+        let (_, work) = support::publication_for_owner(conn, &publication_id, &user)?;
 
         if let Some(circle_id) = &body.circle_id {
             let circle = circle_for_owner(conn, circle_id, &user)?;
@@ -145,6 +146,13 @@ pub async fn invite(
                 .do_nothing()
                 .execute(conn)?;
         }
+        super::audit::record(
+            conn,
+            Some(&user.id),
+            Some(&work.id),
+            AuditAction::ReaderInvited,
+            &format!("{publication_id}: {}", emails.join(", ")),
+        )?;
 
         let rows: Vec<PublicationInvite> = publication_invites::table
             .filter(publication_invites::publication_id.eq(&publication_id))
@@ -180,13 +188,20 @@ pub async fn uninvite(
 ) -> ApiResult<Json<serde_json::Value>> {
     let email = normalise(&email)?;
     blocking(&state.pool, move |conn| {
-        support::publication_for_owner(conn, &publication_id, &user)?;
+        let (_, work) = support::publication_for_owner(conn, &publication_id, &user)?;
         diesel::delete(
             publication_invites::table
                 .filter(publication_invites::publication_id.eq(&publication_id))
                 .filter(publication_invites::email.eq(&email)),
         )
         .execute(conn)?;
+        super::audit::record(
+            conn,
+            Some(&user.id),
+            Some(&work.id),
+            AuditAction::ReaderUninvited,
+            &format!("{publication_id}: {email}"),
+        )?;
         Ok(())
     })
     .await?;

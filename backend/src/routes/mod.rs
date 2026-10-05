@@ -1,3 +1,5 @@
+pub mod account;
+pub mod audit;
 pub mod auth;
 pub mod bible;
 pub mod changes;
@@ -9,6 +11,7 @@ pub mod feedback;
 pub mod goals;
 pub mod moderation;
 pub mod openapi;
+pub mod privacy;
 pub mod profiles;
 pub mod publications;
 pub mod readers;
@@ -123,6 +126,22 @@ fn api_router() -> OpenApiRouter<AppState> {
         .routes(routes!(collaborators::list, collaborators::add))
         .routes(routes!(collaborators::update, collaborators::remove))
         .routes(routes!(collaborators::activity))
+        .routes(routes!(account::resend_verification))
+        .routes(routes!(account::verify))
+        .routes(routes!(account::forgot))
+        .routes(routes!(account::reset))
+        .routes(routes!(account::change_password))
+        .routes(routes!(account::setup_two_factor))
+        .routes(routes!(account::enable_two_factor))
+        .routes(routes!(account::disable_two_factor))
+        .routes(routes!(account::list_sessions))
+        .routes(routes!(account::revoke_session))
+        .routes(routes!(account::sign_out_others))
+        .routes(routes!(audit::list))
+        .routes(routes!(privacy::terms))
+        .routes(routes!(privacy::accept_terms))
+        .routes(routes!(privacy::export))
+        .routes(routes!(privacy::delete_account))
 }
 
 pub fn router(state: AppState) -> Router {

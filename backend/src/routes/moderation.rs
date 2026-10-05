@@ -15,7 +15,7 @@ use crate::auth::AuthUser;
 use crate::db::blocking;
 use crate::db::models::*;
 use crate::db::schema::{blocked_readers, comment_reports, comments, users};
-use crate::domain::enums::ReportReason;
+use crate::domain::enums::{AuditAction, ReportReason};
 use crate::domain::{new_id, now_iso};
 use crate::error::{ApiError, ApiResult, ErrorEnvelope};
 use crate::state::AppState;
@@ -268,6 +268,13 @@ pub async fn block(
                         created_at: now_iso(),
                     })
                     .execute(conn)?;
+                super::audit::record(
+                    conn,
+                    Some(&user.id),
+                    None,
+                    AuditAction::ReaderBlocked,
+                    &body.user_id,
+                )?;
             }
             Ok(())
         }
@@ -300,6 +307,13 @@ pub async fn unblock(
                     .filter(blocked_readers::user_id.eq(&user_id)),
             )
             .execute(conn)?;
+            super::audit::record(
+                conn,
+                Some(&user.id),
+                None,
+                AuditAction::ReaderUnblocked,
+                &user_id,
+            )?;
             Ok(())
         }
     })

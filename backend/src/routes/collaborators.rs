@@ -18,7 +18,7 @@ use crate::db::schema::{
     chapters, collaborator_chapters, users, work_activity, work_collaborators,
 };
 use crate::db::{blocking, Conn};
-use crate::domain::enums::{ActivityKind, CollaboratorRole};
+use crate::domain::enums::{ActivityKind, AuditAction, CollaboratorRole};
 use crate::domain::{new_id, now_iso};
 use crate::error::{ApiError, ApiResult, ErrorEnvelope};
 use crate::state::AppState;
@@ -225,6 +225,15 @@ pub async fn add(
                 .values(&row)
                 .execute(conn)?;
             grant(conn, &row.id, chapters.as_deref().unwrap_or_default())?;
+            // The record, by address: the feed names people, the audit says
+            // exactly who was let in.
+            super::audit::record(
+                conn,
+                Some(&user.id),
+                Some(&work.id),
+                AuditAction::CollaboratorAdded,
+                &format!("{email} as {}", body.role),
+            )?;
             let name = who(conn, row.user_id.as_deref())?;
             record(
                 conn,
@@ -309,6 +318,15 @@ pub async fn update(
                     if ids.len() == 1 { "" } else { "s" }
                 ),
             };
+            // The record, by address: the feed names people, the audit says
+            // exactly who was let in.
+            super::audit::record(
+                conn,
+                Some(&user.id),
+                Some(&work.id),
+                AuditAction::CollaboratorChanged,
+                &format!("{} now {role}{reach}", row.email),
+            )?;
             let name = who(conn, row.user_id.as_deref())?;
             record(
                 conn,
@@ -352,6 +370,15 @@ pub async fn remove(
         }
         conn.transaction::<_, ApiError, _>(|conn| {
             diesel::delete(work_collaborators::table.find(&row.id)).execute(conn)?;
+            // The record, by address: the feed names people, the audit says
+            // exactly who was let in.
+            super::audit::record(
+                conn,
+                Some(&user.id),
+                Some(&work.id),
+                AuditAction::CollaboratorRemoved,
+                &row.email,
+            )?;
             let name = who(conn, row.user_id.as_deref())?;
             record(
                 conn,

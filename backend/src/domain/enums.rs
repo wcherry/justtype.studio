@@ -236,3 +236,26 @@ api_enum!(ActivityKind {
     CollaboratorChanged => "collaborator_changed",
     CollaboratorRemoved => "collaborator_removed",
 });
+
+api_enum!(AuditAction {
+    PasswordReset => "password_reset",
+    PasswordChanged => "password_changed",
+    TwoFactorEnabled => "two_factor_enabled",
+    TwoFactorDisabled => "two_factor_disabled",
+    SessionRevoked => "session_revoked",
+    SessionsRevoked => "sessions_revoked",
+    AccountExported => "account_exported",
+    AccountDeleted => "account_deleted",
+    WorkDeleted => "work_deleted",
+    PublicationCreated => "publication_created",
+    PublicationChanged => "publication_changed",
+    PublicationWithdrawn => "publication_withdrawn",
+    CollaboratorAdded => "collaborator_added",
+    CollaboratorChanged => "collaborator_changed",
+    CollaboratorRemoved => "collaborator_removed",
+    ReaderInvited => "reader_invited",
+    ReaderUninvited => "reader_uninvited",
+    ReaderBlocked => "reader_blocked",
+    ReaderUnblocked => "reader_unblocked",
+    TermsAccepted => "terms_accepted",
+});

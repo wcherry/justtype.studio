@@ -14,6 +14,11 @@ pub struct Config {
     pub comment_rate: i64,
     pub vote_rate: i64,
     pub reaction_rate: i64,
+    /// Tries at a second factor per account per minute: login codes, turning
+    /// it on or off, deleting the account.
+    pub second_factor_rate: i64,
+    /// Where the web client lives, for the links in mail.
+    pub public_url: String,
 }
 
 fn env_or(key: &str, default: &str) -> String {
@@ -44,6 +49,10 @@ impl Config {
             comment_rate: env_or("SCRIPTORIUM_COMMENT_RATE", "20").parse()?,
             vote_rate: env_or("SCRIPTORIUM_VOTE_RATE", "120").parse()?,
             reaction_rate: env_or("SCRIPTORIUM_REACTION_RATE", "120").parse()?,
+            second_factor_rate: env_or("SCRIPTORIUM_SECOND_FACTOR_RATE", "5").parse()?,
+            public_url: env_or("SCRIPTORIUM_PUBLIC_URL", "http://localhost:5183")
+                .trim_end_matches('/')
+                .to_string(),
         })
     }
 }

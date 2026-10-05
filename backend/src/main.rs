@@ -5,6 +5,7 @@ mod domain;
 mod error;
 mod export;
 mod limit;
+mod mail;
 mod routes;
 mod state;
 mod storage;
@@ -48,6 +49,9 @@ async fn main() -> anyhow::Result<()> {
     {
         let mut conn = pool.get()?;
         domain::templates::seed(&mut conn, &domain::now_iso())?;
+        // Where a deleted account's notes are credited, so threads keep their
+        // shape.
+        routes::privacy::seed_former_member(&mut conn, &domain::now_iso())?;
     }
 
     let store = FileStore::new(&config.data_dir);
@@ -71,7 +75,9 @@ async fn main() -> anyhow::Result<()> {
         .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE]);
 
     let bind_addr = config.bind_addr;
+    let mailer = mail::Mailer::from_env(&config.data_dir)?;
     let state = AppState {
+        mailer,
         config: Arc::new(config),
         pool,
         store,
@@ -84,6 +90,12 @@ async fn main() -> anyhow::Result<()> {
 
     let listener = tokio::net::TcpListener::bind(bind_addr).await?;
     tracing::info!("scriptorium listening on http://{bind_addr}");
-    axum::serve(listener, app).await?;
+    // With the peer address attached, so a session can say where it signed in
+    // from.
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .await?;
     Ok(())
 }

@@ -56,7 +56,12 @@ fn keeps(comment: &Comment, query: &ListQuery) -> bool {
         .category
         .as_ref()
         .is_none_or(|c| &comment.category == c)
-        && query.state.as_ref().is_none_or(|s| &comment.state == s)
+        // A removed note has no state worth filtering on; what is under it
+        // does, and is filtered as part of its thread.
+        && query
+            .state
+            .as_ref()
+            .is_none_or(|s| &comment.state == s || comment.state == "deleted")
         && query
             .author_id
             .as_ref()
@@ -155,9 +160,11 @@ pub async fn list(
         let (publication, work) =
             support::publication_for_reader(conn, &publication_id, user.as_ref())?;
 
+        // Deleted notes are loaded too, and dropped below unless someone has
+        // answered them: a removed note with replies under it stays as an
+        // empty placeholder, so the replies still have a question to answer.
         let mut q = comments::table
             .filter(comments::publication_id.eq(&publication_id))
-            .filter(comments::state.ne("deleted"))
             .into_boxed();
         if let Some(scene_id) = &query.scene_id {
             q = q.filter(comments::scene_id.eq(scene_id.clone()));
@@ -191,6 +198,7 @@ pub async fn list(
             Some(parent) => keep.contains(parent),
             None => keep.contains(&c.id),
         });
+        rows = keep_answered(rows);
 
         let author_ids: Vec<String> = rows.iter().map(|c| c.author_id.clone()).collect();
         let authors = support::author_cards(conn, &author_ids)?;
@@ -216,6 +224,35 @@ pub async fn list(
     })
     .await?;
     Ok(Json(views))
+}
+
+/// Drops deleted notes nobody answered, and keeps the ones somebody did —
+/// blank, as placeholders — along with every deleted note above a live reply.
+fn keep_answered(rows: Vec<Comment>) -> Vec<Comment> {
+    let parents: HashMap<String, Option<String>> = rows
+        .iter()
+        .map(|c| (c.id.clone(), c.parent_id.clone()))
+        .collect();
+    let mut answered: std::collections::HashSet<String> = Default::default();
+    for live in rows.iter().filter(|c| c.state != "deleted") {
+        let mut next = live.parent_id.clone();
+        while let Some(id) = next {
+            if !answered.insert(id.clone()) {
+                break;
+            }
+            next = parents.get(&id).cloned().flatten();
+        }
+    }
+    rows.into_iter()
+        .filter(|c| c.state != "deleted" || answered.contains(&c.id))
+        .map(|mut c| {
+            if c.state == "deleted" {
+                c.body.clear();
+                c.anchor_quote = None;
+            }
+            c
+        })
+        .collect()
 }
 
 /// Flat rows in, nested threads out. Replies always read oldest-first; roots
@@ -667,4 +704,45 @@ pub async fn vote(
     })
     .await?;
     Ok(Json(response))
+}
+
+#[cfg(test)]
+mod thread_tests {
+    use super::*;
+
+    fn note(id: &str, parent: Option<&str>, state: &str) -> Comment {
+        Comment {
+            id: id.into(),
+            publication_id: "p".into(),
+            version_id: "v".into(),
+            scene_id: None,
+            parent_id: parent.map(str::to_string),
+            author_id: "a".into(),
+            body: format!("words of {id}"),
+            anchor: None,
+            anchor_quote: Some("quote".into()),
+            category: "general".into(),
+            state: state.into(),
+            score: 0,
+            created_at: "t".into(),
+            updated_at: "t".into(),
+        }
+    }
+
+    #[test]
+    fn a_removed_note_stays_while_someone_has_answered_it() {
+        let kept = keep_answered(vec![
+            note("asked", None, "deleted"),
+            note("answer", Some("asked"), "open"),
+            note("forgotten", None, "deleted"),
+            note("deep", None, "deleted"),
+            note("middle", Some("deep"), "deleted"),
+            note("leaf", Some("middle"), "open"),
+        ]);
+        let ids: Vec<&str> = kept.iter().map(|c| c.id.as_str()).collect();
+        assert_eq!(ids, ["asked", "answer", "deep", "middle", "leaf"]);
+        // Kept as a placeholder, not as what it said.
+        assert!(kept[0].body.is_empty() && kept[0].anchor_quote.is_none());
+        assert_eq!(kept[1].body, "words of answer");
+    }
 }

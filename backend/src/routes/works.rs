@@ -8,7 +8,7 @@ use crate::auth::AuthUser;
 use crate::db::blocking;
 use crate::db::models::*;
 use crate::db::schema::{chapters, scenes, templates, works};
-use crate::domain::enums::{ActivityKind, Genre, WorkKind};
+use crate::domain::enums::{ActivityKind, AuditAction, Genre, WorkKind};
 use crate::domain::templates::TemplateStructure;
 use crate::domain::{doc, new_id, now_iso};
 use crate::error::{ApiError, ApiResult, ErrorEnvelope};
@@ -162,8 +162,14 @@ pub async fn list(
         use crate::db::schema::work_collaborators;
         // Shared work sits on the desk beside the writer's own; the outline
         // says what they may do with it.
+        // Only once the address is proved — see `support::access`.
+        let address = if user.email_verified {
+            user.email.trim().to_lowercase()
+        } else {
+            String::new()
+        };
         let shared = work_collaborators::table
-            .filter(work_collaborators::email.eq(user.email.trim().to_lowercase()))
+            .filter(work_collaborators::email.eq(address))
             .select(work_collaborators::work_id);
         Ok(works::table
             .filter(works::owner_id.eq(&user.id).or(works::id.eq_any(shared)))
@@ -480,7 +486,15 @@ pub async fn delete_work(
                 "only the person who started this work can delete it".into(),
             ));
         }
+        let title: String = works::table.find(&owned).select(works::title).first(conn)?;
         diesel::delete(works::table.find(&owned)).execute(conn)?;
+        super::audit::record(
+            conn,
+            Some(&user.id),
+            Some(&owned),
+            AuditAction::WorkDeleted,
+            &title,
+        )?;
         Ok(())
     })
     .await?;

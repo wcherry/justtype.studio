@@ -7,6 +7,11 @@
 /** Arbitrary JSON, where the server accepts or returns `serde_json::Value`. */
 export type JsonValue = unknown
 
+export interface AcceptTermsRequest {
+  // The version being agreed to — the one the person was shown.
+  version: number
+}
+
 export type ActivityKind = 'scene_edited' | 'scene_added' | 'scene_removed' | 'chapter_added' | 'chapter_removed' | 'change_proposed' | 'change_accepted' | 'change_rejected' | 'task_added' | 'task_done' | 'version_saved' | 'version_published' | 'publication_opened' | 'collaborator_added' | 'collaborator_changed' | 'collaborator_removed'
 
 export interface ActivityView {
@@ -61,6 +66,18 @@ export interface AnswerView {
   updatedAt: string
   userId: string
   reader: AuthorCard
+}
+
+export type AuditAction = 'password_reset' | 'password_changed' | 'two_factor_enabled' | 'two_factor_disabled' | 'session_revoked' | 'sessions_revoked' | 'account_exported' | 'account_deleted' | 'work_deleted' | 'publication_created' | 'publication_changed' | 'publication_withdrawn' | 'collaborator_added' | 'collaborator_changed' | 'collaborator_removed' | 'reader_invited' | 'reader_uninvited' | 'reader_blocked' | 'reader_unblocked' | 'terms_accepted'
+
+export interface AuditEvent {
+  action: AuditAction
+  // Who did it. Kept after their account is gone.
+  actorId?: string | null
+  createdAt: string
+  detail: string
+  id: string
+  workId?: string | null
 }
 
 // Author cards attached to comments so the clients need no second round trip.
@@ -160,6 +177,11 @@ export interface BulkStateResponse {
 
 export type ChangeKind = 'insert' | 'delete' | 'replace' | 'format'
 
+export interface ChangePasswordRequest {
+  currentPassword: string
+  newPassword: string
+}
+
 export type ChangeState = 'pending' | 'accepted' | 'rejected'
 
 export interface Chapter {
@@ -187,6 +209,10 @@ export interface CircleView {
   ownerId: string
   updatedAt: string
   members: CircleMember[]
+}
+
+export interface CodeRequest {
+  code: string
 }
 
 export type CollaboratorRole = 'owner' | 'writer' | 'editor' | 'reader'
@@ -366,6 +392,19 @@ export interface CreateWorkRequest {
   title: string
 }
 
+export interface DeleteAccountRequest {
+  // From the authenticator, when two-factor sign-in is on.
+  code?: string | null
+  // Required when a work being deleted has co-authors on it, after they
+  // have been told which.
+  deleteSharedWorks?: boolean
+  password: string
+}
+
+export interface DeletedAccount {
+  worksDeleted: number
+}
+
 export interface DiffResponse {
   // What each side is called — a version's label, or "Working draft".
   from: string
@@ -384,6 +423,12 @@ export interface DiffSummary {
   scenesRemoved: number
   wordsAdded: number
   wordsRemoved: number
+}
+
+export interface DisableTwoFactorRequest {
+  // From the authenticator, or a recovery code.
+  code: string
+  password: string
 }
 
 export interface DocMark {
@@ -406,6 +451,10 @@ export interface DocNode {
   type: string
 }
 
+export interface Done {
+  ok: boolean
+}
+
 export interface EntryView {
   body?: string | null
   createdAt: string
@@ -420,7 +469,8 @@ export interface EntryView {
 }
 
 export interface ErrorBody {
-  // `bad_request`, `unauthorized`, `forbidden`, `not_found`, `conflict`, `internal`.
+  // `bad_request`, `unauthorized`, `two_factor_required`, `forbidden`,
+  // `not_found`, `conflict`, `too_many_requests`, `internal`.
   code: string
   // Present when the client is expected to act on it — see a scene save conflict.
   details?: JsonValue
@@ -438,6 +488,10 @@ export type FeedSort = 'newest' | 'needs_readers'
 export interface FollowState {
   followers: number
   following: boolean
+}
+
+export interface ForgotRequest {
+  email: string
 }
 
 export type Genre = 'literary' | 'fantasy' | 'science_fiction' | 'mystery' | 'thriller' | 'romance' | 'horror' | 'historical' | 'young_adult' | 'other'
@@ -474,6 +528,10 @@ export interface LinkRequest {
 }
 
 export interface LoginRequest {
+  // The six digits from an authenticator, or a recovery code, for an
+  // account with two-factor sign-in on. Asked for with a
+  // `two_factor_required` refusal when it is missing.
+  code?: string | null
   email: string
   password: string
 }
@@ -724,11 +782,18 @@ export interface ReadingProgress {
   userId: string
 }
 
+export interface RecoveryCodes {
+  // Shown once. Each gets someone in once if the authenticator is lost.
+  codes: string[]
+}
+
 export interface RefreshRequest {
   refreshToken: string
 }
 
 export interface RegisterRequest {
+  // Agreement to the terms in force (`GET /api/terms`). Required.
+  acceptTerms?: boolean
   displayName: string
   email: string
   password: string
@@ -758,6 +823,11 @@ export interface ReportView {
   commentBody: string
   publicationId: string
   reporter: AuthorCard
+}
+
+export interface ResetRequest {
+  password: string
+  token: string
 }
 
 export interface ResolveResponse {
@@ -911,11 +981,35 @@ export interface SceneWithContent {
   content: DocNode
 }
 
+export interface Session {
+  createdAt: string
+  id: string
+  ip?: string | null
+  lastSeenAt: string
+  revokedAt?: string | null
+  // What the device said it was, for telling sessions apart in a list.
+  userAgent?: string | null
+  userId: string
+}
+
 export interface SessionResponse {
   accessToken: string
   expiresIn: number
   refreshToken: string
   user: User
+}
+
+export interface SessionView {
+  createdAt: string
+  id: string
+  ip?: string | null
+  lastSeenAt: string
+  revokedAt?: string | null
+  // What the device said it was, for telling sessions apart in a list.
+  userAgent?: string | null
+  userId: string
+  // The session this request came from.
+  current: boolean
 }
 
 export interface SinceResponse {
@@ -1025,9 +1119,19 @@ export interface TemplateView {
   structure: TemplateStructure
 }
 
+export interface Terms {
+  // Markdown.
+  text: string
+  version: number
+}
+
 export interface TextChange {
   op: Op
   value: string
+}
+
+export interface TokenRequest {
+  token: string
 }
 
 export interface TrackedChange {
@@ -1048,6 +1152,13 @@ export interface TrackedChange {
   sceneId: string
   state: ChangeState
   workId: string
+}
+
+export interface TwoFactorSetup {
+  // The key to type into an authenticator by hand.
+  secret: string
+  // The same key as an `otpauth://` link, for a QR code or a tap.
+  url: string
 }
 
 export interface UpdateChapterRequest {
@@ -1153,12 +1264,20 @@ export interface User {
   dailyWordGoal?: number | null
   displayName: string
   email: string
+  // When the address was proved. Invitations addressed to it reach this
+  // account only once it has been.
+  emailVerifiedAt?: string | null
   id: string
   // Contact details for a submission's first page. Kept on the writer rather
   // than the work, since they are the same for every submission.
   legalName?: string | null
   mailingAddress?: string | null
   phone?: string | null
+  termsAcceptedAt?: string | null
+  // The version of the terms they last agreed to.
+  termsVersion?: number | null
+  // When two-factor sign-in was turned on.
+  totpEnabledAt?: string | null
   updatedAt: string
 }
 

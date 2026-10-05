@@ -140,6 +140,11 @@ pub fn access(conn: &mut Conn, work: &Work, user: &AuthUser) -> ApiResult<Option
             creator: true,
         }));
     }
+    // A seat on a book is addressed to an email, so it is only theirs once
+    // they have proved the email is.
+    if !user.email_verified {
+        return Ok(None);
+    }
     let email = user.email.trim().to_lowercase();
     let Some(row) = work_collaborators::table
         .filter(work_collaborators::work_id.eq(&work.id))
@@ -193,6 +198,9 @@ pub fn work_access(conn: &mut Conn, work_id: &str, user: &AuthUser) -> ApiResult
     let work = find_work(conn, work_id)?;
     match access(conn, &work, user)? {
         Some(access) => Ok((work, access)),
+        None if !user.email_verified => Err(ApiError::Forbidden(
+            "confirm your email address first — work shared with it opens once you have".into(),
+        )),
         None => Err(ApiError::Forbidden(
             "you do not have access to this work".into(),
         )),
@@ -360,6 +368,14 @@ pub fn publication_for_reader(
                     "this manuscript was shared with named readers — sign in to open it".into(),
                 ));
             };
+            // An invitation names an address; until the account has proved
+            // that address, anyone could have typed it in at sign-up.
+            if !user.email_verified {
+                return Err(ApiError::Forbidden(
+                    "confirm your email address first — drafts shared with it open once you have"
+                        .into(),
+                ));
+            }
             if invited(conn, &publication.id, &user.email)? {
                 Ok((publication, work))
             } else {
@@ -394,6 +410,9 @@ pub fn mark_invite_accepted(
     user: &AuthUser,
 ) -> ApiResult<()> {
     use crate::db::schema::publication_invites;
+    if !user.email_verified {
+        return Ok(());
+    }
     diesel::update(
         publication_invites::table
             .filter(publication_invites::publication_id.eq(publication_id))
