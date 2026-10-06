@@ -29,6 +29,14 @@ pub struct Config {
     pub metrics_token: Option<String>,
     /// Memory for snapshot scene bodies, in megabytes.
     pub cache_mb: usize,
+    /// Requests per minute from one address, to anything. Zero turns it off.
+    pub ip_rate: i64,
+    /// Requests per minute from one address to the sign-in routes.
+    pub auth_ip_rate: i64,
+    /// Behind a reverse proxy, the client's address is the last one the proxy
+    /// added to X-Forwarded-For. Only set this when there is such a proxy: a
+    /// client can put anything it likes in that header.
+    pub trust_proxy: bool,
 }
 
 fn env_or(key: &str, default: &str) -> String {
@@ -70,6 +78,9 @@ impl Config {
             backup_keep: env_or("SCRIPTORIUM_BACKUP_KEEP", "14").parse()?,
             log_format: env_or("SCRIPTORIUM_LOG_FORMAT", "text"),
             cache_mb: env_or("SCRIPTORIUM_CACHE_MB", "64").parse()?,
+            ip_rate: env_or("SCRIPTORIUM_IP_RATE", "600").parse()?,
+            auth_ip_rate: env_or("SCRIPTORIUM_AUTH_IP_RATE", "30").parse()?,
+            trust_proxy: env_or("SCRIPTORIUM_TRUST_PROXY", "false") == "true",
             metrics_token: std::env::var("SCRIPTORIUM_METRICS_TOKEN")
                 .ok()
                 .filter(|s| s.len() >= 16),

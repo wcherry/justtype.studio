@@ -9,7 +9,7 @@ import type {
   QuestionKind, QuestionScope, Standing, BulkStateResponse, ReportReason, TaskView,
   TaskState, ReportView, BlockView, SinceResponse, Profile, FollowState, AuthorCard,
   Genre, LengthBand, WindowFilter, FeedSort, CollaboratorRole, CollaboratorView, ActivityView,
-  SessionView, TwoFactorSetup, RecoveryCodes, AuditEvent, Terms, StatusReport, SceneHit,
+  SessionView, TwoFactorSetup, RecoveryCodes, AuditEvent, Terms, StatusReport, SceneHit, ShareLink,
 } from './types'
 
 const BASE = '/api'
@@ -30,6 +30,34 @@ export class ApiError extends Error {
     // quote to someone who can.
     super(status >= 500 && requestId ? `${message} (reference ${requestId})` : message)
   }
+}
+
+const SHARE_KEYS = 'scriptorium.shareKeys'
+
+/**
+ * Keys from links to unlisted drafts, kept for this tab and sent as a header
+ * on every request — never put back into a URL, where they would be logged.
+ */
+export const shareKeys = {
+  all(): string[] {
+    try {
+      return JSON.parse(sessionStorage.getItem(SHARE_KEYS) ?? '[]') as string[]
+    } catch {
+      return []
+    }
+  },
+  remember(key: string) {
+    const keys = [key, ...shareKeys.all().filter((k) => k !== key)].slice(0, 10)
+    try {
+      sessionStorage.setItem(SHARE_KEYS, JSON.stringify(keys))
+    } catch {
+      // Private browsing: the key still works for this page's requests.
+    }
+  },
+  header(): Record<string, string> {
+    const keys = shareKeys.all()
+    return keys.length > 0 ? { 'x-share-key': keys.join(',') } : {}
+  },
 }
 
 /** Ours, so a failure can be matched to the server's log before it answers. */
@@ -87,7 +115,7 @@ async function request<T>(
   body?: unknown,
   retry = true,
 ): Promise<T> {
-  const headers: Record<string, string> = { 'x-request-id': newRequestId() }
+  const headers: Record<string, string> = { 'x-request-id': newRequestId(), ...shareKeys.header() }
   if (body !== undefined) headers['content-type'] = 'application/json'
   const access = tokens.access()
   if (access) headers.authorization = `Bearer ${access}`
@@ -382,6 +410,13 @@ export const api = {
         spoilerSafe?: boolean
       },
     ) => patch<PublicationCard>(`/publications/${publicationId}`, input),
+
+    /** A signed link to an unlisted draft, good for `days`. */
+    makeLink: (publicationId: string, days: number) =>
+      post<ShareLink>(`/publications/${publicationId}/links`, { days }),
+    /** Every link made so far stops working. */
+    revokeLinks: (publicationId: string) =>
+      post<{ revoked: boolean }>(`/publications/${publicationId}/links/revoke`),
 
     /** Who it was shared with, and whether they have turned up. */
     invites: (publicationId: string) => get<InviteView[]>(`/publications/${publicationId}/invites`),

@@ -68,7 +68,7 @@ export interface AnswerView {
   reader: AuthorCard
 }
 
-export type AuditAction = 'password_reset' | 'password_changed' | 'two_factor_enabled' | 'two_factor_disabled' | 'session_revoked' | 'sessions_revoked' | 'account_exported' | 'account_deleted' | 'work_deleted' | 'publication_created' | 'publication_changed' | 'publication_withdrawn' | 'collaborator_added' | 'collaborator_changed' | 'collaborator_removed' | 'reader_invited' | 'reader_uninvited' | 'reader_blocked' | 'reader_unblocked' | 'terms_accepted'
+export type AuditAction = 'password_reset' | 'password_changed' | 'two_factor_enabled' | 'two_factor_disabled' | 'session_revoked' | 'sessions_revoked' | 'account_exported' | 'account_deleted' | 'work_deleted' | 'publication_created' | 'publication_changed' | 'publication_withdrawn' | 'collaborator_added' | 'collaborator_changed' | 'collaborator_removed' | 'reader_invited' | 'reader_uninvited' | 'reader_blocked' | 'reader_unblocked' | 'terms_accepted' | 'share_link_made' | 'share_links_revoked'
 
 export interface AuditEvent {
   action: AuditAction
@@ -547,6 +547,11 @@ export interface LoginRequest {
   code?: string | null
   email: string
   password: string
+}
+
+export interface MakeLinkRequest {
+  // How long it works, 1 to 90 days.
+  days: number
 }
 
 export interface MergeSceneRequest {
@@ -1042,6 +1047,13 @@ export interface SessionView {
   userId: string
   // The session this request came from.
   current: boolean
+}
+
+export interface ShareLink {
+  expiresAt: string
+  key: string
+  // The whole link, to send to someone.
+  url: string
 }
 
 export interface SinceResponse {

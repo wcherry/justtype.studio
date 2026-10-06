@@ -200,6 +200,8 @@ public enum API {
         case reader_blocked = "reader_blocked"
         case reader_unblocked = "reader_unblocked"
         case terms_accepted = "terms_accepted"
+        case share_link_made = "share_link_made"
+        case share_links_revoked = "share_links_revoked"
     }
 
     public struct AuditEvent: Codable, Hashable, Sendable {
@@ -1419,6 +1421,17 @@ public enum API {
             self.code = code
             self.email = email
             self.password = password
+        }
+    }
+
+    public struct MakeLinkRequest: Codable, Hashable, Sendable {
+        /// How long it works, 1 to 90 days.
+        public var days: Int
+
+        public init(
+            days: Int
+        ) {
+            self.days = days
         }
     }
 
@@ -2672,6 +2685,23 @@ public enum API {
             self.userAgent = userAgent
             self.userId = userId
             self.current = current
+        }
+    }
+
+    public struct ShareLink: Codable, Hashable, Sendable {
+        public var expiresAt: String
+        public var key: String
+        /// The whole link, to send to someone.
+        public var url: String
+
+        public init(
+            expiresAt: String,
+            key: String,
+            url: String
+        ) {
+            self.expiresAt = expiresAt
+            self.key = key
+            self.url = url
         }
     }
 

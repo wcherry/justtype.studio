@@ -50,10 +50,56 @@ export function ReviewPanel({ publication, onChanged }: Props) {
   }
 
   const invited = publication.visibility === 'invited'
+  const unlisted = publication.visibility === 'unlisted'
+  const [days, setDays] = useState(14)
+  const [link, setLink] = useState<{ url: string; expiresAt: string } | null>(null)
 
   return (
     <div className="review-panel">
       {error && <p className="error">{error}</p>}
+
+      {unlisted && (
+        <section>
+          <h4>Links</h4>
+          <p className="field__hint">
+            An unlisted draft opens only from a link you make here. Each one stops working when
+            it expires, and you can withdraw them all at once.
+          </p>
+          <div className="settings__row">
+            <select value={days} onChange={(e) => setDays(Number(e.target.value))}>
+              {[1, 7, 14, 30, 90].map((d) => (
+                <option key={d} value={d}>{d === 1 ? 'for a day' : `for ${d} days`}</option>
+              ))}
+            </select>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => run(async () => setLink(await api.publications.makeLink(publication.id, days)))}
+            >
+              Make a link
+            </button>
+            <button
+              type="button"
+              className="linklike"
+              disabled={busy}
+              onClick={() => run(async () => {
+                await api.publications.revokeLinks(publication.id)
+                setLink(null)
+              })}
+            >
+              Withdraw every link
+            </button>
+          </div>
+          {link && (
+            <p className="share-link">
+              <input readOnly value={link.url} onFocus={(e) => e.currentTarget.select()} />
+              <span className="field__hint">
+                Works until {new Date(link.expiresAt).toLocaleString()}.
+              </span>
+            </p>
+          )}
+        </section>
+      )}
 
       <section>
         <h4>Readers</h4>

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
-import { api } from '../api/client'
+import { api, shareKeys } from '../api/client'
 import type { CommentFilters } from '../api/client'
 import { parseAnchor } from '../api/types'
 import type {
@@ -22,6 +22,18 @@ export function ReviewPage() {
   // A chapter at a time: a novel is eighty scenes, and the first page should
   // not wait for the last. In the URL, so a reload keeps the reader's place.
   const page = Math.max(0, Number(params.get('chapter') ?? 0) || 0)
+  // A link to an unlisted draft carries its key once; it is kept for the tab
+  // and taken out of the address bar, where it would be bookmarked and shared.
+  const linkKey = params.get('key')
+  if (linkKey) shareKeys.remember(linkKey)
+  useEffect(() => {
+    if (!linkKey) return
+    setParams((current) => {
+      const updated = new URLSearchParams(current)
+      updated.delete('key')
+      return updated
+    }, { replace: true })
+  }, [linkKey, setParams])
   const { user } = useAuth()
   const [card, setCard] = useState<PublicationCard | null>(null)
   const [content, setContent] = useState<VersionContent | null>(null)

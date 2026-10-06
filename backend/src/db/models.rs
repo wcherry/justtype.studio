@@ -285,6 +285,9 @@ row!(Publication, publications, {
     /// Withhold notes on scenes a reader has not reached yet. Defaulted on for
     /// a serial, where not knowing yet is the whole point of reading one.
     spoiler_safe: i32,
+    /// What share links are signed against; never sent anywhere.
+    #[serde(skip)]
+    link_secret: Option<String>,
 });
 
 row!(PublicationInvite, publication_invites, {
@@ -574,6 +577,7 @@ new_row!(NewPublication, publications, {
     scope: String, scope_ref_id: Option<String>, review_prompt: Option<String>,
     opens_at: Option<String>, closes_at: Option<String>, created_at: String,
     updated_at: String, max_reviewers: Option<i32>, spoiler_safe: i32,
+    link_secret: Option<String>,
 });
 
 new_row!(NewPublicationInvite, publication_invites, {

@@ -69,10 +69,15 @@ where
     // Read here, on the request's task: the blocking pool's threads do not
     // carry task-locals.
     let writing = crate::metrics::writing();
+    // The share keys a request carried are a task-local too, and access checks
+    // run in here: carry them across to the blocking thread.
+    let keys = crate::routes::share::PRESENTED
+        .try_with(|k| k.clone())
+        .unwrap_or_default();
     let started = std::time::Instant::now();
     let result = tokio::task::spawn_blocking(move || {
         let mut conn = pool.get().map_err(|e| ApiError::internal(e.to_string()))?;
-        f(&mut conn)
+        crate::routes::share::PRESENTED.sync_scope(keys, || f(&mut conn))
     })
     .await
     .map_err(|e| ApiError::internal(format!("task panicked: {e}")))?;

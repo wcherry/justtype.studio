@@ -222,6 +222,11 @@ button.danger { border-color: var(--del); color: var(--del); }
 .terms { max-width: var(--measure); font-family: var(--serif); line-height: 1.6; }
 .terms h1, .terms h2 { font-weight: 500; }
 
+/* --- share links ---------------------------------------------------------- */
+
+.share-link { display: grid; gap: 4px; margin: 8px 0 0; }
+.share-link input { width: 100%; font-family: var(--family-mono); font-size: 12px; }
+
 /* --- live --------------------------------------------------------------- */
 
 .presence { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 10px; font-size: 12px; }

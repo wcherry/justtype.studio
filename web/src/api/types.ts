@@ -99,6 +99,7 @@ export type {
   Terms,
   StatusReport,
   SceneHit,
+  ShareLink,
   TocChapter,
   Check,
   WorkAccess,

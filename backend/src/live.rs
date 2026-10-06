@@ -63,7 +63,7 @@ struct Member {
 #[derive(Default)]
 pub struct Hub {
     rooms: Mutex<HashMap<String, HashMap<u64, Member>>>,
-    tickets: Mutex<HashMap<String, (Option<AuthUser>, Instant)>>,
+    tickets: Mutex<HashMap<String, (Grant, Instant)>>,
     next: AtomicU64,
 }
 
@@ -169,26 +169,33 @@ impl Hub {
         }
     }
 
-    fn issue(&self, user: Option<AuthUser>) -> String {
+    fn issue(&self, user: Option<AuthUser>, share_keys: Vec<String>) -> String {
         let ticket = crate::auth::generate_link_token();
         let mut tickets = self.tickets.lock().unwrap_or_else(|e| e.into_inner());
         let now = Instant::now();
         tickets.retain(|_, (_, at)| now.duration_since(*at) < TICKET_LIFE);
-        tickets.insert(ticket.clone(), (user, now));
+        tickets.insert(ticket.clone(), (Grant { user, share_keys }, now));
         ticket
     }
 
-    /// Spends a ticket. `Some(None)` is a good ticket for someone signed out.
-    fn redeem(&self, ticket: &str) -> Option<Option<AuthUser>> {
+    /// Spends a ticket.
+    fn redeem(&self, ticket: &str) -> Option<Grant> {
         let mut tickets = self.tickets.lock().unwrap_or_else(|e| e.into_inner());
-        let (user, at) = tickets.remove(ticket)?;
-        (at.elapsed() < TICKET_LIFE).then_some(user)
+        let (grant, at) = tickets.remove(ticket)?;
+        (at.elapsed() < TICKET_LIFE).then_some(grant)
     }
 
     #[cfg(test)]
     fn members(&self, room: &str) -> usize {
         self.rooms().get(room).map_or(0, |m| m.len())
     }
+}
+
+/// Who a ticket was issued to, and the share keys they held then: the socket
+/// runs on its own task, away from the request that carried them.
+struct Grant {
+    user: Option<AuthUser>,
+    share_keys: Vec<String>,
 }
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
@@ -214,9 +221,12 @@ pub struct LiveTicket {
 pub async fn ticket(
     State(state): State<AppState>,
     MaybeAuthUser(user): MaybeAuthUser,
+    headers: axum::http::HeaderMap,
 ) -> Json<LiveTicket> {
     Json(LiveTicket {
-        ticket: state.hub.issue(user),
+        ticket: state
+            .hub
+            .issue(user, crate::routes::share::keys_from(&headers)),
     })
 }
 
@@ -232,13 +242,13 @@ pub async fn connect(
     Query(query): Query<Connect>,
     upgrade: WebSocketUpgrade,
 ) -> ApiResult<Response> {
-    let user = state
+    let grant = state
         .hub
         .redeem(&query.ticket)
         .ok_or_else(|| ApiError::Unauthorized("that ticket is spent or expired".into()))?;
     Ok(upgrade
         .max_message_size(4096)
-        .on_upgrade(move |socket| serve(state, user, socket)))
+        .on_upgrade(move |socket| serve(state, grant, socket)))
 }
 
 #[derive(Deserialize)]
@@ -259,7 +269,8 @@ enum Incoming {
     },
 }
 
-async fn serve(state: AppState, user: Option<AuthUser>, mut socket: WebSocket) {
+async fn serve(state: AppState, grant: Grant, mut socket: WebSocket) {
+    let Grant { user, share_keys } = grant;
     let id = state.hub.next.fetch_add(1, Ordering::Relaxed);
     let (tx, mut rx) = mpsc::channel::<String>(QUEUE);
     let person = match &user {
@@ -300,7 +311,8 @@ async fn serve(state: AppState, user: Option<AuthUser>, mut socket: WebSocket) {
                             let _ = tx.try_send(json!({ "type": "denied", "room": room, "message": "in too many rooms at once" }).to_string());
                             continue;
                         }
-                        match may_join(&state, user.as_ref(), &room).await {
+                        let check = may_join(&state, user.as_ref(), &room);
+                        match crate::routes::share::PRESENTED.scope(share_keys.clone(), check).await {
                             Ok(()) => {
                                 let _ = tx.try_send(json!({ "type": "joined", "room": room }).to_string());
                                 state.hub.join(&room, id, Member { tx: tx.clone(), person: person.clone(), scene_id });
@@ -422,8 +434,8 @@ mod tests {
     #[test]
     fn a_ticket_is_good_once() {
         let hub = Hub::default();
-        let ticket = hub.issue(None);
-        assert!(matches!(hub.redeem(&ticket), Some(None)));
+        let ticket = hub.issue(None, Vec::new());
+        assert!(hub.redeem(&ticket).is_some_and(|g| g.user.is_none()));
         assert!(hub.redeem(&ticket).is_none());
         assert!(hub.redeem("made-up").is_none());
     }

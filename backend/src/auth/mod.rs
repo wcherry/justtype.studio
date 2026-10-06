@@ -77,19 +77,39 @@ pub struct ClientInfo {
     pub ip: Option<String>,
 }
 
-impl<S: Send + Sync> FromRequestParts<S> for ClientInfo {
+impl FromRequestParts<AppState> for ClientInfo {
     type Rejection = std::convert::Infallible;
 
-    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
         let user_agent = parts
             .headers
             .get(axum::http::header::USER_AGENT)
             .and_then(|v| v.to_str().ok())
             .map(|v| v.chars().take(300).collect());
-        let ip = parts
-            .extensions
-            .get::<axum::extract::ConnectInfo<std::net::SocketAddr>>()
-            .map(|info| info.0.ip().to_string());
+        // The same rule as the rate limits: the proxy's last entry when one
+        // is trusted, the peer otherwise.
+        let forwarded = state
+            .config
+            .trust_proxy
+            .then(|| {
+                parts
+                    .headers
+                    .get("x-forwarded-for")
+                    .and_then(|v| v.to_str().ok())
+                    .and_then(|v| v.rsplit(',').next())
+                    .map(|v| v.trim().to_string())
+                    .filter(|v| !v.is_empty())
+            })
+            .flatten();
+        let ip = forwarded.or_else(|| {
+            parts
+                .extensions
+                .get::<axum::extract::ConnectInfo<std::net::SocketAddr>>()
+                .map(|info| info.0.ip().to_string())
+        });
         Ok(ClientInfo { user_agent, ip })
     }
 }

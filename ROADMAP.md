@@ -628,11 +628,27 @@ do not build toward it, and do not carry a compatibility layer for it.
   save notice above is what narrows the gap until then.
 - iOS does not join the live channel yet; it keeps the 1.1 conflict rules.
 
-### 7.4 Security
-- Argon2 parameter tuning and a rehash-on-login path.
-- Per-route rate limiting; brute-force protection on sign-in.
-- Signed, expiring URLs for unlisted publications.
-- Independent security review before the first paid customer.
+### 7.4 Security — **done, but for the independent review**
+- Argon2id at 64 MiB and two passes by default, configurable, with
+  `--tune-argon2` to time the options on the machine itself. Hashes carry
+  their parameters, so raising the cost rehashes each account at its next
+  sign-in instead of locking anyone out — including every account made before
+  this, which were at the crate's 19 MiB minimum.
+- Brute-force protection: five wrong passwords or codes lock an account for
+  fifteen minutes, right password included, and an address with no account
+  locks the same way so the lock reveals nothing. Per-address limits on top —
+  30 a minute to the sign-in routes, 600 to anything — with the client address
+  read from a trusted proxy's last `X-Forwarded-For` entry, never the first.
+- Unlisted publications open from signed, expiring links the author makes:
+  an HMAC over the publication, the expiry and a per-publication secret, so
+  withdrawing every link is replacing one value. The key travels in a header
+  and is taken out of the address bar once read. **Old unlisted links — just
+  the id — stop working.**
+- Building that found a real gap: access checks run on the blocking thread
+  pool, where a request's task-locals do not reach, so the key was never seen
+  there. Every database call now carries the request's keys across.
+- **Not done: the independent security review.** It has to be independent;
+  it is still owed before the first paid customer.
 
 ---
 

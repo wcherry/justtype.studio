@@ -55,10 +55,15 @@ pub async fn request_id(mut request: Request, next: Next) -> Response {
         *request.method(),
         axum::http::Method::GET | axum::http::Method::HEAD | axum::http::Method::OPTIONS
     ) && request.uri().path().starts_with("/api/");
+    let keys = crate::routes::share::keys_from(request.headers());
     let mut response = REQUEST_ID
         .scope(
             id.clone(),
-            crate::metrics::WRITING.scope(writing, next.run(request).instrument(span.clone())),
+            crate::metrics::WRITING.scope(
+                writing,
+                crate::routes::share::PRESENTED
+                    .scope(keys, next.run(request).instrument(span.clone())),
+            ),
         )
         .await;
     if writing {
@@ -79,6 +84,59 @@ pub async fn request_id(mut request: Request, next: Next) -> Response {
             .insert(REQUEST_ID_HEADER.clone(), value);
     }
     response
+}
+
+/// Where a request came from: the peer, or behind a trusted proxy the last
+/// address the proxy appended. Never the first X-Forwarded-For entry, which
+/// is whatever the client wrote.
+pub fn client_ip(request: &Request, trust_proxy: bool) -> Option<String> {
+    if trust_proxy {
+        if let Some(last) = request
+            .headers()
+            .get("x-forwarded-for")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.rsplit(',').next())
+            .map(str::trim)
+            .filter(|v| !v.is_empty())
+        {
+            return Some(last.to_string());
+        }
+    }
+    request
+        .extensions()
+        .get::<axum::extract::ConnectInfo<std::net::SocketAddr>>()
+        .map(|info| info.0.ip().to_string())
+}
+
+/// Per-address rate limits: everything, and the sign-in routes much more
+/// tightly. They stop one machine hammering; `limit::LoginGuard` stops many
+/// machines guessing at one account slowly.
+pub async fn per_address(
+    axum::extract::State(state): axum::extract::State<crate::state::AppState>,
+    request: Request,
+    next: Next,
+) -> Response {
+    let path = request.uri().path();
+    // Health checks are for monitors, and a monitor should never be told no.
+    if path == "/api/health" || path == "/api/status" {
+        return next.run(request).await;
+    }
+    let Some(ip) = client_ip(&request, state.config.trust_proxy) else {
+        return next.run(request).await;
+    };
+    let limiter = &state.limiter;
+    let mut verdict = limiter.check(&ip, crate::limit::Action::Requests, state.config.ip_rate);
+    if verdict.is_ok() && path.starts_with("/api/auth/") {
+        verdict = limiter.check(
+            &ip,
+            crate::limit::Action::AuthRequests,
+            state.config.auth_ip_rate,
+        );
+    }
+    match verdict {
+        Ok(()) => next.run(request).await,
+        Err(refused) => axum::response::IntoResponse::into_response(refused),
+    }
 }
 
 /// The current request's id, when there is one.
@@ -420,6 +478,17 @@ pub fn latest_backup(dir: &Path) -> Option<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn behind_a_proxy_the_address_is_the_one_it_added_not_the_one_offered() {
+        let request = Request::builder()
+            .header("x-forwarded-for", "6.6.6.6, 203.0.113.9")
+            .body(axum::body::Body::empty())
+            .unwrap();
+        assert_eq!(client_ip(&request, true).as_deref(), Some("203.0.113.9"));
+        // Not trusted: the header is ignored entirely.
+        assert_eq!(client_ip(&request, false), None);
+    }
 
     #[test]
     fn a_sensible_client_id_is_kept_and_anything_else_replaced() {

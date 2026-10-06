@@ -258,4 +258,6 @@ api_enum!(AuditAction {
     ReaderBlocked => "reader_blocked",
     ReaderUnblocked => "reader_unblocked",
     TermsAccepted => "terms_accepted",
+    ShareLinkMade => "share_link_made",
+    ShareLinksRevoked => "share_links_revoked",
 });

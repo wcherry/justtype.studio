@@ -178,7 +178,9 @@
           "reader_uninvited",
           "reader_blocked",
           "reader_unblocked",
-          "terms_accepted"
+          "terms_accepted",
+          "share_link_made",
+          "share_links_revoked"
         ],
         "type": "string"
       },
@@ -1725,6 +1727,19 @@
         ],
         "type": "object"
       },
+      "MakeLinkRequest": {
+        "properties": {
+          "days": {
+            "description": "How long it works, 1 to 90 days.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "days"
+        ],
+        "type": "object"
+      },
       "MergeSceneRequest": {
         "properties": {
           "baseHash": {
@@ -3094,6 +3109,26 @@
             "type": "object"
           }
         ]
+      },
+      "ShareLink": {
+        "properties": {
+          "expiresAt": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "url": {
+            "description": "The whole link, to send to someone.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "key",
+          "expiresAt"
+        ],
+        "type": "object"
       },
       "SinceResponse": {
         "properties": {
@@ -7170,6 +7205,94 @@
         },
         "tags": [
           "readers"
+        ]
+      }
+    },
+    "/api/publications/{publication_id}/links": {
+      "post": {
+        "operationId": "make",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "publication_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MakeLinkRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShareLink"
+                }
+              }
+            },
+            "description": "A link that works until it expires"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "publications"
+        ]
+      }
+    },
+    "/api/publications/{publication_id}/links/revoke": {
+      "post": {
+        "operationId": "revoke",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "publication_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Every link made so far stops working"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "publications"
         ]
       }
     },

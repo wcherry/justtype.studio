@@ -48,7 +48,16 @@ async fn main() -> anyhow::Result<()> {
     }
 
     dotenvy::dotenv().ok();
+    // `--tune-argon2 [ms]` times password hashing on this machine and exits.
+    let args: Vec<String> = std::env::args().collect();
+    if let Some(i) = args.iter().position(|a| a == "--tune-argon2") {
+        let target = args.get(i + 1).and_then(|v| v.parse().ok()).unwrap_or(250);
+        auth::password::tune(target);
+        return Ok(());
+    }
     let config = Config::from_env()?;
+    auth::password::configure(auth::password::Cost::from_env()?);
+    routes::share::configure(&config.jwt_secret);
 
     let filter = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| "scriptorium_backend=debug,tower_http=info,axum=info".into());
@@ -73,7 +82,6 @@ async fn main() -> anyhow::Result<()> {
 
     // Maintenance runs as the same binary, against the same configuration,
     // and exits: `--backup` takes one, `--restore-drill <dir>` proves one.
-    let args: Vec<String> = std::env::args().collect();
     if args.iter().any(|a| a == "--backup") {
         let into = config
             .backup_dir
@@ -150,6 +158,7 @@ async fn main() -> anyhow::Result<()> {
             header::AUTHORIZATION,
             header::CONTENT_TYPE,
             ops::REQUEST_ID_HEADER.clone(),
+            axum::http::HeaderName::from_static("x-share-key"),
         ])
         // So a browser on another origin can read the id it should quote.
         .expose_headers([ops::REQUEST_ID_HEADER.clone()]);
@@ -166,12 +175,18 @@ async fn main() -> anyhow::Result<()> {
         limiter: Arc::new(limit::RateLimiter::new()),
         scene_cache: Arc::new(cache::SceneCache::new(cache_bytes)),
         hub: Arc::new(live::Hub::default()),
+        login_guard: Arc::new(limit::LoginGuard::default()),
     };
 
     // Outermost first in effect: the request id wraps everything, so even a
     // panic's 500 and the CORS preflight carry one.
-    let app = routes::router(state)
+    let app = routes::router(state.clone())
         .layer(tower_http::catch_panic::CatchPanicLayer::custom(panicked))
+        // Before CORS and the handlers, so a flood is turned away cheaply.
+        .layer(axum::middleware::from_fn_with_state(
+            state,
+            ops::per_address,
+        ))
         .layer(cors)
         .layer(axum::middleware::from_fn(ops::request_id));
 

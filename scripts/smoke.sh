@@ -43,6 +43,7 @@ SCRIPTORIUM_DATA_DIR="$TMP/works" \
 SCRIPTORIUM_JWT_SECRET="smoke-test-secret-value-1234567890" \
 SCRIPTORIUM_VOTE_RATE=3 \
 SCRIPTORIUM_SECOND_FACTOR_RATE=20 \
+SCRIPTORIUM_AUTH_IP_RATE=150 \
 SCRIPTORIUM_MAIL=outbox \
 SCRIPTORIUM_BACKUP_DIR="$TMP/backups" \
 SCRIPTORIUM_METRICS_TOKEN="smoke-metrics-token-0123456789" \
@@ -1043,6 +1044,49 @@ curl -s -X POST "$API/works/$WID/collaborators" -H "$AUTH" -H 'content-type: app
 LIVE_SCENE=$(curl -s "$API/works/$WID/outline" -H "$AUTH" | field chapters.0.scenes.0.id)
 API="$API" ADA="$TOKEN" KIT="$KTOKEN" HAL="$HTOKEN" WID="$WID" PID="$PID" SCENE="$LIVE_SCENE" \
   node "$ROOT/scripts/live_check.mjs" || exit 1
+
+step "Unlisted means a signed link, not an id"
+UNL=$(curl -s -X POST "$API/versions/$V2/publications" -H "$AUTH" -H 'content-type: application/json' \
+  -d '{"visibility":"unlisted","reviewPrompt":"Just for you."}' | field id)
+[ "$(curl -s -o /dev/null -w '%{http_code}' "$API/publications/$UNL" -H "$SAUTH")" = "403" ] \
+  && echo "  knowing the id is no longer enough" || { echo "  EXPECTED 403"; exit 1; }
+LINK=$(curl -s -X POST "$API/publications/$UNL/links" -H "$AUTH" -H 'content-type: application/json' -d '{"days":7}')
+KEY=$(echo "$LINK" | field key)
+echo "  the author makes a link: $(echo "$LINK" | field url | sed 's/key=.*/key=…/'), until $(echo "$LINK" | field expiresAt)"
+[ "$(curl -s -o /dev/null -w '%{http_code}' "$API/publications/$UNL/content" -H "x-share-key: $KEY")" = "200" ] \
+  && echo "  with the key, anyone can read it — signed in or not" || { echo "  EXPECTED 200: key=$KEY $(curl -s "$API/publications/$UNL/content" -H "x-share-key: $KEY")"; exit 1; }
+[ "$(curl -s -o /dev/null -w '%{http_code}' "$API/publications/$UNL/content" -H "x-share-key: 1.${KEY#*.}")" = "403" ] \
+  && echo "  a key with its expiry changed is refused" || { echo "  EXPECTED 403"; exit 1; }
+[ "$(curl -s -o /dev/null -w '%{http_code}' "$API/publications/$PID" -H "x-share-key: $KEY")" = "403" ] \
+  && echo "  and a key for one publication opens no other" || { echo "  EXPECTED 403"; exit 1; }
+curl -s -X POST "$API/publications/$UNL/links/revoke" -H "$AUTH" >/dev/null
+[ "$(curl -s -o /dev/null -w '%{http_code}' "$API/publications/$UNL/content" -H "x-share-key: $KEY")" = "403" ] \
+  && echo "  withdrawing the links stops every one already sent" || { echo "  EXPECTED 403"; exit 1; }
+[ "$(curl -s -o /dev/null -w '%{http_code}' -X POST "$API/publications/$PID/links" -H "$AUTH" -H 'content-type: application/json' -d '{"days":7}')" = "400" ] \
+  && echo "  only an unlisted publication takes links" || { echo "  EXPECTED 400"; exit 1; }
+
+step "Guessing at a sign-in"
+for i in 1 2 3 4 5; do
+  curl -s -o /dev/null -X POST "$API/auth/login" -H 'content-type: application/json' -d '{"email":"ada@example.com","password":"wrong-guess"}'
+done
+curl -s -X POST "$API/auth/login" -H 'content-type: application/json' -d '{"email":"ada@example.com","password":"correcthorse"}' | python3 -c "
+import sys,json;e=json.load(sys.stdin)['error'];assert e['code']=='too_many_requests', e
+print('  after five wrong passwords, even the right one waits:', e['message'])"
+curl -s -X POST "$API/auth/login" -H 'content-type: application/json' -d '{"email":"nobody-here@example.com","password":"x"}' >/dev/null
+for i in 1 2 3 4; do
+  curl -s -o /dev/null -X POST "$API/auth/login" -H 'content-type: application/json' -d '{"email":"nobody-here@example.com","password":"x"}'
+done
+curl -s -X POST "$API/auth/login" -H 'content-type: application/json' -d '{"email":"nobody-here@example.com","password":"x"}' | python3 -c "
+import sys,json;e=json.load(sys.stdin)['error'];assert e['code']=='too_many_requests', e
+print('  an address with no account locks the same way, so the lock gives nothing away')"
+N=0
+while :; do
+  N=$((N+1))
+  R=$(curl -s -X POST "$API/auth/login" -H 'content-type: application/json' -d "{\"email\":\"probe$N@example.com\",\"password\":\"x\"}")
+  if echo "$R" | grep -q 'sign-in requests'; then break; fi
+  [ $N -gt 200 ] && { echo "  THE ADDRESS WAS NEVER LIMITED"; exit 1; }
+done
+echo "  one address spraying sign-ins across accounts is cut off too, after $N more"
 
 step "Request ids"
 HDR=$(curl -s -D - -o /dev/null "$API/works" -H "$AUTH" | tr -d '\r' | awk -F': ' 'tolower($1)=="x-request-id"{print $2}')

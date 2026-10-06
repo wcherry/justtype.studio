@@ -227,6 +227,7 @@ diesel::table! {
         updated_at -> Text,
         max_reviewers -> Nullable<Integer>,
         spoiler_safe -> Integer,
+        link_secret -> Nullable<Text>,
     }
 }
 

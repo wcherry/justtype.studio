@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { api, tokens } from './api/client'
+import { api, shareKeys, tokens } from './api/client'
 
 /**
  * The live channel: one WebSocket for the tab, shared by everything that
@@ -41,7 +41,8 @@ async function connect() {
     const access = tokens.access()
     const res = await fetch('/api/live/ticket', {
       method: 'POST',
-      headers: access ? { authorization: `Bearer ${access}` } : {},
+      // The ticket carries any share keys, so an unlisted draft's room opens.
+      headers: { ...(access ? { authorization: `Bearer ${access}` } : {}), ...shareKeys.header() },
     })
     if (!res.ok) throw new Error(`ticket ${res.status}`)
     const { ticket } = (await res.json()) as { ticket: string }

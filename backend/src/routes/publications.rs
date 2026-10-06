@@ -160,6 +160,7 @@ pub async fn create(
             // further in than another. Anything else is finished before anyone
             // opens it, and withholding notes would only hide them.
             spoiler_safe: i32::from(body.spoiler_safe.unwrap_or(work.kind == "serial")),
+            link_secret: Some(crate::auth::generate_link_token()),
         };
         diesel::insert_into(publications::table)
             .values(&row)

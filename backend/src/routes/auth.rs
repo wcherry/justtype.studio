@@ -240,6 +240,10 @@ pub async fn login(
     let password = body.password;
     let code = body.code;
     let inner_state = state.clone();
+    // Locked accounts are refused before the password is even looked at, so
+    // a locked account cannot be used to test guesses.
+    state.login_guard.check(&email)?;
+    let guard = state.login_guard.clone();
 
     let session = blocking(&state.pool, move |conn| {
         let user: Option<User> = users::table
@@ -247,11 +251,15 @@ pub async fn login(
             .select(User::as_select())
             .first(conn)
             .optional()?;
-        // Same error either way: do not leak which emails have accounts.
-        let user =
-            user.ok_or_else(|| ApiError::Unauthorized("invalid email or password".into()))?;
+        // Same error either way: do not leak which emails have accounts. An
+        // unknown address counts towards a lock too, for the same reason.
+        let wrong = || {
+            guard.failed(&email);
+            ApiError::Unauthorized("invalid email or password".into())
+        };
+        let user = user.ok_or_else(wrong)?;
         if !auth::password::verify(&password, &user.password_hash) {
-            return Err(ApiError::Unauthorized("invalid email or password".into()));
+            return Err(wrong());
         }
         // Asked only once the password is right, so the refusal reveals
         // nothing to someone who does not already have it.
@@ -266,7 +274,20 @@ pub async fn login(
                 Action::SecondFactor,
                 inner_state.config.second_factor_rate,
             )?;
-            super::account::check_second_factor(conn, &user, code)?;
+            if let Err(e) = super::account::check_second_factor(conn, &user, code) {
+                guard.failed(&email);
+                return Err(e);
+            }
+        }
+        guard.succeeded(&email);
+        // The password is in hand, so this is the one moment a hash made
+        // under older, cheaper settings can be made again under today's.
+        if auth::password::needs_rehash(&user.password_hash) {
+            let fresh = auth::password::hash(&password)?;
+            diesel::update(users::table.find(&user.id))
+                .set(users::password_hash.eq(&fresh))
+                .execute(conn)?;
+            tracing::info!(user_id = %user.id, "password rehashed under the current Argon2 cost");
         }
         start_session(&inner_state, conn, user, &client)
     })

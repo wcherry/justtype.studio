@@ -17,6 +17,7 @@ pub mod publications;
 pub mod readers;
 pub mod scenes;
 pub mod search;
+pub mod share;
 pub mod status;
 pub mod support;
 pub mod tasks;
@@ -41,6 +42,8 @@ fn api_router() -> OpenApiRouter<AppState> {
         .routes(routes!(status::metrics))
         .routes(routes!(search::search_work))
         .routes(routes!(crate::live::ticket))
+        .routes(routes!(share::make))
+        .routes(routes!(share::revoke))
         // A WebSocket, so not in the OpenAPI document; see docs/API.md.
         .route("/api/live", axum::routing::get(crate::live::connect))
         .routes(routes!(auth::register))

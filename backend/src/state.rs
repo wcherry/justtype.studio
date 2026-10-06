@@ -20,4 +20,6 @@ pub struct AppState {
     pub scene_cache: Arc<crate::cache::SceneCache>,
     /// The live channel's rooms — see `live`.
     pub hub: Arc<crate::live::Hub>,
+    /// Failed sign-ins per account — see `limit::LoginGuard`.
+    pub login_guard: Arc<crate::limit::LoginGuard>,
 }

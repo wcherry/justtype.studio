@@ -262,7 +262,7 @@ shape against the scene as it stands now — what restoring it would change.
 | `PATCH` | `/publications/{id}` | `visibility`, `reviewPrompt`, `closesAt`, `maxReviewers` (`0` removes the cap) |
 | `DELETE` | `/publications/{id}` | withdraws it, comments included |
 
-`visibility` is `unlisted` (link only), `platform` (signed-in readers),
+`visibility` is `unlisted` (a signed link only — see below), `platform` (signed-in readers),
 `invited` (named readers only) or `public`. `scope` is `work`, `chapter` or
 `scene`; the narrower scopes need `scopeRefId`. A version must be published
 before it can be offered for review.
@@ -645,3 +645,30 @@ reading a draft is not something one reader is owed about another.
 
 In memory and in one process, like the rate limiter. A second process would
 put a broker behind `live::Hub`.
+
+## Hardening
+
+**Unlisted links are signed.** An unlisted publication no longer opens for
+anyone who has its id. The author makes a link (`POST /publications/{id}/links`
+with `days`, 1–90) whose key is an expiry and an HMAC over the publication,
+the expiry and a secret kept on the publication; `POST
+/publications/{id}/links/revoke` replaces the secret, and every link made so
+far stops working. A reader's client sends keys in an `x-share-key` header
+(several, comma-separated), never back in a URL. Links made before this
+change, which were just the id, no longer open the draft.
+
+**Passwords** are Argon2id at 64 MiB and two passes by default
+(`SCRIPTORIUM_ARGON2_*`); `scriptorium-backend --tune-argon2 [ms]` times the
+options on the machine it runs on. Every hash records its own parameters, so
+raising them locks no one out: on the next sign-in the password is checked
+against the old hash and stored again under the new cost.
+
+**Sign-in is guarded twice.** Five wrong passwords or codes on one account in
+fifteen minutes lock it for the rest of that window — the right password
+included, so a lock cannot be used to test guesses — and an address with no
+account locks the same way, so a lock reveals nothing. A reset link still
+works. Separately, one address may make 30 requests a minute to `/auth/*` and
+600 to anything (`SCRIPTORIUM_AUTH_IP_RATE`, `SCRIPTORIUM_IP_RATE`); over either
+is a `429` with `retryAfter`. Behind a reverse proxy, set
+`SCRIPTORIUM_TRUST_PROXY=true` so the address is the proxy's last
+`X-Forwarded-For` entry — never the first, which is whatever the client wrote.

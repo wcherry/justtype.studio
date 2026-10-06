@@ -360,7 +360,13 @@ pub fn publication_for_reader(
     }
 
     match publication.visibility.as_str() {
-        "public" | "unlisted" => Ok((publication, work)),
+        "public" => Ok((publication, work)),
+        // Opened by a signed, expiring link the author made, not by its id.
+        "unlisted" if super::share::presented_for(&publication) => Ok((publication, work)),
+        "unlisted" => Err(ApiError::Forbidden(
+            "this draft opens from the link its author sent — that link is missing, expired or withdrawn"
+                .into(),
+        )),
         "platform" if user.is_some() => Ok((publication, work)),
         "invited" => {
             let Some(user) = user else {

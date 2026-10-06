@@ -28,6 +28,10 @@ pub enum Action {
     /// Guesses at a second factor. A six-digit code is a million tries from
     /// open, so tries are what is limited.
     SecondFactor,
+    /// Any request from one address. Keyed by IP, not account.
+    Requests,
+    /// Requests to the sign-in, sign-up and reset routes from one address.
+    AuthRequests,
 }
 
 impl Action {
@@ -38,6 +42,8 @@ impl Action {
             Action::React => "reactions",
             Action::Mail => "messages",
             Action::SecondFactor => "codes",
+            Action::Requests => "requests",
+            Action::AuthRequests => "sign-in requests",
         }
     }
 }
@@ -89,9 +95,91 @@ impl RateLimiter {
     }
 }
 
+/// Sign-in attempts per account, failed ones only.
+///
+/// The per-address limit stops one machine guessing fast; this stops many
+/// machines guessing at one account slowly. After `LOCK_AFTER` wrong passwords
+/// or codes inside `LOCK_WINDOW`, the account refuses every attempt — right or
+/// wrong — until the oldest of them ages out. The same answer for an address
+/// with no account, so the lock says nothing about which addresses exist.
+/// A reset link still works: a locked-out owner is not stuck.
+#[derive(Default)]
+pub struct LoginGuard {
+    failures: Mutex<HashMap<String, Vec<Instant>>>,
+}
+
+pub const LOCK_AFTER: usize = 5;
+pub const LOCK_WINDOW: Duration = Duration::from_secs(15 * 60);
+
+impl LoginGuard {
+    fn lock(&self) -> std::sync::MutexGuard<'_, HashMap<String, Vec<Instant>>> {
+        self.failures.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// Refuses if the account is locked.
+    pub fn check(&self, email: &str) -> Result<(), ApiError> {
+        let now = Instant::now();
+        let mut failures = self.lock();
+        failures.retain(|_, times| {
+            times.retain(|t| now.duration_since(*t) < LOCK_WINDOW);
+            !times.is_empty()
+        });
+        let Some(times) = failures.get(email) else {
+            return Ok(());
+        };
+        if times.len() < LOCK_AFTER {
+            return Ok(());
+        }
+        let oldest = times[times.len() - LOCK_AFTER];
+        let retry_after = LOCK_WINDOW
+            .saturating_sub(now.duration_since(oldest))
+            .as_secs()
+            .max(1) as i64;
+        Err(ApiError::TooManyRequests {
+            message: format!(
+                "too many wrong attempts on this account — try again in {} minute{}, or reset the password",
+                (retry_after + 59) / 60,
+                if retry_after > 60 { "s" } else { "" }
+            ),
+            retry_after,
+        })
+    }
+
+    pub fn failed(&self, email: &str) {
+        self.lock()
+            .entry(email.to_string())
+            .or_default()
+            .push(Instant::now());
+    }
+
+    pub fn succeeded(&self, email: &str) {
+        self.lock().remove(email);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_account_locks_after_five_wrong_attempts_and_a_right_one_clears_it() {
+        let guard = LoginGuard::default();
+        for _ in 0..LOCK_AFTER - 1 {
+            guard.failed("ada@example.com");
+        }
+        assert!(guard.check("ada@example.com").is_ok(), "four is not five");
+        guard.failed("ada@example.com");
+        match guard.check("ada@example.com") {
+            Err(ApiError::TooManyRequests { retry_after, .. }) => {
+                assert!(retry_after > 14 * 60 && retry_after <= 15 * 60)
+            }
+            other => panic!("expected a lock, got {other:?}"),
+        }
+        // Another account is untouched.
+        assert!(guard.check("grace@example.com").is_ok());
+        guard.succeeded("ada@example.com");
+        assert!(guard.check("ada@example.com").is_ok());
+    }
 
     #[test]
     fn a_burst_is_refused_once_the_window_is_full() {

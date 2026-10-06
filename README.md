@@ -123,6 +123,11 @@ A running server also serves the document at `/api/openapi.json`.
 | `SCRIPTORIUM_LOG_FORMAT` | `text` | `json` for one JSON object per log line |
 | `SCRIPTORIUM_BACKUP_DIR` | *(none)* | Where `cargo backup` puts backups; `/api/status` checks them |
 | `SCRIPTORIUM_BACKUP_KEEP` | `14` | How many backups to keep |
+| `SCRIPTORIUM_ARGON2_MEMORY_KIB` | `65536` | Password hashing memory; `--tune-argon2` measures what this machine affords |
+| `SCRIPTORIUM_ARGON2_ITERATIONS`, `SCRIPTORIUM_ARGON2_LANES` | `2`, `1` | |
+| `SCRIPTORIUM_IP_RATE` | `600` | Requests per minute from one address; `0` turns it off |
+| `SCRIPTORIUM_AUTH_IP_RATE` | `30` | Sign-in, sign-up and reset requests per minute from one address |
+| `SCRIPTORIUM_TRUST_PROXY` | `false` | Read the client address from the proxy's last `X-Forwarded-For` entry |
 | `SCRIPTORIUM_CACHE_MB` | `64` | Memory for snapshot scene bodies |
 | `SCRIPTORIUM_METRICS_TOKEN` | *(none)* | Turns on `/api/metrics` (Prometheus text) behind this bearer token |
 
