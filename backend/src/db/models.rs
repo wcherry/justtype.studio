@@ -179,6 +179,11 @@ row!(BibleEntry, bible_entries, {
     body: Option<String>,
     created_at: String,
     updated_at: String,
+    /// JSON; read through `EntryView::fields`.
+    #[serde(skip)]
+    fields: Option<String>,
+    /// The sketch template it was started from, if any.
+    template_id: Option<String>,
 });
 
 row!(SceneBibleLink, scene_bible_links, {
@@ -545,6 +550,7 @@ new_row!(NewBibleEntry, bible_entries, {
     id: String, work_id: String, kind: String, name: String,
     summary: Option<String>, body: Option<String>,
     created_at: String, updated_at: String,
+    fields: Option<String>, template_id: Option<String>,
 });
 
 new_row!(NewSceneBibleLink, scene_bible_links, {

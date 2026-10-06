@@ -32,7 +32,29 @@ pub struct CreateEntryRequest {
     pub summary: Option<String>,
     #[serde(default)]
     pub body: Option<String>,
+    /// A sketch template (`GET /api/bible/templates`) to start from: its fields
+    /// arrive empty, ready to fill in.
+    #[serde(default)]
+    pub template_id: Option<String>,
 }
+
+/// One named part of a sketch.
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SketchField {
+    /// Stable within the entry; a field the writer added gets one too.
+    pub key: String,
+    pub label: String,
+    #[serde(default)]
+    pub value: String,
+    /// The question the field asks, from its template. Absent on the writer's
+    /// own fields.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prompt: Option<String>,
+}
+
+const MAX_FIELDS: usize = 40;
+const MAX_FIELD_CHARS: usize = 20_000;
 
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -43,6 +65,9 @@ pub struct UpdateEntryRequest {
     pub summary: Option<String>,
     #[serde(default)]
     pub body: Option<String>,
+    /// The whole sketch, in order. Replaces what was there.
+    #[serde(default)]
+    pub fields: Option<Vec<SketchField>>,
 }
 
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
@@ -63,6 +88,55 @@ pub struct EntryView {
     pub entry: BibleEntry,
     /// Scenes this entry appears in, in reading order.
     pub scene_ids: Vec<String>,
+    /// The sketch, in order. Empty for an entry that is just a name and notes.
+    pub fields: Vec<SketchField>,
+}
+
+fn parse_fields(raw: Option<&str>) -> Vec<SketchField> {
+    raw.and_then(|r| serde_json::from_str(r).ok())
+        .unwrap_or_default()
+}
+
+fn checked_fields(mut fields: Vec<SketchField>) -> ApiResult<String> {
+    if fields.len() > MAX_FIELDS {
+        return Err(ApiError::BadRequest(format!(
+            "a sketch has at most {MAX_FIELDS} fields"
+        )));
+    }
+    let mut seen = std::collections::HashSet::new();
+    for field in &mut fields {
+        field.label = field.label.trim().to_string();
+        if field.label.is_empty() {
+            return Err(ApiError::BadRequest("every field needs a label".into()));
+        }
+        if field.key.trim().is_empty() {
+            field.key = new_id();
+        }
+        if !seen.insert(field.key.clone()) {
+            return Err(ApiError::BadRequest(format!(
+                "two fields share the key `{}`",
+                field.key
+            )));
+        }
+        if field.value.chars().count() > MAX_FIELD_CHARS {
+            return Err(ApiError::BadRequest(format!(
+                "`{}` is longer than {MAX_FIELD_CHARS} characters",
+                field.label
+            )));
+        }
+    }
+    Ok(serde_json::to_string(&fields)?)
+}
+
+/// The sketch templates entries can be started from.
+#[utoipa::path(
+    get,
+    path = "/api/bible/templates",
+    tag = "bible",
+    responses((status = 200, description = "Built-in sketch templates", body = Vec<crate::domain::sketches::SketchTemplate>))
+)]
+pub async fn templates() -> Json<Vec<crate::domain::sketches::SketchTemplate>> {
+    Json(crate::domain::sketches::all())
 }
 
 fn load_entry(conn: &mut crate::db::Conn, entry_id: &str) -> ApiResult<EntryView> {
@@ -76,7 +150,11 @@ fn load_entry(conn: &mut crate::db::Conn, entry_id: &str) -> ApiResult<EntryView
         .order((scenes::chapter_id.asc(), scenes::position.asc()))
         .select(scene_bible_links::scene_id)
         .load(conn)?;
-    Ok(EntryView { entry, scene_ids })
+    Ok(EntryView {
+        fields: parse_fields(entry.fields.as_deref()),
+        entry,
+        scene_ids,
+    })
 }
 
 /// The caller owns the work this entry belongs to.
@@ -167,6 +245,36 @@ pub async fn create(
         return Err(ApiError::BadRequest("an entry needs a name".into()));
     }
 
+    let template = match &body.template_id {
+        Some(id) => {
+            let template = crate::domain::sketches::find(id)
+                .ok_or_else(|| ApiError::BadRequest(format!("no sketch template `{id}`")))?;
+            if template.kind != body.kind {
+                return Err(ApiError::BadRequest(format!(
+                    "`{}` is a template for a {}, not a {}",
+                    template.name, template.kind, body.kind
+                )));
+            }
+            Some(template)
+        }
+        None => None,
+    };
+    let fields = template.as_ref().map(|t| {
+        t.fields
+            .iter()
+            .map(|f| SketchField {
+                key: f.key.into(),
+                label: f.label.into(),
+                value: String::new(),
+                prompt: Some(f.prompt.into()),
+            })
+            .collect::<Vec<_>>()
+    });
+    let fields = match fields {
+        Some(fields) => Some(checked_fields(fields)?),
+        None => None,
+    };
+
     let entry = blocking(&state.pool, move |conn| {
         support::work_for(conn, &work_id, &user, Ability::Write)?;
         let now = now_iso();
@@ -179,6 +287,8 @@ pub async fn create(
             body: body.body.clone(),
             created_at: now.clone(),
             updated_at: now,
+            fields,
+            template_id: template.map(|t| t.id.to_string()),
         };
         diesel::insert_into(bible_entries::table)
             .values(&row)
@@ -224,6 +334,11 @@ pub async fn update(
         if let Some(text) = &body.body {
             diesel::update(bible_entries::table.find(&entry_id))
                 .set(bible_entries::body.eq(text))
+                .execute(conn)?;
+        }
+        if let Some(fields) = body.fields.clone() {
+            diesel::update(bible_entries::table.find(&entry_id))
+                .set(bible_entries::fields.eq(checked_fields(fields)?))
                 .execute(conn)?;
         }
         diesel::update(bible_entries::table.find(&entry_id))

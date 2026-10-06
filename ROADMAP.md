@@ -688,9 +688,18 @@ do not build toward it, and do not carry a compatibility layer for it.
   the browser declines to submit without saying why. Any whole number now
   works.
 
-### 8.3 Story bible sketches · **Later**
+### 8.3 Story bible sketches · **Done**
 - Sketches for characters, locations and the like, each started from a
   template, kept with the work and to hand while writing.
+- **Done:** a bible entry can be a sketch — named fields in order, started
+  from one of seven built-in templates: a main or supporting character, a
+  location or a room, an object, a family or organisation, a timeline event.
+  Each field carries the question it is asking ("What happened that they are
+  still answering?"), shown until it is answered, and a writer can add
+  questions of their own. Two new kinds join people, places and notes:
+  *things* and *groups*.
+- To hand while writing: the bible panel opens with whoever and whatever is
+  linked to the scene in front of you, sketch and all, before the rest.
 
 ### 8.4 AI summaries · **Later**
 - A summarize button for a scene, a chapter or the whole book.

@@ -118,6 +118,10 @@ api_enum!(ChangeKind {
 api_enum!(BibleKind {
     Character => "character",
     Place => "place",
+    /// An object the plot turns on.
+    Thing => "thing",
+    /// A family, a crew, an organisation.
+    Group => "group",
     Note => "note",
 });
 

@@ -251,6 +251,8 @@ public enum API {
         public var kind: BibleKind
         public var name: String
         public var summary: String?
+        /// The sketch template it was started from, if any.
+        public var templateId: String?
         public var updatedAt: String
         public var workId: String
 
@@ -261,6 +263,7 @@ public enum API {
             kind: BibleKind,
             name: String,
             summary: String? = nil,
+            templateId: String? = nil,
             updatedAt: String,
             workId: String
         ) {
@@ -270,6 +273,7 @@ public enum API {
             self.kind = kind
             self.name = name
             self.summary = summary
+            self.templateId = templateId
             self.updatedAt = updatedAt
             self.workId = workId
         }
@@ -278,6 +282,8 @@ public enum API {
     public enum BibleKind: String, Codable, CaseIterable, Hashable, Sendable {
         case character = "character"
         case place = "place"
+        case thing = "thing"
+        case group = "group"
         case note = "note"
     }
 
@@ -910,17 +916,22 @@ public enum API {
         public var kind: BibleKind
         public var name: String
         public var summary: String?
+        /// A sketch template (`GET /api/bible/templates`) to start from: its fields
+        /// arrive empty, ready to fill in.
+        public var templateId: String?
 
         public init(
             body: String? = nil,
             kind: BibleKind,
             name: String,
-            summary: String? = nil
+            summary: String? = nil,
+            templateId: String? = nil
         ) {
             self.body = body
             self.kind = kind
             self.name = name
             self.summary = summary
+            self.templateId = templateId
         }
     }
 
@@ -1210,8 +1221,12 @@ public enum API {
         public var kind: BibleKind
         public var name: String
         public var summary: String?
+        /// The sketch template it was started from, if any.
+        public var templateId: String?
         public var updatedAt: String
         public var workId: String
+        /// The sketch, in order. Empty for an entry that is just a name and notes.
+        public var fields: [SketchField]
         /// Scenes this entry appears in, in reading order.
         public var sceneIds: [String]
 
@@ -1222,8 +1237,10 @@ public enum API {
             kind: BibleKind,
             name: String,
             summary: String? = nil,
+            templateId: String? = nil,
             updatedAt: String,
             workId: String,
+            fields: [SketchField],
             sceneIds: [String]
         ) {
             self.body = body
@@ -1232,8 +1249,10 @@ public enum API {
             self.kind = kind
             self.name = name
             self.summary = summary
+            self.templateId = templateId
             self.updatedAt = updatedAt
             self.workId = workId
+            self.fields = fields
             self.sceneIds = sceneIds
         }
     }
@@ -2743,6 +2762,51 @@ public enum API {
         }
     }
 
+    /// One named part of a sketch.
+    public struct SketchField: Codable, Hashable, Sendable {
+        /// Stable within the entry; a field the writer added gets one too.
+        public var key: String
+        public var label: String
+        /// The question the field asks, from its template. Absent on the writer's
+        /// own fields.
+        public var prompt: String?
+        public var value: String?
+
+        public init(
+            key: String,
+            label: String,
+            prompt: String? = nil,
+            value: String? = nil
+        ) {
+            self.key = key
+            self.label = label
+            self.prompt = prompt
+            self.value = value
+        }
+    }
+
+    public struct SketchTemplate: Codable, Hashable, Sendable {
+        public var description: String
+        public var fields: [TemplateField]
+        public var id: String
+        public var kind: BibleKind
+        public var name: String
+
+        public init(
+            description: String,
+            fields: [TemplateField],
+            id: String,
+            kind: BibleKind,
+            name: String
+        ) {
+            self.description = description
+            self.fields = fields
+            self.id = id
+            self.kind = kind
+            self.name = name
+        }
+    }
+
     public struct SplitSceneRequest: Codable, Hashable, Sendable {
         /// Index of the first top-level block that belongs to the *new* scene.
         /// Blocks, not characters: the cut is between paragraphs, which is how a
@@ -2932,6 +2996,23 @@ public enum API {
             self.scenes = scenes
             self.summary = summary
             self.title = title
+        }
+    }
+
+    public struct TemplateField: Codable, Hashable, Sendable {
+        public var key: String
+        public var label: String
+        /// The question the field is asking.
+        public var prompt: String
+
+        public init(
+            key: String,
+            label: String,
+            prompt: String
+        ) {
+            self.key = key
+            self.label = label
+            self.prompt = prompt
         }
     }
 
@@ -3161,15 +3242,19 @@ public enum API {
 
     public struct UpdateEntryRequest: Codable, Hashable, Sendable {
         public var body: String?
+        /// The whole sketch, in order. Replaces what was there.
+        public var fields: [SketchField]?
         public var name: String?
         public var summary: String?
 
         public init(
             body: String? = nil,
+            fields: [SketchField]? = nil,
             name: String? = nil,
             summary: String? = nil
         ) {
             self.body = body
+            self.fields = fields
             self.name = name
             self.summary = summary
         }

@@ -262,6 +262,13 @@
               "null"
             ]
           },
+          "templateId": {
+            "description": "The sketch template it was started from, if any.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "updatedAt": {
             "type": "string"
           },
@@ -283,6 +290,8 @@
         "enum": [
           "character",
           "place",
+          "thing",
+          "group",
           "note"
         ],
         "type": "string"
@@ -1097,6 +1106,13 @@
               "string",
               "null"
             ]
+          },
+          "templateId": {
+            "description": "A sketch template (`GET /api/bible/templates`) to start from: its fields\narrive empty, ready to fill in.",
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -1514,6 +1530,13 @@
           },
           {
             "properties": {
+              "fields": {
+                "description": "The sketch, in order. Empty for an entry that is just a name and notes.",
+                "items": {
+                  "$ref": "#/components/schemas/SketchField"
+                },
+                "type": "array"
+              },
               "sceneIds": {
                 "description": "Scenes this entry appears in, in reading order.",
                 "items": {
@@ -1523,7 +1546,8 @@
               }
             },
             "required": [
-              "sceneIds"
+              "sceneIds",
+              "fields"
             ],
             "type": "object"
           }
@@ -3172,6 +3196,63 @@
         ],
         "type": "object"
       },
+      "SketchField": {
+        "description": "One named part of a sketch.",
+        "properties": {
+          "key": {
+            "description": "Stable within the entry; a field the writer added gets one too.",
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "prompt": {
+            "description": "The question the field asks, from its template. Absent on the writer's\nown fields.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "label"
+        ],
+        "type": "object"
+      },
+      "SketchTemplate": {
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/TemplateField"
+            },
+            "type": "array"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/BibleKind"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "name",
+          "description",
+          "fields"
+        ],
+        "type": "object"
+      },
       "SplitSceneRequest": {
         "properties": {
           "atBlock": {
@@ -3384,6 +3465,26 @@
         },
         "required": [
           "title"
+        ],
+        "type": "object"
+      },
+      "TemplateField": {
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "prompt": {
+            "description": "The question the field is asking.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "prompt"
         ],
         "type": "object"
       },
@@ -3693,6 +3794,16 @@
           "body": {
             "type": [
               "string",
+              "null"
+            ]
+          },
+          "fields": {
+            "description": "The whole sketch, in order. Replaces what was there.",
+            "items": {
+              "$ref": "#/components/schemas/SketchField"
+            },
+            "type": [
+              "array",
               "null"
             ]
           },
@@ -5068,6 +5179,30 @@
         },
         "tags": [
           "account"
+        ]
+      }
+    },
+    "/api/bible/templates": {
+      "get": {
+        "operationId": "templates",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SketchTemplate"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Built-in sketch templates"
+          }
+        },
+        "summary": "The sketch templates entries can be started from.",
+        "tags": [
+          "bible"
         ]
       }
     },

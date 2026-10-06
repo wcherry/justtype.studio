@@ -10,6 +10,7 @@ import type {
   TaskState, ReportView, BlockView, SinceResponse, Profile, FollowState, AuthorCard,
   Genre, LengthBand, WindowFilter, FeedSort, CollaboratorRole, CollaboratorView, ActivityView,
   SessionView, TwoFactorSetup, RecoveryCodes, AuditEvent, Terms, StatusReport, SceneHit, ShareLink,
+  SketchField, SketchTemplate,
 } from './types'
 
 const BASE = '/api'
@@ -487,10 +488,13 @@ export const api = {
       const qs = params.toString()
       return get<EntryView[]>(`/works/${workId}/bible${qs ? `?${qs}` : ''}`)
     },
-    create: (workId: string, input: { kind: BibleKind; name: string; summary?: string; body?: string }) =>
-      post<EntryView>(`/works/${workId}/bible`, input),
-    update: (entryId: string, input: { name?: string; summary?: string; body?: string }) =>
-      patch<EntryView>(`/bible/${entryId}`, input),
+    templates: () => get<SketchTemplate[]>('/bible/templates'),
+    create: (workId: string, input: {
+      kind: BibleKind; name: string; summary?: string; body?: string; templateId?: string
+    }) => post<EntryView>(`/works/${workId}/bible`, input),
+    update: (entryId: string, input: {
+      name?: string; summary?: string; body?: string; fields?: SketchField[]
+    }) => patch<EntryView>(`/bible/${entryId}`, input),
     remove: (entryId: string) => del<{ ok: boolean }>(`/bible/${entryId}`),
     link: (entryId: string, sceneId: string) =>
       post<EntryView>(`/bible/${entryId}/links`, { sceneId }),

@@ -58,6 +58,7 @@ fn api_router() -> OpenApiRouter<AppState> {
         .routes(routes!(works::list, works::create))
         .routes(routes!(works::get_one, works::update, works::delete_work))
         .routes(routes!(works::outline))
+        .routes(routes!(bible::templates))
         .routes(routes!(bible::list, bible::create))
         .routes(routes!(bible::update, bible::delete_entry))
         .routes(routes!(bible::link))

@@ -99,6 +99,8 @@ export type {
   Terms,
   StatusReport,
   SceneHit,
+  SketchField,
+  SketchTemplate,
   ShareLink,
   TocChapter,
   Check,

@@ -2,6 +2,7 @@ pub mod diff;
 pub mod doc;
 pub mod edit;
 pub mod enums;
+pub mod sketches;
 pub mod templates;
 
 use chrono::SecondsFormat;

@@ -128,6 +128,8 @@ diesel::table! {
         body -> Nullable<Text>,
         created_at -> Text,
         updated_at -> Text,
+        fields -> Nullable<Text>,
+        template_id -> Nullable<Text>,
     }
 }
 

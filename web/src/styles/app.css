@@ -222,6 +222,19 @@ button.danger { border-color: var(--del); color: var(--del); }
 .terms { max-width: var(--measure); font-family: var(--serif); line-height: 1.6; }
 .terms h1, .terms h2 { font-weight: 500; }
 
+/* --- sketches ------------------------------------------------------------- */
+
+.bible__here { margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.bible__here h4 { margin: 0 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-faint); }
+.sketch { margin: 6px 0; display: grid; gap: 8px; }
+.sketch__field { display: grid; gap: 1px; }
+.sketch dt { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-faint); }
+.sketch dd { margin: 0; white-space: pre-wrap; font-size: 13px; }
+.sketch--editing label { margin-bottom: 4px; }
+.sketch--editing textarea, .sketch--editing input { width: 100%; font: inherit; font-size: 13px; }
+.sketch__add { display: flex; gap: 6px; }
+.sketch__notes { white-space: pre-wrap; font-size: 13px; }
+
 /* --- goals: day, week, book --------------------------------------------- */
 
 .goals__meters { display: grid; gap: 3px; }

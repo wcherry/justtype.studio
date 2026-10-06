@@ -93,11 +93,13 @@ export interface BibleEntry {
   kind: BibleKind
   name: string
   summary?: string | null
+  // The sketch template it was started from, if any.
+  templateId?: string | null
   updatedAt: string
   workId: string
 }
 
-export type BibleKind = 'character' | 'place' | 'note'
+export type BibleKind = 'character' | 'place' | 'thing' | 'group' | 'note'
 
 // One paragraph's fate between two versions.
 export type BlockChangeKind = 'unchanged' | 'modified' | 'added' | 'removed' | 'moved'
@@ -344,6 +346,9 @@ export interface CreateEntryRequest {
   kind: BibleKind
   name: string
   summary?: string | null
+  // A sketch template (`GET /api/bible/templates`) to start from: its fields
+  // arrive empty, ready to fill in.
+  templateId?: string | null
 }
 
 export interface CreatePublicationRequest {
@@ -468,8 +473,12 @@ export interface EntryView {
   kind: BibleKind
   name: string
   summary?: string | null
+  // The sketch template it was started from, if any.
+  templateId?: string | null
   updatedAt: string
   workId: string
+  // The sketch, in order. Empty for an entry that is just a name and notes.
+  fields: SketchField[]
   // Scenes this entry appears in, in reading order.
   sceneIds: string[]
 }
@@ -1072,6 +1081,25 @@ export interface SinceResponse {
   toVersionId?: string | null
 }
 
+// One named part of a sketch.
+export interface SketchField {
+  // Stable within the entry; a field the writer added gets one too.
+  key: string
+  label: string
+  // The question the field asks, from its template. Absent on the writer's
+  // own fields.
+  prompt?: string | null
+  value?: string
+}
+
+export interface SketchTemplate {
+  description: string
+  fields: TemplateField[]
+  id: string
+  kind: BibleKind
+  name: string
+}
+
 export interface SplitSceneRequest {
   // Index of the first top-level block that belongs to the *new* scene.
   // Blocks, not characters: the cut is between paragraphs, which is how a
@@ -1155,6 +1183,13 @@ export interface TemplateChapter {
   scenes?: TemplateScene[]
   summary?: string | null
   title: string
+}
+
+export interface TemplateField {
+  key: string
+  label: string
+  // The question the field is asking.
+  prompt: string
 }
 
 export interface TemplateScene {
@@ -1249,6 +1284,8 @@ export interface UpdateCommentRequest {
 
 export interface UpdateEntryRequest {
   body?: string | null
+  // The whole sketch, in order. Replaces what was there.
+  fields?: SketchField[] | null
   name?: string | null
   summary?: string | null
 }
