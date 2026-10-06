@@ -25,7 +25,7 @@ function Chrome({ children }: { children: React.ReactNode }) {
   return (
     <div className="shell">
       <nav className="shell__nav">
-        <Link to="/" className="shell__brand">Scriptorium</Link>
+        <Link to="/" className="shell__brand">Just Type Studio</Link>
         <Link to="/">Desk</Link>
         <Link to="/review">Review</Link>
         <span className="shell__spacer" />

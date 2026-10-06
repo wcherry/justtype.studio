@@ -73,7 +73,7 @@ struct WordGoalView: View {
             } else {
                 // Not an error. Nobody has opened the app yet, and saying so
                 // is better than a zero that looks like a bad day.
-                Text("Open Scriptorium to start counting.")
+                Text("Open Just Type Studio to start counting.")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }

@@ -185,7 +185,7 @@ export async function downloadAccountExport(): Promise<void> {
   const url = URL.createObjectURL(await res.blob())
   const link = document.createElement('a')
   link.href = url
-  link.download = 'scriptorium-export.zip'
+  link.download = 'justtype-studio-export.zip'
   document.body.appendChild(link)
   link.click()
   link.remove()

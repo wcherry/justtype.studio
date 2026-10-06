@@ -23,7 +23,7 @@ settings:
     CURRENT_PROJECT_VERSION: "1"
   configs:
     Release:
-      API_BASE_URL: https://api.scriptorium.app/api
+      API_BASE_URL: https://www.justtype.studio/api
 
 targets:
   Scriptorium:
@@ -36,7 +36,7 @@ targets:
       # plist — anything hand-edited there is lost on the next `xcodegen generate`.
       path: Scriptorium/Info.plist
       properties:
-        CFBundleDisplayName: Scriptorium
+        CFBundleDisplayName: Just Type Studio
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         API_BASE_URL: $(API_BASE_URL)
@@ -84,7 +84,7 @@ targets:
     info:
       path: ScriptoriumWidget/Info.plist
       properties:
-        CFBundleDisplayName: Scriptorium
+        CFBundleDisplayName: Just Type Studio
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         NSExtension:
@@ -97,7 +97,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.scriptorium.ios.widget
-        INFOPLIST_KEY_CFBundleDisplayName: Scriptorium
+        INFOPLIST_KEY_CFBundleDisplayName: Just Type Studio
     configFiles:
       Debug: Signing.xcconfig
       Release: Signing.xcconfig

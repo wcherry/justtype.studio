@@ -22,7 +22,7 @@ struct StartWritingIntent: AppIntent {
         if let title = snapshot?.sceneTitle {
             return .result(dialog: IntentDialog("Opening \(title)."))
         }
-        return .result(dialog: IntentDialog("Opening Scriptorium."))
+        return .result(dialog: IntentDialog("Opening Just Type Studio."))
     }
 }
 

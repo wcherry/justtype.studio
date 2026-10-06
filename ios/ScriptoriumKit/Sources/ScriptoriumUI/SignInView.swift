@@ -14,9 +14,9 @@ struct SignInView: View {
     var body: some View {
         VStack(spacing: 20) {
             VStack(spacing: 4) {
-                Text("Scriptorium")
+                Text("Just Type Studio")
                     .font(.system(.largeTitle, design: .serif))
-                Text("Write it. API.Version it. Put it in front of readers.")
+                Text("Write it. Version it. Put it in front of readers.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
