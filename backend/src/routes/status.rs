@@ -18,7 +18,7 @@ use crate::state::AppState;
 const LOCK_WAIT_LIMIT_MS: f64 = 250.0;
 
 /// Prometheus text for a dashboard to scrape. Exists only when
-/// `SCRIPTORIUM_METRICS_TOKEN` is set, and wants it as a bearer token.
+/// `JUSTTYPE_METRICS_TOKEN` is set, and wants it as a bearer token.
 #[utoipa::path(
     get,
     path = "/api/metrics",
@@ -50,7 +50,7 @@ pub async fn metrics(
     let cache = &state.scene_cache;
     let mut out = crate::metrics::prometheus();
     out.push_str(&format!(
-        "scriptorium_scene_cache_bytes {}\nscriptorium_scene_cache_hits_total {}\nscriptorium_scene_cache_misses_total {}\n",
+        "justtype_scene_cache_bytes {}\njusttype_scene_cache_hits_total {}\njusttype_scene_cache_misses_total {}\n",
         cache.bytes(),
         cache.hits.load(std::sync::atomic::Ordering::Relaxed),
         cache.misses.load(std::sync::atomic::Ordering::Relaxed),
@@ -121,7 +121,7 @@ pub async fn status(State(state): State<AppState>) -> (StatusCode, Json<StatusRe
         None => check(
             "backups",
             false,
-            "SCRIPTORIUM_BACKUP_DIR is not set, so nothing is being kept",
+            "JUSTTYPE_BACKUP_DIR is not set, so nothing is being kept",
         ),
         Some(dir) => backup_check(dir),
     });
@@ -165,7 +165,7 @@ pub async fn status(State(state): State<AppState>) -> (StatusCode, Json<StatusRe
     let healthy = checks.iter().all(|c| c.ok);
     let report = StatusReport {
         status: if healthy { "ok" } else { "degraded" }.into(),
-        version: env!("CARGO_PKG_VERSION").into(),
+        version: crate::app_version().into(),
         uptime_seconds: state.started_at.elapsed().as_secs(),
         checks,
         write_path: vec![

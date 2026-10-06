@@ -4,7 +4,7 @@ import { ApiError, api, tokens } from '../api/client'
 import type { User } from '../api/types'
 
 /** Last known profile, so the app opens offline instead of bouncing to sign-in. */
-const USER_KEY = 'scriptorium.user'
+const USER_KEY = 'justtype.user'
 
 function cachedUser(): User | null {
   try {

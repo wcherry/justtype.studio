@@ -1,7 +1,7 @@
 # Spike: rich-text editing on iPhone (Phase 4.1)
 
 > **Acted on.** The embedded editor is the mobile editor now: the page here is
-> the one that ships (`ios/ScriptoriumKit/Sources/ScriptoriumUI/Resources/`),
+> the one that ships (`ios/JustTypeKit/Sources/JustTypeUI/Resources/`),
 > and `WebEditorView` moved into the UI package. The attributed-string
 > converter was deleted once it had answered the question — this file is what
 > it left behind. What stays here is the build for the page and the record.
@@ -74,7 +74,7 @@ translation — the question is what the web view costs instead.
   into the right runs and no other node touched.
 - **Swift and ProseMirror agree on positions, checked against the real editor.**
   `ProseMirrorContractTests` compares `DocNode.blocks()` against numbers
-  captured from `window.scriptorium.blocks()` in the built bundle. They match
+  captured from `window.justtype.blocks()` in the built bundle. They match
   exactly, emoji included. That is the contract comments depend on, and it is
   now a test rather than a belief.
 - The bridge is the whole 202 lines: a document in, documents and selections
@@ -175,18 +175,18 @@ and it should be written down as one rather than shipped as parity.
 # Path B — build the bundle, then serve it and read the positions back
 cd web && npx vite build --config ../spikes/4.1-mobile-editing/editor/vite.config.ts
 cd ../spikes/4.1-mobile-editing/editor/dist && python3 -m http.server 8777
-# in the browser: window.scriptorium.load(doc); window.scriptorium.blocks()
-cd ios/ScriptoriumKit && swift test --filter ProseMirrorContractTests
+# in the browser: window.justtype.load(doc); window.justtype.blocks()
+cd ios/JustTypeKit && swift test --filter ProseMirrorContractTests
 
 # The simulator pass. The built page ships as a package resource; rebuild with
 #   cd web && npx vite build --config ../spikes/4.1-mobile-editing/editor/vite.config.ts
-#   rm -rf ../ios/ScriptoriumKit/Sources/ScriptoriumUI/Resources/Editor
+#   rm -rf ../ios/JustTypeKit/Sources/JustTypeUI/Resources/Editor
 #   cp -R ../spikes/4.1-mobile-editing/editor/dist \
-#     ../ios/ScriptoriumKit/Sources/ScriptoriumUI/Resources/Editor
+#     ../ios/JustTypeKit/Sources/JustTypeUI/Resources/Editor
 cd ios && xcodegen generate
-xcodebuild test -project Scriptorium.xcodeproj -scheme Scriptorium \
+xcodebuild test -project JustType.xcodeproj -scheme Just Type Studio \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-  -only-testing:ScriptoriumUITests
+  -only-testing:JustTypeUITests
 
 # Or just look at it:
 xcrun simctl launch booted app.scriptorium.ios -spike41

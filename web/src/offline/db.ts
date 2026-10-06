@@ -19,14 +19,16 @@
  * lookup must never be able to take the editor down with it.
  */
 
-const DB_NAME = 'scriptorium'
+const DB_NAME = 'justtype'
+/** The database's name before the product was renamed; see `adoptLegacy`. */
+const LEGACY_DB_NAME = 'scriptorium'
 const DB_VERSION = 1
 const OPEN_TIMEOUT_MS = 3_000
 export const PENDING_SAVES = 'pendingSaves'
 
 let dbPromise: Promise<IDBDatabase | null> | null = null
 
-function openDatabase(): Promise<IDBDatabase | null> {
+function openDatabase(name = DB_NAME, version: number | undefined = DB_VERSION): Promise<IDBDatabase | null> {
   if (typeof indexedDB === 'undefined') return Promise.resolve(null)
   return new Promise((resolve) => {
     let settled = false
@@ -44,7 +46,7 @@ function openDatabase(): Promise<IDBDatabase | null> {
 
     let request: IDBOpenDBRequest
     try {
-      request = indexedDB.open(DB_NAME, DB_VERSION)
+      request = indexedDB.open(name, version)
     } catch {
       finish(null)
       return
@@ -66,10 +68,11 @@ function openDatabase(): Promise<IDBDatabase | null> {
 
 function database(): Promise<IDBDatabase | null> {
   if (!dbPromise) {
-    dbPromise = openDatabase().then((db) => {
+    dbPromise = openDatabase().then(async (db) => {
       // Don't cache a failure forever: whatever was blocking may have cleared
       // by the next save, and retrying costs one request.
       if (!db) dbPromise = null
+      else await adoptLegacy(db)
       return db
     })
   }
@@ -106,3 +109,57 @@ export const idb = {
   put: <T>(value: T) => withStore<unknown>('readwrite', (s) => s.put(value), null),
   delete: (key: string) => withStore<unknown>('readwrite', (s) => s.delete(key), null),
 }
+
+/**
+ * Moves saves still queued under the database's old name into this one, then
+ * removes the old database. These can be writing that never reached the
+ * server, so the old database is only deleted once every one of them has
+ * been written here; a save already queued here for the same scene is newer
+ * and is kept. Any failure leaves the old database where it is, to try again
+ * on the next open.
+ */
+async function adoptLegacy(db: IDBDatabase): Promise<void> {
+  try {
+    // Opening a database that does not exist would create it, so look first.
+    // Without `databases()` (older browsers) there is nothing safe to do.
+    if (typeof indexedDB.databases !== 'function') return
+    const names = (await indexedDB.databases()).map((d) => d.name)
+    if (!names.includes(LEGACY_DB_NAME)) return
+    const old = await openDatabase(LEGACY_DB_NAME, undefined)
+    if (!old) return
+    const saves = old.objectStoreNames.contains(PENDING_SAVES)
+      ? await new Promise<{ sceneId: string }[] | null>((resolve) => {
+          try {
+            const request = old.transaction(PENDING_SAVES, 'readonly').objectStore(PENDING_SAVES).getAll()
+            request.onsuccess = () => resolve(request.result as { sceneId: string }[])
+            request.onerror = () => resolve(null)
+          } catch {
+            resolve(null)
+          }
+        })
+      : []
+    old.close()
+    if (saves === null) return
+    const copied = await new Promise<boolean>((resolve) => {
+      try {
+        const tx = db.transaction(PENDING_SAVES, 'readwrite')
+        const store = tx.objectStore(PENDING_SAVES)
+        for (const save of saves) {
+          const existing = store.getKey(save.sceneId)
+          existing.onsuccess = () => {
+            if (existing.result === undefined) store.put(save)
+          }
+        }
+        tx.oncomplete = () => resolve(true)
+        tx.onerror = () => resolve(false)
+        tx.onabort = () => resolve(false)
+      } catch {
+        resolve(false)
+      }
+    })
+    if (copied) indexedDB.deleteDatabase(LEGACY_DB_NAME)
+  } catch {
+    // Leave the old database for the next open to try again.
+  }
+}
+

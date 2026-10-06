@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Build, install, and launch Scriptorium on an iOS Simulator or a real device.
+# Build, install, and launch Just Type Studio on an iOS Simulator or a real device.
 #
 #   scripts/run_simulator.sh                        # iPhone 17 Pro, latest OS, Debug
 #   scripts/run_simulator.sh --device "iPad Pro 13-inch (M4)"
@@ -48,8 +48,8 @@ readonly REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # The Xcode project lives under ios/, not at the repo root, so everything
 # xcodegen and xcodebuild touch is relative to there.
 readonly IOS_DIR="$REPO_ROOT/ios"
-readonly SCHEME="Scriptorium"
-readonly PROJECT="Scriptorium.xcodeproj"
+readonly SCHEME="JustType"
+readonly PROJECT="JustType.xcodeproj"
 readonly BUILD_DIR="$IOS_DIR/build"
 
 TARGET="simulator"          # or "device"
@@ -184,7 +184,7 @@ dev_field() {
 # interface for scripts. plutil reads it without pulling in jq or python.
 list_devices() {
   local json udid name platform reality visibility paired osver devmode i=0
-  json="$(mktemp -t scriptorium-devices)"
+  json="$(mktemp -t justtype-devices)"
   # A device is queried over the network as well as USB, so this can take a
   # moment; the timeout keeps a sleeping iPhone from hanging the script.
   xcrun devicectl list devices --timeout 15 --quiet --json-output "$json" >/dev/null 2>&1 \

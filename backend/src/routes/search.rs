@@ -509,7 +509,7 @@ mod tests {
     /// bundled build ever stops including it.
     #[test]
     fn the_bundled_sqlite_has_fts5_and_the_queries_run() {
-        let dir = std::env::temp_dir().join(format!("scriptorium-fts-{}", uuid::Uuid::new_v4()));
+        let dir = std::env::temp_dir().join(format!("justtype-fts-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&dir).unwrap();
         let pool = crate::db::build_pool(dir.join("t.db").to_str().unwrap()).unwrap();
         crate::db::run_migrations(&pool).unwrap();

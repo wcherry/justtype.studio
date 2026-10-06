@@ -45,7 +45,7 @@ pub fn seed_former_member(conn: &mut Conn, now: &str) -> ApiResult<()> {
     diesel::insert_or_ignore_into(users::table)
         .values(&NewUser {
             id: FORMER_MEMBER.into(),
-            email: "former-member@scriptorium.invalid".into(),
+            email: "former-member@justtype.invalid".into(),
             display_name: "A former member".into(),
             password_hash: "!".into(),
             bio: None,
@@ -212,12 +212,12 @@ pub async fn export(State(state): State<AppState>, user: AuthUser) -> ApiResult<
     );
     headers.insert(
         header::CONTENT_DISPOSITION,
-        HeaderValue::from_static("attachment; filename=\"scriptorium-export.zip\""),
+        HeaderValue::from_static("attachment; filename=\"justtype-export.zip\""),
     );
     Ok((StatusCode::OK, headers, bytes))
 }
 
-const README: &str = "Everything Scriptorium holds about you, as of the moment this was made.
+const README: &str = "Everything Just Type Studio holds about you, as of the moment this was made.
 
 account.json        your account, sessions, the people you follow and have blocked,
                     your reader circles and your writing days

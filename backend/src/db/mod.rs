@@ -102,7 +102,7 @@ mod tests {
     /// queries fail loudly against a real table definition.
     #[test]
     fn migrations_and_seed_apply_cleanly() {
-        let dir = std::env::temp_dir().join(format!("scriptorium-test-{}", uuid::Uuid::new_v4()));
+        let dir = std::env::temp_dir().join(format!("justtype-test-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("test.db");
 
@@ -148,8 +148,7 @@ mod tests {
     /// undo its migration fails on re-apply with a duplicate column.
     #[test]
     fn every_migration_reverts_and_re_applies_on_its_own() {
-        let dir =
-            std::env::temp_dir().join(format!("scriptorium-rollback-{}", uuid::Uuid::new_v4()));
+        let dir = std::env::temp_dir().join(format!("justtype-rollback-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("test.db");
 

@@ -28,7 +28,7 @@ export function localDay(date = new Date()): string {
  */
 function baselineFor(workId: string | null, current: number | null): number | null {
   if (workId === null || current === null) return null
-  const key = `scriptorium.sessionStart.${workId}`
+  const key = `justtype.sessionStart.${workId}`
   try {
     const stored = sessionStorage.getItem(key)
     if (stored !== null) {

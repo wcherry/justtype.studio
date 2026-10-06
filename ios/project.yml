@@ -1,7 +1,7 @@
-# Generate Scriptorium.xcodeproj with:  xcodegen generate
+# Generate JustType.xcodeproj with:  xcodegen generate
 # (brew install xcodegen). The project file itself is not checked in — the
 # generator is the source of truth, which keeps merge conflicts out of it.
-name: Scriptorium
+name: JustType
 options:
   bundleIdPrefix: app.scriptorium
   deploymentTarget:
@@ -9,8 +9,8 @@ options:
   createIntermediateGroups: true
 
 packages:
-  ScriptoriumKit:
-    path: ScriptoriumKit
+  JustTypeKit:
+    path: JustTypeKit
 
 settings:
   base:
@@ -23,20 +23,20 @@ settings:
     CURRENT_PROJECT_VERSION: "1"
   configs:
     Release:
-      API_BASE_URL: https://api.scriptorium.app/api
+      API_BASE_URL: https://www.justtype.studio/api
 
 targets:
-  Scriptorium:
+  JustType:
     type: application
     platform: iOS
     sources:
-      - path: Scriptorium/Sources
+      - path: JustType/Sources
     info:
       # XcodeGen generates this file, so these keys live here rather than in the
       # plist — anything hand-edited there is lost on the next `xcodegen generate`.
-      path: Scriptorium/Info.plist
+      path: JustType/Info.plist
       properties:
-        CFBundleDisplayName: Scriptorium
+        CFBundleDisplayName: Just Type Studio
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         API_BASE_URL: $(API_BASE_URL)
@@ -46,11 +46,11 @@ targets:
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
     dependencies:
-      - package: ScriptoriumKit
-        product: ScriptoriumUI
-      - package: ScriptoriumKit
-        product: ScriptoriumKit
-      - target: ScriptoriumWidget
+      - package: JustTypeKit
+        product: JustTypeUI
+      - package: JustTypeKit
+        product: JustTypeKit
+      - target: JustTypeWidget
         embed: true
     # DEVELOPMENT_TEAM lives here rather than in this file: it is a property of
     # whoever is building, not of the project. scripts/ios_signing.sh writes it
@@ -60,7 +60,7 @@ targets:
       Debug: Signing.xcconfig
       Release: Signing.xcconfig
     entitlements:
-      path: Scriptorium/Scriptorium.entitlements
+      path: JustType/JustType.entitlements
       properties:
         com.apple.security.application-groups:
           - group.app.scriptorium.ios
@@ -73,48 +73,48 @@ targets:
   # Today's words on the home screen. It reads a file the app leaves behind
   # rather than signing in: an extension holding a refresh token for a progress
   # bar is a credential in a second place for no reason.
-  ScriptoriumWidget:
+  JustTypeWidget:
     type: app-extension
     platform: iOS
     sources:
-      - path: ScriptoriumWidget
+      - path: JustTypeWidget
     dependencies:
-      - package: ScriptoriumKit
-        product: ScriptoriumKit
+      - package: JustTypeKit
+        product: JustTypeKit
     info:
-      path: ScriptoriumWidget/Info.plist
+      path: JustTypeWidget/Info.plist
       properties:
-        CFBundleDisplayName: Scriptorium
+        CFBundleDisplayName: Just Type Studio
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
     entitlements:
-      path: ScriptoriumWidget/ScriptoriumWidget.entitlements
+      path: JustTypeWidget/JustTypeWidget.entitlements
       properties:
         com.apple.security.application-groups:
           - group.app.scriptorium.ios
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.scriptorium.ios.widget
-        INFOPLIST_KEY_CFBundleDisplayName: Scriptorium
+        INFOPLIST_KEY_CFBundleDisplayName: Just Type Studio
     configFiles:
       Debug: Signing.xcconfig
       Release: Signing.xcconfig
 
   # The editing surface asked of a running simulator: the keyboard, the caret,
   # typing, selection and undo, none of which a command line can answer.
-  ScriptoriumUITests:
+  JustTypeUITests:
     type: bundle.ui-testing
     platform: iOS
     sources:
       - path: UITests
     dependencies:
-      - target: Scriptorium
+      - target: JustType
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.scriptorium.ios.uitests
-        TEST_TARGET_NAME: Scriptorium
+        TEST_TARGET_NAME: JustType
         GENERATE_INFOPLIST_FILE: YES
     configFiles:
       Debug: Signing.xcconfig

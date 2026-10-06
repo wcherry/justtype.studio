@@ -7,7 +7,7 @@ use utoipa::OpenApi;
 #[derive(OpenApi)]
 #[openapi(
     info(
-        title = "Scriptorium",
+        title = "Just Type Studio",
         version = env!("CARGO_PKG_VERSION"),
         description = "A writing tool for long-form fiction, and a review surface for readers."
     ),

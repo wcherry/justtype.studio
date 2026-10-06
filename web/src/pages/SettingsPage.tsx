@@ -229,7 +229,7 @@ function describe(agent: string | null | undefined): string {
     : /Edg\//.test(agent) ? 'Edge'
     : /Chrome\//.test(agent) ? 'Chrome'
     : /Safari\//.test(agent) ? 'Safari'
-    : /Scriptorium|CFNetwork/.test(agent) ? 'The iOS app'
+    : /JustType|Scriptorium|CFNetwork/.test(agent) ? 'The iOS app'
     : 'A browser'
   const system = /iPhone|iPad/.test(agent) ? 'iOS'
     : /Mac OS X/.test(agent) ? 'macOS'

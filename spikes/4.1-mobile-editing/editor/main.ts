@@ -21,7 +21,7 @@ type Outbound =
 
 declare global {
   interface Window {
-    scriptorium: {
+    justtype: {
       load: (doc: unknown) => void
       toggle: (mark: string) => void
       blocks: () => { id: number; type: string; from: number; to: number; text: string }[]
@@ -35,14 +35,14 @@ declare global {
       }) => void
       turn: (by: number) => void
     }
-    webkit?: { messageHandlers?: { scriptorium?: { postMessage: (m: unknown) => void } } }
+    webkit?: { messageHandlers?: { justtype?: { postMessage: (m: unknown) => void } } }
     /** Set by the harness when this runs in a browser rather than in the app. */
     __sent?: Outbound[]
   }
 }
 
 function send(message: Outbound) {
-  const handler = window.webkit?.messageHandlers?.scriptorium
+  const handler = window.webkit?.messageHandlers?.justtype
   if (handler) handler.postMessage(message)
   else (window.__sent ??= []).push(message)
 }
@@ -84,7 +84,7 @@ function sendSelection(editor: Editor) {
   })
 }
 
-window.scriptorium = {
+window.justtype = {
   load: (doc) => {
     // `addToHistory: false` is the important part. Loading a scene is not an
     // edit, and leaving it on the undo stack means the first undo empties the

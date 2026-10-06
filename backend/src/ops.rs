@@ -13,6 +13,11 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tracing::Instrument;
 
+/// The database's name inside a backup, and its name before the product was
+/// renamed — which older backups still use.
+const BACKUP_DB: &str = "justtype.db";
+const LEGACY_BACKUP_DB: &str = "scriptorium.db";
+
 pub static REQUEST_ID_HEADER: HeaderName = HeaderName::from_static("x-request-id");
 
 tokio::task_local! {
@@ -118,7 +123,9 @@ pub async fn per_address(
 ) -> Response {
     let path = request.uri().path();
     // Health checks are for monitors, and a monitor should never be told no.
-    if path == "/api/health" || path == "/api/status" {
+    // The web app's own files are not the API: a page load fetches several,
+    // and they should not spend a reader's budget for real requests.
+    if path == "/api/health" || path == "/api/status" || !path.starts_with("/api") {
         return next.run(request).await;
     }
     let Some(ip) = client_ip(&request, state.config.trust_proxy) else {
@@ -246,7 +253,7 @@ pub fn backup(
     let dest = into.join(&stamp);
     std::fs::create_dir_all(&dest)?;
 
-    let db_copy = dest.join("scriptorium.db");
+    let db_copy = dest.join(BACKUP_DB);
     let mut conn = SqliteConnection::establish(database_url)?;
     diesel::sql_query(format!(
         "VACUUM INTO '{}'",
@@ -317,10 +324,16 @@ pub fn restore_drill(backup_dir: &Path) -> anyhow::Result<DrillReport> {
 
     let manifest: Manifest =
         serde_json::from_str(&std::fs::read_to_string(backup_dir.join("manifest.json"))?)?;
-    let scratch = std::env::temp_dir().join(format!("scriptorium-drill-{}", uuid::Uuid::new_v4()));
+    let scratch = std::env::temp_dir().join(format!("justtype-drill-{}", uuid::Uuid::new_v4()));
     std::fs::create_dir_all(&scratch)?;
-    let restored_db = scratch.join("scriptorium.db");
-    std::fs::copy(backup_dir.join("scriptorium.db"), &restored_db)?;
+    let restored_db = scratch.join("justtype.db");
+    // Backups taken before the rename hold `scriptorium.db`.
+    let source = [BACKUP_DB, LEGACY_BACKUP_DB]
+        .iter()
+        .map(|name| backup_dir.join(name))
+        .find(|path| path.is_file())
+        .unwrap_or_else(|| backup_dir.join(BACKUP_DB));
+    std::fs::copy(source, &restored_db)?;
 
     let digest = sha256_file(&restored_db)?;
     check(
@@ -507,7 +520,7 @@ mod tests {
     /// then damage the backup and watch the drill notice.
     #[test]
     fn a_backup_restores_and_a_damaged_one_is_caught() {
-        let root = std::env::temp_dir().join(format!("scriptorium-ops-{}", uuid::Uuid::new_v4()));
+        let root = std::env::temp_dir().join(format!("justtype-ops-{}", uuid::Uuid::new_v4()));
         let data = root.join("works");
         let db = root.join("live.db");
         std::fs::create_dir_all(data.join("w1/working")).unwrap();
@@ -549,6 +562,13 @@ mod tests {
         assert!(report.passed, "{report:#?}");
         assert_eq!(latest_backup(&backups).unwrap(), taken);
 
+        // A backup from before the rename holds scriptorium.db, and still
+        // restores.
+        let older = root.join("older-backup");
+        copy_tree(&taken, &older);
+        std::fs::rename(older.join(BACKUP_DB), older.join(LEGACY_BACKUP_DB)).unwrap();
+        assert!(restore_drill(&older).unwrap().passed);
+
         // A manuscript file lost from the backup is exactly what a drill is for.
         std::fs::remove_file(taken.join("works/w1/working/s1.json")).unwrap();
         let report = restore_drill(&taken).unwrap();
@@ -562,5 +582,18 @@ mod tests {
         assert_eq!(failed, ["manuscript files", "every scene opens"]);
 
         std::fs::remove_dir_all(&root).ok();
+    }
+
+    fn copy_tree(from: &Path, to: &Path) {
+        std::fs::create_dir_all(to).unwrap();
+        for entry in std::fs::read_dir(from).unwrap() {
+            let entry = entry.unwrap();
+            let target = to.join(entry.file_name());
+            if entry.file_type().unwrap().is_dir() {
+                copy_tree(&entry.path(), &target);
+            } else {
+                std::fs::copy(entry.path(), target).unwrap();
+            }
+        }
     }
 }

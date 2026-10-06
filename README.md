@@ -1,4 +1,4 @@
-# Scriptorium
+# Just Type Studio
 
 A SaaS writing tool for long-form fiction. Authors draft in chapters and scenes,
 snapshot versions as they go, publish a version for review, and get anchored,
@@ -16,7 +16,7 @@ See [ROADMAP.md](ROADMAP.md) for what is built and what comes next, and
 ```
 backend/    Rust API server, migrations, domain logic
 web/        React client
-ios/        Swift package (ScriptoriumKit + ScriptoriumUI) and the app target
+ios/        Swift package (JustTypeKit + JustTypeUI) and the app target
 docs/       Architecture, data model, API reference
 data/       Local SQLite database and manuscript tree (git-ignored)
 ```
@@ -26,7 +26,7 @@ data/       Local SQLite database and manuscript tree (git-ignored)
 Prerequisites: Rust 1.75+, Node 20+ with pnpm, Xcode 15+ for iOS.
 
 ```bash
-cp .env.example .env          # then set SCRIPTORIUM_JWT_SECRET
+cp .env.example .env          # then set JUSTTYPE_JWT_SECRET
 make backend                  # http://127.0.0.1:8088
 make web                      # http://localhost:5183, proxies /api to the backend
 make ios                      # generates the Xcode project and opens it
@@ -94,7 +94,7 @@ cargo xtask codegen --check  # what CI runs; fails if anything is stale
 ```
 
 Generated files — `web/src/api/schema.ts` and
-`ios/ScriptoriumKit/Sources/ScriptoriumKit/Generated/Schemas.swift` — are
+`ios/JustTypeKit/Sources/JustTypeKit/Generated/Schemas.swift` — are
 checked in and must not be hand-edited. Behaviour that hangs off those types
 lives beside them, in `web/src/api/types.ts` and
 `ios/.../Model+Helpers.swift`, so regenerating never clobbers hand-written code.
@@ -105,34 +105,35 @@ A running server also serves the document at `/api/openapi.json`.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `SCRIPTORIUM_BIND_ADDR` | `127.0.0.1:8088` | Listen address |
-| `SCRIPTORIUM_DATABASE_URL` | `./data/scriptorium.db` | SQLite file |
-| `SCRIPTORIUM_DATA_DIR` | `./data/works` | Manuscript tree |
-| `SCRIPTORIUM_JWT_SECRET` | *(required, 16+ chars)* | Access-token signing key |
-| `SCRIPTORIUM_ACCESS_TTL_MINUTES` | `30` | Access-token lifetime |
-| `SCRIPTORIUM_REFRESH_TTL_DAYS` | `30` | Refresh-token lifetime |
-| `SCRIPTORIUM_CORS_ORIGINS` | `http://localhost:5183` | Comma-separated allowed origins |
-| `SCRIPTORIUM_PUBLIC_URL` | `http://localhost:5183` | Where the web client lives, for links in mail |
-| `SCRIPTORIUM_MAIL` | `outbox` | `outbox` writes mail to a file; `smtp` sends it |
-| `SCRIPTORIUM_OUTBOX` | `<data dir>/../outbox.jsonl` | The outbox file, one JSON message per line |
-| `SCRIPTORIUM_SMTP_HOST` | *(required for smtp)* | Relay, spoken to with STARTTLS |
-| `SCRIPTORIUM_SMTP_PORT` | `587` | |
-| `SCRIPTORIUM_SMTP_USER`, `SCRIPTORIUM_SMTP_PASSWORD` | *(none)* | Relay credentials, if it wants them |
-| `SCRIPTORIUM_MAIL_FROM` | *(required for smtp)* | The sender address |
-| `SCRIPTORIUM_SECOND_FACTOR_RATE` | `5` | Two-factor tries per account per minute |
-| `SCRIPTORIUM_LOG_FORMAT` | `text` | `json` for one JSON object per log line |
-| `SCRIPTORIUM_BACKUP_DIR` | *(none)* | Where `cargo backup` puts backups; `/api/status` checks them |
-| `SCRIPTORIUM_BACKUP_KEEP` | `14` | How many backups to keep |
-| `SCRIPTORIUM_ARGON2_MEMORY_KIB` | `65536` | Password hashing memory; `--tune-argon2` measures what this machine affords |
-| `SCRIPTORIUM_ARGON2_ITERATIONS`, `SCRIPTORIUM_ARGON2_LANES` | `2`, `1` | |
-| `SCRIPTORIUM_IP_RATE` | `600` | Requests per minute from one address; `0` turns it off |
-| `SCRIPTORIUM_AUTH_IP_RATE` | `30` | Sign-in, sign-up and reset requests per minute from one address |
-| `SCRIPTORIUM_TRUST_PROXY` | `false` | Read the client address from the proxy's last `X-Forwarded-For` entry |
+| `JUSTTYPE_BIND_ADDR` | `127.0.0.1:8088` | Listen address |
+| `JUSTTYPE_DATABASE_URL` | `./data/justtype.db` | SQLite file |
+| `JUSTTYPE_DATA_DIR` | `./data/works` | Manuscript tree |
+| `JUSTTYPE_JWT_SECRET` | *(required, 16+ chars)* | Access-token signing key |
+| `JUSTTYPE_ACCESS_TTL_MINUTES` | `30` | Access-token lifetime |
+| `JUSTTYPE_REFRESH_TTL_DAYS` | `30` | Refresh-token lifetime |
+| `JUSTTYPE_CORS_ORIGINS` | `http://localhost:5183` | Comma-separated allowed origins |
+| `JUSTTYPE_PUBLIC_URL` | `http://localhost:5183` | Where the web client lives, for links in mail |
+| `JUSTTYPE_MAIL` | `outbox` | `outbox` writes mail to a file; `smtp` sends it |
+| `JUSTTYPE_OUTBOX` | `<data dir>/../outbox.jsonl` | The outbox file, one JSON message per line |
+| `JUSTTYPE_SMTP_HOST` | *(required for smtp)* | Relay, spoken to with STARTTLS |
+| `JUSTTYPE_SMTP_PORT` | `587` | |
+| `JUSTTYPE_SMTP_USER`, `JUSTTYPE_SMTP_PASSWORD` | *(none)* | Relay credentials, if it wants them |
+| `JUSTTYPE_MAIL_FROM` | *(required for smtp)* | The sender address |
+| `JUSTTYPE_SECOND_FACTOR_RATE` | `5` | Two-factor tries per account per minute |
+| `JUSTTYPE_LOG_FORMAT` | `text` | `json` for one JSON object per log line |
+| `JUSTTYPE_BACKUP_DIR` | *(none)* | Where `cargo backup` puts backups; `/api/status` checks them |
+| `JUSTTYPE_BACKUP_KEEP` | `14` | How many backups to keep |
+| `JUSTTYPE_ARGON2_MEMORY_KIB` | `65536` | Password hashing memory; `--tune-argon2` measures what this machine affords |
+| `JUSTTYPE_ARGON2_ITERATIONS`, `JUSTTYPE_ARGON2_LANES` | `2`, `1` | |
+| `JUSTTYPE_IP_RATE` | `600` | Requests per minute from one address; `0` turns it off |
+| `JUSTTYPE_AUTH_IP_RATE` | `30` | Sign-in, sign-up and reset requests per minute from one address |
+| `JUSTTYPE_TRUST_PROXY` | `false` | Read the client address from the proxy's last `X-Forwarded-For` entry |
 | `ANTHROPIC_API_KEY` | *(none)* | Turns on summaries; unset, the feature is off and hidden |
-| `SCRIPTORIUM_SUMMARY_MODEL` | `claude-opus-5-5` | The model that writes them |
-| `SCRIPTORIUM_ANTHROPIC_URL` | `https://api.anthropic.com` | Where to send them (the smoke points it at a stub) |
-| `SCRIPTORIUM_CACHE_MB` | `64` | Memory for snapshot scene bodies |
-| `SCRIPTORIUM_METRICS_TOKEN` | *(none)* | Turns on `/api/metrics` (Prometheus text) behind this bearer token |
+| `JUSTTYPE_SUMMARY_MODEL` | `claude-opus-5-5` | The model that writes them |
+| `JUSTTYPE_ANTHROPIC_URL` | `https://api.anthropic.com` | Where to send them (the smoke points it at a stub) |
+| `JUSTTYPE_CACHE_MB` | `64` | Memory for snapshot scene bodies |
+| `JUSTTYPE_METRICS_TOKEN` | *(none)* | Turns on `/api/metrics` (Prometheus text) behind this bearer token |
+| `JUSTTYPE_WEB_DIR` | *(none)* | A built web app (`web/dist`) to serve beside the API; unset, the API alone |
 
 In development nothing is ever sent: a verification or reset link lands in the
 outbox file, and following it from there is the same as following it from an
@@ -141,3 +142,41 @@ against a real relay — that needs a sending domain and credentials.
 
 Backups, the restore drill, request ids and the status check are in
 [`docs/OPERATIONS.md`](docs/OPERATIONS.md).
+
+## Renamed from Scriptorium
+
+What was named for the old name keeps working:
+
+- `SCRIPTORIUM_*` settings are read as their `JUSTTYPE_*` names (the server
+  warns once at start), and `cargo setup` renames them in `.env`, values kept.
+- `./data/scriptorium.db` is used if there is no `./data/justtype.db` yet, and
+  backups holding `scriptorium.db` still restore.
+- The browser moves its `scriptorium.*` storage, and saves still queued
+  offline, to the new names on first load; the iOS app moves its offline
+  folder the same way.
+
+Kept on purpose: the iOS bundle ids, app group, keychain service and widget
+kind (`app.scriptorium.*`), which are registered with Apple and tied to what
+is on people's phones; and the label share links are signed with, so links
+already sent keep opening. Migrations already applied are left as written.
+
+## Docker
+
+One image holds the whole service: the API, and the web app it serves beside
+it (`JUSTTYPE_WEB_DIR`). Every push to `main` builds it and publishes it to
+GitHub's registry (`.github/workflows/ghcr-publish.yml`) as
+`ghcr.io/<owner>/justtype-studio`, tagged `latest`, `main`, the commit's short
+sha and a version (`0.1.<run>`), which `/api/health` and `/api/status` report.
+
+```sh
+docker build -t justtype-studio .
+docker run -p 8080:8080 -v justtype-data:/usr/local/data \
+  -e JUSTTYPE_JWT_SECRET=… justtype-studio
+```
+
+The image listens on 8080 as an unprivileged user, keeps the database, the
+manuscript files and the mail outbox in the `/usr/local/data` volume, logs
+JSON to stderr, and checks its own `/api/health`. It defaults
+`JUSTTYPE_PUBLIC_URL` and `JUSTTYPE_CORS_ORIGINS` to
+`https://www.justtype.studio`; set `JUSTTYPE_TRUST_PROXY=true` behind a
+reverse proxy, and `JUSTTYPE_MAIL=smtp` with its settings to send real mail.

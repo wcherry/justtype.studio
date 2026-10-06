@@ -29,7 +29,7 @@ export function StatusPage() {
       <header className="feed__header">
         <h1>
           {unreachable
-            ? 'Scriptorium is not answering'
+            ? 'Just Type Studio is not answering'
             : !report
               ? 'Checking…'
               : report.status === 'ok'

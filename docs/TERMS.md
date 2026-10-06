@@ -11,7 +11,7 @@
 ## Your work is yours
 
 Everything you write here — scenes, drafts, snapshots, notes, the whole book —
-belongs to you. Using Scriptorium does not transfer, license or share your
+belongs to you. Using Just Type Studio does not transfer, license or share your
 copyright with us, and nothing in these terms changes that.
 
 We store and display your work only to run the service for you: to save it,

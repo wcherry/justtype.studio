@@ -39,7 +39,7 @@ export function LoginPage() {
   return (
     <main className="auth">
       <div className="auth__card">
-        <h1>Scriptorium</h1>
+        <h1>Just Type Studio</h1>
         <p className="auth__tagline">Write it. Version it. Put it in front of readers.</p>
 
         <form onSubmit={submit}>
