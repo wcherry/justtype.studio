@@ -9,6 +9,10 @@ public struct WritingSnapshot: Codable, Equatable, Sendable {
     public var words: Int
     public var goal: Int?
     public var streak: Int
+    /// This week, Monday to today. Optional so a file written before weeks
+    /// existed still reads.
+    public var weekWords: Int?
+    public var weekGoal: Int?
     /// What the writer would carry on with, for "start writing".
     public var sceneId: String?
     public var sceneTitle: String?
@@ -19,6 +23,8 @@ public struct WritingSnapshot: Codable, Equatable, Sendable {
         words: Int = 0,
         goal: Int? = nil,
         streak: Int = 0,
+        weekWords: Int? = nil,
+        weekGoal: Int? = nil,
         sceneId: String? = nil,
         sceneTitle: String? = nil,
         workId: String? = nil,
@@ -27,6 +33,8 @@ public struct WritingSnapshot: Codable, Equatable, Sendable {
         self.words = words
         self.goal = goal
         self.streak = streak
+        self.weekWords = weekWords
+        self.weekGoal = weekGoal
         self.sceneId = sceneId
         self.sceneTitle = sceneTitle
         self.workId = workId
@@ -36,6 +44,11 @@ public struct WritingSnapshot: Codable, Equatable, Sendable {
     public var fraction: Double {
         guard let goal, goal > 0 else { return 0 }
         return min(1, Double(words) / Double(goal))
+    }
+
+    public var weekFraction: Double {
+        guard let weekGoal, weekGoal > 0 else { return 0 }
+        return min(1, Double(max(0, weekWords ?? 0)) / Double(weekGoal))
     }
 }
 

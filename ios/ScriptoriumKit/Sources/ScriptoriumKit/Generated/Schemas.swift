@@ -1580,6 +1580,10 @@ public enum API {
         public var status: WorkStatus
         public var subtitle: String?
         public var synopsis: String?
+        /// The day they mean to get there by, `YYYY-MM-DD`.
+        public var targetDate: String?
+        /// How long the book is meant to be, when the writer has said.
+        public var targetWords: Int?
         public var templateId: String?
         public var title: String
         public var updatedAt: String
@@ -1604,6 +1608,8 @@ public enum API {
             status: WorkStatus,
             subtitle: String? = nil,
             synopsis: String? = nil,
+            targetDate: String? = nil,
+            targetWords: Int? = nil,
             templateId: String? = nil,
             title: String,
             updatedAt: String,
@@ -1627,6 +1633,8 @@ public enum API {
             self.status = status
             self.subtitle = subtitle
             self.synopsis = synopsis
+            self.targetDate = targetDate
+            self.targetWords = targetWords
             self.templateId = templateId
             self.title = title
             self.updatedAt = updatedAt
@@ -3168,13 +3176,17 @@ public enum API {
     }
 
     public struct UpdateGoalsRequest: Codable, Hashable, Sendable {
-        /// `null` clears the target.
+        /// `null` clears the target; leaving it out leaves it alone.
         public var dailyWordGoal: Int?
+        /// The same, for the week.
+        public var weeklyWordGoal: Int?
 
         public init(
-            dailyWordGoal: Int? = nil
+            dailyWordGoal: Int? = nil,
+            weeklyWordGoal: Int? = nil
         ) {
             self.dailyWordGoal = dailyWordGoal
+            self.weeklyWordGoal = weeklyWordGoal
         }
     }
 
@@ -3308,6 +3320,10 @@ public enum API {
         public var status: WorkStatus?
         public var subtitle: String?
         public var synopsis: String?
+        /// `YYYY-MM-DD` to reach it by. An empty string clears it.
+        public var targetDate: String?
+        /// How long the book is meant to be. `0` clears it.
+        public var targetWords: Int?
         public var title: String?
 
         public init(
@@ -3321,6 +3337,8 @@ public enum API {
             status: WorkStatus? = nil,
             subtitle: String? = nil,
             synopsis: String? = nil,
+            targetDate: String? = nil,
+            targetWords: Int? = nil,
             title: String? = nil
         ) {
             self.copyrightLine = copyrightLine
@@ -3333,6 +3351,8 @@ public enum API {
             self.status = status
             self.subtitle = subtitle
             self.synopsis = synopsis
+            self.targetDate = targetDate
+            self.targetWords = targetWords
             self.title = title
         }
     }
@@ -3359,6 +3379,8 @@ public enum API {
         /// When two-factor sign-in was turned on.
         public var totpEnabledAt: String?
         public var updatedAt: String
+        /// The writer's weekly target in words, when they have set one.
+        public var weeklyWordGoal: Int?
 
         public init(
             bio: String? = nil,
@@ -3374,7 +3396,8 @@ public enum API {
             termsAcceptedAt: String? = nil,
             termsVersion: Int? = nil,
             totpEnabledAt: String? = nil,
-            updatedAt: String
+            updatedAt: String,
+            weeklyWordGoal: Int? = nil
         ) {
             self.bio = bio
             self.createdAt = createdAt
@@ -3390,6 +3413,7 @@ public enum API {
             self.termsVersion = termsVersion
             self.totpEnabledAt = totpEnabledAt
             self.updatedAt = updatedAt
+            self.weeklyWordGoal = weeklyWordGoal
         }
     }
 
@@ -3752,6 +3776,10 @@ public enum API {
         public var status: WorkStatus
         public var subtitle: String?
         public var synopsis: String?
+        /// The day they mean to get there by, `YYYY-MM-DD`.
+        public var targetDate: String?
+        /// How long the book is meant to be, when the writer has said.
+        public var targetWords: Int?
         public var templateId: String?
         public var title: String
         public var updatedAt: String
@@ -3774,6 +3802,8 @@ public enum API {
             status: WorkStatus,
             subtitle: String? = nil,
             synopsis: String? = nil,
+            targetDate: String? = nil,
+            targetWords: Int? = nil,
             templateId: String? = nil,
             title: String,
             updatedAt: String,
@@ -3795,6 +3825,8 @@ public enum API {
             self.status = status
             self.subtitle = subtitle
             self.synopsis = synopsis
+            self.targetDate = targetDate
+            self.targetWords = targetWords
             self.templateId = templateId
             self.title = title
             self.updatedAt = updatedAt
@@ -3914,6 +3946,12 @@ public enum API {
         /// Consecutive days up to and including today on which they wrote.
         public var streak: Int
         public var today: String
+        /// The Monday of the week `today` falls in. Weeks start on Monday, as the
+        /// ISO calendar does.
+        public var weekStart: String
+        public var weeklyWordGoal: Int?
+        /// Net words from `week_start` to `today`.
+        public var wordsThisWeek: Int
         /// Net words on `today`, which may be negative on a day spent cutting.
         public var wordsToday: Int
 
@@ -3923,6 +3961,9 @@ public enum API {
             savesToday: Int,
             streak: Int,
             today: String,
+            weekStart: String,
+            weeklyWordGoal: Int? = nil,
+            wordsThisWeek: Int,
             wordsToday: Int
         ) {
             self.dailyWordGoal = dailyWordGoal
@@ -3930,6 +3971,9 @@ public enum API {
             self.savesToday = savesToday
             self.streak = streak
             self.today = today
+            self.weekStart = weekStart
+            self.weeklyWordGoal = weeklyWordGoal
+            self.wordsThisWeek = wordsThisWeek
             self.wordsToday = wordsToday
         }
     }

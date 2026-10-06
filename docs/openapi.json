@@ -3714,7 +3714,15 @@
       "UpdateGoalsRequest": {
         "properties": {
           "dailyWordGoal": {
-            "description": "`null` clears the target.",
+            "description": "`null` clears the target; leaving it out leaves it alone.",
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "weeklyWordGoal": {
+            "description": "The same, for the week.",
             "format": "int32",
             "type": [
               "integer",
@@ -3975,6 +3983,21 @@
               "null"
             ]
           },
+          "targetDate": {
+            "description": "`YYYY-MM-DD` to reach it by. An empty string clears it.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "targetWords": {
+            "description": "How long the book is meant to be. `0` clears it.",
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
           "title": {
             "type": [
               "string",
@@ -4061,6 +4084,14 @@
           },
           "updatedAt": {
             "type": "string"
+          },
+          "weeklyWordGoal": {
+            "description": "The writer's weekly target in words, when they have set one.",
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
           }
         },
         "required": [
@@ -4482,6 +4513,21 @@
               "null"
             ]
           },
+          "targetDate": {
+            "description": "The day they mean to get there by, `YYYY-MM-DD`.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "targetWords": {
+            "description": "How long the book is meant to be, when the writer has said.",
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
           "templateId": {
             "type": [
               "string",
@@ -4676,6 +4722,22 @@
           "today": {
             "type": "string"
           },
+          "weekStart": {
+            "description": "The Monday of the week `today` falls in. Weeks start on Monday, as the\nISO calendar does.",
+            "type": "string"
+          },
+          "weeklyWordGoal": {
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "wordsThisWeek": {
+            "description": "Net words from `week_start` to `today`.",
+            "format": "int32",
+            "type": "integer"
+          },
           "wordsToday": {
             "description": "Net words on `today`, which may be negative on a day spent cutting.",
             "format": "int32",
@@ -4686,6 +4748,8 @@
           "today",
           "wordsToday",
           "savesToday",
+          "weekStart",
+          "wordsThisWeek",
           "streak",
           "history"
         ],

@@ -57,6 +57,14 @@ struct WordGoalView: View {
                         .foregroundStyle(.secondary)
                 }
 
+                // The week, when the writer has set a target for it: a kinder
+                // measure for someone who writes three evenings, not seven.
+                if let weekGoal = snapshot.weekGoal {
+                    Text("\((snapshot.weekWords ?? 0)) of \(weekGoal) this week")
+                        .font(.caption2)
+                        .foregroundStyle(snapshot.weekFraction >= 1 ? .green : .secondary)
+                }
+
                 if snapshot.streak > 1 {
                     Label("\(snapshot.streak) days", systemImage: "flame")
                         .font(.caption2)

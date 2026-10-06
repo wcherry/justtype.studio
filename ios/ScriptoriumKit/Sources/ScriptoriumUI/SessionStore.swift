@@ -54,6 +54,8 @@ public final class SessionStore: ObservableObject {
                 words: summary.wordsToday,
                 goal: summary.dailyWordGoal,
                 streak: summary.streak,
+                weekWords: summary.wordsThisWeek,
+                weekGoal: summary.weeklyWordGoal,
                 sceneId: lastScene?.id ?? SharedState.load()?.sceneId,
                 sceneTitle: lastScene?.title ?? SharedState.load()?.sceneTitle,
                 workId: lastScene?.workId ?? SharedState.load()?.workId

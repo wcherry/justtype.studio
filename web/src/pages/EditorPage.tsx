@@ -136,7 +136,7 @@ export function EditorPage() {
     state: saveState, wordCount, setWordCount, pending, conflict, schedule, flush, resolveWith,
   } = useAutosave({ scene, editor, onSaved })
 
-  const { summary, sessionWords, refresh: refreshGoals, setDailyGoal } = useSessionGoals(
+  const { summary, sessionWords, refresh: refreshGoals, setDailyGoal, setWeeklyGoal } = useSessionGoals(
     outline?.wordCount ?? null,
     workId,
   )
@@ -547,6 +547,18 @@ export function EditorPage() {
           sceneWords={wordCount}
           sceneTarget={scene?.targetWords ?? null}
           onSetDailyGoal={setDailyGoal}
+          onSetWeeklyGoal={setWeeklyGoal}
+          bookWords={outline.wordCount}
+          bookTarget={outline.targetWords ?? null}
+          bookDeadline={outline.targetDate ?? null}
+          canSetBookTarget={can.isOwner}
+          onSetBookTarget={async (target, deadline) => {
+            const work = await api.works.update(workId, {
+              targetWords: target ?? 0,
+              targetDate: deadline ?? '',
+            })
+            setOutline((current) => (current ? { ...current, ...work } : current))
+          }}
           onSetSceneTarget={async (target) => {
             if (!scene) return
             const updated = await api.scenes.update(scene.id, { targetWords: target })

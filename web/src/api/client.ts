@@ -243,7 +243,9 @@ export const api = {
     /** `today` is the writer's local date; only the client knows it. */
     writing: (today: string, days?: number) =>
       get<WritingSummary>(`/me/writing?today=${today}${days ? `&days=${days}` : ''}`),
-    update: (dailyWordGoal: number | null) => patch<User>('/me/goals', { dailyWordGoal }),
+    /** `null` clears a goal; leaving one out leaves it alone. */
+    update: (input: { dailyWordGoal?: number | null; weeklyWordGoal?: number | null }) =>
+      patch<User>('/me/goals', input),
   },
 
   auth: {
@@ -279,6 +281,10 @@ export const api = {
       > & {
         /** An empty string clears it. */
         genre?: Genre | ''
+        /** `0` clears it. */
+        targetWords?: number
+        /** `YYYY-MM-DD`; an empty string clears it. */
+        targetDate?: string
       },
     ) => patch<Work>(`/works/${workId}`, input),
     remove: (workId: string) => del<{ ok: boolean }>(`/works/${workId}`),

@@ -622,6 +622,10 @@ export interface OutlineResponse {
   status: WorkStatus
   subtitle?: string | null
   synopsis?: string | null
+  // The day they mean to get there by, `YYYY-MM-DD`.
+  targetDate?: string | null
+  // How long the book is meant to be, when the writer has said.
+  targetWords?: number | null
   templateId?: string | null
   title: string
   updatedAt: string
@@ -1250,8 +1254,10 @@ export interface UpdateEntryRequest {
 }
 
 export interface UpdateGoalsRequest {
-  // `null` clears the target.
+  // `null` clears the target; leaving it out leaves it alone.
   dailyWordGoal?: number | null
+  // The same, for the week.
+  weeklyWordGoal?: number | null
 }
 
 export interface UpdateProfileRequest {
@@ -1316,6 +1322,10 @@ export interface UpdateWorkRequest {
   status?: WorkStatus | null
   subtitle?: string | null
   synopsis?: string | null
+  // `YYYY-MM-DD` to reach it by. An empty string clears it.
+  targetDate?: string | null
+  // How long the book is meant to be. `0` clears it.
+  targetWords?: number | null
   title?: string | null
 }
 
@@ -1341,6 +1351,8 @@ export interface User {
   // When two-factor sign-in was turned on.
   totpEnabledAt?: string | null
   updatedAt: string
+  // The writer's weekly target in words, when they have set one.
+  weeklyWordGoal?: number | null
 }
 
 export interface Version {
@@ -1492,6 +1504,10 @@ export interface Work {
   status: WorkStatus
   subtitle?: string | null
   synopsis?: string | null
+  // The day they mean to get there by, `YYYY-MM-DD`.
+  targetDate?: string | null
+  // How long the book is meant to be, when the writer has said.
+  targetWords?: number | null
   templateId?: string | null
   title: string
   updatedAt: string
@@ -1548,6 +1564,12 @@ export interface WritingSummary {
   // Consecutive days up to and including today on which they wrote.
   streak: number
   today: string
+  // The Monday of the week `today` falls in. Weeks start on Monday, as the
+  // ISO calendar does.
+  weekStart: string
+  weeklyWordGoal?: number | null
+  // Net words from `week_start` to `today`.
+  wordsThisWeek: number
   // Net words on `today`, which may be negative on a day spent cutting.
   wordsToday: number
 }

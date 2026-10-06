@@ -45,6 +45,8 @@ row!(User, users, {
     /// The version of the terms they last agreed to.
     terms_version: Option<i32>,
     terms_accepted_at: Option<String>,
+    /// The writer's weekly target in words, when they have set one.
+    weekly_word_goal: Option<i32>,
 });
 
 row!(RefreshToken, refresh_tokens, {
@@ -130,6 +132,10 @@ row!(Work, works, {
     /// know yet.
     #[schema(value_type = Option<crate::domain::enums::Genre>)]
     genre: Option<String>,
+    /// How long the book is meant to be, when the writer has said.
+    target_words: Option<i32>,
+    /// The day they mean to get there by, `YYYY-MM-DD`.
+    target_date: Option<String>,
 });
 
 row!(Chapter, chapters, {
@@ -475,6 +481,7 @@ new_row!(NewUser, users, {
     email_verified_at: Option<String>, totp_secret: Option<String>,
     totp_enabled_at: Option<String>, totp_last_step: Option<i64>,
     terms_version: Option<i32>, terms_accepted_at: Option<String>,
+    weekly_word_goal: Option<i32>,
 });
 
 new_row!(NewWritingDay, writing_days, {
@@ -519,6 +526,7 @@ new_row!(NewWork, works, {
     short_title: Option<String>, dedication: Option<String>, epigraph: Option<String>,
     epigraph_source: Option<String>, copyright_line: Option<String>,
     pinned_version_id: Option<String>, genre: Option<String>,
+    target_words: Option<i32>, target_date: Option<String>,
 });
 
 new_row!(NewChapter, chapters, {

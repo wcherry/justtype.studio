@@ -19,6 +19,7 @@ diesel::table! {
         totp_last_step -> Nullable<BigInt>,
         terms_version -> Nullable<Integer>,
         terms_accepted_at -> Nullable<Text>,
+        weekly_word_goal -> Nullable<Integer>,
     }
 }
 
@@ -68,6 +69,8 @@ diesel::table! {
         copyright_line -> Nullable<Text>,
         pinned_version_id -> Nullable<Text>,
         genre -> Nullable<Text>,
+        target_words -> Nullable<Integer>,
+        target_date -> Nullable<Text>,
     }
 }
 

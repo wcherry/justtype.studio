@@ -64,6 +64,12 @@ pub struct UpdateWorkRequest {
     /// An empty string clears it.
     #[serde(default)]
     pub genre: Option<String>,
+    /// How long the book is meant to be. `0` clears it.
+    #[serde(default)]
+    pub target_words: Option<i32>,
+    /// `YYYY-MM-DD` to reach it by. An empty string clears it.
+    #[serde(default)]
+    pub target_date: Option<String>,
 }
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
@@ -287,6 +293,8 @@ pub async fn create(
                     copyright_line: None,
                     pinned_version_id: None,
                     genre: body.genre.clone(),
+                    target_words: None,
+                    target_date: None,
                 })
                 .execute(conn)?;
 
@@ -441,6 +449,26 @@ pub async fn update(
         if let Some(value) = text(&body.copyright_line) {
             diesel::update(works::table.find(&work_id))
                 .set(works::copyright_line.eq(value))
+                .execute(conn)?;
+        }
+        if let Some(target) = body.target_words {
+            if target < 0 {
+                return Err(ApiError::BadRequest(
+                    "a target is a number of words, or 0 for none".into(),
+                ));
+            }
+            diesel::update(works::table.find(&work_id))
+                .set(works::target_words.eq((target > 0).then_some(target)))
+                .execute(conn)?;
+        }
+        if let Some(value) = text(&body.target_date) {
+            if let Some(date) = &value {
+                chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d").map_err(|_| {
+                    ApiError::BadRequest("targetDate must look like YYYY-MM-DD".into())
+                })?;
+            }
+            diesel::update(works::table.find(&work_id))
+                .set(works::target_date.eq(value))
                 .execute(conn)?;
         }
         if let Some(value) = text(&body.genre) {

@@ -7,7 +7,49 @@ interface Props {
   sceneWords: number
   sceneTarget: number | null
   onSetDailyGoal: (goal: number | null) => void | Promise<void>
+  onSetWeeklyGoal: (goal: number | null) => void | Promise<void>
   onSetSceneTarget: (target: number | null) => void | Promise<void>
+  /** The whole book, against the writer's target for it. */
+  bookWords: number
+  bookTarget: number | null
+  bookDeadline: string | null
+  canSetBookTarget: boolean
+  onSetBookTarget: (target: number | null, deadline: string | null) => void | Promise<void>
+}
+
+/** Days from `from` to `to`, counting both: the deadline day is a writing day. */
+function daysBetween(from: string, to: string): number {
+  const a = Date.parse(`${from}T00:00:00Z`)
+  const b = Date.parse(`${to}T00:00:00Z`)
+  return Math.round((b - a) / 86_400_000) + 1
+}
+
+/**
+ * What a deadline asks of each remaining day — the only number about a
+ * deadline a writer can act on today.
+ */
+export function pace(words: number, target: number, today: string, deadline: string) {
+  const left = Math.max(0, target - words)
+  const days = daysBetween(today, deadline)
+  if (left === 0) return { left, days, perDay: 0 }
+  if (days <= 0) return { left, days, perDay: null }
+  return { left, days, perDay: Math.ceil(left / days) }
+}
+
+function Meter({ value, of, label }: { value: number; of: number; label: string }) {
+  const fraction = Math.max(0, Math.min(1, value / of))
+  return (
+    <div
+      className={fraction >= 1 ? 'goals__meter is-met' : 'goals__meter'}
+      role="progressbar"
+      aria-label={label}
+      aria-valuemin={0}
+      aria-valuemax={of}
+      aria-valuenow={Math.max(0, value)}
+    >
+      <div className="goals__fill" style={{ width: `${fraction * 100}%` }} />
+    </div>
+  )
 }
 
 function plural(n: number, word: string) {
@@ -22,15 +64,21 @@ function plural(n: number, word: string) {
  * celebrating out loud is a target actually met.
  */
 export function GoalBar({
-  summary, sessionWords, sceneWords, sceneTarget, onSetDailyGoal, onSetSceneTarget,
+  summary, sessionWords, sceneWords, sceneTarget, onSetDailyGoal, onSetWeeklyGoal,
+  onSetSceneTarget, bookWords, bookTarget, bookDeadline, canSetBookTarget, onSetBookTarget,
 }: Props) {
-  const [editing, setEditing] = useState<'daily' | 'scene' | null>(null)
+  const [editing, setEditing] = useState<'daily' | 'weekly' | 'book' | 'scene' | null>(null)
 
   const today = summary?.wordsToday ?? 0
   const goal = summary?.dailyWordGoal ?? null
-  const progress = goal ? Math.max(0, Math.min(1, today / goal)) : 0
   const met = goal !== null && today >= goal
   const streak = summary?.streak ?? 0
+  const week = summary?.wordsThisWeek ?? 0
+  const weeklyGoal = summary?.weeklyWordGoal ?? null
+  const bookPace =
+    bookTarget && bookDeadline && summary
+      ? pace(bookWords, bookTarget, summary.today, bookDeadline)
+      : null
 
   return (
     <div className="goals">
@@ -44,6 +92,11 @@ export function GoalBar({
           {goal ? ` of ${goal.toLocaleString()} today` : ' today'}
         </button>
 
+        <button type="button" className="goals__stat goals__button" onClick={() => setEditing(editing === 'weekly' ? null : 'weekly')}>
+          <strong>{week.toLocaleString()}</strong>
+          {weeklyGoal ? ` of ${weeklyGoal.toLocaleString()} this week` : ' this week'}
+        </button>
+
         {streak > 0 && (
           <span className="goals__stat goals__streak" title="Consecutive days you have written">
             {plural(streak, 'day')} running
@@ -52,17 +105,35 @@ export function GoalBar({
 
         <span className="goals__spacer" />
 
+        <button
+          type="button"
+          className="goals__stat goals__button"
+          disabled={!canSetBookTarget && !bookTarget}
+          title={canSetBookTarget ? 'Set a target for the book' : undefined}
+          onClick={() => canSetBookTarget && setEditing(editing === 'book' ? null : 'book')}
+        >
+          <strong>{bookWords.toLocaleString()}</strong>
+          {bookTarget ? ` of ${bookTarget.toLocaleString()} in the book` : ' in the book'}
+          {bookPace && (
+            bookPace.left === 0
+              ? ' · there'
+              : bookPace.perDay === null
+                ? ' · past the date'
+                : ` · ${bookPace.perDay.toLocaleString()} a day to ${new Date(`${bookDeadline}T00:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}`
+          )}
+        </button>
+
         <button type="button" className="goals__stat goals__button" onClick={() => setEditing(editing === 'scene' ? null : 'scene')}>
           <strong>{sceneWords.toLocaleString()}</strong>
           {sceneTarget ? ` of ${sceneTarget.toLocaleString()} in this scene` : ' in this scene'}
         </button>
       </div>
 
-      {goal !== null && (
-        <div className={met ? 'goals__meter is-met' : 'goals__meter'}>
-          <div className="goals__fill" style={{ width: `${progress * 100}%` }} />
-        </div>
-      )}
+      <div className="goals__meters">
+        {goal !== null && <Meter value={today} of={goal} label="Today" />}
+        {weeklyGoal !== null && <Meter value={week} of={weeklyGoal} label="This week" />}
+        {bookTarget !== null && <Meter value={bookWords} of={bookTarget} label="The book" />}
+      </div>
       {met && <p className="goals__met">Target met — {plural(today - goal, 'word')} past it.</p>}
 
       {editing === 'daily' && (
@@ -71,6 +142,22 @@ export function GoalBar({
           current={goal}
           onCancel={() => setEditing(null)}
           onSubmit={async (value) => { await onSetDailyGoal(value); setEditing(null) }}
+        />
+      )}
+      {editing === 'weekly' && (
+        <TargetForm
+          label="Words per week (Monday to Sunday)"
+          current={weeklyGoal}
+          onCancel={() => setEditing(null)}
+          onSubmit={async (value) => { await onSetWeeklyGoal(value); setEditing(null) }}
+        />
+      )}
+      {editing === 'book' && (
+        <BookForm
+          target={bookTarget}
+          deadline={bookDeadline}
+          onCancel={() => setEditing(null)}
+          onSubmit={async (target, deadline) => { await onSetBookTarget(target, deadline); setEditing(null) }}
         />
       )}
       {editing === 'scene' && (
@@ -110,11 +197,50 @@ function TargetForm({
       <label>
         {label}
         <input
-          type="number" min={1} step={50} autoFocus
+          type="number" min={1} step={1} autoFocus
           value={value}
           placeholder="none"
           onChange={(e) => setValue(e.target.value)}
         />
+      </label>
+      <div className="goals__form-actions">
+        <button type="submit" disabled={busy}>Save</button>
+        <button type="button" onClick={onCancel}>Cancel</button>
+      </div>
+    </form>
+  )
+}
+
+function BookForm({
+  target, deadline, onSubmit, onCancel,
+}: {
+  target: number | null
+  deadline: string | null
+  onSubmit: (target: number | null, deadline: string | null) => void | Promise<void>
+  onCancel: () => void
+}) {
+  const [words, setWords] = useState(target ? String(target) : '')
+  const [date, setDate] = useState(deadline ?? '')
+  const [busy, setBusy] = useState(false)
+  return (
+    <form
+      className="goals__form"
+      onSubmit={async (event) => {
+        event.preventDefault()
+        setBusy(true)
+        const parsed = Number(words)
+        await onSubmit(words.trim() === '' || parsed <= 0 ? null : parsed, date || null)
+        setBusy(false)
+      }}
+    >
+      <label>
+        Words in the book
+        <input type="number" min={1} step={1} autoFocus value={words} placeholder="none" onChange={(e) => setWords(e.target.value)} />
+      </label>
+      <label>
+        By
+        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+        <span className="field__hint">Optional. With a date, the bar says what each day needs.</span>
       </label>
       <div className="goals__form-actions">
         <button type="submit" disabled={busy}>Save</button>

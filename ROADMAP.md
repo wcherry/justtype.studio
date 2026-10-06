@@ -670,10 +670,23 @@ do not build toward it, and do not carry a compatibility layer for it.
   A save conflict or being offline with work waiting still shows — hiding
   those is how a writer loses words.
 
-### 8.2 Word-count goals · **Later**
+### 8.2 Word-count goals · **Done**
 - Daily, weekly and per-project targets, each with a progress indicator. This
   extends *1.2*'s daily target, per-scene target and streak, and *4.4*'s
   widget, rather than starting again.
+- **Done:** a weekly target beside the daily one (weeks run Monday to Sunday,
+  as the ISO calendar does), and a target for the book with an optional date.
+  The goal bar now reads across: this sitting, today, this week, the streak,
+  the book, the scene — each target with its own meter. With a date, the book
+  says the one thing about a deadline a writer can act on today: how many
+  words a day it still asks. The widget shows the week when a weekly target
+  is set.
+- Changing one goal no longer clears another: `/me/goals` tells a goal sent
+  as `null` (clear it) from one left out (leave it alone).
+- Found on the way: the target forms have refused most numbers since *1.2*.
+  `min=1, step=50` makes 500 invalid — the valid values are 1, 51, 101… — and
+  the browser declines to submit without saying why. Any whole number now
+  works.
 
 ### 8.3 Story bible sketches · **Later**
 - Sketches for characters, locations and the like, each started from a

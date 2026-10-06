@@ -125,6 +125,25 @@ import sys,json
 d=json.load(sys.stdin)
 print(f\"  today: {d['wordsToday']} words over {d['savesToday']} save(s), goal {d['dailyWordGoal']}, streak {d['streak']}\")"
 
+step "A week's target, and the book's"
+TODAY=$(python3 -c "import datetime;print(datetime.date.today().isoformat())")
+curl -s -X PATCH "$API/me/goals" -H "$AUTH" -H 'content-type: application/json' -d '{"dailyWordGoal":500,"weeklyWordGoal":3000}' >/dev/null
+curl -s -X PATCH "$API/me/goals" -H "$AUTH" -H 'content-type: application/json' -d '{"weeklyWordGoal":2500}' >/dev/null
+curl -s "$API/me/writing?today=$TODAY" -H "$AUTH" | python3 -c "
+import sys,json;d=json.load(sys.stdin)
+assert d['dailyWordGoal']==500, 'changing the week must leave the day alone'
+assert d['weeklyWordGoal']==2500 and d['wordsThisWeek']>=d['wordsToday'], d
+print(f\"  {d['wordsThisWeek']} of {d['weeklyWordGoal']} this week (from {d['weekStart']}), {d['wordsToday']} of {d['dailyWordGoal']} today\")"
+curl -s -X PATCH "$API/me/goals" -H "$AUTH" -H 'content-type: application/json' -d '{"weeklyWordGoal":null}' | python3 -c "
+import sys,json;d=json.load(sys.stdin);assert d['weeklyWordGoal'] is None and d['dailyWordGoal']==500, d
+print('  null clears the week; the day is untouched')"
+curl -s -X PATCH "$API/works/$WID" -H "$AUTH" -H 'content-type: application/json' -d '{"targetWords":80000,"targetDate":"2027-03-01"}' | python3 -c "
+import sys,json;d=json.load(sys.stdin);assert d['targetWords']==80000 and d['targetDate']=='2027-03-01', d
+print(f\"  the book: {d['wordCount']} of {d['targetWords']} by {d['targetDate']}\")"
+BAD=$(curl -s -o /dev/null -w '%{http_code}' -X PATCH "$API/works/$WID" -H "$AUTH" -H 'content-type: application/json' -d '{"targetDate":"March"}')
+[ "$BAD" = "400" ] && echo "  a date that is not one is refused" || { echo "  EXPECTED 400, got $BAD"; exit 1; }
+curl -s -X PATCH "$API/me/goals" -H "$AUTH" -H 'content-type: application/json' -d '{"dailyWordGoal":null}' >/dev/null
+
 step "Splitting a scene, then merging it back"
 # The property that matters: prose must survive the round trip exactly.
 curl -s -X PUT "$API/scenes/$SCENE/content" -H "$AUTH" -H 'content-type: application/json' \

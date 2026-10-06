@@ -222,6 +222,12 @@ button.danger { border-color: var(--del); color: var(--del); }
 .terms { max-width: var(--measure); font-family: var(--serif); line-height: 1.6; }
 .terms h1, .terms h2 { font-weight: 500; }
 
+/* --- goals: day, week, book --------------------------------------------- */
+
+.goals__meters { display: grid; gap: 3px; }
+.goals__meters:empty { display: none; }
+.goals__button:disabled { cursor: default; opacity: 1; border-color: transparent; }
+
 /* --- the page, and nothing else ------------------------------------------ */
 
 /* Everything put away. Conflict, offline and access notes stay: hiding those

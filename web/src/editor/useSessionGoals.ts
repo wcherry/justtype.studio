@@ -79,7 +79,15 @@ export function useSessionGoals(workWordCount: number | null, workId: string | n
 
   const setDailyGoal = useCallback(
     async (goal: number | null) => {
-      await api.goals.update(goal)
+      await api.goals.update({ dailyWordGoal: goal })
+      await refresh()
+    },
+    [refresh],
+  )
+
+  const setWeeklyGoal = useCallback(
+    async (goal: number | null) => {
+      await api.goals.update({ weeklyWordGoal: goal })
       await refresh()
     },
     [refresh],
@@ -90,5 +98,5 @@ export function useSessionGoals(workWordCount: number | null, workId: string | n
       ? workWordCount - sessionStart.current
       : 0
 
-  return { summary, sessionWords, refresh, setDailyGoal, day }
+  return { summary, sessionWords, refresh, setDailyGoal, setWeeklyGoal, day }
 }

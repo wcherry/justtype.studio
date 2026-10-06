@@ -61,6 +61,7 @@ pub fn seed_former_member(conn: &mut Conn, now: &str) -> ApiResult<()> {
             totp_last_step: None,
             terms_version: None,
             terms_accepted_at: None,
+            weekly_word_goal: None,
         })
         .execute(conn)?;
     Ok(())

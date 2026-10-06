@@ -94,6 +94,12 @@ pub struct WritingSummary {
     pub saves_today: i32,
     /// The writer's target, if they have set one.
     pub daily_word_goal: Option<i32>,
+    /// The Monday of the week `today` falls in. Weeks start on Monday, as the
+    /// ISO calendar does.
+    pub week_start: String,
+    /// Net words from `week_start` to `today`.
+    pub words_this_week: i32,
+    pub weekly_word_goal: Option<i32>,
     /// Consecutive days up to and including today on which they wrote.
     pub streak: i32,
     /// Most recent first, one entry per day the writer showed up.
@@ -103,8 +109,36 @@ pub struct WritingSummary {
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateGoalsRequest {
-    /// `null` clears the target.
-    pub daily_word_goal: Option<i32>,
+    /// `null` clears the target; leaving it out leaves it alone.
+    #[serde(default, deserialize_with = "present")]
+    #[schema(value_type = Option<i32>)]
+    pub daily_word_goal: Option<Option<i32>>,
+    /// The same, for the week.
+    #[serde(default, deserialize_with = "present")]
+    #[schema(value_type = Option<i32>)]
+    pub weekly_word_goal: Option<Option<i32>>,
+}
+
+/// Tells "sent as null" (clear it) apart from "not sent" (leave it): serde
+/// alone collapses both into `None`.
+fn present<'de, D, T>(deserializer: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Option::<T>::deserialize(deserializer).map(Some)
+}
+
+/// The Monday on or before a day.
+fn monday_of(day: &str) -> Option<String> {
+    use chrono::Datelike;
+    let date = chrono::NaiveDate::parse_from_str(day, "%Y-%m-%d").ok()?;
+    let back = date.weekday().num_days_from_monday() as i64;
+    Some(
+        (date - chrono::Duration::days(back))
+            .format("%Y-%m-%d")
+            .to_string(),
+    )
 }
 
 /// Steps back one day. Dates here are already validated `YYYY-MM-DD`.
@@ -174,9 +208,18 @@ pub async fn writing(
             .select(WritingDay::as_select())
             .load(conn)?;
 
-        let goal: Option<i32> = users::table
+        let (goal, weekly_goal): (Option<i32>, Option<i32>) = users::table
             .find(&user.id)
-            .select(users::daily_word_goal)
+            .select((users::daily_word_goal, users::weekly_word_goal))
+            .first(conn)?;
+        let week_start = monday_of(&query.today).unwrap_or_else(|| query.today.clone());
+        // Asked of the table rather than the history list, which may have
+        // been asked for fewer days than the week holds.
+        let words_this_week: Option<i64> = writing_days::table
+            .filter(writing_days::user_id.eq(&user.id))
+            .filter(writing_days::day.ge(&week_start))
+            .filter(writing_days::day.le(&query.today))
+            .select(diesel::dsl::sum(writing_days::net_words))
             .first(conn)?;
 
         let today_row = history.iter().find(|d| d.day == query.today);
@@ -184,6 +227,9 @@ pub async fn writing(
             words_today: today_row.map(|d| d.net_words).unwrap_or(0),
             saves_today: today_row.map(|d| d.saves).unwrap_or(0),
             daily_word_goal: goal,
+            week_start,
+            words_this_week: words_this_week.unwrap_or(0) as i32,
+            weekly_word_goal: weekly_goal,
             streak: streak_from(&history, &query.today),
             today: query.today,
             history,
@@ -208,19 +254,30 @@ pub async fn update_goals(
     user: AuthUser,
     Json(body): Json<UpdateGoalsRequest>,
 ) -> ApiResult<Json<User>> {
-    if let Some(goal) = body.daily_word_goal {
+    for goal in [body.daily_word_goal, body.weekly_word_goal]
+        .into_iter()
+        .flatten()
+        .flatten()
+    {
         if goal <= 0 {
             return Err(ApiError::BadRequest(
-                "a daily goal has to be a positive number of words".into(),
+                "a goal has to be a positive number of words".into(),
             ));
         }
     }
     let updated = blocking(&state.pool, move |conn| {
+        if let Some(goal) = body.daily_word_goal {
+            diesel::update(users::table.find(&user.id))
+                .set(users::daily_word_goal.eq(goal))
+                .execute(conn)?;
+        }
+        if let Some(goal) = body.weekly_word_goal {
+            diesel::update(users::table.find(&user.id))
+                .set(users::weekly_word_goal.eq(goal))
+                .execute(conn)?;
+        }
         diesel::update(users::table.find(&user.id))
-            .set((
-                users::daily_word_goal.eq(body.daily_word_goal),
-                users::updated_at.eq(now_iso()),
-            ))
+            .set(users::updated_at.eq(now_iso()))
             .execute(conn)?;
         Ok(users::table
             .find(&user.id)
@@ -245,6 +302,29 @@ mod tests {
             created_at: date.into(),
             updated_at: date.into(),
         }
+    }
+
+    #[test]
+    fn a_week_starts_on_the_monday_on_or_before_the_day() {
+        // 2026-10-08 is a Thursday.
+        assert_eq!(monday_of("2026-10-08").unwrap(), "2026-10-05");
+        assert_eq!(monday_of("2026-10-05").unwrap(), "2026-10-05");
+        assert_eq!(
+            monday_of("2026-10-11").unwrap(),
+            "2026-10-05",
+            "Sunday ends the week"
+        );
+        // Across a month and a year.
+        assert_eq!(monday_of("2027-01-01").unwrap(), "2026-12-28");
+    }
+
+    #[test]
+    fn null_clears_and_absent_leaves_alone() {
+        let clear: UpdateGoalsRequest = serde_json::from_str(r#"{"dailyWordGoal":null}"#).unwrap();
+        assert_eq!(clear.daily_word_goal, Some(None));
+        assert_eq!(clear.weekly_word_goal, None);
+        let set: UpdateGoalsRequest = serde_json::from_str(r#"{"weeklyWordGoal":5000}"#).unwrap();
+        assert_eq!(set.weekly_word_goal, Some(Some(5000)));
     }
 
     #[test]
