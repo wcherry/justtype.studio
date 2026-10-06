@@ -7,6 +7,11 @@ import type {
   AnswerView, BlockReactions, CommentView, PublicationCard, ReviewQuestion, VersionContent,
 } from '../api/types'
 import { CommentSidebar } from '../components/CommentSidebar'
+import { MarksPanel } from '../components/MarksPanel'
+import type { MenuTarget, SelectionAction } from '../components/SelectionMenu'
+import { MAX_MARK_QUOTE } from '../editor/annotations'
+import type { AnnotationSpec } from '../editor/annotations'
+import { useAnnotations } from '../editor/useAnnotations'
 import { QuestionCard } from '../components/QuestionCard'
 import { ReaderScene } from '../components/ReaderScene'
 import type { Selection } from '../components/ReaderScene'
@@ -46,6 +51,11 @@ export function ReviewPage() {
   const [filters, setFilters] = useState<CommentFilters>({ sort: 'top' })
   const [notice, setNotice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // A reader's own highlights and bookmarks, which nobody else sees.
+  const myMarks = useAnnotations(user ? { kind: 'publication', publicationId } : null)
+  const [showMarks, setShowMarks] = useState(false)
+  const [composeFocus, setComposeFocus] = useState(0)
+  const [jump, setJump] = useState<{ sceneId: string; from: number; to: number; key: number } | null>(null)
 
   const loadComments = useCallback(() => {
     api.comments.list(publicationId, filters).then(setComments).catch(() => undefined)
@@ -158,6 +168,65 @@ export function ReviewPage() {
     return map
   }, [comments])
 
+  const annotationsByScene = useMemo(() => {
+    const map = new Map<string, AnnotationSpec[]>()
+    for (const mark of myMarks.list) {
+      const list = map.get(mark.sceneId) ?? []
+      list.push({ id: mark.id, kind: mark.kind, from: mark.fromPos, to: mark.toPos })
+      map.set(mark.sceneId, list)
+    }
+    return map
+  }, [myMarks.list])
+
+  /** What right-clicking selected text in a scene offers a reader. */
+  const menuFor = useCallback(
+    (sceneId: string) => (target: MenuTarget): SelectionAction[] => {
+      const actions: SelectionAction[] = []
+      const selection = target.selection
+      if (selection && user) {
+        const mark = (kind: 'highlight' | 'bookmark') => {
+          const quote = selection.quote.trim()
+          if (!quote) return
+          if (quote.length > MAX_MARK_QUOTE) {
+            setNotice(`A mark holds ${MAX_MARK_QUOTE.toLocaleString()} characters at most — select less.`)
+            return
+          }
+          void myMarks
+            .add({ sceneId, kind, from: selection.from, to: selection.to, quote })
+            .catch((e) => setNotice(e instanceof Error ? e.message : 'Could not mark that'))
+        }
+        actions.push({ key: 'highlight', label: 'Highlight', onSelect: () => mark('highlight') })
+        actions.push({ key: 'bookmark', label: 'Bookmark', onSelect: () => mark('bookmark') })
+        actions.push({
+          key: 'comment',
+          label: 'Comment…',
+          onSelect: () => {
+            setPending({ sceneId, ...selection })
+            setComposeFocus((n) => n + 1)
+          },
+        })
+      }
+      if (selection) {
+        actions.push({
+          key: 'copy',
+          label: 'Copy',
+          hint: '⌘C',
+          onSelect: () => void navigator.clipboard?.writeText(selection.quote),
+        })
+      }
+      const existing = target.annotationId && myMarks.list.find((m) => m.id === target.annotationId)
+      if (existing) {
+        actions.push({
+          key: 'remove',
+          label: existing.kind === 'highlight' ? 'Remove highlight' : 'Remove bookmark',
+          onSelect: () => void myMarks.remove(existing.id).catch(() => undefined),
+        })
+      }
+      return actions
+    },
+    [user, myMarks],
+  )
+
   /** Reading order across the whole book, which is what a progress index
    *  counts along — not just the chapter on screen. */
   const sceneIds = useMemo(
@@ -192,6 +261,38 @@ export function ReviewPage() {
             <span className={`badge badge--${card.visibility}`}>{card.visibility}</span>
             {readers > 1 && <span className="reader__live">{readers} reading now</span>}
           </p>
+          {user && myMarks.list.length > 0 && (
+            <button
+              type="button"
+              className="linklike"
+              aria-expanded={showMarks}
+              onClick={() => setShowMarks((v) => !v)}
+            >
+              {showMarks ? 'Hide your marks' : `Your highlights & bookmarks (${myMarks.list.length})`}
+            </button>
+          )}
+          {showMarks && (
+            <div className="reader__marks">
+              <MarksPanel
+                marks={myMarks.list}
+                scenes={(content.toc ?? []).flatMap((chapter) =>
+                  chapter.sceneIds.map((id) => ({
+                    id,
+                    title: content.chapters.flatMap((c) => c.scenes).find((s) => s.sceneId === id)?.title ?? chapter.title,
+                  })),
+                )}
+                onOpen={(id) => {
+                  const mark = myMarks.list.find((m) => m.id === id)
+                  if (!mark) return
+                  const at = (content.toc ?? []).findIndex((c) => c.sceneIds.includes(mark.sceneId))
+                  if (at >= 0 && at !== page) goTo(at)
+                  setJump({ sceneId: mark.sceneId, from: mark.fromPos, to: mark.toPos, key: Date.now() })
+                }}
+                onRemove={(id) => void myMarks.remove(id).catch(() => undefined)}
+                onRename={(id, note) => myMarks.update(id, { note })}
+              />
+            </div>
+          )}
           {notice && (
             <p className="error" onClick={() => setNotice(null)}>
               {notice}
@@ -214,6 +315,9 @@ export function ReviewPage() {
                 onSelect={setPending}
                 onActivateComment={setActiveCommentId}
                 onReact={react}
+                annotations={annotationsByScene.get(scene.sceneId)}
+                menuActions={menuFor(scene.sceneId)}
+                jump={jump?.sceneId === scene.sceneId ? jump : null}
               />
             ))}
 
@@ -281,6 +385,7 @@ export function ReviewPage() {
         onRefresh={loadComments}
         onActivate={setActiveCommentId}
         onClearPending={() => setPending(null)}
+        composeFocus={composeFocus}
       />
     </main>
   )

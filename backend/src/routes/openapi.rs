@@ -30,6 +30,7 @@ use utoipa::OpenApi;
         (name = "comments", description = "Anchored, threaded, votable feedback"),
         (name = "profiles", description = "Authors, and who follows them"),
         (name = "live", description = "Tickets for the live channel"),
+        (name = "annotations", description = "Your own highlights and bookmarks, seen by nobody else"),
         (name = "summaries", description = "Summaries written by Claude, with the writer's consent"),
         (name = "account", description = "Proving an address, getting back in, a second factor, sessions"),
         (name = "trust", description = "Your data, the audit log, the terms"),

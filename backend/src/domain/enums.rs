@@ -267,3 +267,10 @@ api_enum!(AuditAction {
     SummariesAllowed => "summaries_allowed",
     SummariesWithdrawn => "summaries_withdrawn",
 });
+
+api_enum!(AnnotationKind {
+    /// A passage marked to find again or think about.
+    Highlight => "highlight",
+    /// A named place to come back to.
+    Bookmark => "bookmark",
+});

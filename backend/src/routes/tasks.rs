@@ -24,6 +24,9 @@ use crate::state::AppState;
 use super::collaborators::record;
 use super::support::{self, Ability};
 
+/// Enough of a passage to recognise it; the scene holds the rest.
+const MAX_QUOTE: usize = 1000;
+
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct TaskQuery {
@@ -40,6 +43,9 @@ pub struct CreateTaskRequest {
     pub body: String,
     #[serde(default)]
     pub scene_id: Option<String>,
+    /// The passage it is about, when it was written against one.
+    #[serde(default)]
+    pub quote: Option<String>,
 }
 
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
@@ -177,6 +183,17 @@ pub async fn create(
     if body.body.trim().is_empty() {
         return Err(ApiError::BadRequest("a task needs a line of text".into()));
     }
+    let quote = body
+        .quote
+        .as_deref()
+        .map(str::trim)
+        .filter(|q| !q.is_empty())
+        .map(|q| q.chars().take(MAX_QUOTE).collect::<String>());
+    if quote.is_some() && body.scene_id.is_none() {
+        return Err(ApiError::BadRequest(
+            "a quoted passage needs the scene it is in".into(),
+        ));
+    }
     let view = blocking(&state.pool, move |conn| {
         support::work_for(conn, &work_id, &user, Ability::Suggest)?;
         if let Some(scene_id) = &body.scene_id {
@@ -189,6 +206,7 @@ pub async fn create(
             body.scene_id.clone(),
             None,
             body.body.trim(),
+            quote,
         )?;
         Ok(with_sources(conn, vec![row])?.remove(0))
     })
@@ -203,6 +221,7 @@ fn insert(
     scene_id: Option<String>,
     comment_id: Option<String>,
     body: &str,
+    quote: Option<String>,
 ) -> ApiResult<RevisionTask> {
     let now = now_iso();
     let row = NewRevisionTask {
@@ -215,6 +234,7 @@ fn insert(
         created_at: now.clone(),
         updated_at: now,
         done_at: None,
+        quote,
     };
     diesel::insert_into(revision_tasks::table)
         .values(&row)
@@ -288,6 +308,8 @@ pub async fn from_comment(
                 comment.scene_id.clone(),
                 Some(comment.id.clone()),
                 &comment.body,
+                // The note's own passage is shown through its source.
+                None,
             )?,
         };
         Ok(with_sources(conn, vec![row])?.remove(0))

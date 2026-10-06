@@ -47,6 +47,24 @@ export interface Anchor {
   to: number
 }
 
+export interface Annotation {
+  createdAt: string
+  fromPos: number
+  id: string
+  kind: AnnotationKind
+  note?: string | null
+  // `None` on the working draft.
+  publicationId?: string | null
+  quote: string
+  sceneId: string
+  toPos: number
+  updatedAt: string
+  userId: string
+  workId: string
+}
+
+export type AnnotationKind = 'highlight' | 'bookmark'
+
 export interface AnswerRequest {
   body?: string | null
   // Required for a chapter-scoped question, ignored otherwise.
@@ -311,6 +329,15 @@ export interface ContentScene {
   wordCount: number
 }
 
+export interface CreateAnnotationRequest {
+  from: number
+  kind: AnnotationKind
+  note?: string | null
+  quote: string
+  sceneId: string
+  to: number
+}
+
 export interface CreateChangeRequest {
   anchorFrom: number
   anchorTo: number
@@ -382,6 +409,8 @@ export interface CreateSceneRequest {
 
 export interface CreateTaskRequest {
   body: string
+  // The passage it is about, when it was written against one.
+  quote?: string | null
   sceneId?: string | null
 }
 
@@ -937,6 +966,8 @@ export interface RevisionTask {
   createdAt: string
   doneAt?: string | null
   id: string
+  // The passage it was written against, when it was.
+  quote?: string | null
   sceneId?: string | null
   state: string
   updatedAt: string
@@ -1190,6 +1221,8 @@ export interface TaskView {
   createdAt: string
   doneAt?: string | null
   id: string
+  // The passage it was written against, when it was.
+  quote?: string | null
   sceneId?: string | null
   state: string
   updatedAt: string
@@ -1278,6 +1311,16 @@ export interface TwoFactorSetup {
   secret: string
   // The same key as an `otpauth://` link, for a QR code or a tap.
   url: string
+}
+
+export interface UpdateAnnotationRequest {
+  // Where the passage is now, after the draft moved it.
+  from?: number | null
+  // Empty clears it.
+  note?: string | null
+  // The passage as it reads now, when the writer has edited it.
+  quote?: string | null
+  to?: number | null
 }
 
 export interface UpdateChapterRequest {

@@ -102,6 +102,8 @@ export type {
   SketchField,
   SummaryView,
   Features,
+  Annotation,
+  AnnotationKind,
   SketchTemplate,
   ShareLink,
   TocChapter,

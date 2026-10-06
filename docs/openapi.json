@@ -113,6 +113,75 @@
         ],
         "type": "object"
       },
+      "Annotation": {
+        "properties": {
+          "createdAt": {
+            "type": "string"
+          },
+          "fromPos": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/AnnotationKind"
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "publicationId": {
+            "description": "`None` on the working draft.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "quote": {
+            "type": "string"
+          },
+          "sceneId": {
+            "type": "string"
+          },
+          "toPos": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "updatedAt": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "workId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "userId",
+          "workId",
+          "sceneId",
+          "kind",
+          "fromPos",
+          "toPos",
+          "quote",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "AnnotationKind": {
+        "enum": [
+          "highlight",
+          "bookmark"
+        ],
+        "type": "string"
+      },
       "AnswerRequest": {
         "properties": {
           "body": {
@@ -974,6 +1043,41 @@
         ],
         "type": "object"
       },
+      "CreateAnnotationRequest": {
+        "properties": {
+          "from": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/AnnotationKind"
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "quote": {
+            "type": "string"
+          },
+          "sceneId": {
+            "type": "string"
+          },
+          "to": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "sceneId",
+          "kind",
+          "from",
+          "to",
+          "quote"
+        ],
+        "type": "object"
+      },
       "CreateChangeRequest": {
         "properties": {
           "anchorFrom": {
@@ -1233,6 +1337,13 @@
         "properties": {
           "body": {
             "type": "string"
+          },
+          "quote": {
+            "description": "The passage it is about, when it was written against one.",
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "sceneId": {
             "type": [
@@ -2777,6 +2888,13 @@
           "id": {
             "type": "string"
           },
+          "quote": {
+            "description": "The passage it was written against, when it was.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "sceneId": {
             "type": [
               "string",
@@ -3774,6 +3892,40 @@
           "secret",
           "url"
         ],
+        "type": "object"
+      },
+      "UpdateAnnotationRequest": {
+        "properties": {
+          "from": {
+            "description": "Where the passage is now, after the draft moved it.",
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "note": {
+            "description": "Empty clears it.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "quote": {
+            "description": "The passage as it reads now, when the writer has edited it.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "to": {
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
         "type": "object"
       },
       "UpdateChapterRequest": {
@@ -4940,6 +5092,87 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/annotations/{annotation_id}": {
+      "delete": {
+        "operationId": "delete_annotation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "annotation_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Removed"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "annotations"
+        ]
+      },
+      "patch": {
+        "operationId": "update",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "annotation_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAnnotationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Annotation"
+                }
+              }
+            },
+            "description": "Changed"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "annotations"
+        ]
+      }
+    },
     "/api/auth/login": {
       "post": {
         "operationId": "login",
@@ -7174,6 +7407,98 @@
         },
         "tags": [
           "publications"
+        ]
+      }
+    },
+    "/api/publications/{publication_id}/annotations": {
+      "get": {
+        "operationId": "list_publication",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "publication_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Annotation"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Yours, and only yours"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "Your marks on a published version.",
+        "tags": [
+          "annotations"
+        ]
+      },
+      "post": {
+        "operationId": "create_publication",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "publication_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAnnotationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Annotation"
+                }
+              }
+            },
+            "description": "Marked"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "annotations"
         ]
       }
     },
@@ -9853,6 +10178,106 @@
         ]
       }
     },
+    "/api/works/{work_id}/annotations": {
+      "get": {
+        "operationId": "list_draft",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sceneId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Annotation"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Yours, and only yours"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "Your marks on the working draft, in reading order within each scene.",
+        "tags": [
+          "annotations"
+        ]
+      },
+      "post": {
+        "operationId": "create_draft",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAnnotationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Annotation"
+                }
+              }
+            },
+            "description": "Marked"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "annotations"
+        ]
+      }
+    },
     "/api/works/{work_id}/bible": {
       "get": {
         "operationId": "list",
@@ -10648,6 +11073,10 @@
     {
       "description": "Tickets for the live channel",
       "name": "live"
+    },
+    {
+      "description": "Your own highlights and bookmarks, seen by nobody else",
+      "name": "annotations"
     },
     {
       "description": "Summaries written by Claude, with the writer's consent",

@@ -7,6 +7,8 @@ interface Props {
   /** The scene open in the editor, so a new task lands where the writer is. */
   sceneId: string | null
   onOpenScene: (sceneId: string) => void
+  /** Bumped when a task was added from elsewhere, such as the text's own menu. */
+  refreshKey?: number
 }
 
 /**
@@ -17,7 +19,7 @@ interface Props {
  * scene — which outlives the publication it came from, because the next draft
  * is where it gets answered.
  */
-export function TaskList({ workId, sceneId, onOpenScene }: Props) {
+export function TaskList({ workId, sceneId, onOpenScene, refreshKey = 0 }: Props) {
   const [tasks, setTasks] = useState<TaskView[]>([])
   const [showDone, setShowDone] = useState(false)
   const [loaded, setLoaded] = useState(false)
@@ -31,7 +33,7 @@ export function TaskList({ workId, sceneId, onOpenScene }: Props) {
       .finally(() => setLoaded(true))
   }, [workId, showDone])
 
-  useEffect(load, [load])
+  useEffect(load, [load, refreshKey])
 
   const open = tasks.filter((t) => t.state === 'open')
 
@@ -84,7 +86,7 @@ export function TaskList({ workId, sceneId, onOpenScene }: Props) {
                 Drop
               </button>
             </div>
-            {task.source?.quote && <blockquote>{task.source.quote}</blockquote>}
+            {(task.source?.quote ?? task.quote) && <blockquote>{task.source?.quote ?? task.quote}</blockquote>}
           </li>
         ))}
       </ul>

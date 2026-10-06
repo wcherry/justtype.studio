@@ -126,6 +126,55 @@ public enum API {
         }
     }
 
+    public struct Annotation: Codable, Hashable, Sendable {
+        public var createdAt: String
+        public var fromPos: Int
+        public var id: String
+        public var kind: AnnotationKind
+        public var note: String?
+        /// `None` on the working draft.
+        public var publicationId: String?
+        public var quote: String
+        public var sceneId: String
+        public var toPos: Int
+        public var updatedAt: String
+        public var userId: String
+        public var workId: String
+
+        public init(
+            createdAt: String,
+            fromPos: Int,
+            id: String,
+            kind: AnnotationKind,
+            note: String? = nil,
+            publicationId: String? = nil,
+            quote: String,
+            sceneId: String,
+            toPos: Int,
+            updatedAt: String,
+            userId: String,
+            workId: String
+        ) {
+            self.createdAt = createdAt
+            self.fromPos = fromPos
+            self.id = id
+            self.kind = kind
+            self.note = note
+            self.publicationId = publicationId
+            self.quote = quote
+            self.sceneId = sceneId
+            self.toPos = toPos
+            self.updatedAt = updatedAt
+            self.userId = userId
+            self.workId = workId
+        }
+    }
+
+    public enum AnnotationKind: String, Codable, CaseIterable, Hashable, Sendable {
+        case highlight = "highlight"
+        case bookmark = "bookmark"
+    }
+
     public struct AnswerRequest: Codable, Hashable, Sendable {
         public var body: String?
         /// Required for a chapter-scoped question, ignored otherwise.
@@ -837,6 +886,31 @@ public enum API {
         }
     }
 
+    public struct CreateAnnotationRequest: Codable, Hashable, Sendable {
+        public var from: Int
+        public var kind: AnnotationKind
+        public var note: String?
+        public var quote: String
+        public var sceneId: String
+        public var to: Int
+
+        public init(
+            from: Int,
+            kind: AnnotationKind,
+            note: String? = nil,
+            quote: String,
+            sceneId: String,
+            to: Int
+        ) {
+            self.from = from
+            self.kind = kind
+            self.note = note
+            self.quote = quote
+            self.sceneId = sceneId
+            self.to = to
+        }
+    }
+
     public struct CreateChangeRequest: Codable, Hashable, Sendable {
         public var anchorFrom: Int
         public var anchorTo: Int
@@ -1010,13 +1084,17 @@ public enum API {
 
     public struct CreateTaskRequest: Codable, Hashable, Sendable {
         public var body: String
+        /// The passage it is about, when it was written against one.
+        public var quote: String?
         public var sceneId: String?
 
         public init(
             body: String,
+            quote: String? = nil,
             sceneId: String? = nil
         ) {
             self.body = body
+            self.quote = quote
             self.sceneId = sceneId
         }
     }
@@ -2367,6 +2445,8 @@ public enum API {
         public var createdAt: String
         public var doneAt: String?
         public var id: String
+        /// The passage it was written against, when it was.
+        public var quote: String?
         public var sceneId: String?
         public var state: String
         public var updatedAt: String
@@ -2378,6 +2458,7 @@ public enum API {
             createdAt: String,
             doneAt: String? = nil,
             id: String,
+            quote: String? = nil,
             sceneId: String? = nil,
             state: String,
             updatedAt: String,
@@ -2388,6 +2469,7 @@ public enum API {
             self.createdAt = createdAt
             self.doneAt = doneAt
             self.id = id
+            self.quote = quote
             self.sceneId = sceneId
             self.state = state
             self.updatedAt = updatedAt
@@ -2996,6 +3078,8 @@ public enum API {
         public var createdAt: String
         public var doneAt: String?
         public var id: String
+        /// The passage it was written against, when it was.
+        public var quote: String?
         public var sceneId: String?
         public var state: String
         public var updatedAt: String
@@ -3008,6 +3092,7 @@ public enum API {
             createdAt: String,
             doneAt: String? = nil,
             id: String,
+            quote: String? = nil,
             sceneId: String? = nil,
             state: String,
             updatedAt: String,
@@ -3019,6 +3104,7 @@ public enum API {
             self.createdAt = createdAt
             self.doneAt = doneAt
             self.id = id
+            self.quote = quote
             self.sceneId = sceneId
             self.state = state
             self.updatedAt = updatedAt
@@ -3235,6 +3321,28 @@ public enum API {
         ) {
             self.secret = secret
             self.url = url
+        }
+    }
+
+    public struct UpdateAnnotationRequest: Codable, Hashable, Sendable {
+        /// Where the passage is now, after the draft moved it.
+        public var from: Int?
+        /// Empty clears it.
+        public var note: String?
+        /// The passage as it reads now, when the writer has edited it.
+        public var quote: String?
+        public var to: Int?
+
+        public init(
+            from: Int? = nil,
+            note: String? = nil,
+            quote: String? = nil,
+            to: Int? = nil
+        ) {
+            self.from = from
+            self.note = note
+            self.quote = quote
+            self.to = to
         }
     }
 

@@ -700,3 +700,24 @@ Changing a scene's text needs `write` on it, and so does summarising it. The
 manuscript is sent inside `<manuscript>` tags, and the instructions say that
 nothing inside them is an instruction. A book too long for one request (about
 850k tokens) is refused, so it is never cut short without saying so.
+
+## Highlights and bookmarks
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET` / `POST` | `/works/{id}/annotations` | your marks on the working draft (`?sceneId=`) |
+| `GET` / `POST` | `/publications/{id}/annotations` | your marks on a published version |
+| `PATCH` | `/annotations/{id}` | `from`, `to`, `quote` (draft marks only) and `note` |
+| `DELETE` | `/annotations/{id}` | |
+
+A mark is `{ sceneId, kind: "highlight" | "bookmark", from, to, quote, note? }`
+in ProseMirror positions, like a comment's anchor. Only the person who made a
+mark is ever shown it; anyone else gets a 404 for it. Reading the draft or the
+publication is enough to mark it. A draft mark's range is a hint: the client
+finds the quote again when the text has moved and sends the new range back; a
+mark on a publication never moves. At most 2,000 per person per book or
+publication; quotes are kept to 2,000 characters, notes to 500.
+
+`POST /works/{id}/tasks` also takes `quote`, the passage a to-do was written
+against (it needs `sceneId`).
+

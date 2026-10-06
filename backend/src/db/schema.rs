@@ -313,6 +313,7 @@ diesel::table! {
         created_at -> Text,
         updated_at -> Text,
         done_at -> Nullable<Text>,
+        quote -> Nullable<Text>,
     }
 }
 
@@ -491,6 +492,23 @@ diesel::table! {
     }
 }
 
+diesel::table! {
+    annotations (id) {
+        id -> Text,
+        user_id -> Text,
+        work_id -> Text,
+        scene_id -> Text,
+        publication_id -> Nullable<Text>,
+        kind -> Text,
+        from_pos -> Integer,
+        to_pos -> Integer,
+        quote -> Text,
+        note -> Nullable<Text>,
+        created_at -> Text,
+        updated_at -> Text,
+    }
+}
+
 diesel::joinable!(refresh_tokens -> users (user_id));
 diesel::joinable!(sessions -> users (user_id));
 diesel::joinable!(work_collaborators -> works (work_id));
@@ -521,6 +539,7 @@ diesel::joinable!(comment_reports -> comments (comment_id));
 diesel::joinable!(comment_votes -> users (user_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
+    annotations,
     chapters,
     comment_votes,
     comments,

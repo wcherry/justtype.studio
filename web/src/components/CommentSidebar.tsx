@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api/client'
 import type { CommentFilters } from '../api/client'
@@ -19,6 +19,8 @@ interface Props {
   onRefresh: () => void
   onActivate: (commentId: string | null) => void
   onClearPending: () => void
+  /** Bumped to put the cursor in the note for the selected passage. */
+  composeFocus?: number
 }
 
 const CATEGORIES: CommentCategory[] = [
@@ -29,7 +31,7 @@ const REPORT_REASONS: ReportReason[] = ['abuse', 'spam', 'spoiler', 'off_topic',
 
 export function CommentSidebar({
   publicationId, comments, pending, isAuthor, viewerId, activeCommentId, reviewPrompt,
-  filters, onFilter, onRefresh, onActivate, onClearPending,
+  filters, onFilter, onRefresh, onActivate, onClearPending, composeFocus = 0,
 }: Props) {
   const [busy, setBusy] = useState(false)
 
@@ -126,7 +128,14 @@ export function CommentSidebar({
         </p>
       )}
 
-      {pending && <NewComment publicationId={publicationId} pending={pending} onDone={() => { onClearPending(); onRefresh() }} />}
+      {pending && (
+        <NewComment
+          publicationId={publicationId}
+          pending={pending}
+          focusKey={composeFocus}
+          onDone={() => { onClearPending(); onRefresh() }}
+        />
+      )}
 
       {comments.length === 0 && !pending && (
         <p className="empty">Select any passage to comment on it, or leave a general note below.</p>
@@ -298,14 +307,21 @@ function CommentThread({
 }
 
 function NewComment({
-  publicationId, pending, parentId, compact, onDone,
+  publicationId, pending, parentId, compact, focusKey = 0, onDone,
 }: {
   publicationId: string
   pending: Selection | null
   parentId?: string
   compact?: boolean
+  focusKey?: number
   onDone: () => void
 }) {
+  const textarea = useRef<HTMLTextAreaElement>(null)
+  useEffect(() => {
+    if (focusKey === 0) return
+    textarea.current?.focus()
+    textarea.current?.scrollIntoView({ block: 'nearest' })
+  }, [focusKey])
   const [body, setBody] = useState('')
   const [category, setCategory] = useState<CommentCategory>('general')
   const [busy, setBusy] = useState(false)
@@ -338,6 +354,7 @@ function NewComment({
     <form className={compact ? 'new-comment new-comment--compact' : 'new-comment'} onSubmit={submit}>
       {pending && <blockquote className="comment__quote">{pending.quote}</blockquote>}
       <textarea
+        ref={textarea}
         rows={compact ? 2 : 3}
         value={body}
         placeholder={pending ? 'What about this passage?' : parentId ? 'Reply…' : 'Leave a general note'}

@@ -1,4 +1,5 @@
 pub mod account;
+pub mod annotations;
 pub mod audit;
 pub mod auth;
 pub mod bible;
@@ -48,6 +49,12 @@ fn api_router() -> OpenApiRouter<AppState> {
         .routes(routes!(summaries::scene))
         .routes(routes!(summaries::chapter))
         .routes(routes!(summaries::work))
+        .routes(routes!(annotations::list_draft, annotations::create_draft))
+        .routes(routes!(
+            annotations::list_publication,
+            annotations::create_publication
+        ))
+        .routes(routes!(annotations::update, annotations::delete_annotation))
         .routes(routes!(share::make))
         .routes(routes!(share::revoke))
         // A WebSocket, so not in the OpenAPI document; see docs/API.md.

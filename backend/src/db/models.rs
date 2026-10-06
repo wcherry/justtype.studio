@@ -358,6 +358,8 @@ row!(RevisionTask, revision_tasks, {
     created_at: String,
     updated_at: String,
     done_at: Option<String>,
+    /// The passage it was written against, when it was.
+    quote: Option<String>,
 });
 
 row!(CommentReport, comment_reports, {
@@ -513,6 +515,29 @@ new_row!(NewSummary, summaries, {
     output_tokens: i32, created_by: Option<String>, created_at: String,
 });
 
+row!(Annotation, annotations, {
+    id: String,
+    user_id: String,
+    work_id: String,
+    scene_id: String,
+    /// `None` on the working draft.
+    publication_id: Option<String>,
+    #[schema(value_type = crate::domain::enums::AnnotationKind)]
+    kind: String,
+    from_pos: i32,
+    to_pos: i32,
+    quote: String,
+    note: Option<String>,
+    created_at: String,
+    updated_at: String,
+});
+
+new_row!(NewAnnotation, annotations, {
+    id: String, user_id: String, work_id: String, scene_id: String,
+    publication_id: Option<String>, kind: String, from_pos: i32, to_pos: i32,
+    quote: String, note: Option<String>, created_at: String, updated_at: String,
+});
+
 new_row!(NewSession, sessions, {
     id: String, user_id: String, user_agent: Option<String>, ip: Option<String>,
     created_at: String, last_seen_at: String, revoked_at: Option<String>,
@@ -632,7 +657,7 @@ new_row!(NewComment, comments, {
 new_row!(NewRevisionTask, revision_tasks, {
     id: String, work_id: String, scene_id: Option<String>, comment_id: Option<String>,
     body: String, state: String, created_at: String, updated_at: String,
-    done_at: Option<String>,
+    done_at: Option<String>, quote: Option<String>,
 });
 
 new_row!(NewCommentReport, comment_reports, {

@@ -2,11 +2,17 @@ import { useEffect, useMemo } from 'react'
 import { EditorContent, useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
+import { Annotations, refreshAnnotations } from '../editor/annotations'
+import type { AnnotationSpec } from '../editor/annotations'
 import { CommentAnchors } from '../editor/commentAnchors'
+import { SelectionMenu, useSelectionMenu } from './SelectionMenu'
+import type { MenuTarget, SelectionAction } from './SelectionMenu'
 import { ReactionGutter } from '../editor/reactionGutter'
 import type { ReactionKind } from '../editor/reactionGutter'
 import type { AnchorSpec } from '../editor/commentAnchors'
 import type { DocNode } from '../api/types'
+
+const NO_ANNOTATIONS: AnnotationSpec[] = []
 
 export interface Selection {
   sceneId: string
@@ -26,6 +32,12 @@ interface Props {
   onSelect: (selection: Selection | null) => void
   onActivateComment: (commentId: string) => void
   onReact: (sceneId: string, blockIndex: number, kind: ReactionKind) => void
+  /** This reader's own highlights and bookmarks in this scene. */
+  annotations?: AnnotationSpec[]
+  /** What a right-click on selected text offers; none, and the browser's own menu stays. */
+  menuActions?: (target: MenuTarget) => SelectionAction[]
+  /** A passage to select and bring into view; a new `key` asks again. */
+  jump?: { from: number; to: number; key: number } | null
 }
 
 /**
@@ -37,6 +49,7 @@ interface Props {
  */
 export function ReaderScene({
   sceneId, title, content, anchors, activeCommentId, marks, onSelect, onActivateComment, onReact,
+  annotations = NO_ANNOTATIONS, menuActions, jump,
 }: Props) {
   // Each scene gets its own instances. An extension declared at module level is
   // one object, and the page mounts a dozen editors: passing the bare
@@ -49,6 +62,7 @@ export function ReaderScene({
       Underline,
       CommentAnchors.configure({ anchors: [], activeId: null }),
       ReactionGutter.configure({ marks: {}, onReact: () => {} }),
+      Annotations.configure({ annotations: [] }),
     ],
     [],
   )
@@ -93,6 +107,27 @@ export function ReaderScene({
 
   useEffect(() => {
     if (!editor) return
+    const extension = editor.extensionManager.extensions.find((e) => e.name === 'annotations')
+    if (!extension) return
+    extension.options.annotations = annotations
+    editor.view.dispatch(refreshAnnotations(editor.state))
+  }, [editor, annotations])
+
+  useEffect(() => {
+    if (!editor || !jump) return
+    const size = editor.state.doc.content.size
+    if (jump.to > size) return
+    editor.chain().setTextSelection({ from: jump.from, to: jump.to }).scrollIntoView().run()
+    // A read-only view does not scroll itself for a selection it was handed.
+    const { node } = editor.view.domAtPos(jump.from)
+    const element = node instanceof HTMLElement ? node : node.parentElement
+    element?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  }, [editor, jump])
+
+  const contextMenu = useSelectionMenu(editor, !!menuActions)
+
+  useEffect(() => {
+    if (!editor) return
     const dom = editor.view.dom
     const onClick = (event: MouseEvent) => {
       const target = (event.target as HTMLElement).closest('[data-comment-id]')
@@ -106,6 +141,13 @@ export function ReaderScene({
     <article className="reader__scene" id={`scene-${sceneId}`}>
       <h3 className="reader__scene-title">{title}</h3>
       <EditorContent editor={editor} className="prose" />
+      {contextMenu.target && menuActions && (
+        <SelectionMenu
+          target={contextMenu.target}
+          actions={menuActions(contextMenu.target)}
+          onClose={contextMenu.close}
+        />
+      )}
     </article>
   )
 }

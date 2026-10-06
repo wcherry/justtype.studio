@@ -226,7 +226,7 @@ works.json          every work you started: its outline, snapshots, publications
                     and activity
 contributions.json  what you did on other people's work: notes, votes, reactions,
                     answers, how far you read, changes you proposed, books you
-                    were added to
+                    were added to, and your own highlights and bookmarks
 audit.json          the record of what you did to your account and your works
 manuscripts/        the files behind each work you started, exactly as stored:
                     working/ is the current draft of each scene, revisions/ its
@@ -407,6 +407,11 @@ fn gather(conn: &mut Conn, user_id: &str) -> ApiResult<Vec<(&'static str, Value)
         .filter(tracked_changes::author_id.eq(user_id))
         .select(TrackedChange::as_select())
         .load(conn)?;
+    let marks: Vec<Annotation> = annotations::table
+        .filter(annotations::user_id.eq(user_id))
+        .order(annotations::created_at.asc())
+        .select(Annotation::as_select())
+        .load(conn)?;
     let seats: Vec<(String, String, String)> = work_collaborators::table
         .inner_join(works::table)
         .filter(work_collaborators::user_id.eq(user_id))
@@ -422,6 +427,7 @@ fn gather(conn: &mut Conn, user_id: &str) -> ApiResult<Vec<(&'static str, Value)
         "answers": answers,
         "readingProgress": progress,
         "proposedChanges": proposals,
+        "highlightsAndBookmarks": marks,
         "coAuthoring": seats.iter().map(|(id, title, role)| json!({
             "workId": id, "title": title, "role": role,
         })).collect::<Vec<_>>(),

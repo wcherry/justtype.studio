@@ -10,7 +10,7 @@ import type {
   TaskState, ReportView, BlockView, SinceResponse, Profile, FollowState, AuthorCard,
   Genre, LengthBand, WindowFilter, FeedSort, CollaboratorRole, CollaboratorView, ActivityView,
   SessionView, TwoFactorSetup, RecoveryCodes, AuditEvent, Terms, StatusReport, SceneHit, ShareLink,
-  SketchField, SketchTemplate, SummaryView, Features,
+  SketchField, SketchTemplate, SummaryView, Features, Annotation, AnnotationKind,
 } from './types'
 
 const BASE = '/api'
@@ -237,6 +237,15 @@ async function download(path: string, format: string, style: string): Promise<vo
   link.remove()
   // Revoked on the next tick: revoking synchronously can beat the download.
   setTimeout(() => URL.revokeObjectURL(url), 10_000)
+}
+
+export interface AnnotationInput {
+  sceneId: string
+  kind: AnnotationKind
+  from: number
+  to: number
+  quote: string
+  note?: string
 }
 
 export const api = {
@@ -559,7 +568,7 @@ export const api = {
       const qs = params.toString()
       return get<TaskView[]>(`/works/${workId}/tasks${qs ? `?${qs}` : ''}`)
     },
-    create: (workId: string, input: { body: string; sceneId?: string }) =>
+    create: (workId: string, input: { body: string; sceneId?: string; quote?: string }) =>
       post<TaskView>(`/works/${workId}/tasks`, input),
     fromComment: (commentId: string) => post<TaskView>(`/comments/${commentId}/task`, {}),
     update: (taskId: string, input: { body?: string; state?: TaskState; sceneId?: string }) =>
@@ -598,6 +607,23 @@ export const api = {
     scene: (sceneId: string) => post<SummaryView>(`/scenes/${sceneId}/summary`),
     chapter: (chapterId: string) => post<SummaryView>(`/chapters/${chapterId}/summary`),
     work: (workId: string) => post<SummaryView>(`/works/${workId}/summary`),
+  },
+
+  /**
+   * Your own highlights and bookmarks. Nobody else sees them. On the working
+   * draft they belong to the book; on a published version, to the publication.
+   */
+  annotations: {
+    draft: (workId: string) => get<Annotation[]>(`/works/${workId}/annotations`),
+    markDraft: (workId: string, input: AnnotationInput) =>
+      post<Annotation>(`/works/${workId}/annotations`, input),
+    publication: (publicationId: string) =>
+      get<Annotation[]>(`/publications/${publicationId}/annotations`),
+    markPublication: (publicationId: string, input: AnnotationInput) =>
+      post<Annotation>(`/publications/${publicationId}/annotations`, input),
+    update: (id: string, input: { from?: number; to?: number; quote?: string; note?: string }) =>
+      patch<Annotation>(`/annotations/${id}`, input),
+    remove: (id: string) => del<void>(`/annotations/${id}`),
   },
 
   /** Whether the service is fit to serve. Public. */

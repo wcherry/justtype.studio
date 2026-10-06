@@ -445,6 +445,38 @@ curl -s -X POST "$API/publications/$PID/comments" -H "$RAUTH" -H 'content-type: 
   -d "{\"body\":\"Agreed, though 'kept going' is doing a lot of work.\",\"parentId\":\"$CID\"}" >/dev/null
 curl -s -X POST "$API/comments/$CID/vote" -H "$AUTH" -H 'content-type: application/json' -d '{"value":1}' >/dev/null
 
+step "Highlights and bookmarks, seen by nobody else"
+code() { curl -s -o /dev/null -w '%{http_code}' "$@"; }
+MARK=$(curl -s -X POST "$API/works/$WID/annotations" -H "$AUTH" -H 'content-type: application/json' \
+  -d "{\"sceneId\":\"$SCENE\",\"kind\":\"highlight\",\"from\":1,\"to\":10,\"quote\":\"The field\"}" | field id)
+curl -s -X POST "$API/works/$WID/annotations" -H "$AUTH" -H 'content-type: application/json' \
+  -d "{\"sceneId\":\"$SCENE\",\"kind\":\"bookmark\",\"from\":20,\"to\":30,\"quote\":\"past where\",\"note\":\"Start here\"}" >/dev/null
+curl -s "$API/works/$WID/annotations" -H "$AUTH" | python3 -c "
+import sys,json;d=json.load(sys.stdin);assert [m['kind'] for m in d]==['highlight','bookmark'], d
+print('  the writer marked the draft: a highlight and a bookmark named', repr(d[1]['note']))"
+curl -s -X PATCH "$API/annotations/$MARK" -H "$AUTH" -H 'content-type: application/json' \
+  -d '{"from":5,"to":14,"quote":"field went"}' | python3 -c "
+import sys,json;d=json.load(sys.stdin);assert (d['fromPos'],d['toPos'],d['quote'])==(5,14,'field went'), d
+print('  a draft mark follows its words when the text moves')"
+RMARK=$(curl -s -X POST "$API/publications/$PID/annotations" -H "$RAUTH" -H 'content-type: application/json' \
+  -d "{\"sceneId\":\"$SCENE\",\"kind\":\"highlight\",\"from\":1,\"to\":18,\"quote\":\"The field went on\"}" | field id)
+curl -s "$API/publications/$PID/annotations" -H "$AUTH" | python3 -c "
+import sys,json;assert json.load(sys.stdin)==[];print('  the reader marked the publication; the author sees none of it')"
+curl -s "$API/publications/$PID/annotations" -H "$RAUTH" | python3 -c "
+import sys,json;assert len(json.load(sys.stdin))==1;print('  and the draft\'s marks are not the publication\'s')"
+[ "$(code -X DELETE "$API/annotations/$RMARK" -H "$AUTH")" = "404" ] \
+  && [ "$(code -X PATCH "$API/annotations/$MARK" -H "$RAUTH" -H 'content-type: application/json' -d '{"note":"mine now"}')" = "404" ] \
+  && echo "  nobody can change or remove anyone else's" || { echo "  EXPECTED 404s"; exit 1; }
+[ "$(code "$API/works/$WID/annotations" -H "$RAUTH")" = "403" ] \
+  && echo "  a reader cannot list marks on a draft they cannot open" || { echo "  EXPECTED 403"; exit 1; }
+[ "$(code -X PATCH "$API/annotations/$RMARK" -H "$RAUTH" -H 'content-type: application/json' -d '{"from":2,"to":9}')" = "400" ] \
+  && echo "  a mark on a published version stays where it is" || { echo "  EXPECTED 400"; exit 1; }
+curl -s -X POST "$API/works/$WID/tasks" -H "$AUTH" -H 'content-type: application/json' \
+  -d "{\"body\":\"Is it a field or a fen?\",\"sceneId\":\"$SCENE\",\"quote\":\"The field went on\"}" | python3 -c "
+import sys,json;d=json.load(sys.stdin);assert d['quote']=='The field went on', d
+print('  a comment on the writer\'s own passage lands on the to-do list, quoting it')"
+[ "$(code -X DELETE "$API/annotations/$RMARK" -H "$RAUTH")" = "204" ] && echo "  and a reader removes their own"
+
 step "Invited readers only"
 # A third writer nobody invited, to check the door is actually locked.
 STOKEN=$(curl -s -X POST "$API/auth/register" -H 'content-type: application/json' \

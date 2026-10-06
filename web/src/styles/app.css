@@ -1244,3 +1244,50 @@ body.writing-page--outline .outline {
   .prose-scroll .prose { padding-bottom: 120px; }
   .outline, .versions, .comments { max-height: none; border: none; border-top: 1px solid var(--line); }
 }
+
+/* --- your own marks: highlights and bookmarks -------------------------- */
+.mark-highlight { background: var(--mark-highlight); border-radius: 2px; }
+.mark-bookmark { background: var(--mark-bookmark); border-radius: 2px; }
+.mark-bookmark__flag {
+  display: inline-block; width: 0; height: 1em; position: relative;
+  vertical-align: text-top; user-select: none;
+}
+.mark-bookmark__flag::before {
+  content: ''; position: absolute; left: -3px; top: -0.35em;
+  width: 7px; height: 11px; background: var(--accent);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 72%, 0 100%);
+}
+:root { --mark-highlight: #fbe7a1; --mark-bookmark: #efe6d8; }
+@media (prefers-color-scheme: dark) {
+  :root { --mark-highlight: #5a4a17; --mark-bookmark: #2e2820; }
+}
+
+.selection-menu {
+  position: fixed; z-index: 60; min-width: 190px; max-width: 320px; padding: 4px;
+  display: flex; flex-direction: column;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+}
+.selection-menu__compose { display: flex; flex-direction: column; gap: 6px; padding: 6px; width: 300px; }
+.selection-menu__compose .comment__quote { margin: 0; max-height: 6em; overflow: hidden; }
+.selection-menu__actions { display: flex; justify-content: flex-end; align-items: center; gap: 10px; }
+
+.marks { display: flex; flex-direction: column; gap: 12px; }
+.marks__scene h4 { margin: 4px 0 6px; font-size: 13px; color: var(--ink-soft); font-weight: 600; }
+.marks__scene ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.marks__item { border-left: 3px solid var(--mark-highlight); padding-left: 10px; }
+.marks__item--bookmark { border-left-color: var(--accent); }
+.marks__open {
+  display: flex; flex-direction: column; gap: 2px; width: 100%;
+  border: none; background: none; padding: 0; text-align: left;
+}
+.marks__open:hover:not(:disabled) .marks__quote { color: var(--ink); }
+.marks__note { font-weight: 600; font-size: 13px; }
+.marks__quote { font-family: var(--serif); font-size: 14px; color: var(--ink-soft); line-height: 1.45; }
+.marks__actions { display: flex; gap: 10px; align-items: center; margin-top: 2px; font-size: 12px; }
+.marks__rename { display: flex; gap: 6px; align-items: center; }
+.marks__rename input { flex: 1; min-width: 0; }
+.reader__marks {
+  margin: 10px 0 4px; padding: 12px 14px; max-height: 50vh; overflow: auto;
+  border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface);
+}

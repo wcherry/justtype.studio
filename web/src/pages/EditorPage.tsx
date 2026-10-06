@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { EditorContent, useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
@@ -22,10 +22,16 @@ import { StoryBible } from '../components/StoryBible'
 import { TaskList } from '../components/TaskList'
 import { RevisionPanel } from '../components/RevisionPanel'
 import { Menu } from '../components/Menu'
+import { MarksPanel } from '../components/MarksPanel'
+import { SelectionMenu, useSelectionMenu } from '../components/SelectionMenu'
+import type { SelectionAction } from '../components/SelectionMenu'
 import { SidePanel } from '../components/SidePanel'
 import { Toolbar } from '../components/Toolbar'
 import { WritingPreferencesPanel } from '../components/WritingPreferences'
 import { VersionPanel } from '../components/VersionPanel'
+import { Annotations, MAX_MARK_QUOTE, currentRanges, findQuote, refreshAnnotations, tighten } from '../editor/annotations'
+import type { AnnotationSpec } from '../editor/annotations'
+import { useAnnotations } from '../editor/useAnnotations'
 import { FocusMode } from '../editor/focusMode'
 import { useDistractionFree } from '../editor/distractionFree'
 import { useWritingPreferences } from '../editor/preferences'
@@ -65,10 +71,11 @@ type Panel =
   | 'activity'
   | 'find'
   | 'summary'
+  | 'marks'
 
 // Which header menu each panel is reached from, so the menu shows it is open.
 const SCENE_PANELS: Panel[] = ['details', 'changes', 'history', 'summary']
-const BOOK_PANELS: Panel[] = ['find', 'bible', 'tasks', 'front', 'versions']
+const BOOK_PANELS: Panel[] = ['find', 'marks', 'bible', 'tasks', 'front', 'versions']
 const PEOPLE_PANELS: Panel[] = ['people', 'activity']
 
 export function EditorPage() {
@@ -98,6 +105,7 @@ export function EditorPage() {
       FocusMode,
       TypewriterScrolling,
       ProseTypography,
+      Annotations,
     ],
     content: '',
   })
@@ -143,6 +151,153 @@ export function EditorPage() {
   useEffect(() => {
     if (editor && editor.isEditable !== writable) editor.setEditable(writable)
   }, [editor, writable])
+
+  // The writer's own highlights and bookmarks: kept off the manuscript, and
+  // found again whenever the text under them is replaced or saved.
+  const marks = useAnnotations(workId ? { kind: 'draft', workId } : null)
+  const [lostMarks, setLostMarks] = useState<Set<string>>(new Set())
+  /** A mark to select once its scene is open. */
+  const jumpTo = useRef<string | null>(null)
+  useEffect(() => {
+    if (!editor || !scene) return
+    const doc = editor.state.doc
+    const live = currentRanges(editor.state)
+    const specs: AnnotationSpec[] = []
+    const lost = new Set<string>()
+    for (const mark of marks.list) {
+      if (mark.sceneId !== scene.id) continue
+      const size = doc.content.size
+      const reads = (r: { from: number; to: number }) =>
+        r.to <= size && r.from < r.to && doc.textBetween(r.from, r.to, ' ') === mark.quote
+      const following = live.get(mark.id)
+      const stored = { from: mark.fromPos, to: mark.toPos }
+      // Where it was followed to while typing, then where it was stored, then
+      // wherever the words are now; a mark whose words were edited follows
+      // them rather than being lost.
+      const found =
+        (following && reads(following) && following) ||
+        (reads(stored) && stored) ||
+        findQuote(doc, mark.quote, mark.fromPos) ||
+        following ||
+        null
+      const range = found && tighten(doc, found)
+      if (!range) {
+        lost.add(mark.id)
+        continue
+      }
+      specs.push({ id: mark.id, kind: mark.kind, ...range })
+      const quote = doc.textBetween(range.from, range.to, ' ')
+      if (range.from !== mark.fromPos || range.to !== mark.toPos || quote !== mark.quote) {
+        void marks.update(mark.id, { from: range.from, to: range.to, quote }).catch(() => undefined)
+      }
+    }
+    setLostMarks((previous) => {
+      const next = new Set([...previous].filter((id) => !marks.list.some((m) => m.id === id && m.sceneId === scene.id)))
+      lost.forEach((id) => next.add(id))
+      return next
+    })
+    const extension = editor.extensionManager.extensions.find((e) => e.name === 'annotations')
+    if (!extension) return
+    extension.options.annotations = specs
+    editor.view.dispatch(refreshAnnotations(editor.state))
+
+    const wanted = specs.find((spec) => spec.id === jumpTo.current)
+    if (wanted) {
+      jumpTo.current = null
+      selectMark(wanted)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editor, scene?.id, scene?.contentHash, savedAt, marks.list])
+
+  /** Selects a mark's passage and hands the editor the focus, so it shows. */
+  const selectMark = (range: { from: number; to: number }) => {
+    if (!editor) return
+    editor.chain().setTextSelection(range).scrollIntoView().run()
+    // The click that asked for it left focus on the panel's button; take it
+    // once that click has finished.
+    setTimeout(() => editor.view.focus(), 0)
+  }
+
+  // Right-click (or ⌘-click) on selected text, or on a mark.
+  const contextMenu = useSelectionMenu(editor)
+  const [markError, setMarkError] = useState<string | null>(null)
+  const [taskRefresh, setTaskRefresh] = useState(0)
+  const selectionActions = (): SelectionAction[] => {
+    const target = contextMenu.target
+    if (!target || !scene || !editor) return []
+    const actions: SelectionAction[] = []
+    const mark = target.annotationId ? marks.list.find((m) => m.id === target.annotationId) : null
+    const range = target.selection && tighten(editor.state.doc, target.selection)
+    const markAs = async (kind: 'highlight' | 'bookmark') => {
+      if (!range) return
+      const quote = editor.state.doc.textBetween(range.from, range.to, ' ')
+      if (quote.length > MAX_MARK_QUOTE) {
+        setMarkError(`A mark holds ${MAX_MARK_QUOTE.toLocaleString()} characters at most — select less.`)
+        return
+      }
+      setMarkError(null)
+      try {
+        await marks.add({ sceneId: scene.id, kind, ...range, quote })
+      } catch (e) {
+        setMarkError(e instanceof Error ? e.message : 'Could not mark that')
+      }
+    }
+    if (range) {
+      actions.push({ key: 'highlight', label: 'Highlight', onSelect: () => void markAs('highlight') })
+      actions.push({ key: 'bookmark', label: 'Bookmark', onSelect: () => void markAs('bookmark') })
+      if (can.canSuggest(scene.chapterId)) {
+        actions.push({
+          key: 'comment',
+          label: 'Comment…',
+          compose: {
+            placeholder: 'A note for the to-do list',
+            submit: 'Add to the list',
+            onSubmit: async (body) => {
+              await api.tasks.create(workId, {
+                body,
+                sceneId: scene.id,
+                quote: editor.state.doc.textBetween(range.from, range.to, ' '),
+              })
+              setTaskRefresh((n) => n + 1)
+            },
+          },
+        })
+      }
+      actions.push({
+        key: 'copy',
+        label: 'Copy',
+        hint: '⌘C',
+        onSelect: () => void navigator.clipboard?.writeText(target.selection!.quote),
+      })
+    }
+    if (mark) {
+      actions.push({
+        key: 'remove',
+        label: mark.kind === 'highlight' ? 'Remove highlight' : 'Remove bookmark',
+        onSelect: () => void marks.remove(mark.id).catch((e) => setMarkError(e instanceof Error ? e.message : 'Could not remove that')),
+      })
+    }
+    return actions
+  }
+
+  /** Opens a mark's scene, if it is not this one, and selects its passage. */
+  const openMark = (id: string) => {
+    const mark = marks.list.find((m) => m.id === id)
+    if (!mark || !outline) return
+    jumpTo.current = id
+    if (mark.sceneId === scene?.id) {
+      // Already here: repaint, which selects it.
+      editor?.view.dispatch(refreshAnnotations(editor.state))
+      const range = currentRanges(editor!.state).get(id)
+      if (range) {
+        jumpTo.current = null
+        selectMark(range)
+      }
+      return
+    }
+    const target = outline.chapters.flatMap((c) => c.scenes).find((s) => s.id === mark.sceneId)
+    if (target) void openScene(target)
+  }
 
   const onSaved = useCallback((workWordCount: number) => {
     setSavedAt(Date.now())
@@ -462,6 +617,7 @@ export function EditorPage() {
                 active={BOOK_PANELS.includes(panel)}
                 items={[
                   { key: 'find', label: 'Find', checked: panel === 'find', onSelect: () => toggle('find') },
+                  { key: 'marks', label: 'Highlights & bookmarks', checked: panel === 'marks', onSelect: () => toggle('marks') },
                   { key: 'bible', label: 'Story bible', checked: panel === 'bible', onSelect: () => toggle('bible') },
                   { key: 'tasks', label: 'To do', checked: panel === 'tasks', onSelect: () => toggle('tasks') },
                   ...(can.isOwner
@@ -548,6 +704,16 @@ export function EditorPage() {
         )}
 
         {writable && <Toolbar editor={editor} />}
+
+        {markError && (
+          <p className="access-note" role="alert">
+            {markError}{' '}
+            <button type="button" className="linklike" onClick={() => setMarkError(null)}>Dismiss</button>
+          </p>
+        )}
+        {contextMenu.target && (
+          <SelectionMenu target={contextMenu.target} actions={selectionActions()} onClose={contextMenu.close} />
+        )}
 
         <GoalBar
           summary={summary}
@@ -669,6 +835,7 @@ export function EditorPage() {
         <SidePanel title="To do" onClose={closePanel}>
           <TaskList
             workId={workId}
+            refreshKey={taskRefresh}
             sceneId={scene?.id ?? null}
             onOpenScene={(id) => {
               // The list keeps ids; the editor opens whole scenes, so look it
@@ -717,6 +884,19 @@ export function EditorPage() {
               void loadOutline()
               if (scene) void api.scenes.get(scene.id).then((s) => setScene((c) => (c ? { ...c, summary: s.summary } : c)))
             }}
+          />
+        </SidePanel>
+      )}
+
+      {panel === 'marks' && (
+        <SidePanel title="Highlights & bookmarks" onClose={closePanel}>
+          <MarksPanel
+            marks={marks.list}
+            scenes={outline.chapters.flatMap((c) => c.scenes)}
+            lost={lostMarks}
+            onOpen={openMark}
+            onRemove={(id) => void marks.remove(id)}
+            onRename={(id, note) => marks.update(id, { note })}
           />
         </SidePanel>
       )}

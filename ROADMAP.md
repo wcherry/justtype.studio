@@ -730,9 +730,25 @@ do not build toward it, and do not carry a compatibility layer for it.
   light up while one of theirs is. The menus work from the keyboard (arrows,
   Home, End, Escape back to the button). Every side panel has a close button.
 
-### 8.6 Context menu on selected text · **Later**
+### 8.6 Context menu on selected text · **Done**
 - Right-click (or ⌘-click) on selected text to add a highlight, a bookmark or a
   comment.
+- **Done:** in the editor and in the reader, right-click (or ⌘-click, or the
+  menu key) on selected text offers *Highlight*, *Bookmark*, *Comment…* and
+  *Copy*; on one of your marks, *Remove*. With nothing selected, or with
+  Shift held, the browser's own menu — spelling suggestions included — is
+  left alone.
+- Highlights and bookmarks are yours alone: nobody else is shown them, not
+  even the author, and they never enter the manuscript, so the export, the
+  phone's editor and the next published version are untouched. On a
+  publication they sit at exact positions; on the draft they follow their
+  words as you type and are found again by their quote if the text moves
+  while you are away. *Book → Highlights & bookmarks* lists them in reading
+  order, with a name for a bookmark and a way back to each; the reader has
+  the same list above the text. They are in the data export.
+- *Comment…* means what a comment already meant in each place: in the reader
+  it opens the note for that passage; in the editor, a note on the to-do
+  list, which now keeps the passage it was written against.
 
 ---
 
