@@ -133,6 +133,7 @@ A running server also serves the document at `/api/openapi.json`.
 | `SCRIPTORIUM_ANTHROPIC_URL` | `https://api.anthropic.com` | Where to send them (the smoke points it at a stub) |
 | `SCRIPTORIUM_CACHE_MB` | `64` | Memory for snapshot scene bodies |
 | `SCRIPTORIUM_METRICS_TOKEN` | *(none)* | Turns on `/api/metrics` (Prometheus text) behind this bearer token |
+| `SCRIPTORIUM_WEB_DIR` | *(none)* | A built web app (`web/dist`) to serve beside the API; unset, the API alone |
 
 In development nothing is ever sent: a verification or reset link lands in the
 outbox file, and following it from there is the same as following it from an
@@ -141,3 +142,24 @@ against a real relay — that needs a sending domain and credentials.
 
 Backups, the restore drill, request ids and the status check are in
 [`docs/OPERATIONS.md`](docs/OPERATIONS.md).
+
+## Docker
+
+One image holds the whole service: the API, and the web app it serves beside
+it (`SCRIPTORIUM_WEB_DIR`). Every push to `main` builds it and publishes it to
+GitHub's registry (`.github/workflows/ghcr-publish.yml`) as
+`ghcr.io/<owner>/justtype-studio`, tagged `latest`, `main`, the commit's short
+sha and a version (`0.1.<run>`), which `/api/health` and `/api/status` report.
+
+```sh
+docker build -t justtype-studio .
+docker run -p 8080:8080 -v justtype-data:/usr/local/data \
+  -e SCRIPTORIUM_JWT_SECRET=… justtype-studio
+```
+
+The image listens on 8080 as an unprivileged user, keeps the database, the
+manuscript files and the mail outbox in the `/usr/local/data` volume, logs
+JSON to stdout, and checks its own `/api/health`. It defaults
+`SCRIPTORIUM_PUBLIC_URL` and `SCRIPTORIUM_CORS_ORIGINS` to
+`https://www.justtype.studio`; set `SCRIPTORIUM_TRUST_PROXY=true` behind a
+reverse proxy, and `SCRIPTORIUM_MAIL=smtp` with its settings to send real mail.

@@ -118,7 +118,9 @@ pub async fn per_address(
 ) -> Response {
     let path = request.uri().path();
     // Health checks are for monitors, and a monitor should never be told no.
-    if path == "/api/health" || path == "/api/status" {
+    // The web app's own files are not the API: a page load fetches several,
+    // and they should not spend a reader's budget for real requests.
+    if path == "/api/health" || path == "/api/status" || !path.starts_with("/api") {
         return next.run(request).await;
     }
     let Some(ip) = client_ip(&request, state.config.trust_proxy) else {

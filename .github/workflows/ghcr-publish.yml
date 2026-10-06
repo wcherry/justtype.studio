@@ -1,0 +1,69 @@
+name: Build and Publish Image
+
+on:
+  push:
+    branches:
+      - main
+  # To rebuild without a commit, e.g. after a base image's security fix.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  # Major and minor for the version the service reports; the patch is the run
+  # number offset by BASE_NUMBER, so every published image gets its own patch
+  # without anything being committed back. Bump both by hand when a release
+  # calls for it: BASE_NUMBER is the run number of the last build on the
+  # *previous* minor.
+  BASE_VERSION: "0.1"
+  BASE_NUMBER: 0
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Resolved once so the image tag and the version the service reports
+      # (/api/health, /api/status) are the same string.
+      - name: Resolve app version
+        id: version
+        run: echo "version=${BASE_VERSION}.$(( GITHUB_RUN_NUMBER - BASE_NUMBER ))" >> "$GITHUB_OUTPUT"
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/justtype-studio
+          tags: |
+            type=ref,event=branch
+            type=sha
+            type=raw,value=${{ steps.version.outputs.version }}
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          build-args: |
+            APP_VERSION=${{ steps.version.outputs.version }}
+            BUILD_COMMIT=${{ github.sha }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

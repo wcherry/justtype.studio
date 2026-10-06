@@ -41,6 +41,9 @@ pub struct Config {
     pub anthropic_api_key: Option<String>,
     pub anthropic_url: String,
     pub summary_model: String,
+    /// A built web app (`web/dist`) to serve beside the API, as the Docker
+    /// image does. Unset in development, where Vite serves it.
+    pub web_dir: Option<PathBuf>,
 }
 
 fn env_or(key: &str, default: &str) -> String {
@@ -92,6 +95,10 @@ impl Config {
                 .trim_end_matches('/')
                 .to_string(),
             summary_model: env_or("SCRIPTORIUM_SUMMARY_MODEL", "claude-opus-5-5"),
+            web_dir: std::env::var("SCRIPTORIUM_WEB_DIR")
+                .ok()
+                .filter(|s| !s.is_empty())
+                .map(PathBuf::from),
             metrics_token: std::env::var("SCRIPTORIUM_METRICS_TOKEN")
                 .ok()
                 .filter(|s| s.len() >= 16),

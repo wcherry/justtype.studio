@@ -14,6 +14,16 @@ mod ops;
 mod routes;
 mod state;
 mod storage;
+mod web;
+
+/// The version this build reports: the release stamped in by the image build
+/// (`SCRIPTORIUM_VERSION`, from the CI run), or the crate's own otherwise.
+pub fn app_version() -> &'static str {
+    match option_env!("SCRIPTORIUM_VERSION") {
+        Some(v) if !v.is_empty() => v,
+        _ => env!("CARGO_PKG_VERSION"),
+    }
+}
 
 use std::sync::Arc;
 
@@ -165,6 +175,7 @@ async fn main() -> anyhow::Result<()> {
         .expose_headers([ops::REQUEST_ID_HEADER.clone()]);
 
     let bind_addr = config.bind_addr;
+    let web_dir = config.web_dir.clone();
     let cache_bytes = config.cache_mb * 1024 * 1024;
     let mailer = mail::Mailer::from_env(&config.data_dir)?;
     let state = AppState {
@@ -181,7 +192,19 @@ async fn main() -> anyhow::Result<()> {
 
     // Outermost first in effect: the request id wraps everything, so even a
     // panic's 500 and the CORS preflight carry one.
-    let app = routes::router(state.clone())
+    let mut app = routes::router(state.clone());
+    match web_dir {
+        Some(dir) if web::present(&dir) => {
+            tracing::info!("serving the web app from {}", dir.display());
+            app = web::mount(app, dir);
+        }
+        Some(dir) => tracing::warn!(
+            "SCRIPTORIUM_WEB_DIR is {}, but there is no index.html there; serving the API only",
+            dir.display()
+        ),
+        None => {}
+    }
+    let app = app
         .layer(tower_http::catch_panic::CatchPanicLayer::custom(panicked))
         // Before CORS and the handlers, so a flood is turned away cheaply.
         .layer(axum::middleware::from_fn_with_state(

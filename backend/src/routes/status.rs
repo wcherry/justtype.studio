@@ -165,7 +165,7 @@ pub async fn status(State(state): State<AppState>) -> (StatusCode, Json<StatusRe
     let healthy = checks.iter().all(|c| c.ok);
     let report = StatusReport {
         status: if healthy { "ok" } else { "degraded" }.into(),
-        version: env!("CARGO_PKG_VERSION").into(),
+        version: crate::app_version().into(),
         uptime_seconds: state.started_at.elapsed().as_secs(),
         checks,
         write_path: vec![

@@ -195,7 +195,7 @@ async fn health() -> axum::Json<HealthResponse> {
     axum::Json(HealthResponse {
         status: "ok".into(),
         service: env!("CARGO_PKG_NAME").into(),
-        version: env!("CARGO_PKG_VERSION").into(),
+        version: crate::app_version().into(),
     })
 }
 

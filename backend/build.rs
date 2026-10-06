@@ -7,4 +7,6 @@
 //! right up until it runs somewhere real.
 fn main() {
     println!("cargo:rerun-if-changed=migrations");
+    // Stamped in by the Docker build; see `app_version`.
+    println!("cargo:rerun-if-env-changed=SCRIPTORIUM_VERSION");
 }
