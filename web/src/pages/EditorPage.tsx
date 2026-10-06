@@ -24,6 +24,7 @@ import { Toolbar } from '../components/Toolbar'
 import { WritingPreferencesPanel } from '../components/WritingPreferences'
 import { VersionPanel } from '../components/VersionPanel'
 import { FocusMode } from '../editor/focusMode'
+import { useDistractionFree } from '../editor/distractionFree'
 import { useWritingPreferences } from '../editor/preferences'
 import { ProseTypography } from '../editor/typography'
 import { TypewriterScrolling } from '../editor/typewriter'
@@ -100,6 +101,7 @@ export function EditorPage() {
     editor.view.dispatch(editor.state.tr)
   }, [editor, preferences.focusMode, preferences.typewriter])
 
+  const page = useDistractionFree()
   const can = permissions(outline?.access)
   const { user } = useAuth()
 
@@ -299,6 +301,28 @@ export function EditorPage() {
 
   return (
     <main className="editor">
+      {page.on && (
+        <>
+          {/* The pointer at the top edge brings this back; otherwise it is
+              not there at all. */}
+          <div className="page-bar" role="toolbar" aria-label="Page">
+            <span className="page-bar__title">{scene?.title ?? outline.title}</span>
+            <span className="page-bar__meta">{wordCount.toLocaleString()} words</span>
+            <span className={`save save--${saveState}`}>{SAVE_LABEL[saveState]}</span>
+            <span className="page-bar__spacer" />
+            <button type="button" className="linklike" onClick={page.toggleOutline}>
+              {page.outline ? 'Hide outline' : 'Outline'} <kbd>⌘⇧O</kbd>
+            </button>
+            <button type="button" className="linklike" onClick={page.leave}>
+              Back to the desk <kbd>Esc</kbd>
+            </button>
+          </div>
+          {/* Quiet enough to ignore, there for a glance. */}
+          <div className={`page-status save--${saveState}`} aria-live="polite">
+            {wordCount.toLocaleString()} · {SAVE_LABEL[saveState] || 'Saved'}
+          </div>
+        </>
+      )}
       <Outline
         outline={outline}
         activeSceneId={scene?.id ?? null}
@@ -357,6 +381,13 @@ export function EditorPage() {
                 <option value="done">Done</option>
               </select>
             )}
+            <button
+              type="button"
+              title="Put everything away but the page (⌘⇧F)"
+              onClick={page.enter}
+            >
+              Page
+            </button>
             <button
               type="button"
               className={preferences.focusMode ? 'is-active' : undefined}

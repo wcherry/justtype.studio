@@ -652,6 +652,46 @@ do not build toward it, and do not carry a compatibility layer for it.
 
 ---
 
+## Phase 8 — The writer's desk
+
+### 8.1 Distraction-free writer · **Done**
+- A full-screen writing mode that puts away everything but the page: no shell,
+  outline, toolbar or panels until the writer asks for them. It builds on
+  *1.2*'s focus mode, typewriter scrolling and typography, which stay as they
+  are.
+- **Done:** *Page* in the editor (or ⌘⇧F) puts away the shell, the outline,
+  the header, the toolbar, the goals and every panel, and asks the browser for
+  the whole screen. Focus mode, typewriter scrolling and the writer's type
+  settings keep working underneath, because the mode is a class on the page
+  rather than a different page: the editor, its selection and its undo history
+  are untouched on the way in and out. A word count and the save state sit
+  faintly in a corner. The pointer at the top edge brings back a slim bar;
+  ⌘⇧O slides the outline in over the margin; Escape goes back to the desk.
+  A save conflict or being offline with work waiting still shows — hiding
+  those is how a writer loses words.
+
+### 8.2 Word-count goals · **Later**
+- Daily, weekly and per-project targets, each with a progress indicator. This
+  extends *1.2*'s daily target, per-scene target and streak, and *4.4*'s
+  widget, rather than starting again.
+
+### 8.3 Story bible sketches · **Later**
+- Sketches for characters, locations and the like, each started from a
+  template, kept with the work and to hand while writing.
+
+### 8.4 AI summaries · **Later**
+- A summarize button for a scene, a chapter or the whole book.
+
+### 8.5 UI polish · **Later**
+- A more polished interface overall. The row of text buttons across the top of
+  the editor becomes a menu, a toolbar, or both.
+
+### 8.6 Context menu on selected text · **Later**
+- Right-click (or ⌘-click) on selected text to add a highlight, a bookmark or a
+  comment.
+
+---
+
 ## Sequencing note
 
 Phases 1–3 are the product. Phase 4 is the second client. Phases 5–7 are the

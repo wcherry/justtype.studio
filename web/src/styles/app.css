@@ -222,6 +222,48 @@ button.danger { border-color: var(--del); color: var(--del); }
 .terms { max-width: var(--measure); font-family: var(--serif); line-height: 1.6; }
 .terms h1, .terms h2 { font-weight: 500; }
 
+/* --- the page, and nothing else ------------------------------------------ */
+
+/* Everything put away. Conflict, offline and access notes stay: hiding those
+   is how a writer loses words. */
+body.writing-page .shell__nav,
+body.writing-page .banner,
+body.writing-page .outline,
+body.writing-page .editor__header,
+body.writing-page .toolbar,
+body.writing-page .goals,
+body.writing-page .presence,
+body.writing-page aside.versions { display: none; }
+body.writing-page .editor { grid-template-columns: minmax(0, 1fr); height: 100vh; }
+body.writing-page .editor__main { background: var(--paper); }
+body.writing-page .prose-scroll { padding-top: 12vh; }
+/* Asked for: the outline slides in over the margin, the page does not move. */
+body.writing-page--outline .outline {
+  display: block; position: fixed; left: 0; top: 0; bottom: 0; width: 260px; z-index: 20;
+  background: var(--surface); border-right: 1px solid var(--line); overflow: auto;
+  box-shadow: 0 0 24px rgba(0, 0, 0, 0.18);
+}
+.page-bar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 30;
+  display: flex; gap: 14px; align-items: center; padding: 10px 20px;
+  background: var(--surface); border-bottom: 1px solid var(--line); font-size: 13px;
+  transform: translateY(-100%); transition: transform 160ms ease 300ms;
+}
+/* A strip along the top edge catches the pointer and brings the bar down. */
+.page-bar::after { content: ''; position: absolute; left: 0; right: 0; top: 100%; height: 14px; }
+.page-bar:hover, .page-bar:focus-within { transform: translateY(0); transition-delay: 0ms; }
+.page-bar__title { font-family: var(--serif); font-size: 15px; color: var(--ink); }
+.page-bar__meta { color: var(--ink-faint); }
+.page-bar__spacer { flex: 1; }
+.page-bar kbd, .page-status kbd { font-family: var(--family-sans); font-size: 11px; color: var(--ink-faint); margin-left: 4px; }
+.page-status {
+  position: fixed; right: 18px; bottom: 14px; z-index: 10; font-size: 12px;
+  color: var(--ink-faint); opacity: 0.45; transition: opacity 200ms;
+  font-variant-numeric: tabular-nums;
+}
+.page-status:hover { opacity: 1; }
+.page-status.save--conflict, .page-status.save--error { color: var(--del); opacity: 1; }
+
 /* --- share links ---------------------------------------------------------- */
 
 .share-link { display: grid; gap: 4px; margin: 8px 0 0; }
