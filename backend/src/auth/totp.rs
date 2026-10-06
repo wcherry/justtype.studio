@@ -24,7 +24,9 @@ pub fn generate_secret() -> String {
 
 /// The `otpauth://` link an authenticator app reads, from a QR code or pasted.
 pub fn setup_url(secret: &str, account: &str) -> String {
-    let issuer = "Scriptorium";
+    // Encoded: the name has spaces, and a raw space ends the link for some
+    // authenticator apps.
+    let issuer = encode_label("Just Type Studio");
     format!(
         "otpauth://totp/{issuer}:{}?secret={secret}&issuer={issuer}&digits={DIGITS}&period={STEP_SECONDS}",
         encode_label(account)
@@ -171,6 +173,10 @@ mod tests {
     #[test]
     fn the_setup_link_escapes_the_address() {
         let url = setup_url("ABC", "ada+books@example.com");
-        assert!(url.starts_with("otpauth://totp/Scriptorium:ada%2Bbooks%40example.com?secret=ABC"));
+        assert!(url.starts_with(
+            "otpauth://totp/Just%20Type%20Studio:ada%2Bbooks%40example.com?secret=ABC"
+        ));
+        assert!(url.contains("&issuer=Just%20Type%20Studio&"));
+        assert!(!url.contains(' '));
     }
 }

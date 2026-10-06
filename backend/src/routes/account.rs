@@ -178,7 +178,7 @@ pub async fn send_verification(state: &AppState, user: &User) -> ApiResult<()> {
         .mailer
         .send(Message {
             to: user.email.clone(),
-            subject: "Confirm your address for Scriptorium".into(),
+            subject: "Confirm your address for Just Type Studio".into(),
             body: format!(
                 "Hello {},\n\nConfirm this is your address, so drafts and books shared with it reach you:\n\n{}/verify?token={token}\n\nThe link lasts {VERIFY_HOURS} hours. If you did not sign up, ignore this and nothing happens.\n",
                 user.display_name, state.config.public_url
@@ -358,7 +358,7 @@ pub async fn forgot(
             .mailer
             .send(Message {
                 to: user.email.clone(),
-                subject: "Resetting your Scriptorium password".into(),
+                subject: "Resetting your Just Type Studio password".into(),
                 body: format!(
                     "Hello {},\n\nSomeone asked to reset the password on this account. If it was you:\n\n{}/reset?token={token}\n\nThe link lasts {RESET_MINUTES} minutes and works once. Using it signs out every device. If it was not you, ignore this; your password has not changed.\n",
                     user.display_name, state.config.public_url

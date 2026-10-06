@@ -217,7 +217,7 @@ pub async fn export(State(state): State<AppState>, user: AuthUser) -> ApiResult<
     Ok((StatusCode::OK, headers, bytes))
 }
 
-const README: &str = "Everything Scriptorium holds about you, as of the moment this was made.
+const README: &str = "Everything Just Type Studio holds about you, as of the moment this was made.
 
 account.json        your account, sessions, the people you follow and have blocked,
                     your reader circles and your writing days
