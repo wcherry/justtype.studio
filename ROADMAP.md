@@ -525,7 +525,7 @@ currently mean.
 - An audit log of publications, invitations, blocks, co-authors, deletions and
   account security, readable by the people it concerns. No foreign keys: the
   line saying an account was deleted has to outlive the account.
-- Terms (`docs/TERMS.md`) that say first that the writer keeps their copyright,
+- Terms (`backend/terms.md`) that say first that the writer keeps their copyright,
   agreed at sign-up, versioned so a change asks again. Written in plain
   language for the product; **they need a lawyer's review** before anyone pays.
 

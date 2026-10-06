@@ -545,7 +545,7 @@ newer one retires the older. Mail to one address is limited to three a minute.
 
 | Method | Path | Notes |
 |---|---|---|
-| `GET` | `/terms` | `{ version, text }`, the Markdown of `docs/TERMS.md`; signed out is fine |
+| `GET` | `/terms` | `{ version, text }`, the Markdown of `backend/terms.md`; signed out is fine |
 | `POST` | `/me/terms` | `version` — agree to the terms in force |
 | `GET` | `/me/export` | a zip of everything held about the caller |
 | `DELETE` | `/me` | `password`, `code` if two-factor is on, `deleteSharedWorks` |
