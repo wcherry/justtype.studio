@@ -35,7 +35,7 @@ confirm() { curl -s -X POST "$API/auth/verify" -H 'content-type: application/jso
   -d "{\"token\":\"$(link_token "$1" verify)\"}" >/dev/null; }
 
 step "Building"
-cargo build -q -p scriptorium-backend --manifest-path "$ROOT/Cargo.toml"
+cargo build -q -p justtype-backend --manifest-path "$ROOT/Cargo.toml"
 
 # A stand-in for the Anthropic API, so summaries can be exercised for nothing.
 STUB_PORT=$((PORT + 1))
@@ -43,22 +43,22 @@ python3 "$ROOT/scripts/stub_anthropic.py" "$STUB_PORT" "$TMP/stub.jsonl" &
 STUB_PID=$!
 
 step "Starting a server on port $PORT"
-SCRIPTORIUM_BIND_ADDR="127.0.0.1:${PORT}" \
-SCRIPTORIUM_DATABASE_URL="$TMP/scriptorium.db" \
-SCRIPTORIUM_DATA_DIR="$TMP/works" \
-SCRIPTORIUM_JWT_SECRET="smoke-test-secret-value-1234567890" \
-SCRIPTORIUM_VOTE_RATE=3 \
-SCRIPTORIUM_SECOND_FACTOR_RATE=20 \
-SCRIPTORIUM_AUTH_IP_RATE=150 \
-SCRIPTORIUM_MAIL=outbox \
+JUSTTYPE_BIND_ADDR="127.0.0.1:${PORT}" \
+JUSTTYPE_DATABASE_URL="$TMP/justtype.db" \
+JUSTTYPE_DATA_DIR="$TMP/works" \
+JUSTTYPE_JWT_SECRET="smoke-test-secret-value-1234567890" \
+JUSTTYPE_VOTE_RATE=3 \
+JUSTTYPE_SECOND_FACTOR_RATE=20 \
+JUSTTYPE_AUTH_IP_RATE=150 \
+JUSTTYPE_MAIL=outbox \
 ANTHROPIC_API_KEY=smoke-stub-key \
-SCRIPTORIUM_ANTHROPIC_URL="http://127.0.0.1:$STUB_PORT" \
-SCRIPTORIUM_BACKUP_DIR="$TMP/backups" \
-SCRIPTORIUM_METRICS_TOKEN="smoke-metrics-token-0123456789" \
-SCRIPTORIUM_OUTBOX="$TMP/outbox.jsonl" \
-SCRIPTORIUM_PUBLIC_URL="http://scriptorium.test" \
-RUST_LOG=warn,scriptorium_backend::ops=info \
-  "$ROOT/target/debug/scriptorium-backend" >"$TMP/server.log" 2>&1 &
+JUSTTYPE_ANTHROPIC_URL="http://127.0.0.1:$STUB_PORT" \
+JUSTTYPE_BACKUP_DIR="$TMP/backups" \
+JUSTTYPE_METRICS_TOKEN="smoke-metrics-token-0123456789" \
+JUSTTYPE_OUTBOX="$TMP/outbox.jsonl" \
+JUSTTYPE_PUBLIC_URL="http://justtype.test" \
+RUST_LOG=warn,justtype_backend::ops=info \
+  "$ROOT/target/debug/justtype-backend" >"$TMP/server.log" 2>&1 &
 SERVER_PID=$!
 
 for _ in {1..40}; do
@@ -1126,8 +1126,8 @@ print('  without ?chapter, the whole slice as before — the iOS reader still as
 curl -s "$API/metrics" -H "Authorization: Bearer smoke-metrics-token-0123456789" | python3 -c "
 import sys
 m=dict(l.split(' ') for l in sys.stdin.read().splitlines() if l and not l.startswith('#'))
-hits=int(m['scriptorium_scene_cache_hits_total']);assert hits>0, m
-print(f\"  snapshot scenes served from memory {hits} times, read from disk {m['scriptorium_scene_cache_misses_total']}\")"
+hits=int(m['justtype_scene_cache_hits_total']);assert hits>0, m
+print(f\"  snapshot scenes served from memory {hits} times, read from disk {m['justtype_scene_cache_misses_total']}\")"
 
 step "Searching"
 FIND=$(curl -s "$API/works/$WID/outline" -H "$AUTH" | field chapters.2.scenes.0.id)
@@ -1216,17 +1216,17 @@ import sys,json;d=json.load(sys.stdin)
 b=next(c for c in d['checks'] if c['name']=='backups')
 print(d['status'], '|', b['detail'])"; }
 echo "  before any backup: $(status)"
-BENV=(env SCRIPTORIUM_DATABASE_URL="$TMP/scriptorium.db" SCRIPTORIUM_DATA_DIR="$TMP/works" \
-  SCRIPTORIUM_BACKUP_DIR="$TMP/backups" SCRIPTORIUM_JWT_SECRET="smoke-test-secret-value-1234567890" RUST_LOG=warn)
-TAKEN=$("${BENV[@]}" "$ROOT/target/debug/scriptorium-backend" --backup)
+BENV=(env JUSTTYPE_DATABASE_URL="$TMP/justtype.db" JUSTTYPE_DATA_DIR="$TMP/works" \
+  JUSTTYPE_BACKUP_DIR="$TMP/backups" JUSTTYPE_JWT_SECRET="smoke-test-secret-value-1234567890" RUST_LOG=warn)
+TAKEN=$("${BENV[@]}" "$ROOT/target/debug/justtype-backend" --backup)
 echo "  taken while the server runs: $(basename "$TAKEN")"
 echo "  backed up but not yet restored: $(status)"
-"${BENV[@]}" "$ROOT/target/debug/scriptorium-backend" --restore-drill "$TAKEN" | sed 's/^/  /'
+"${BENV[@]}" "$ROOT/target/debug/justtype-backend" --restore-drill "$TAKEN" | sed 's/^/  /'
 S=$(status); echo "  after the drill: $S"
 [[ "$S" == ok* ]] || { echo "  EXPECTED ok"; exit 1; }
 # A backup that has lost a file has to fail its drill, or the drill proves nothing.
 rm "$(find "$TAKEN/works" -name '*.json' -path '*working*' | head -1)"
-if "${BENV[@]}" "$ROOT/target/debug/scriptorium-backend" --restore-drill "$TAKEN" >/dev/null 2>&1; then
+if "${BENV[@]}" "$ROOT/target/debug/justtype-backend" --restore-drill "$TAKEN" >/dev/null 2>&1; then
   echo "  A DAMAGED BACKUP PASSED"; exit 1
 fi
 echo "  a backup missing one scene fails its drill: $(status)"

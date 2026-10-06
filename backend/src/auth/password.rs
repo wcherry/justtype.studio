@@ -1,7 +1,7 @@
 //! Password hashing with Argon2id, at a cost set for this machine.
 //!
-//! The parameters come from the environment (`SCRIPTORIUM_ARGON2_*`) and
-//! default to more than the OWASP minimum; `scriptorium-backend --tune-argon2`
+//! The parameters come from the environment (`JUSTTYPE_ARGON2_*`) and
+//! default to more than the OWASP minimum; `justtype-backend --tune-argon2`
 //! measures what this hardware can afford. A hash records the parameters it
 //! was made with, so raising them does not lock anyone out: the next time
 //! someone signs in, their password is checked against the old parameters and
@@ -45,9 +45,9 @@ impl Cost {
             })
         };
         let cost = Self {
-            memory_kib: read("SCRIPTORIUM_ARGON2_MEMORY_KIB", d.memory_kib)?,
-            iterations: read("SCRIPTORIUM_ARGON2_ITERATIONS", d.iterations)?,
-            lanes: read("SCRIPTORIUM_ARGON2_LANES", d.lanes)?,
+            memory_kib: read("JUSTTYPE_ARGON2_MEMORY_KIB", d.memory_kib)?,
+            iterations: read("JUSTTYPE_ARGON2_ITERATIONS", d.iterations)?,
+            lanes: read("JUSTTYPE_ARGON2_LANES", d.lanes)?,
         };
         cost.hasher()?;
         Ok(cost)
@@ -125,7 +125,7 @@ fn needs_rehash_for(encoded: &str, cost: Cost) -> bool {
 }
 
 /// Times a range of costs on this machine and prints what it can afford, for
-/// `scriptorium-backend --tune-argon2 [target ms]`.
+/// `justtype-backend --tune-argon2 [target ms]`.
 pub fn tune(target_ms: u128) {
     println!("Argon2id on this machine, aiming under {target_ms} ms a hash:");
     let mut best: Option<Cost> = None;
@@ -163,7 +163,7 @@ pub fn tune(target_ms: u128) {
     }
     match best {
         Some(cost) => println!(
-            "\nSuggested:\n  SCRIPTORIUM_ARGON2_MEMORY_KIB={}\n  SCRIPTORIUM_ARGON2_ITERATIONS={}\n  SCRIPTORIUM_ARGON2_LANES=1\nTime it in a release build: debug builds are many times slower.",
+            "\nSuggested:\n  JUSTTYPE_ARGON2_MEMORY_KIB={}\n  JUSTTYPE_ARGON2_ITERATIONS={}\n  JUSTTYPE_ARGON2_LANES=1\nTime it in a release build: debug builds are many times slower.",
             cost.memory_kib, cost.iterations
         ),
         None => println!("\nNothing fits {target_ms} ms; the OWASP floor is 19 MiB × 2 passes."),

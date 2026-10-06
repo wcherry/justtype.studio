@@ -14,8 +14,8 @@ import type {
 } from './types'
 
 const BASE = '/api'
-const ACCESS_KEY = 'scriptorium.access'
-const REFRESH_KEY = 'scriptorium.refresh'
+const ACCESS_KEY = 'justtype.access'
+const REFRESH_KEY = 'justtype.refresh'
 
 export class ApiError extends Error {
   constructor(
@@ -33,7 +33,7 @@ export class ApiError extends Error {
   }
 }
 
-const SHARE_KEYS = 'scriptorium.shareKeys'
+const SHARE_KEYS = 'justtype.shareKeys'
 
 /**
  * Keys from links to unlisted drafts, kept for this tab and sent as a header

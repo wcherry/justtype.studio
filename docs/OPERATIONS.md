@@ -13,7 +13,7 @@ with that id, and every error envelope repeats it as `requestId`. A failure on
 the server's side (5xx) shows the writer `(reference …)`, which is the thing to
 ask them for.
 
-`SCRIPTORIUM_LOG_FORMAT=json` writes one JSON object per line, with the
+`JUSTTYPE_LOG_FORMAT=json` writes one JSON object per line, with the
 request's span (`request_id`, `method`, `path`) on each, for a log shipper to
 index. Anything else writes text for a person. Each request ends with one
 `served` line (or `failed`, at error level, for a 5xx) with its status and
@@ -38,9 +38,9 @@ client shows the same checks to a person.
 ## Backups
 
 ```sh
-SCRIPTORIUM_BACKUP_DIR=/var/backups/scriptorium cargo backup
+JUSTTYPE_BACKUP_DIR=/var/backups/justtype cargo backup
 # or, on a server without cargo:
-SCRIPTORIUM_BACKUP_DIR=… SCRIPTORIUM_BIN=/usr/local/bin/scriptorium-backend scripts/backup.sh
+JUSTTYPE_BACKUP_DIR=… JUSTTYPE_BIN=/usr/local/bin/justtype-backend scripts/backup.sh
 ```
 
 One run takes a backup and then restores it to prove it. A backup is a
@@ -48,13 +48,13 @@ timestamped folder:
 
 ```
 <backup dir>/20261005T220617Z/
-  scriptorium.db   a consistent copy, made with VACUUM INTO while the server runs
+  justtype.db   a consistent copy, made with VACUUM INTO while the server runs
   works/           the manuscript tree, file for file
   manifest.json    when, which version, row counts, and a SHA-256 of every file
   drill.json       what the restore drill found
 ```
 
-The newest `SCRIPTORIUM_BACKUP_KEEP` (default 14) are kept.
+The newest `JUSTTYPE_BACKUP_KEEP` (default 14) are kept.
 
 The database is copied first, then the files. Scene files are only ever
 replaced whole and snapshot files never change, so each file is consistent;
@@ -63,7 +63,7 @@ drill reports as a missing file rather than letting it pass.
 
 ### The restore drill
 
-`scriptorium-backend --restore-drill [<backup>]` (default: the newest) copies
+`justtype-backend --restore-drill [<backup>]` (default: the newest) copies
 the backup somewhere disposable and checks that it would serve:
 
 - the database file matches its digest and passes `PRAGMA integrity_check`;
@@ -82,19 +82,19 @@ a backup nobody has restored is a hope.
 Nothing is installed for you. On Linux, with cron:
 
 ```
-15 3 * * *  cd /srv/scriptorium && scripts/backup.sh >> /var/log/scriptorium-backup.log 2>&1
+15 3 * * *  cd /srv/justtype && scripts/backup.sh >> /var/log/justtype-backup.log 2>&1
 ```
 
-On macOS, a launchd job in `~/Library/LaunchAgents/app.scriptorium.backup.plist`:
+On macOS, a launchd job in `~/Library/LaunchAgents/app.justtype.backup.plist`:
 
 ```xml
 <plist version="1.0"><dict>
-  <key>Label</key><string>app.scriptorium.backup</string>
+  <key>Label</key><string>app.justtype.backup</string>
   <key>ProgramArguments</key>
-  <array><string>/bin/bash</string><string>/path/to/scriptorium/scripts/backup.sh</string></array>
+  <array><string>/bin/bash</string><string>/path/to/justtype/scripts/backup.sh</string></array>
   <key>StartCalendarInterval</key><dict><key>Hour</key><integer>3</integer><key>Minute</key><integer>15</integer></dict>
-  <key>StandardOutPath</key><string>/tmp/scriptorium-backup.log</string>
-  <key>StandardErrorPath</key><string>/tmp/scriptorium-backup.log</string>
+  <key>StandardOutPath</key><string>/tmp/justtype-backup.log</string>
+  <key>StandardErrorPath</key><string>/tmp/justtype-backup.log</string>
 </dict></plist>
 ```
 
@@ -104,8 +104,8 @@ the machine; Litestream replication to object storage is *7.1*.
 ### Restoring for real
 
 Stop the server. Move the current database and `works/` aside rather than
-deleting them. Copy `scriptorium.db` from the backup to
-`SCRIPTORIUM_DATABASE_URL` and `works/` to `SCRIPTORIUM_DATA_DIR`. Start the
+deleting them. Copy `justtype.db` from the backup to
+`JUSTTYPE_DATABASE_URL` and `works/` to `JUSTTYPE_DATA_DIR`. Start the
 server; it applies any newer migrations on boot. Check `/status`.
 
 ## Replication (Litestream)
@@ -121,26 +121,26 @@ repository does not have. What follows is the procedure; the first time it is
 pointed at a real bucket, the restore at the end is the check that it works.
 
 ```sh
-export SCRIPTORIUM_DATABASE_URL=/srv/scriptorium/data/scriptorium.db
-export LITESTREAM_BUCKET=… LITESTREAM_PATH=scriptorium LITESTREAM_REGION=…
+export JUSTTYPE_DATABASE_URL=/srv/justtype/data/justtype.db
+export LITESTREAM_BUCKET=… LITESTREAM_PATH=justtype LITESTREAM_REGION=…
 export LITESTREAM_ACCESS_KEY_ID=… LITESTREAM_SECRET_ACCESS_KEY=…
 # LITESTREAM_ENDPOINT=https://… for a store that is not AWS S3
 
 # Run the server under Litestream, so replication starts before the first
 # write and stops after the last:
-litestream replicate -config deploy/litestream.yml -exec "scriptorium-backend"
+litestream replicate -config deploy/litestream.yml -exec "justtype-backend"
 ```
 
 Restoring, to the latest state or to a moment:
 
 ```sh
-litestream restore -config deploy/litestream.yml -o /tmp/restored.db "$SCRIPTORIUM_DATABASE_URL"
-litestream restore -config deploy/litestream.yml -timestamp 2026-10-05T14:00:00Z -o /tmp/restored.db "$SCRIPTORIUM_DATABASE_URL"
+litestream restore -config deploy/litestream.yml -o /tmp/restored.db "$JUSTTYPE_DATABASE_URL"
+litestream restore -config deploy/litestream.yml -timestamp 2026-10-05T14:00:00Z -o /tmp/restored.db "$JUSTTYPE_DATABASE_URL"
 ```
 
 Then prove the restored file before trusting it: put it in a folder beside a
 `works/` copy and a `manifest.json` from the latest nightly backup, and run
-`scriptorium-backend --restore-drill <that folder>`, or open it with
+`justtype-backend --restore-drill <that folder>`, or open it with
 `sqlite3 /tmp/restored.db 'PRAGMA integrity_check'` at the least.
 
 Litestream covers the database only. The manuscript tree is files, and the
@@ -169,7 +169,7 @@ the same lock sees the same wait a write would have at that moment.
 The last minute and last fifteen minutes are on the `/status` page, and the
 status check fails when the p95 lock wait reaches 250 ms — the point at which
 writes are queueing, which the expected load should never cause. For a real
-dashboard, set `SCRIPTORIUM_METRICS_TOKEN` (16+ characters) and scrape
+dashboard, set `JUSTTYPE_METRICS_TOKEN` (16+ characters) and scrape
 `/api/metrics` with it as a bearer token; it is Prometheus text. Without the
 token set, the endpoint does not exist.
 

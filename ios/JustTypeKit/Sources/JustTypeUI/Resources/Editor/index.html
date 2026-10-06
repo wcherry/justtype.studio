@@ -1,0 +1,44 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <style>
+      :root { color-scheme: light dark; }
+      body { margin: 0; font: 17px/1.6 'Iowan Old Style', Georgia, serif; }
+      .ProseMirror {
+        padding: 16px 18px calc(40vh + env(safe-area-inset-bottom, 0px));
+        outline: none; min-height: 100vh; -webkit-user-select: text;
+      }
+      .ProseMirror p { margin: 0 0 1.1em; }
+      /* Reader mode: the writer's settings, and pages rather than a scroll. */
+      body { font-size: var(--prose-size, 17px); font-family: var(--prose-family, 'Iowan Old Style', Georgia, serif); }
+      .ProseMirror { line-height: var(--prose-leading, 1.6); }
+      body.paged .ProseMirror {
+        height: 100vh;
+        min-height: 0;
+        padding: 16px 18px;
+        box-sizing: border-box;
+        column-width: 100vw;
+        column-gap: 36px;
+        overflow-x: auto;
+        overflow-y: hidden;
+        scroll-snap-type: x mandatory;
+        overscroll-behavior-x: contain;
+      }
+      body.paged .ProseMirror > * { scroll-snap-align: start; break-inside: avoid-column; }
+      .ProseMirror blockquote { border-left: 2px solid currentColor; margin: 0 0 1.1em; padding-left: 12px; opacity: 0.8; }
+    </style>
+    <script type="module" crossorigin src="./assets/index-F_NhG-eo.js"></script>
+  </head>
+  <body>
+    <div id="editor"></div>
+    <!-- Served under a custom scheme rather than from a file URL, so this
+         stays a module and ships exactly as it was built. -->
+    <script>
+      window.addEventListener('error', (e) => {
+        window.__error = (e.message || 'error') + ' @ ' + (e.filename || '') + ':' + (e.lineno || 0)
+      })
+    </script>
+  </body>
+</html>

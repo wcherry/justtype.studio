@@ -6,8 +6,8 @@
 #   scripts/backup.sh              back up, then drill the backup just taken
 #   scripts/backup.sh --drill-only drill the newest backup again
 #
-# Reads the same .env as the server. SCRIPTORIUM_BACKUP_DIR must be set.
-# SCRIPTORIUM_BIN picks the binary; otherwise the release build, then debug.
+# Reads the same .env as the server. JUSTTYPE_BACKUP_DIR must be set.
+# JUSTTYPE_BIN picks the binary; otherwise the release build, then debug.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -20,15 +20,21 @@ if [[ -f .env ]]; then
     [[ -z "${!key+set}" ]] && export "$key=$value"
   done < .env
 fi
-: "${SCRIPTORIUM_BACKUP_DIR:?set SCRIPTORIUM_BACKUP_DIR to say where backups go}"
+# Settings from before the rename (SCRIPTORIUM_*) count as their JUSTTYPE_*
+# names when those are not set; the server does the same.
+while IFS='=' read -r key value; do
+  new="JUSTTYPE_${key#SCRIPTORIUM_}"
+  [[ -z "${!new+set}" ]] && export "$new=$value"
+done < <(env | grep '^SCRIPTORIUM_')
+: "${JUSTTYPE_BACKUP_DIR:?set JUSTTYPE_BACKUP_DIR to say where backups go}"
 
-BIN="${SCRIPTORIUM_BIN:-}"
+BIN="${JUSTTYPE_BIN:-}"
 if [[ -z "$BIN" ]]; then
-  for candidate in target/release/scriptorium-backend target/debug/scriptorium-backend; do
+  for candidate in target/release/justtype-backend target/debug/justtype-backend; do
     [[ -x "$candidate" ]] && BIN="$candidate" && break
   done
 fi
-[[ -n "$BIN" ]] || { echo "no backend binary — build one, or set SCRIPTORIUM_BIN" >&2; exit 1; }
+[[ -n "$BIN" ]] || { echo "no backend binary — build one, or set JUSTTYPE_BIN" >&2; exit 1; }
 
 if [[ "${1:-}" != "--drill-only" ]]; then
   TAKEN=$("$BIN" --backup)

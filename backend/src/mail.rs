@@ -32,12 +32,12 @@ pub enum Mailer {
 }
 
 impl Mailer {
-    /// From `SCRIPTORIUM_MAIL`: `outbox` (the default) or `smtp`.
+    /// From `JUSTTYPE_MAIL`: `outbox` (the default) or `smtp`.
     pub fn from_env(data_dir: &std::path::Path) -> anyhow::Result<Self> {
-        let kind = std::env::var("SCRIPTORIUM_MAIL").unwrap_or_else(|_| "outbox".into());
+        let kind = std::env::var("JUSTTYPE_MAIL").unwrap_or_else(|_| "outbox".into());
         match kind.as_str() {
             "outbox" => {
-                let path = std::env::var("SCRIPTORIUM_OUTBOX")
+                let path = std::env::var("JUSTTYPE_OUTBOX")
                     .map(PathBuf::from)
                     .unwrap_or_else(|_| data_dir.parent().unwrap_or(data_dir).join("outbox.jsonl"));
                 tracing::info!(path = %path.display(), "mail goes to the outbox file, not to anyone");
@@ -47,15 +47,15 @@ impl Mailer {
                 let var = |key: &str| {
                     std::env::var(key).map_err(|_| anyhow::anyhow!("{key} is required for SMTP"))
                 };
-                let host = var("SCRIPTORIUM_SMTP_HOST")?;
-                let from = var("SCRIPTORIUM_MAIL_FROM")?;
+                let host = var("JUSTTYPE_SMTP_HOST")?;
+                let from = var("JUSTTYPE_MAIL_FROM")?;
                 let mut builder = AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(&host)?;
-                if let Ok(port) = std::env::var("SCRIPTORIUM_SMTP_PORT") {
+                if let Ok(port) = std::env::var("JUSTTYPE_SMTP_PORT") {
                     builder = builder.port(port.parse()?);
                 }
                 if let (Ok(user), Ok(pass)) = (
-                    std::env::var("SCRIPTORIUM_SMTP_USER"),
-                    std::env::var("SCRIPTORIUM_SMTP_PASSWORD"),
+                    std::env::var("JUSTTYPE_SMTP_USER"),
+                    std::env::var("JUSTTYPE_SMTP_PASSWORD"),
                 ) {
                     builder = builder.credentials(Credentials::new(user, pass));
                 }
@@ -64,7 +64,7 @@ impl Mailer {
                     from,
                 })
             }
-            other => anyhow::bail!("SCRIPTORIUM_MAIL must be `outbox` or `smtp`, not `{other}`"),
+            other => anyhow::bail!("JUSTTYPE_MAIL must be `outbox` or `smtp`, not `{other}`"),
         }
     }
 
@@ -93,7 +93,7 @@ impl Mailer {
             Mailer::Smtp { transport, from } => {
                 let email = lettre::Message::builder()
                     .from(from.parse().map_err(|e| {
-                        ApiError::internal(format!("SCRIPTORIUM_MAIL_FROM is not an address: {e}"))
+                        ApiError::internal(format!("JUSTTYPE_MAIL_FROM is not an address: {e}"))
                     })?)
                     .to(message
                         .to

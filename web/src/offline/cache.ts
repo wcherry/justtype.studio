@@ -12,8 +12,8 @@ import type { Outline, SceneWithContent } from '../api/types'
  * always refreshes it.
  */
 
-const OUTLINE_KEY = (workId: string) => `scriptorium.outline.${workId}`
-const SCENE_KEY = (sceneId: string) => `scriptorium.scene.${sceneId}`
+const OUTLINE_KEY = (workId: string) => `justtype.outline.${workId}`
+const SCENE_KEY = (sceneId: string) => `justtype.scene.${sceneId}`
 
 function read<T>(key: string): T | null {
   try {

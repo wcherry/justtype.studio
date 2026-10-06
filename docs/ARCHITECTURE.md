@@ -107,8 +107,8 @@ Both flush on tab hide and before unload.
 
 ## iOS
 
-A Swift package with two targets — `ScriptoriumKit` (models, API client,
-document maths) and `ScriptoriumUI` (SwiftUI views) — plus a thin app target.
+A Swift package with two targets — `JustTypeKit` (models, API client,
+document maths) and `JustTypeUI` (SwiftUI views) — plus a thin app target.
 The package builds for macOS as well as iOS, so `swift build` and `swift test`
 run in CI without a simulator.
 

@@ -208,11 +208,11 @@ pub fn prometheus() -> String {
     for (label, window) in [("1m", Duration::from_secs(60)), ("15m", KEPT)] {
         let s = m.summary(window);
         out.push_str(&format!(
-            "scriptorium_write_requests_per_second{{window=\"{label}\"}} {}\n",
+            "justtype_write_requests_per_second{{window=\"{label}\"}} {}\n",
             s.write_requests_per_second
         ));
         out.push_str(&format!(
-            "scriptorium_db_writes_per_second{{window=\"{label}\"}} {}\n",
+            "justtype_db_writes_per_second{{window=\"{label}\"}} {}\n",
             s.db_writes_per_second
         ));
         for (q, v) in [
@@ -221,7 +221,7 @@ pub fn prometheus() -> String {
             ("0.99", s.write_ms.p99),
         ] {
             out.push_str(&format!(
-                "scriptorium_db_write_ms{{window=\"{label}\",quantile=\"{q}\"}} {v}\n"
+                "justtype_db_write_ms{{window=\"{label}\",quantile=\"{q}\"}} {v}\n"
             ));
         }
         for (q, v) in [
@@ -230,11 +230,11 @@ pub fn prometheus() -> String {
             ("0.99", s.lock_wait_ms.p99),
         ] {
             out.push_str(&format!(
-                "scriptorium_lock_wait_ms{{window=\"{label}\",quantile=\"{q}\"}} {v}\n"
+                "justtype_lock_wait_ms{{window=\"{label}\",quantile=\"{q}\"}} {v}\n"
             ));
         }
     }
-    out.push_str(&format!("scriptorium_busy_total {}\n", m.busy_total()));
+    out.push_str(&format!("justtype_busy_total {}\n", m.busy_total()));
     out
 }
 

@@ -430,7 +430,7 @@ A block is one writer's door, not a platform ban. A blocked reader is refused
 the rule covers everything rather than the handlers somebody remembered.
 
 Comment creation, voting and reactions are rate limited per user per minute
-(`SCRIPTORIUM_COMMENT_RATE`, `SCRIPTORIUM_VOTE_RATE`, `SCRIPTORIUM_REACTION_RATE`;
+(`JUSTTYPE_COMMENT_RATE`, `JUSTTYPE_VOTE_RATE`, `JUSTTYPE_REACTION_RATE`;
 `0` turns one off). Over the limit is a `429` whose `details.retryAfter` says how
 many seconds to wait. The counters live in the process — see `backend/src/limit.rs`.
 
@@ -658,7 +658,7 @@ far stops working. A reader's client sends keys in an `x-share-key` header
 change, which were just the id, no longer open the draft.
 
 **Passwords** are Argon2id at 64 MiB and two passes by default
-(`SCRIPTORIUM_ARGON2_*`); `scriptorium-backend --tune-argon2 [ms]` times the
+(`JUSTTYPE_ARGON2_*`); `justtype-backend --tune-argon2 [ms]` times the
 options on the machine it runs on. Every hash records its own parameters, so
 raising them locks no one out: on the next sign-in the password is checked
 against the old hash and stored again under the new cost.
@@ -668,9 +668,9 @@ fifteen minutes lock it for the rest of that window — the right password
 included, so a lock cannot be used to test guesses — and an address with no
 account locks the same way, so a lock reveals nothing. A reset link still
 works. Separately, one address may make 30 requests a minute to `/auth/*` and
-600 to anything (`SCRIPTORIUM_AUTH_IP_RATE`, `SCRIPTORIUM_IP_RATE`); over either
+600 to anything (`JUSTTYPE_AUTH_IP_RATE`, `JUSTTYPE_IP_RATE`); over either
 is a `429` with `retryAfter`. Behind a reverse proxy, set
-`SCRIPTORIUM_TRUST_PROXY=true` so the address is the proxy's last
+`JUSTTYPE_TRUST_PROXY=true` so the address is the proxy's last
 `X-Forwarded-For` entry — never the first, which is whatever the client wrote.
 
 ## Summaries

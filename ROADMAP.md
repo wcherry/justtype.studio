@@ -1,4 +1,4 @@
-# Scriptorium — Feature Roadmap
+# Just Type Studio — Feature Roadmap
 
 A writing tool for long-form fiction, and a review surface for the readers the
 writer chooses. Authors draft in chapters and scenes, snapshot versions as they
@@ -30,8 +30,8 @@ in `docs/` or by unit tests.
 | Tracked changes: propose / accept / reject | `backend/src/routes/changes.rs` |
 | React web client: TipTap editor, outline, versions panel, diff view, review reader, comment sidebar | `web/src` |
 | Highlight-to-comment via ProseMirror decorations (never marks) | `web/src/editor/commentAnchors.ts` |
-| SwiftUI iOS client: library, outline, plain-text scene editor, versions, feed, paragraph-anchored review | `ios/ScriptoriumKit/Sources/ScriptoriumUI` |
-| Shared position arithmetic, unit-tested to match ProseMirror | `ios/ScriptoriumKit/Sources/ScriptoriumKit/DocNode.swift` |
+| SwiftUI iOS client: library, outline, plain-text scene editor, versions, feed, paragraph-anchored review | `ios/JustTypeKit/Sources/JustTypeUI` |
+| Shared position arithmetic, unit-tested to match ProseMirror | `ios/JustTypeKit/Sources/JustTypeKit/DocNode.swift` |
 
 ### Known gaps carried out of Phase 0
 

@@ -1,6 +1,6 @@
 //! Serving the built web app from the same process as the API.
 //!
-//! Off unless `SCRIPTORIUM_WEB_DIR` names a directory holding a Vite build
+//! Off unless `JUSTTYPE_WEB_DIR` names a directory holding a Vite build
 //! (`web/dist`): in development Vite serves the app and proxies `/api` here.
 //! In the Docker image it is on, so one container is the whole service.
 //!
@@ -94,7 +94,7 @@ mod tests {
 
     #[tokio::test]
     async fn routes_get_the_app_assets_are_cached_and_the_api_is_left_alone() {
-        let dir = std::env::temp_dir().join(format!("scriptorium-web-{}", uuid::Uuid::new_v4()));
+        let dir = std::env::temp_dir().join(format!("justtype-web-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(dir.join("assets")).unwrap();
         std::fs::write(dir.join("index.html"), "<!doctype html>app").unwrap();
         std::fs::write(dir.join("assets/app-1a2b.js"), "console.log(1)").unwrap();

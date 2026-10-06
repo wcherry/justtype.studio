@@ -26,7 +26,7 @@ export const DEFAULT_PREFERENCES: WritingPreferences = {
   family: 'serif',
 }
 
-const KEY = 'scriptorium.writingPreferences'
+const KEY = 'justtype.writingPreferences'
 
 function load(): WritingPreferences {
   try {

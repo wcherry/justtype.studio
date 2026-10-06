@@ -14,7 +14,7 @@ dev: ## Backend and web dev server together  (cargo dev)
 	cargo xtask dev
 
 backend: ## Run just the API server
-	cargo run -p scriptorium-backend
+	cargo run -p justtype-backend
 
 web: ## Production build of the web client  (cargo web)
 	cargo xtask build-web
@@ -45,4 +45,4 @@ fmt: ## Format the Rust sources
 
 clean:
 	cargo clean
-	rm -rf web/dist web/node_modules ios/ScriptoriumKit/.build ios/Scriptorium.xcodeproj
+	rm -rf web/dist web/node_modules ios/JustTypeKit/.build ios/JustType.xcodeproj

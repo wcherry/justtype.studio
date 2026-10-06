@@ -36,7 +36,7 @@ RUN mkdir -p backend/src xtask/src backend/migrations \
     && echo "fn main(){}" > backend/src/main.rs \
     && echo "fn main(){}" > xtask/src/main.rs
 RUN cargo fetch
-RUN cargo build --release -p scriptorium-backend
+RUN cargo build --release -p justtype-backend
 RUN rm -rf backend/src backend/migrations
 
 COPY backend/src backend/src
@@ -46,8 +46,8 @@ COPY backend/diesel.toml backend/
 # What /api/health and /api/status report. Optional: an unstamped build
 # reports the crate's own version.
 ARG APP_VERSION=""
-ENV SCRIPTORIUM_VERSION=${APP_VERSION}
-RUN touch backend/src/main.rs && cargo build --release -p scriptorium-backend
+ENV JUSTTYPE_VERSION=${APP_VERSION}
+RUN touch backend/src/main.rs && cargo build --release -p justtype-backend
 
 # ── Runtime Stage ─────────────────────────────────────────────────────────────
 FROM debian:bookworm-slim
@@ -66,7 +66,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl gosu \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=rust-builder /app/target/release/scriptorium-backend /usr/local/bin/service
+COPY --from=rust-builder /app/target/release/justtype-backend /usr/local/bin/service
 COPY --from=web-builder /app/web/dist /app/web
 COPY deploy/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
@@ -78,19 +78,19 @@ LABEL org.opencontainers.image.title="Just Type Studio" \
       org.opencontainers.image.version="${APP_VERSION}" \
       org.opencontainers.image.revision="${BUILD_COMMIT}"
 
-# Everything has a working default but SCRIPTORIUM_JWT_SECRET, which the
+# Everything has a working default but JUSTTYPE_JWT_SECRET, which the
 # server refuses to start without. See README, "Configuration".
-ENV SCRIPTORIUM_BIND_ADDR=0.0.0.0:8080 \
-    SCRIPTORIUM_DATABASE_URL=/usr/local/data/scriptorium.db \
-    SCRIPTORIUM_DATA_DIR=/usr/local/data/works \
-    SCRIPTORIUM_WEB_DIR=/app/web \
-    SCRIPTORIUM_PUBLIC_URL=https://www.justtype.studio \
-    SCRIPTORIUM_CORS_ORIGINS=https://www.justtype.studio \
-    SCRIPTORIUM_LOG_FORMAT=json
+ENV JUSTTYPE_BIND_ADDR=0.0.0.0:8080 \
+    JUSTTYPE_DATABASE_URL=/usr/local/data/justtype.db \
+    JUSTTYPE_DATA_DIR=/usr/local/data/works \
+    JUSTTYPE_WEB_DIR=/app/web \
+    JUSTTYPE_PUBLIC_URL=https://www.justtype.studio \
+    JUSTTYPE_CORS_ORIGINS=https://www.justtype.studio \
+    JUSTTYPE_LOG_FORMAT=json
 
 EXPOSE 8080
 
-# The database, every scene's files and the mail outbox. Logs go to stdout.
+# The database, every scene's files and the mail outbox. Logs go to stderr.
 VOLUME ["/usr/local/data"]
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \

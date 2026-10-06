@@ -4,17 +4,17 @@ resolver = "2"
 
 # Consumed by `cargo xtask`. A virtual workspace has no root package, so this
 # lives under [workspace.metadata] rather than [package.metadata].
-[workspace.metadata.scriptorium]
-backend_package = "scriptorium-backend"
+[workspace.metadata.justtype]
+backend_package = "justtype-backend"
 web_dir = "web"
 ios_dir = "ios"
-ios_package_dir = "ios/ScriptoriumKit"
-xcode_project = "Scriptorium.xcodeproj"
+ios_package_dir = "ios/JustTypeKit"
+xcode_project = "JustType.xcodeproj"
 default_bind_addr = "127.0.0.1:8088"
 health_path = "/api/health"
 openapi_path = "docs/openapi.json"
 ts_types_path = "web/src/api/schema.ts"
-swift_types_path = "ios/ScriptoriumKit/Sources/ScriptoriumKit/Generated/Schemas.swift"
+swift_types_path = "ios/JustTypeKit/Sources/JustTypeKit/Generated/Schemas.swift"
 
 [workspace.package]
 version = "0.1.0"

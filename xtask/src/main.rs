@@ -18,7 +18,9 @@ use std::{
 
 /// Secrets the backend refuses to start without. `cargo xtask setup` generates a
 /// value for any of these the repo-root `.env` does not already define with one.
-const REQUIRED_ENV_SECRETS: [&str; 1] = ["SCRIPTORIUM_JWT_SECRET"];
+const REQUIRED_ENV_SECRETS: [&str; 1] = ["JUSTTYPE_JWT_SECRET"];
+const ENV_PREFIX: &str = "JUSTTYPE_";
+const LEGACY_ENV_PREFIX: &str = "SCRIPTORIUM_";
 
 /// Values in `.env.example` that exist only to be replaced. A key set to one of
 /// these is treated as unset — `.env.example` ships a JWT secret long enough to
@@ -164,6 +166,31 @@ fn ensure_env(root: &Path) {
     let mut lines: Vec<String> = existing.lines().map(str::to_string).collect();
     let mut filled: Vec<&str> = Vec::new();
 
+    // The product was called Scriptorium, and its settings SCRIPTORIUM_*.
+    // Renamed in place, values kept: left alone, the secret check below would
+    // not see the old JWT secret and would generate a new one, signing out
+    // every session and breaking every share link.
+    let mut renamed = 0;
+    for i in 0..lines.len() {
+        let trimmed = lines[i].trim_start().to_string();
+        let Some(rest) = trimmed.strip_prefix(LEGACY_ENV_PREFIX) else {
+            continue;
+        };
+        let new_key = format!(
+            "{ENV_PREFIX}{}",
+            rest.split('=').next().unwrap_or_default().trim()
+        );
+        // A file that already sets the new name keeps both lines as they are:
+        // the new one wins, and the old one is plainly unused.
+        if find_assignment(&lines, &new_key).is_none() {
+            lines[i] = format!("{ENV_PREFIX}{rest}");
+            renamed += 1;
+        }
+    }
+    if renamed > 0 {
+        println!("renamed {renamed} {LEGACY_ENV_PREFIX}* setting(s) in .env to {ENV_PREFIX}*");
+    }
+
     for key in REQUIRED_ENV_SECRETS {
         match find_assignment(&lines, key) {
             Some(index) if !is_placeholder(&lines[index], key) => {
@@ -180,13 +207,15 @@ fn ensure_env(root: &Path) {
         }
     }
 
-    if filled.is_empty() {
+    if filled.is_empty() && renamed == 0 {
         return;
     }
     let mut out = lines.join("\n");
     out.push('\n');
     fs::write(&path, out).unwrap_or_else(|e| panic!("failed to write {}: {e}", path.display()));
-    println!("generated {} in {}", filled.join(", "), path.display());
+    if !filled.is_empty() {
+        println!("generated {} in {}", filled.join(", "), path.display());
+    }
 }
 
 /// Index of the line assigning `key`, comments aside.
@@ -327,7 +356,7 @@ fn backend_healthy(addr: &str, path: &str) -> bool {
 /// resolves it: the environment first, then the repo-root `.env` that
 /// `dotenvy` loads, then the default.
 fn backend_addr(cfg: &Config) -> String {
-    const KEY: &str = "SCRIPTORIUM_BIND_ADDR";
+    const KEY: &str = "JUSTTYPE_BIND_ADDR";
     if let Some(addr) = env::var(KEY).ok().filter(|a| !a.trim().is_empty()) {
         return addr.trim().to_string();
     }
@@ -523,18 +552,18 @@ fn run_script(root: &Path, script: &str, extra: &[String]) {
 // --- plumbing ------------------------------------------------------------
 
 /// A virtual workspace has no root package, so the settings live under
-/// `[workspace.metadata.scriptorium]` rather than `[package.metadata]`.
+/// `[workspace.metadata.justtype]` rather than `[package.metadata]`.
 fn config_from_metadata() -> Config {
     let metadata = cargo_metadata::MetadataCommand::new()
         .no_deps()
         .exec()
         .expect("cargo metadata failed");
 
-    let settings = &metadata.workspace_metadata["scriptorium"];
+    let settings = &metadata.workspace_metadata["justtype"];
     let get = |key: &str| -> String {
         settings[key]
             .as_str()
-            .unwrap_or_else(|| panic!("[workspace.metadata.scriptorium] {key} missing"))
+            .unwrap_or_else(|| panic!("[workspace.metadata.justtype] {key} missing"))
             .to_string()
     };
 

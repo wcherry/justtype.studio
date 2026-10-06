@@ -4,6 +4,10 @@ import { BrowserRouter } from 'react-router-dom'
 import { App } from './App'
 import { AuthProvider } from './state/auth'
 import './styles/app.css'
+import { adoptLegacyStorage } from './state/legacyStorage'
+
+// Before anything reads storage: keys from before the rename move first.
+adoptLegacyStorage()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

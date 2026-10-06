@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Build, sign, and upload Scriptorium to TestFlight.
+# Build, sign, and upload Just Type Studio to TestFlight.
 #
 #   scripts/deploy_testflight.sh              # bump build number by 1
 #   scripts/deploy_testflight.sh 3            # set build number to 3
@@ -8,7 +8,7 @@
 #
 # ios/project.yml is the source of truth for CURRENT_PROJECT_VERSION /
 # MARKETING_VERSION, so the script edits it there and regenerates the Xcode
-# project with xcodegen. Scriptorium embeds no extensions yet; the drift check
+# project with xcodegen. The app embeds no extensions yet; the drift check
 # below still runs, so the day one is added its version cannot silently
 # disagree with the app's — which App Store Connect rejects, ten minutes into
 # an upload.
@@ -39,9 +39,9 @@ readonly REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # The Xcode project lives under ios/, not at the repo root, so everything
 # xcodegen and xcodebuild touch is relative to there.
 readonly IOS_DIR="$REPO_ROOT/ios"
-readonly SCHEME="Scriptorium"
-readonly PROJECT="Scriptorium.xcodeproj"
-readonly PACKAGE_DIR="$IOS_DIR/ScriptoriumKit"
+readonly SCHEME="JustType"
+readonly PROJECT="JustType.xcodeproj"
+readonly PACKAGE_DIR="$IOS_DIR/JustTypeKit"
 readonly BUILD_DIR="$IOS_DIR/build"
 readonly ARCHIVE_PATH="$BUILD_DIR/$SCHEME.xcarchive"
 readonly EXPORT_DIR="$BUILD_DIR/export"
@@ -166,10 +166,10 @@ xcodegen generate
 # --- tests -------------------------------------------------------------------
 
 # `swift test` rather than `xcodebuild test`: the app target is a thin @main
-# shell, and everything worth testing lives in the ScriptoriumKit package, which
+# shell, and everything worth testing lives in the JustTypeKit package, which
 # has no Xcode test target to run. This is the same suite CI runs.
 if [[ $RUN_TESTS -eq 1 ]]; then
-  log "Running the ScriptoriumKit test suite"
+  log "Running the JustTypeKit test suite"
   ( cd "$PACKAGE_DIR" && swift test )
 else
   warn "skipping tests (--skip-tests)"
