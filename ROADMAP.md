@@ -568,14 +568,23 @@ handles comfortably. There is no scaling problem here to pre-solve, and this
 phase should stay small.
 
 - **Durability, not throughput, is the real work.** Streaming replication with
-  Litestream: continuous backup to object storage, point-in-time restore, and a
-  restore drill that is actually run.
-- **Instrument the write path** so the assumption above is checked rather than
-  believed: transactions per second, write latency, and lock-wait time on a
-  dashboard.
+  Litestream — **configured, not run.** `deploy/litestream.yml` and the
+  replicate and point-in-time restore procedure are in `docs/OPERATIONS.md`;
+  there is no bucket to run it against, so the first restore from a real one
+  is the check that it works. The nightly backup and restore drill from *6.3*
+  remain what keeps the manuscript files, which Litestream does not cover.
+- **The write path is instrumented — done.** Write requests and database calls
+  per second, write latency (pool wait included), and lock wait. SQLite does
+  its lock waiting inside a busy handler Diesel does not expose, so lock wait
+  is *sampled*: every five seconds a probe takes the write lock with
+  `BEGIN IMMEDIATE` and times it — the wait a real write would have had. The
+  last minute and fifteen are on `/status`, the status check fails at a p95
+  lock wait of 250 ms, and `/api/metrics` serves Prometheus text behind a
+  token for a real dashboard. On the smoke walkthrough: under a millisecond to
+  write, a few hundredths of one waiting for the lock.
 - **Object storage for manuscripts** (S3-compatible) behind the existing
-  `FileStore` interface, if the tree outgrows one disk. Independent of the
-  database, and the likelier of the two to be needed.
+  `FileStore` interface, if the tree outgrows one disk — **deferred**, as this
+  section says it should be until a disk is actually filling.
 
 **If the numbers ever say otherwise**, the answer is Postgres behind Diesel. The
 schema is portable as written and every query already runs through

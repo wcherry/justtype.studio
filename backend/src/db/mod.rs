@@ -66,12 +66,25 @@ where
     T: Send + 'static,
 {
     let pool = pool.clone();
-    tokio::task::spawn_blocking(move || {
+    // Read here, on the request's task: the blocking pool's threads do not
+    // carry task-locals.
+    let writing = crate::metrics::writing();
+    let started = std::time::Instant::now();
+    let result = tokio::task::spawn_blocking(move || {
         let mut conn = pool.get().map_err(|e| ApiError::internal(e.to_string()))?;
         f(&mut conn)
     })
     .await
-    .map_err(|e| ApiError::internal(format!("task panicked: {e}")))?
+    .map_err(|e| ApiError::internal(format!("task panicked: {e}")))?;
+    if writing {
+        let metrics = crate::metrics::global();
+        // Waiting for a pooled connection counts: it is time a writer spent.
+        metrics.record_db_write(started.elapsed());
+        if matches!(&result, Err(ApiError::Internal(m)) if m.contains("database is locked")) {
+            metrics.record_busy();
+        }
+    }
+    result
 }
 
 #[cfg(test)]

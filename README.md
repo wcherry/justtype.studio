@@ -123,6 +123,7 @@ A running server also serves the document at `/api/openapi.json`.
 | `SCRIPTORIUM_LOG_FORMAT` | `text` | `json` for one JSON object per log line |
 | `SCRIPTORIUM_BACKUP_DIR` | *(none)* | Where `cargo backup` puts backups; `/api/status` checks them |
 | `SCRIPTORIUM_BACKUP_KEEP` | `14` | How many backups to keep |
+| `SCRIPTORIUM_METRICS_TOKEN` | *(none)* | Turns on `/api/metrics` (Prometheus text) behind this bearer token |
 
 In development nothing is ever sent: a verification or reset link lands in the
 outbox file, and following it from there is the same as following it from an

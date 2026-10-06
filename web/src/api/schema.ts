@@ -620,6 +620,13 @@ export interface OutlineResponse {
   chapters: OutlineChapter[]
 }
 
+export interface Percentiles {
+  max: number
+  p50: number
+  p95: number
+  p99: number
+}
+
 export interface Profile {
   bio?: string | null
   displayName: string
@@ -1078,6 +1085,8 @@ export interface StatusReport {
   status: string
   uptimeSeconds: number
   version: string
+  // The last minute and the last fifteen.
+  writePath: WindowSummary[]
 }
 
 export interface TagRequest {
@@ -1407,6 +1416,18 @@ export interface VoteResponse {
 }
 
 export type WindowFilter = 'closing_soon' | 'open_ended'
+
+export interface WindowSummary {
+  // Database calls made while serving them.
+  dbWritesPerSecond: number
+  lockSamples: number
+  // Sampled: how long the write lock took to get, every few seconds.
+  lockWaitMs: Percentiles
+  windowSeconds: number
+  writeMs: Percentiles
+  // Requests that changed something.
+  writeRequestsPerSecond: number
+}
 
 export interface Work {
   copyrightLine?: string | null

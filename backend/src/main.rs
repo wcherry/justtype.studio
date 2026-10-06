@@ -6,6 +6,7 @@ mod error;
 mod export;
 mod limit;
 mod mail;
+mod metrics;
 mod ops;
 mod routes;
 mod state;
@@ -121,6 +122,9 @@ async fn main() -> anyhow::Result<()> {
         // shape.
         routes::privacy::seed_former_member(&mut conn, &domain::now_iso())?;
     }
+
+    // Samples how long a writer waits for SQLite's write lock.
+    metrics::spawn_lock_probe(pool.clone());
 
     let store = FileStore::new(&config.data_dir);
     store.init()?;

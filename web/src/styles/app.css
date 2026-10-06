@@ -228,6 +228,9 @@ button.danger { border-color: var(--del); color: var(--del); }
 .status__checks li { display: grid; grid-template-columns: 18px 120px 1fr; gap: 8px; align-items: baseline; }
 .status__checks .is-ok .status__dot { color: var(--add); }
 .status__checks .is-failing .status__dot { color: var(--del); }
+.status__table { border-collapse: collapse; font-size: 13px; width: 100%; font-variant-numeric: tabular-nums; }
+.status__table th, .status__table td { text-align: left; padding: 6px 10px 6px 0; border-bottom: 1px solid var(--line); }
+.status__table thead th { color: var(--ink-faint); font-weight: 500; }
 
 /* --- collaboration ------------------------------------------------------- */
 

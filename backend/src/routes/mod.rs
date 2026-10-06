@@ -37,6 +37,7 @@ fn api_router() -> OpenApiRouter<AppState> {
     OpenApiRouter::with_openapi(openapi::ApiDoc::openapi())
         .routes(routes!(health))
         .routes(routes!(status::status))
+        .routes(routes!(status::metrics))
         .routes(routes!(auth::register))
         .routes(routes!(auth::login))
         .routes(routes!(auth::refresh))

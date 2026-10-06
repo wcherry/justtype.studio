@@ -1,0 +1,26 @@
+# Litestream: continuous replication of the SQLite file to object storage.
+#
+# Written, not yet run: there is no bucket to run it against. See
+# docs/OPERATIONS.md, "Replication", before relying on it — including the
+# restore drill to run once it is pointed at a real bucket.
+#
+# Every value comes from the environment, so one file serves every
+# deployment. Litestream expands ${VAR} itself.
+dbs:
+  - path: ${SCRIPTORIUM_DATABASE_URL}
+    # Litestream drives checkpoints; the server's own busy_timeout (5s) is
+    # what lets the two share the file.
+    replicas:
+      - type: s3
+        bucket: ${LITESTREAM_BUCKET}
+        path: ${LITESTREAM_PATH}
+        # Leave empty for AWS; set for any other S3-compatible store.
+        endpoint: ${LITESTREAM_ENDPOINT}
+        region: ${LITESTREAM_REGION}
+        access-key-id: ${LITESTREAM_ACCESS_KEY_ID}
+        secret-access-key: ${LITESTREAM_SECRET_ACCESS_KEY}
+        # How far back a point-in-time restore can reach.
+        retention: 168h
+        # How much a crash can lose: at most this much of the newest writes.
+        sync-interval: 1s
+        snapshot-interval: 24h

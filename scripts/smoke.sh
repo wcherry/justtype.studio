@@ -45,6 +45,7 @@ SCRIPTORIUM_VOTE_RATE=3 \
 SCRIPTORIUM_SECOND_FACTOR_RATE=20 \
 SCRIPTORIUM_MAIL=outbox \
 SCRIPTORIUM_BACKUP_DIR="$TMP/backups" \
+SCRIPTORIUM_METRICS_TOKEN="smoke-metrics-token-0123456789" \
 SCRIPTORIUM_OUTBOX="$TMP/outbox.jsonl" \
 SCRIPTORIUM_PUBLIC_URL="http://scriptorium.test" \
 RUST_LOG=warn,scriptorium_backend::ops=info \
@@ -1025,5 +1026,16 @@ if "${BENV[@]}" "$ROOT/target/debug/scriptorium-backend" --restore-drill "$TAKEN
 fi
 echo "  a backup missing one scene fails its drill: $(status)"
 [ "$(curl -s -o /dev/null -w '%{http_code}' "$API/status")" = "503" ] && echo "  and the status check says so with a 503" || { echo "  EXPECTED 503"; exit 1; }
+
+step "The write path, measured"
+curl -s "$API/status" | python3 -c "
+import sys,json;d=json.load(sys.stdin)
+w=d['writePath'][1]
+assert w['dbWritesPerSecond']>0 and w['lockSamples']>0, w
+c=next(c for c in d['checks'] if c['name']=='write path')
+print(f\"  over this run: {w['writeRequestsPerSecond']} write requests/s, {w['dbWritesPerSecond']} db calls/s, p95 {w['writeMs']['p95']}ms\")
+print(f\"  lock wait, sampled {w['lockSamples']} times: p95 {w['lockWaitMs']['p95']}ms — {c['detail'] if c['ok'] else 'FAILING: '+c['detail']}\")"
+[ "$(curl -s -o /dev/null -w '%{http_code}' "$API/metrics")" = "401" ] && echo "  /api/metrics refuses without the token" || { echo "  EXPECTED 401"; exit 1; }
+curl -s "$API/metrics" -H "Authorization: Bearer smoke-metrics-token-0123456789" | grep -E 'lock_wait_ms\{window="15m",quantile="0.95"\}|db_writes_per_second\{window="15m"\}' | sed 's/^/  /'
 
 printf '\n\033[32mAll good.\033[0m\n'

@@ -51,9 +51,19 @@ pub async fn request_id(mut request: Request, next: Next) -> Response {
         path = %request.uri().path(),
     );
     let started = Instant::now();
+    let writing = !matches!(
+        *request.method(),
+        axum::http::Method::GET | axum::http::Method::HEAD | axum::http::Method::OPTIONS
+    ) && request.uri().path().starts_with("/api/");
     let mut response = REQUEST_ID
-        .scope(id.clone(), next.run(request).instrument(span.clone()))
+        .scope(
+            id.clone(),
+            crate::metrics::WRITING.scope(writing, next.run(request).instrument(span.clone())),
+        )
         .await;
+    if writing {
+        crate::metrics::global().record_write_request(started.elapsed());
+    }
     let status = response.status();
     span.in_scope(|| {
         let ms = started.elapsed().as_millis() as u64;

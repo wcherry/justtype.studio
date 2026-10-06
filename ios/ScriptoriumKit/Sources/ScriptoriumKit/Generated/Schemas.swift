@@ -1612,6 +1612,25 @@ public enum API {
         }
     }
 
+    public struct Percentiles: Codable, Hashable, Sendable {
+        public var max: Double
+        public var p50: Double
+        public var p95: Double
+        public var p99: Double
+
+        public init(
+            max: Double,
+            p50: Double,
+            p95: Double,
+            p99: Double
+        ) {
+            self.max = max
+            self.p50 = p50
+            self.p95 = p95
+            self.p99 = p99
+        }
+    }
+
     public struct Profile: Codable, Hashable, Sendable {
         public var bio: String?
         public var displayName: String
@@ -2733,17 +2752,21 @@ public enum API {
         public var status: String
         public var uptimeSeconds: Int
         public var version: String
+        /// The last minute and the last fifteen.
+        public var writePath: [WindowSummary]
 
         public init(
             checks: [Check],
             status: String,
             uptimeSeconds: Int,
-            version: String
+            version: String,
+            writePath: [WindowSummary]
         ) {
             self.checks = checks
             self.status = status
             self.uptimeSeconds = uptimeSeconds
             self.version = version
+            self.writePath = writePath
         }
     }
 
@@ -3582,6 +3605,34 @@ public enum API {
     public enum WindowFilter: String, Codable, CaseIterable, Hashable, Sendable {
         case closing_soon = "closing_soon"
         case open_ended = "open_ended"
+    }
+
+    public struct WindowSummary: Codable, Hashable, Sendable {
+        /// Database calls made while serving them.
+        public var dbWritesPerSecond: Double
+        public var lockSamples: Int
+        /// Sampled: how long the write lock took to get, every few seconds.
+        public var lockWaitMs: Percentiles
+        public var windowSeconds: Int
+        public var writeMs: Percentiles
+        /// Requests that changed something.
+        public var writeRequestsPerSecond: Double
+
+        public init(
+            dbWritesPerSecond: Double,
+            lockSamples: Int,
+            lockWaitMs: Percentiles,
+            windowSeconds: Int,
+            writeMs: Percentiles,
+            writeRequestsPerSecond: Double
+        ) {
+            self.dbWritesPerSecond = dbWritesPerSecond
+            self.lockSamples = lockSamples
+            self.lockWaitMs = lockWaitMs
+            self.windowSeconds = windowSeconds
+            self.writeMs = writeMs
+            self.writeRequestsPerSecond = writeRequestsPerSecond
+        }
     }
 
     public struct Work: Codable, Hashable, Sendable {

@@ -25,6 +25,8 @@ pub struct Config {
     pub backup_keep: usize,
     /// `json` for one JSON object per log line; anything else is for people.
     pub log_format: String,
+    /// Bearer token for `/api/metrics`. Unset, that endpoint does not exist.
+    pub metrics_token: Option<String>,
 }
 
 fn env_or(key: &str, default: &str) -> String {
@@ -65,6 +67,9 @@ impl Config {
                 .map(PathBuf::from),
             backup_keep: env_or("SCRIPTORIUM_BACKUP_KEEP", "14").parse()?,
             log_format: env_or("SCRIPTORIUM_LOG_FORMAT", "text"),
+            metrics_token: std::env::var("SCRIPTORIUM_METRICS_TOKEN")
+                .ok()
+                .filter(|s| s.len() >= 16),
         })
     }
 }

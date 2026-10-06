@@ -108,6 +108,75 @@ deleting them. Copy `scriptorium.db` from the backup to
 `SCRIPTORIUM_DATABASE_URL` and `works/` to `SCRIPTORIUM_DATA_DIR`. Start the
 server; it applies any newer migrations on boot. Check `/status`.
 
+## Replication (Litestream)
+
+Nightly backups lose up to a day. Litestream streams every change to the
+SQLite file into object storage as it happens, so a dead disk loses about a
+second, and the database can be restored to any moment in the retention
+window. `deploy/litestream.yml` is the configuration; every value in it comes
+from the environment.
+
+**It has not been run.** It needs a bucket and credentials, which this
+repository does not have. What follows is the procedure; the first time it is
+pointed at a real bucket, the restore at the end is the check that it works.
+
+```sh
+export SCRIPTORIUM_DATABASE_URL=/srv/scriptorium/data/scriptorium.db
+export LITESTREAM_BUCKET=… LITESTREAM_PATH=scriptorium LITESTREAM_REGION=…
+export LITESTREAM_ACCESS_KEY_ID=… LITESTREAM_SECRET_ACCESS_KEY=…
+# LITESTREAM_ENDPOINT=https://… for a store that is not AWS S3
+
+# Run the server under Litestream, so replication starts before the first
+# write and stops after the last:
+litestream replicate -config deploy/litestream.yml -exec "scriptorium-backend"
+```
+
+Restoring, to the latest state or to a moment:
+
+```sh
+litestream restore -config deploy/litestream.yml -o /tmp/restored.db "$SCRIPTORIUM_DATABASE_URL"
+litestream restore -config deploy/litestream.yml -timestamp 2026-10-05T14:00:00Z -o /tmp/restored.db "$SCRIPTORIUM_DATABASE_URL"
+```
+
+Then prove the restored file before trusting it: put it in a folder beside a
+`works/` copy and a `manifest.json` from the latest nightly backup, and run
+`scriptorium-backend --restore-drill <that folder>`, or open it with
+`sqlite3 /tmp/restored.db 'PRAGMA integrity_check'` at the least.
+
+Litestream covers the database only. The manuscript tree is files, and the
+nightly backup is still what keeps them; the two together are the recovery
+plan. Things that would break replication: replacing the database file under
+a running server, or running `VACUUM` (not `VACUUM INTO`) against it. The
+nightly backup uses `VACUUM INTO`, which only reads.
+
+## The write path
+
+The architecture rests on an assumption — a few writes a second, which one
+SQLite file absorbs without noticing — and it is measured rather than
+believed:
+
+| Number | What it is |
+|---|---|
+| writes/s | requests that change something, and the database calls they made |
+| write latency | each of those calls, waiting for a pooled connection included |
+| lock wait | how long a writer waits for SQLite's write lock, **sampled**: every five seconds a probe takes the lock (`BEGIN IMMEDIATE`) and times it |
+| busy | writes that gave up because the five-second busy timeout ran out |
+
+Lock wait is sampled because SQLite does that waiting inside its busy
+handler, which Diesel does not let the application hook. A probe that takes
+the same lock sees the same wait a write would have at that moment.
+
+The last minute and last fifteen minutes are on the `/status` page, and the
+status check fails when the p95 lock wait reaches 250 ms — the point at which
+writes are queueing, which the expected load should never cause. For a real
+dashboard, set `SCRIPTORIUM_METRICS_TOKEN` (16+ characters) and scrape
+`/api/metrics` with it as a bearer token; it is Prometheus text. Without the
+token set, the endpoint does not exist.
+
+If the numbers ever say SQLite is the bottleneck, the contingency is Postgres
+behind Diesel (see `ROADMAP.md`, *7.1*). They are there so that decision is
+made from a graph.
+
 ## Not built here
 
 - **Hosted error tracking** (Sentry or similar) needs an account and a DSN.

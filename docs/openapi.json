@@ -1893,6 +1893,33 @@
           }
         ]
       },
+      "Percentiles": {
+        "properties": {
+          "max": {
+            "format": "double",
+            "type": "number"
+          },
+          "p50": {
+            "format": "double",
+            "type": "number"
+          },
+          "p95": {
+            "format": "double",
+            "type": "number"
+          },
+          "p99": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "p50",
+          "p95",
+          "p99",
+          "max"
+        ],
+        "type": "object"
+      },
       "Profile": {
         "properties": {
           "bio": {
@@ -3175,13 +3202,21 @@
           },
           "version": {
             "type": "string"
+          },
+          "writePath": {
+            "description": "The last minute and the last fifteen.",
+            "items": {
+              "$ref": "#/components/schemas/WindowSummary"
+            },
+            "type": "array"
           }
         },
         "required": [
           "status",
           "version",
           "uptimeSeconds",
-          "checks"
+          "checks",
+          "writePath"
         ],
         "type": "object"
       },
@@ -4191,6 +4226,46 @@
           "open_ended"
         ],
         "type": "string"
+      },
+      "WindowSummary": {
+        "properties": {
+          "dbWritesPerSecond": {
+            "description": "Database calls made while serving them.",
+            "format": "double",
+            "type": "number"
+          },
+          "lockSamples": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "lockWaitMs": {
+            "$ref": "#/components/schemas/Percentiles",
+            "description": "Sampled: how long the write lock took to get, every few seconds."
+          },
+          "windowSeconds": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "writeMs": {
+            "$ref": "#/components/schemas/Percentiles"
+          },
+          "writeRequestsPerSecond": {
+            "description": "Requests that changed something.",
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "windowSeconds",
+          "writeRequestsPerSecond",
+          "dbWritesPerSecond",
+          "writeMs",
+          "lockWaitMs",
+          "lockSamples"
+        ],
+        "type": "object"
       },
       "Work": {
         "properties": {
@@ -6387,6 +6462,29 @@
         },
         "tags": [
           "goals"
+        ]
+      }
+    },
+    "/api/metrics": {
+      "get": {
+        "operationId": "metrics",
+        "responses": {
+          "200": {
+            "content": {
+              "text/plain": {}
+            },
+            "description": "Prometheus text"
+          },
+          "401": {
+            "description": "Wrong or missing token"
+          },
+          "404": {
+            "description": "Metrics are not turned on"
+          }
+        },
+        "summary": "Prometheus text for a dashboard to scrape. Exists only when\n`SCRIPTORIUM_METRICS_TOKEN` is set, and wants it as a bearer token.",
+        "tags": [
+          "health"
         ]
       }
     },
