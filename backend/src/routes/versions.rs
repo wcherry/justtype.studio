@@ -97,6 +97,23 @@ pub struct VersionContent {
     #[serde(flatten)]
     pub version: Version,
     pub chapters: Vec<ContentChapter>,
+    /// Every chapter on offer, in order, when this is one page of them — so a
+    /// reader can move between pages and count progress along the whole book.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub toc: Option<Vec<TocChapter>>,
+    /// Which chapter of `toc` this page holds, from zero.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub page: Option<i32>,
+}
+
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TocChapter {
+    pub chapter_id: String,
+    pub title: String,
+    /// In reading order.
+    pub scene_ids: Vec<String>,
+    pub word_count: i32,
 }
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
@@ -465,11 +482,20 @@ pub(crate) async fn assemble_content(
     let mut chapters: Vec<ContentChapter> = Vec::new();
 
     for entry in &detail.entries {
-        let content = state
-            .store
-            .read_version_scene(&work_id, &version_id, &entry.scene_id)
-            .await
-            .unwrap_or_else(|_| doc::empty_doc());
+        // A snapshot's scenes never change, so a body read once is served
+        // from memory after. A read that fails is not cached: it may be a
+        // file that is merely late.
+        let content = match state.scene_cache.get(&version_id, &entry.scene_id) {
+            Some(body) => (*body).clone(),
+            None => match state
+                .store
+                .read_version_scene(&work_id, &version_id, &entry.scene_id)
+                .await
+            {
+                Ok(body) => (*state.scene_cache.put(&version_id, &entry.scene_id, body)).clone(),
+                Err(_) => doc::empty_doc(),
+            },
+        };
         let scene = ContentScene {
             scene_id: entry.scene_id.clone(),
             title: entry.scene_title.clone(),
@@ -491,6 +517,8 @@ pub(crate) async fn assemble_content(
     Ok(VersionContent {
         version: detail.version,
         chapters,
+        toc: None,
+        page: None,
     })
 }
 

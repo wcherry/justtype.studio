@@ -16,6 +16,7 @@ pub mod profiles;
 pub mod publications;
 pub mod readers;
 pub mod scenes;
+pub mod search;
 pub mod status;
 pub mod support;
 pub mod tasks;
@@ -38,6 +39,7 @@ fn api_router() -> OpenApiRouter<AppState> {
         .routes(routes!(health))
         .routes(routes!(status::status))
         .routes(routes!(status::metrics))
+        .routes(routes!(search::search_work))
         .routes(routes!(auth::register))
         .routes(routes!(auth::login))
         .routes(routes!(auth::refresh))

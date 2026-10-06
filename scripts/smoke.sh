@@ -997,6 +997,46 @@ done
 bad=$(curl -s -o /dev/null -w '%{http_code}' "$API/versions/$V2/export?format=docx&style=fancy" -H "$AUTH")
 [ "$bad" = "400" ] && echo "  unknown style rejected with 400" || { echo "  EXPECTED 400, got $bad"; exit 1; }
 
+step "Reading a chapter at a time"
+curl -s "$API/publications/$PID/content?chapter=0" -H "$AUTH" | python3 -c "
+import sys,json;d=json.load(sys.stdin)
+assert len(d['chapters'])==1 and d['page']==0 and len(d['toc'])>1, (len(d['chapters']), d.get('page'))
+total=sum(len(c['sceneIds']) for c in d['toc'])
+print(f\"  page 1 of {len(d['toc'])}: {len(d['chapters'][0]['scenes'])} scenes on it, {total} in the table of contents\")"
+[ "$(curl -s -o /dev/null -w '%{http_code}' "$API/publications/$PID/content?chapter=99" -H "$AUTH")" = "404" ] \
+  && echo "  a chapter past the end is a 404" || { echo "  EXPECTED 404"; exit 1; }
+curl -s "$API/publications/$PID/content" -H "$AUTH" | python3 -c "
+import sys,json;d=json.load(sys.stdin);assert 'toc' not in d and len(d['chapters'])>1
+print('  without ?chapter, the whole slice as before — the iOS reader still asks that way')"
+curl -s "$API/metrics" -H "Authorization: Bearer smoke-metrics-token-0123456789" | python3 -c "
+import sys
+m=dict(l.split(' ') for l in sys.stdin.read().splitlines() if l and not l.startswith('#'))
+hits=int(m['scriptorium_scene_cache_hits_total']);assert hits>0, m
+print(f\"  snapshot scenes served from memory {hits} times, read from disk {m['scriptorium_scene_cache_misses_total']}\")"
+
+step "Searching"
+FIND=$(curl -s "$API/works/$WID/outline" -H "$AUTH" | field chapters.2.scenes.0.id)
+curl -s -X PUT "$API/scenes/$FIND/content" -H "$AUTH" -H 'content-type: application/json' \
+  -d '{"content":{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"The keepers walked the causeway at low water."}]}]}}' >/dev/null
+curl -s "$API/works/$WID/search?q=causew" -H "$AUTH" | python3 -c "
+import sys,json;rows=json.load(sys.stdin);assert rows and rows[0]['sceneId']=='$FIND', rows
+print('  a word saved a moment ago is found by its first letters:', rows[0]['snippet'].replace('\x02','[').replace('\x03',']'))"
+curl -s "$API/works/$WID/search?q=keeper" -H "$AUTH" | python3 -c "
+import sys,json;assert json.load(sys.stdin), 'stemming'
+print('  and \"keeper\" finds \"keepers\"')"
+curl -s "$API/works/$WID/search?q=%22%20AND%20NEAR(" -H "$AUTH" | python3 -c "
+import sys,json;json.load(sys.stdin);print('  quotes and operators typed into the box are words, not a syntax error')"
+[ "$(curl -s -o /dev/null -w '%{http_code}' "$API/works/$WID/search?q=field" -H "$HAUTH")" = "403" ] \
+  && echo "  someone not on the book cannot search it" || { echo "  EXPECTED 403"; exit 1; }
+curl -s "$API/publications?q=light%20gave" -H "$HAUTH" | python3 -c "
+import sys,json;rows=json.load(sys.stdin)
+assert isinstance(rows, list), rows
+assert rows and rows[0]['workTitle']=='The Long Field' and rows[0]['snippet'], rows
+print('  the feed finds a phrase in the published text:', rows[0]['snippet'].replace('\x02','[').replace('\x03',']'))"
+curl -s "$API/publications?q=field" | python3 -c "
+import sys,json;rows=json.load(sys.stdin);assert all(r['visibility']=='public' for r in rows), rows
+print(f'  signed out, the same search sees only public work ({len(rows)} found)')"
+
 step "Request ids"
 HDR=$(curl -s -D - -o /dev/null "$API/works" -H "$AUTH" | tr -d '\r' | awk -F': ' 'tolower($1)=="x-request-id"{print $2}')
 [ ${#HDR} -ge 8 ] && echo "  every response carries one: $HDR" || { echo "  NO REQUEST ID"; exit 1; }

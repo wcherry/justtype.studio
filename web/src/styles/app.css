@@ -222,6 +222,29 @@ button.danger { border-color: var(--del); color: var(--del); }
 .terms { max-width: var(--measure); font-family: var(--serif); line-height: 1.6; }
 .terms h1, .terms h2 { font-weight: 500; }
 
+/* --- reader pages -------------------------------------------------------- */
+
+.reader__pages {
+  display: flex; gap: 10px; align-items: center; justify-content: space-between;
+  margin: 32px 0 8px; padding-top: 16px; border-top: 1px solid var(--line);
+}
+.reader__pages select { width: auto; max-width: 40%; }
+.reader__pages button { max-width: 30%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* --- search ------------------------------------------------------------- */
+
+.snippet mark { background: var(--accent-soft); color: var(--ink); border-radius: 2px; padding: 0 1px; }
+.feed__search { flex: 1 1 220px; min-width: 180px; width: auto; font-size: 13px; }
+.find { padding: 0 16px 16px; }
+.find input { width: 100%; }
+.find__hits { list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 4px; }
+.find__hit {
+  display: grid; gap: 2px; text-align: left; width: 100%; border: none; background: none;
+  padding: 6px 8px; border-radius: var(--radius); font-size: 13px; color: var(--ink-soft);
+}
+.find__hit:hover { background: var(--accent-soft); }
+.find__hit strong { color: var(--ink); font-weight: 500; }
+
 /* --- status ------------------------------------------------------------- */
 
 .status__checks { list-style: none; padding: 0; display: grid; gap: 10px; }
@@ -385,7 +408,14 @@ button.danger { border-color: var(--del); color: var(--del); }
 }
 .editor__header h1 { font-family: var(--serif); font-weight: 500; font-size: 22px; margin: 0; }
 .editor__meta { color: var(--ink-faint); font-size: 12px; margin: 2px 0 0; }
-.editor__header-actions { display: flex; align-items: center; gap: 10px; }
+/* Fifteen tools and a side panel do not fit on one line; they wrap into a
+   second row rather than squeezing labels into columns or under the panel. */
+.editor__header > div:first-child { flex: 0 1 220px; min-width: 160px; }
+.editor__header-actions {
+  display: flex; align-items: center; gap: 6px 8px;
+  flex-wrap: wrap; justify-content: flex-end; min-width: 0;
+}
+.editor__header-actions button { white-space: nowrap; }
 .editor__header-actions select { width: auto; }
 
 .save { font-size: 12px; color: var(--ink-faint); min-width: 92px; text-align: right; }

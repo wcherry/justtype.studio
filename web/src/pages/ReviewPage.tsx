@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { api } from '../api/client'
 import type { CommentFilters } from '../api/client'
 import { parseAnchor } from '../api/types'
@@ -17,6 +17,10 @@ import { useAuth } from '../state/auth'
 
 export function ReviewPage() {
   const { publicationId = '' } = useParams()
+  const [params, setParams] = useSearchParams()
+  // A chapter at a time: a novel is eighty scenes, and the first page should
+  // not wait for the last. In the URL, so a reload keeps the reader's place.
+  const page = Math.max(0, Number(params.get('chapter') ?? 0) || 0)
   const { user } = useAuth()
   const [card, setCard] = useState<PublicationCard | null>(null)
   const [content, setContent] = useState<VersionContent | null>(null)
@@ -35,17 +39,31 @@ export function ReviewPage() {
   }, [publicationId, filters])
 
   useEffect(() => {
-    Promise.all([api.publications.get(publicationId), api.publications.content(publicationId)])
-      .then(([nextCard, nextContent]) => {
-        setCard(nextCard)
-        setContent(nextContent)
-      })
+    api.publications.get(publicationId)
+      .then(setCard)
       .catch((e) => setError(e instanceof Error ? e.message : 'Could not open that publication'))
     loadComments()
     void api.feedback.reactions(publicationId).then(setReactions).catch(() => setReactions([]))
     void api.feedback.questions(publicationId).then(setQuestions).catch(() => setQuestions([]))
     void api.feedback.answers(publicationId).then(setAnswers).catch(() => setAnswers([]))
   }, [publicationId, loadComments])
+
+  useEffect(() => {
+    api.publications.content(publicationId, page)
+      .then((next) => {
+        setContent(next)
+        window.scrollTo({ top: 0 })
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : 'Could not open that chapter'))
+  }, [publicationId, page])
+
+  const goTo = (next: number) =>
+    setParams((current) => {
+      const updated = new URLSearchParams(current)
+      if (next === 0) updated.delete('chapter')
+      else updated.set('chapter', String(next))
+      return updated
+    })
 
   /** This reader's own marks, keyed the way the gutter wants them. */
   const marksByScene = useMemo(() => {
@@ -119,16 +137,21 @@ export function ReviewPage() {
     return map
   }, [comments])
 
-  /** Reading order, which is what a progress index counts along. */
+  /** Reading order across the whole book, which is what a progress index
+   *  counts along — not just the chapter on screen. */
   const sceneIds = useMemo(
-    () => content?.chapters.flatMap((chapter) => chapter.scenes.map((scene) => scene.sceneId)) ?? [],
+    () => content?.toc?.flatMap((chapter) => chapter.sceneIds)
+      ?? content?.chapters.flatMap((chapter) => chapter.scenes.map((scene) => scene.sceneId))
+      ?? [],
     [content],
   )
+  const chapterCount = content?.toc?.length ?? 1
+  const lastPage = page >= chapterCount - 1
 
   // An author scrolling through their own draft is not a reader, and counting
   // them would put a 100% beside their own name on every publication.
   const isAuthor = !!user && card?.author.id === user.id
-  useReadingProgress(publicationId, sceneIds, !!card && !isAuthor)
+  useReadingProgress(publicationId, sceneIds, !!card && !isAuthor, content?.page ?? null)
 
   const chapterQuestions = questions.filter((q) => q.scope === 'chapter')
   const workQuestions = questions.filter((q) => q.scope === 'work')
@@ -189,7 +212,25 @@ export function ReviewPage() {
           </section>
         ))}
 
-        {!isAuthor && workQuestions.length > 0 && (
+        {chapterCount > 1 && content.toc && (
+          <nav className="reader__pages" aria-label="Chapters">
+            <button type="button" disabled={page === 0} onClick={() => goTo(page - 1)}>
+              ← {page > 0 ? content.toc[page - 1].title : 'Previous'}
+            </button>
+            <select value={page} onChange={(e) => goTo(Number(e.target.value))} aria-label="Go to chapter">
+              {content.toc.map((chapter, i) => (
+                <option key={chapter.chapterId} value={i}>
+                  {i + 1}. {chapter.title}
+                </option>
+              ))}
+            </select>
+            <button type="button" disabled={lastPage} onClick={() => goTo(page + 1)}>
+              {!lastPage ? content.toc[page + 1].title : 'Next'} →
+            </button>
+          </nav>
+        )}
+
+        {lastPage && !isAuthor && workQuestions.length > 0 && (
           <div className="questions questions--end">
             <h3>{card.author.displayName} would like to know</h3>
             {workQuestions.map((question) => (

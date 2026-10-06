@@ -29,6 +29,13 @@ export function FeedPage() {
   const [cards, setCards] = useState<PublicationCard[]>([])
   const [scope, setScope] = useState<Scope>('everyone')
   const [filters, setFilters] = useState<FeedFilters>({})
+  const [q, setQ] = useState('')
+  const [searching, setSearching] = useState('')
+  // Searched a moment after typing stops, not on every key.
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSearching(q), 300)
+    return () => window.clearTimeout(timer)
+  }, [q])
   const mine = scope === 'mine'
   const queue = filters.sort === 'needs_readers' && !mine
   const [managing, setManaging] = useState<string | null>(null)
@@ -39,13 +46,13 @@ export function FeedPage() {
 
   const load = useCallback(() => {
     api.publications
-      .feed({ ...filters, mine, following: scope === 'following' })
+      .feed({ ...filters, mine, following: scope === 'following', q: searching })
       .then((next) => {
         setCards(next)
         setError(null)
       })
       .catch((e) => setError(e.message))
-  }, [mine, scope, filters])
+  }, [mine, scope, filters, searching])
 
   const narrow = <K extends keyof FeedFilters>(key: K, value: string) =>
     setFilters((current) => ({ ...current, [key]: (value || undefined) as FeedFilters[K] }))
@@ -92,6 +99,13 @@ export function FeedPage() {
       )}
 
       <div className="feed__filters">
+        <input
+          type="search"
+          className="feed__search"
+          placeholder="Find a title, an author, a line…"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+        />
         <select aria-label="Form" value={filters.kind ?? ''} onChange={(e) => narrow('kind', e.target.value)}>
           <option value="">Any form</option>
           {FORMS.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}

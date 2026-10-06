@@ -2103,6 +2103,13 @@
                 "format": "int64",
                 "type": "integer"
               },
+              "snippet": {
+                "description": "Words around what a search matched, when this card came from one;\nmatched words sit between U+0002 and U+0003.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
               "versionLabel": {
                 "type": "string"
               },
@@ -2904,6 +2911,30 @@
         ],
         "type": "object"
       },
+      "SceneHit": {
+        "properties": {
+          "chapterId": {
+            "type": "string"
+          },
+          "sceneId": {
+            "type": "string"
+          },
+          "snippet": {
+            "description": "A few words around the match; matched words sit between U+0002 and\nU+0003.",
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "sceneId",
+          "chapterId",
+          "title",
+          "snippet"
+        ],
+        "type": "object"
+      },
       "SceneRevision": {
         "properties": {
           "authorId": {
@@ -3404,6 +3435,34 @@
         "required": [
           "op",
           "value"
+        ],
+        "type": "object"
+      },
+      "TocChapter": {
+        "properties": {
+          "chapterId": {
+            "type": "string"
+          },
+          "sceneIds": {
+            "description": "In reading order.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "title": {
+            "type": "string"
+          },
+          "wordCount": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "chapterId",
+          "title",
+          "sceneIds",
+          "wordCount"
         ],
         "type": "object"
       },
@@ -4054,6 +4113,24 @@
                   "$ref": "#/components/schemas/ContentChapter"
                 },
                 "type": "array"
+              },
+              "page": {
+                "description": "Which chapter of `toc` this page holds, from zero.",
+                "format": "int32",
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "toc": {
+                "description": "Every chapter on offer, in order, when this is one page of them — so a\nreader can move between pages and count progress along the whole book.",
+                "items": {
+                  "$ref": "#/components/schemas/TocChapter"
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
               }
             },
             "required": [
@@ -6831,6 +6908,7 @@
     },
     "/api/publications/{publication_id}/content": {
       "get": {
+        "description": "A page reads only its own chapter's files, which is the point: a novel is\neighty scenes, and the first page should not wait for the last.",
         "operationId": "content",
         "parameters": [
           {
@@ -6839,6 +6917,16 @@
             "required": true,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "description": "One chapter, from zero",
+            "in": "query",
+            "name": "chapter",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
             }
           }
         ],
@@ -6864,7 +6952,7 @@
             "description": "Refused"
           }
         },
-        "summary": "The manuscript as reviewers see it: the frozen snapshot, narrowed to the\nslice the author published.",
+        "summary": "The manuscript as reviewers see it: the frozen snapshot, narrowed to the\nslice the author published — whole, or a chapter at a time.",
         "tags": [
           "publications"
         ]
@@ -9607,6 +9695,58 @@
             "description": "Refused"
           }
         },
+        "tags": [
+          "works"
+        ]
+      }
+    },
+    "/api/works/{work_id}/search": {
+      "get": {
+        "operationId": "search_work",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SceneHit"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Scenes that match"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "Finds words in a work's working text, best matches first.",
         "tags": [
           "works"
         ]

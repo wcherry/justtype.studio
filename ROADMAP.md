@@ -591,10 +591,22 @@ schema is portable as written and every query already runs through
 `db::blocking`, so it is a contained change. It is a contingency, not a plan —
 do not build toward it, and do not carry a compatibility layer for it.
 
-### 7.2 Performance
-- Cache assembled version content; snapshots are immutable, so caching is free.
-- Paginate the review reader for novel-length works.
-- Full-text search across a work, and across the review feed.
+### 7.2 Performance — **done**
+- Snapshot scene bodies are cached in memory, keyed by version and scene,
+  least recently read evicted first under a byte budget. Only the bodies: a
+  version's own row (label, state) does change, so the assembled response is
+  never cached. Hits and misses are on `/api/metrics`.
+- The review reader goes a chapter at a time (`?chapter=N`, with a table of
+  contents), and a page reads only its own chapter's files. Progress is still
+  counted along the whole book — the table of contents carries every scene in
+  order, so moving to chapter two does not restart the count. Without
+  `?chapter` the endpoint answers as before, which is how the iOS reader asks.
+- Full-text search (SQLite FTS5) within a work's working text — a Find panel
+  in the editor — and across the review feed, titles and published text both.
+  The indexes are refreshed by the search that reads them, from what each row
+  was built from, so they cannot drift from a write path that forgot them.
+  Separate indexes for the short fields and the text, because FTS5 scores
+  against a whole row's length and a novel's text would bury its own title.
 
 ### 7.3 Real-time
 - WebSocket channel for live comment updates in the review reader.

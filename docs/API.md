@@ -256,9 +256,9 @@ shape against the scene as it stands now — what restoring it would change.
 | Method | Path | Notes |
 |---|---|---|
 | `POST` | `/versions/{id}/publications` | `visibility`, `scope`, `scopeRefId`, `reviewPrompt`, `opensAt`, `closesAt`, `maxReviewers` |
-| `GET` | `/publications` | review feed; `?mine=true`, `?following=true`, `?author=`, `?kind=`, `?genre=`, `?length=`, `?window=`, `?sort=`, `limit`, `offset` |
+| `GET` | `/publications` | review feed; `?q=`, `?mine=true`, `?following=true`, `?author=`, `?kind=`, `?genre=`, `?length=`, `?window=`, `?sort=`, `limit`, `offset` |
 | `GET` | `/publications/{id}` | card with author, counts and excerpt |
-| `GET` | `/publications/{id}/content` | the snapshot, narrowed to the published scope |
+| `GET` | `/publications/{id}/content` | the snapshot, narrowed to the published scope; `?chapter=N` for one chapter (from zero) with a `toc` of the whole slice |
 | `PATCH` | `/publications/{id}` | `visibility`, `reviewPrompt`, `closesAt`, `maxReviewers` (`0` removes the cap) |
 | `DELETE` | `/publications/{id}` | withdraws it, comments included |
 
@@ -584,3 +584,29 @@ It has no foreign keys, so the line saying an account was deleted outlives it.
 Every response has an `x-request-id` header, and every error envelope repeats
 it as `error.requestId`. A client may send its own (8–64 letters, digits, `-`
 or `_`) and it is kept.
+
+## Search
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/works/{id}/search?q=` | the work's working text, best first; anyone who can read the work |
+| `GET` | `/publications?q=` | the feed, best match first, each card with a `snippet` |
+
+SQLite FTS5, with stemming (`keeper` finds `keepers`) and the last word
+matched as a prefix, for searching as you type. Whatever is typed is turned
+into quoted words, so quotes, `AND`, `NEAR` and colons are just words. In a
+`snippet`, matched words sit between U+0002 and U+0003 — not HTML, so text
+from a manuscript is only ever text.
+
+The feed searches titles, authors, prompts and synopses first and the
+published text second, in separate indexes: FTS5 scores a match against the
+length of the whole row, and one row holding a title and a novel would bury
+every novel's title under its own text. A search ranks, and then the feed's
+usual rules decide what the caller may see, so a search never reaches
+anything the feed would not show.
+
+Both indexes are brought up to date by the search that reads them: each
+indexed row remembers what it was built from (a scene's content hash, a
+publication's metadata), and anything that has moved since is re-read. A
+scene is written from a dozen places, and an index each of them had to
+remember to update would drift.

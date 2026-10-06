@@ -699,6 +699,9 @@ export interface PublicationCard {
   genre?: Genre | null
   // Distinct people who have opened it or left a note, the author excepted.
   readerCount: number
+  // Words around what a search matched, when this card came from one;
+  // matched words sit between U+0002 and U+0003.
+  snippet?: string | null
   versionLabel: string
   wordCount: number
   workKind: string
@@ -963,6 +966,15 @@ export interface SceneDiff {
   wordsBefore: number
 }
 
+export interface SceneHit {
+  chapterId: string
+  sceneId: string
+  // A few words around the match; matched words sit between U+0002 and
+  // U+0003.
+  snippet: string
+  title: string
+}
+
 export interface SceneRevision {
   authorId: string
   contentHash: string
@@ -1155,6 +1167,14 @@ export interface TextChange {
   value: string
 }
 
+export interface TocChapter {
+  chapterId: string
+  // In reading order.
+  sceneIds: string[]
+  title: string
+  wordCount: number
+}
+
 export interface TokenRequest {
   token: string
 }
@@ -1341,6 +1361,11 @@ export interface VersionContent {
   wordCount: number
   workId: string
   chapters: ContentChapter[]
+  // Which chapter of `toc` this page holds, from zero.
+  page?: number | null
+  // Every chapter on offer, in order, when this is one page of them — so a
+  // reader can move between pages and count progress along the whole book.
+  toc?: TocChapter[] | null
 }
 
 export interface VersionDetail {

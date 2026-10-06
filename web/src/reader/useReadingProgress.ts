@@ -11,7 +11,17 @@ const SETTLE_MS = 1200
  * been as far as they were. The server keeps its own furthest mark as well, so
  * a request lost to a closed tab costs nothing — the next scene supersedes it.
  */
-export function useReadingProgress(publicationId: string, sceneIds: string[], enabled: boolean) {
+export function useReadingProgress(
+  publicationId: string,
+  sceneIds: string[],
+  enabled: boolean,
+  /**
+   * Changes when different scenes are on screen — a new page of a paginated
+   * reader — so they are watched. The ids are the whole book either way, so
+   * the index stays the book's, not the page's.
+   */
+  showing: unknown = null,
+) {
   const sent = useRef(-1)
   // Effects compare dependencies by identity, and the caller rebuilds this list
   // on every render; the joined ids are the thing that actually changes.
@@ -56,5 +66,5 @@ export function useReadingProgress(publicationId: string, sceneIds: string[], en
       window.clearTimeout(timer)
       flush()
     }
-  }, [publicationId, key, enabled])
+  }, [publicationId, key, enabled, showing])
 }

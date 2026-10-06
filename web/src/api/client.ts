@@ -9,7 +9,7 @@ import type {
   QuestionKind, QuestionScope, Standing, BulkStateResponse, ReportReason, TaskView,
   TaskState, ReportView, BlockView, SinceResponse, Profile, FollowState, AuthorCard,
   Genre, LengthBand, WindowFilter, FeedSort, CollaboratorRole, CollaboratorView, ActivityView,
-  SessionView, TwoFactorSetup, RecoveryCodes, AuditEvent, Terms, StatusReport,
+  SessionView, TwoFactorSetup, RecoveryCodes, AuditEvent, Terms, StatusReport, SceneHit,
 } from './types'
 
 const BASE = '/api'
@@ -254,6 +254,8 @@ export const api = {
       },
     ) => patch<Work>(`/works/${workId}`, input),
     remove: (workId: string) => del<{ ok: boolean }>(`/works/${workId}`),
+    search: (workId: string, q: string) =>
+      get<SceneHit[]>(`/works/${workId}/search?q=${encodeURIComponent(q)}`),
   },
 
   chapters: {
@@ -352,8 +354,9 @@ export const api = {
       maxReviewers?: number
       spoilerSafe?: boolean
     }) => post<PublicationCard>(`/versions/${versionId}/publications`, input),
-    feed: (opts: FeedFilters & { mine?: boolean; following?: boolean; author?: string } = {}) => {
+    feed: (opts: FeedFilters & { mine?: boolean; following?: boolean; author?: string; q?: string } = {}) => {
       const params = new URLSearchParams()
+      if (opts.q?.trim()) params.set('q', opts.q.trim())
       if (opts.mine) params.set('mine', 'true')
       if (opts.following) params.set('following', 'true')
       if (opts.author) params.set('author', opts.author)
@@ -366,7 +369,11 @@ export const api = {
       return get<PublicationCard[]>(`/publications${qs ? `?${qs}` : ''}`)
     },
     get: (publicationId: string) => get<PublicationCard>(`/publications/${publicationId}`),
-    content: (publicationId: string) => get<VersionContent>(`/publications/${publicationId}/content`),
+    /** With `chapter`, one chapter and the table of contents; without, everything. */
+    content: (publicationId: string, chapter?: number) =>
+      get<VersionContent>(
+        `/publications/${publicationId}/content${chapter === undefined ? '' : `?chapter=${chapter}`}`,
+      ),
     update: (
       publicationId: string,
       input: Partial<Pick<Publication, 'visibility' | 'reviewPrompt' | 'closesAt'>> & {

@@ -47,7 +47,15 @@ pub async fn metrics(
     if Sha256::digest(presented.as_bytes()) != Sha256::digest(token.as_bytes()) {
         return Err(StatusCode::UNAUTHORIZED);
     }
-    Ok(crate::metrics::prometheus())
+    let cache = &state.scene_cache;
+    let mut out = crate::metrics::prometheus();
+    out.push_str(&format!(
+        "scriptorium_scene_cache_bytes {}\nscriptorium_scene_cache_hits_total {}\nscriptorium_scene_cache_misses_total {}\n",
+        cache.bytes(),
+        cache.hits.load(std::sync::atomic::Ordering::Relaxed),
+        cache.misses.load(std::sync::atomic::Ordering::Relaxed),
+    ));
+    Ok(out)
 }
 
 /// A backup older than this means last night's did not happen.

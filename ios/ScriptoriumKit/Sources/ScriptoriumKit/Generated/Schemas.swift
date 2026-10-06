@@ -1763,6 +1763,9 @@ public enum API {
         public var genre: Genre?
         /// Distinct people who have opened it or left a note, the author excepted.
         public var readerCount: Int
+        /// Words around what a search matched, when this card came from one;
+        /// matched words sit between U+0002 and U+0003.
+        public var snippet: String?
         public var versionLabel: String
         public var wordCount: Int
         public var workKind: String
@@ -1788,6 +1791,7 @@ public enum API {
             excerpt: String,
             genre: Genre? = nil,
             readerCount: Int,
+            snippet: String? = nil,
             versionLabel: String,
             wordCount: Int,
             workKind: String,
@@ -1812,6 +1816,7 @@ public enum API {
             self.excerpt = excerpt
             self.genre = genre
             self.readerCount = readerCount
+            self.snippet = snippet
             self.versionLabel = versionLabel
             self.wordCount = wordCount
             self.workKind = workKind
@@ -2465,6 +2470,27 @@ public enum API {
         }
     }
 
+    public struct SceneHit: Codable, Hashable, Sendable {
+        public var chapterId: String
+        public var sceneId: String
+        /// A few words around the match; matched words sit between U+0002 and
+        /// U+0003.
+        public var snippet: String
+        public var title: String
+
+        public init(
+            chapterId: String,
+            sceneId: String,
+            snippet: String,
+            title: String
+        ) {
+            self.chapterId = chapterId
+            self.sceneId = sceneId
+            self.snippet = snippet
+            self.title = title
+        }
+    }
+
     public struct SceneRevision: Codable, Hashable, Sendable {
         public var authorId: String
         public var contentHash: String
@@ -2939,6 +2965,26 @@ public enum API {
         }
     }
 
+    public struct TocChapter: Codable, Hashable, Sendable {
+        public var chapterId: String
+        /// In reading order.
+        public var sceneIds: [String]
+        public var title: String
+        public var wordCount: Int
+
+        public init(
+            chapterId: String,
+            sceneIds: [String],
+            title: String,
+            wordCount: Int
+        ) {
+            self.chapterId = chapterId
+            self.sceneIds = sceneIds
+            self.title = title
+            self.wordCount = wordCount
+        }
+    }
+
     public struct TokenRequest: Codable, Hashable, Sendable {
         public var token: String
 
@@ -3373,6 +3419,11 @@ public enum API {
         public var wordCount: Int
         public var workId: String
         public var chapters: [ContentChapter]
+        /// Which chapter of `toc` this page holds, from zero.
+        public var page: Int?
+        /// Every chapter on offer, in order, when this is one page of them — so a
+        /// reader can move between pages and count progress along the whole book.
+        public var toc: [TocChapter]?
 
         public init(
             createdAt: String,
@@ -3389,7 +3440,9 @@ public enum API {
             state: VersionState,
             wordCount: Int,
             workId: String,
-            chapters: [ContentChapter]
+            chapters: [ContentChapter],
+            page: Int? = nil,
+            toc: [TocChapter]? = nil
         ) {
             self.createdAt = createdAt
             self.createdBy = createdBy
@@ -3406,6 +3459,8 @@ public enum API {
             self.wordCount = wordCount
             self.workId = workId
             self.chapters = chapters
+            self.page = page
+            self.toc = toc
         }
     }
 

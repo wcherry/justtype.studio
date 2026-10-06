@@ -1,4 +1,5 @@
 mod auth;
+mod cache;
 mod config;
 mod db;
 mod domain;
@@ -153,6 +154,7 @@ async fn main() -> anyhow::Result<()> {
         .expose_headers([ops::REQUEST_ID_HEADER.clone()]);
 
     let bind_addr = config.bind_addr;
+    let cache_bytes = config.cache_mb * 1024 * 1024;
     let mailer = mail::Mailer::from_env(&config.data_dir)?;
     let state = AppState {
         mailer,
@@ -161,6 +163,7 @@ async fn main() -> anyhow::Result<()> {
         pool,
         store,
         limiter: Arc::new(limit::RateLimiter::new()),
+        scene_cache: Arc::new(cache::SceneCache::new(cache_bytes)),
     };
 
     // Outermost first in effect: the request id wraps everything, so even a

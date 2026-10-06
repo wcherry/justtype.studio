@@ -27,6 +27,8 @@ pub struct Config {
     pub log_format: String,
     /// Bearer token for `/api/metrics`. Unset, that endpoint does not exist.
     pub metrics_token: Option<String>,
+    /// Memory for snapshot scene bodies, in megabytes.
+    pub cache_mb: usize,
 }
 
 fn env_or(key: &str, default: &str) -> String {
@@ -67,6 +69,7 @@ impl Config {
                 .map(PathBuf::from),
             backup_keep: env_or("SCRIPTORIUM_BACKUP_KEEP", "14").parse()?,
             log_format: env_or("SCRIPTORIUM_LOG_FORMAT", "text"),
+            cache_mb: env_or("SCRIPTORIUM_CACHE_MB", "64").parse()?,
             metrics_token: std::env::var("SCRIPTORIUM_METRICS_TOKEN")
                 .ok()
                 .filter(|s| s.len() >= 16),

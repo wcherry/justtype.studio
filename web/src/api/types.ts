@@ -98,6 +98,8 @@ export type {
   AuditAction,
   Terms,
   StatusReport,
+  SceneHit,
+  TocChapter,
   Check,
   WorkAccess,
   CollaboratorRole,

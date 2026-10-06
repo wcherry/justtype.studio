@@ -1,7 +1,7 @@
 //! A publication is the offer of one frozen version to readers. It carries the
 //! visibility, the slice of the work on offer, and the prompt the author wants
 //! feedback against.
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use axum::extract::{Path, Query, State};
 use axum::Json;
@@ -90,6 +90,10 @@ pub struct PublicationCard {
     /// Other people's publications this author has left notes on — what lifts
     /// their work in the needs-readers queue.
     pub author_reviews_given: i64,
+    /// Words around what a search matched, when this card came from one;
+    /// matched words sit between U+0002 and U+0003.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub snippet: Option<String>,
     /// First lines of the published slice, for the feed. Filled in after the
     /// database round trip because it comes off disk — always sent, even when
     /// empty, so clients do not have to treat it as optional.
@@ -214,6 +218,7 @@ fn load_card(conn: &mut crate::db::Conn, publication_id: &str) -> ApiResult<Publ
         .unwrap_or(0);
 
     Ok(PublicationCard {
+        snippet: None,
         genre: work.genre,
         reader_count,
         author_reviews_given,
@@ -304,6 +309,10 @@ pub struct FeedQuery {
     #[serde(default)]
     #[schema(value_type = Option<crate::domain::enums::WindowFilter>)]
     pub window: Option<String>,
+    /// Words to find: in the title, the author's name, the prompt, the
+    /// synopsis and the published text. Results come best match first.
+    #[serde(default)]
+    pub q: Option<String>,
     /// `newest` (the default) or `needs_readers`.
     #[serde(default)]
     #[schema(value_type = Option<crate::domain::enums::FeedSort>)]
@@ -402,6 +411,14 @@ pub async fn feed_cards(
         (u.id, email)
     });
     let needs_readers = query.sort.as_deref() == Some("needs_readers");
+    // A search ranks first and filters second: the ranking says what matched,
+    // and the feed's own rules below still decide what this caller may see.
+    let ranked = match query.q.as_deref() {
+        Some(q) => super::search::rank_publications(state, q).await?,
+        None => None,
+    };
+    let snippets: HashMap<String, String> =
+        ranked.clone().unwrap_or_default().into_iter().collect();
 
     let cards = blocking(&state.pool, move |conn| {
         let mut q = publications::table
@@ -485,6 +502,23 @@ pub async fn feed_cards(
             _ => {}
         }
 
+        if let Some(ranked) = &ranked {
+            let order: Vec<String> = ranked.iter().map(|(id, _)| id.clone()).collect();
+            let allowed: HashSet<String> = q
+                .filter(publications::id.eq_any(&order))
+                .select(publications::id)
+                .load::<String>(conn)?
+                .into_iter()
+                .collect();
+            return order
+                .iter()
+                .filter(|id| allowed.contains(*id))
+                .skip(offset as usize)
+                .take(limit as usize)
+                .map(|id| load_card(conn, id))
+                .collect::<ApiResult<Vec<_>>>();
+        }
+
         if !needs_readers {
             let ids: Vec<String> = q
                 .order(publications::created_at.desc())
@@ -552,6 +586,7 @@ pub async fn feed_cards(
     let mut cards = cards;
     for card in &mut cards {
         attach_excerpt(state, card).await;
+        card.snippet = snippets.get(&card.publication.id).cloned();
     }
     Ok(cards)
 }
@@ -581,13 +616,28 @@ pub async fn get_one(
     Ok(Json(card))
 }
 
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ContentQuery {
+    /// One chapter of the slice, from zero, with the table of contents beside
+    /// it. Omitted, the whole slice at once.
+    #[serde(default)]
+    pub chapter: Option<i32>,
+}
+
 /// The manuscript as reviewers see it: the frozen snapshot, narrowed to the
-/// slice the author published.
+/// slice the author published — whole, or a chapter at a time.
+///
+/// A page reads only its own chapter's files, which is the point: a novel is
+/// eighty scenes, and the first page should not wait for the last.
 #[utoipa::path(
     get,
     path = "/api/publications/{publication_id}/content",
     tag = "publications",
-    params(("publication_id" = String, Path)),
+    params(
+        ("publication_id" = String, Path),
+        ("chapter" = Option<i32>, Query, description = "One chapter, from zero"),
+    ),
     responses(
         (status = 200, description = "Success", body = VersionContent),
         (status = 4XX, description = "Refused", body = ErrorEnvelope),
@@ -597,6 +647,7 @@ pub async fn content(
     State(state): State<AppState>,
     MaybeAuthUser(user): MaybeAuthUser,
     Path(publication_id): Path<String>,
+    Query(query): Query<ContentQuery>,
 ) -> ApiResult<Json<VersionContent>> {
     let (publication, detail) = blocking(&state.pool, move |conn| {
         let (publication, _) =
@@ -625,8 +676,39 @@ pub async fn content(
     })
     .await?;
 
-    let detail = narrow_to_scope(&publication, detail);
-    let content = super::versions::assemble_content(&state, detail).await?;
+    let mut detail = narrow_to_scope(&publication, detail);
+    let Some(page) = query.chapter else {
+        return Ok(Json(
+            super::versions::assemble_content(&state, detail).await?,
+        ));
+    };
+
+    let mut toc: Vec<super::versions::TocChapter> = Vec::new();
+    for entry in &detail.entries {
+        match toc.last_mut() {
+            Some(last) if last.chapter_id == entry.chapter_id => {
+                last.scene_ids.push(entry.scene_id.clone());
+                last.word_count += entry.word_count;
+            }
+            _ => toc.push(super::versions::TocChapter {
+                chapter_id: entry.chapter_id.clone(),
+                title: entry.chapter_title.clone(),
+                scene_ids: vec![entry.scene_id.clone()],
+                word_count: entry.word_count,
+            }),
+        }
+    }
+    let Some(wanted) = usize::try_from(page).ok().and_then(|i| toc.get(i)) else {
+        return Err(ApiError::NotFound(format!(
+            "there are {} chapters on offer; chapter {page} is not one of them",
+            toc.len()
+        )));
+    };
+    let wanted = wanted.chapter_id.clone();
+    detail.entries.retain(|e| e.chapter_id == wanted);
+    let mut content = super::versions::assemble_content(&state, detail).await?;
+    content.toc = Some(toc);
+    content.page = Some(page);
     Ok(Json(content))
 }
 

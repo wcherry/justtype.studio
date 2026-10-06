@@ -16,4 +16,6 @@ pub struct AppState {
     pub limiter: Arc<RateLimiter>,
     pub mailer: Mailer,
     pub started_at: std::time::Instant,
+    /// Snapshot scene bodies — see `cache`.
+    pub scene_cache: Arc<crate::cache::SceneCache>,
 }

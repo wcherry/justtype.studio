@@ -10,6 +10,7 @@ import type { Outline as OutlineType, Scene, SceneWithContent, VersionSummary } 
 import { ActivityPanel } from '../components/ActivityPanel'
 import { ChangesPanel } from '../components/ChangesPanel'
 import { CollaboratorsPanel } from '../components/CollaboratorsPanel'
+import { FindPanel } from '../components/FindPanel'
 import { ConflictBanner } from '../components/ConflictBanner'
 import { Corkboard } from '../components/Corkboard'
 import { FrontMatter } from '../components/FrontMatter'
@@ -62,6 +63,7 @@ export function EditorPage() {
       | 'tasks'
       | 'people'
       | 'activity'
+      | 'find'
     >('none')
   const [view, setView] = useState<'write' | 'corkboard'>('write')
   /** What the writer has selected, in the same positions a proposal records. */
@@ -391,6 +393,12 @@ export function EditorPage() {
             )}
             <button
               type="button"
+              onClick={() => setPanel((p) => (p === 'find' ? 'none' : 'find'))}
+            >
+              Find
+            </button>
+            <button
+              type="button"
               onClick={() => setPanel((p) => (p === 'people' ? 'none' : 'people'))}
             >
               People
@@ -596,6 +604,23 @@ export function EditorPage() {
             onSaved={(work) =>
               setOutline((current) => (current ? { ...current, ...work } : current))
             }
+          />
+        </aside>
+      )}
+
+      {panel === 'find' && (
+        <aside className="versions">
+          <header className="versions__header">
+            <h3>Find</h3>
+          </header>
+          <FindPanel
+            workId={workId}
+            onOpen={(id) => {
+              const target = outline.chapters
+                .flatMap((chapter) => chapter.scenes)
+                .find((candidate) => candidate.id === id)
+              if (target) void openScene(target)
+            }}
           />
         </aside>
       )}

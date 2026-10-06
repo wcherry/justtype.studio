@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import type { PublicationCard } from '../api/types'
 import { genreLabel } from './labels'
+import { Snippet } from './Snippet'
 
 /**
  * One publication as the feed and a profile both show it.
@@ -27,7 +28,9 @@ export function PublicationTile({ card }: { card: PublicationCard }) {
         </span>
       </p>
       {card.reviewPrompt && <p className="feed__prompt">“{card.reviewPrompt}”</p>}
-      {card.excerpt && <p className="feed__excerpt">{card.excerpt}</p>}
+      {card.snippet
+        ? <p className="feed__excerpt"><Snippet text={card.snippet} /></p>
+        : card.excerpt && <p className="feed__excerpt">{card.excerpt}</p>}
       {card.authorReviewsGiven > 0 && (
         <p className="feed__reciprocity">
           {card.author.displayName} has read for {card.authorReviewsGiven} other writer
