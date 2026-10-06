@@ -68,7 +68,7 @@ export interface AnswerView {
   reader: AuthorCard
 }
 
-export type AuditAction = 'password_reset' | 'password_changed' | 'two_factor_enabled' | 'two_factor_disabled' | 'session_revoked' | 'sessions_revoked' | 'account_exported' | 'account_deleted' | 'work_deleted' | 'publication_created' | 'publication_changed' | 'publication_withdrawn' | 'collaborator_added' | 'collaborator_changed' | 'collaborator_removed' | 'reader_invited' | 'reader_uninvited' | 'reader_blocked' | 'reader_unblocked' | 'terms_accepted' | 'share_link_made' | 'share_links_revoked'
+export type AuditAction = 'password_reset' | 'password_changed' | 'two_factor_enabled' | 'two_factor_disabled' | 'session_revoked' | 'sessions_revoked' | 'account_exported' | 'account_deleted' | 'work_deleted' | 'publication_created' | 'publication_changed' | 'publication_withdrawn' | 'collaborator_added' | 'collaborator_changed' | 'collaborator_removed' | 'reader_invited' | 'reader_uninvited' | 'reader_blocked' | 'reader_unblocked' | 'terms_accepted' | 'share_link_made' | 'share_links_revoked' | 'summaries_allowed' | 'summaries_withdrawn'
 
 export interface AuditEvent {
   action: AuditAction
@@ -498,6 +498,13 @@ export interface ErrorBody {
 // clients can type their error handling instead of guessing.
 export interface ErrorEnvelope {
   error: ErrorBody
+}
+
+export interface Features {
+  // Whether this server can write summaries at all.
+  summaries: boolean
+  // Who writes them, for the consent screen.
+  summaryProvider?: string | null
 }
 
 export type FeedSort = 'newest' | 'needs_readers'
@@ -1150,6 +1157,17 @@ export interface StatusReport {
   writePath: WindowSummary[]
 }
 
+export interface SummaryView {
+  // True when this is an earlier answer for the same text, not a new call.
+  cached: boolean
+  createdAt: string
+  model: string
+  // `scene`, `chapter` or `work`.
+  scope: string
+  summary: string
+  targetId: string
+}
+
 export interface TagRequest {
   tag: string
 }
@@ -1382,6 +1400,9 @@ export interface User {
   legalName?: string | null
   mailingAddress?: string | null
   phone?: string | null
+  // When they agreed that text they ask to summarise may be sent to the
+  // model provider. Unset, no summary is ever asked for on their behalf.
+  summariesAllowedAt?: string | null
   termsAcceptedAt?: string | null
   // The version of the terms they last agreed to.
   termsVersion?: number | null

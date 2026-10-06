@@ -1,5 +1,5 @@
 <!--
-  Version 1. The backend serves this file as written (`GET /api/terms`) and
+  Version 2. The backend serves this file as written (`GET /api/terms`) and
   asks everyone to agree again when TERMS_VERSION in routes/privacy.rs goes up.
   Bump that constant with any change of substance.
 
@@ -17,7 +17,18 @@ copyright with us, and nothing in these terms changes that.
 We store and display your work only to run the service for you: to save it,
 to show it to the people you choose to show it to, and to give it back to you.
 We do not publish it, sell it, train anything on it, or show it to anyone you
-have not shared it with.
+have not shared it with — with the one exception you can choose below.
+
+## Summaries
+
+Summaries of a scene, a chapter or a book are written by a model that
+Anthropic runs, not by us. They are off until you turn them on in your
+account. Once they are on, the text you ask to summarise — and only that
+text, only when you ask — is sent to Anthropic to write the summary, and the
+summary comes back to you. It is a suggestion: nothing in your manuscript
+changes unless you put it there. You can turn summaries off at any time;
+summaries already written stay with your work. How Anthropic handles what is
+sent to it is set out in its own terms for its API.
 
 ## Sharing is your decision
 

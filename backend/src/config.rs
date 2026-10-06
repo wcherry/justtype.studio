@@ -37,6 +37,10 @@ pub struct Config {
     /// added to X-Forwarded-For. Only set this when there is such a proxy: a
     /// client can put anything it likes in that header.
     pub trust_proxy: bool,
+    /// For summaries. Unset, the feature is off and says so.
+    pub anthropic_api_key: Option<String>,
+    pub anthropic_url: String,
+    pub summary_model: String,
 }
 
 fn env_or(key: &str, default: &str) -> String {
@@ -81,6 +85,13 @@ impl Config {
             ip_rate: env_or("SCRIPTORIUM_IP_RATE", "600").parse()?,
             auth_ip_rate: env_or("SCRIPTORIUM_AUTH_IP_RATE", "30").parse()?,
             trust_proxy: env_or("SCRIPTORIUM_TRUST_PROXY", "false") == "true",
+            anthropic_api_key: std::env::var("ANTHROPIC_API_KEY")
+                .ok()
+                .filter(|k| !k.trim().is_empty()),
+            anthropic_url: env_or("SCRIPTORIUM_ANTHROPIC_URL", "https://api.anthropic.com")
+                .trim_end_matches('/')
+                .to_string(),
+            summary_model: env_or("SCRIPTORIUM_SUMMARY_MODEL", "claude-opus-5-5"),
             metrics_token: std::env::var("SCRIPTORIUM_METRICS_TOKEN")
                 .ok()
                 .filter(|s| s.len() >= 16),

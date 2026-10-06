@@ -33,7 +33,7 @@ use super::support;
 
 /// Raise this with any change of substance to `docs/TERMS.md`; everyone is
 /// asked to agree again.
-pub const TERMS_VERSION: i32 = 1;
+pub const TERMS_VERSION: i32 = 2;
 const TERMS_TEXT: &str = include_str!("../../../docs/TERMS.md");
 
 /// Who a deleted account's notes and history are credited to afterwards.
@@ -62,6 +62,7 @@ pub fn seed_former_member(conn: &mut Conn, now: &str) -> ApiResult<()> {
             terms_version: None,
             terms_accepted_at: None,
             weekly_word_goal: None,
+            summaries_allowed_at: None,
         })
         .execute(conn)?;
     Ok(())

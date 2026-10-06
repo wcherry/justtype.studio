@@ -701,8 +701,24 @@ do not build toward it, and do not carry a compatibility layer for it.
 - To hand while writing: the bible panel opens with whoever and whatever is
   linked to the scene in front of you, sketch and all, before the rest.
 
-### 8.4 AI summaries · **Later**
+### 8.4 AI summaries · **Done**
 - A summarize button for a scene, a chapter or the whole book.
+- **Done:** *Summarise* in the editor, for the scene, its chapter or the
+  whole book, written by Claude Opus 5.5 through the Messages API. What comes
+  back is a suggestion, with a button to put it in the scene's or chapter's
+  summary or the book's synopsis; nothing in the manuscript changes otherwise.
+- The text goes to Anthropic, which the terms promised it never would. So:
+  summaries are off until a writer turns them on, the panel says plainly where
+  the text goes before they do, and the terms are now version 2 — everyone is
+  asked to agree again. Turned off, no further call is made.
+- Each answer is kept against the exact text it came from, so asking again
+  costs nothing; new calls are limited per writer; a book too long for one
+  request is refused rather than quietly cut short. A manuscript line that
+  reads like an instruction is summarised, not obeyed.
+- **Verified against a stub of the API, not the API itself.** The one live
+  call made here was refused — the key in this environment is not valid — so
+  the request shape is checked against the documented API and a recording
+  stub, and the live round trip still wants one try with a working key.
 
 ### 8.5 UI polish · **Later**
 - A more polished interface overall. The row of text buttons across the top of

@@ -100,6 +100,8 @@ export type {
   StatusReport,
   SceneHit,
   SketchField,
+  SummaryView,
+  Features,
   SketchTemplate,
   ShareLink,
   TocChapter,

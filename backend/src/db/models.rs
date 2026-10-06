@@ -47,6 +47,9 @@ row!(User, users, {
     terms_accepted_at: Option<String>,
     /// The writer's weekly target in words, when they have set one.
     weekly_word_goal: Option<i32>,
+    /// When they agreed that text they ask to summarise may be sent to the
+    /// model provider. Unset, no summary is ever asked for on their behalf.
+    summaries_allowed_at: Option<String>,
 });
 
 row!(RefreshToken, refresh_tokens, {
@@ -486,7 +489,7 @@ new_row!(NewUser, users, {
     email_verified_at: Option<String>, totp_secret: Option<String>,
     totp_enabled_at: Option<String>, totp_last_step: Option<i64>,
     terms_version: Option<i32>, terms_accepted_at: Option<String>,
-    weekly_word_goal: Option<i32>,
+    weekly_word_goal: Option<i32>, summaries_allowed_at: Option<String>,
 });
 
 new_row!(NewWritingDay, writing_days, {
@@ -502,6 +505,12 @@ new_row!(NewRefreshToken, refresh_tokens, {
 new_row!(NewAuditEvent, audit_events, {
     id: String, actor_id: Option<String>, work_id: Option<String>, action: String,
     detail: String, created_at: String,
+});
+
+new_row!(NewSummary, summaries, {
+    id: String, work_id: String, target_kind: String, target_id: String,
+    input_hash: String, summary: String, model: String, input_tokens: i32,
+    output_tokens: i32, created_by: Option<String>, created_at: String,
 });
 
 new_row!(NewSession, sessions, {

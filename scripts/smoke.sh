@@ -11,6 +11,7 @@ SERVER_PID=""
 
 cleanup() {
   [[ -n "$SERVER_PID" ]] && kill "$SERVER_PID" 2>/dev/null || true
+  [[ -n "${STUB_PID:-}" ]] && kill "$STUB_PID" 2>/dev/null || true
   rm -rf "$TMP"
 }
 trap cleanup EXIT
@@ -36,6 +37,11 @@ confirm() { curl -s -X POST "$API/auth/verify" -H 'content-type: application/jso
 step "Building"
 cargo build -q -p scriptorium-backend --manifest-path "$ROOT/Cargo.toml"
 
+# A stand-in for the Anthropic API, so summaries can be exercised for nothing.
+STUB_PORT=$((PORT + 1))
+python3 "$ROOT/scripts/stub_anthropic.py" "$STUB_PORT" "$TMP/stub.jsonl" &
+STUB_PID=$!
+
 step "Starting a server on port $PORT"
 SCRIPTORIUM_BIND_ADDR="127.0.0.1:${PORT}" \
 SCRIPTORIUM_DATABASE_URL="$TMP/scriptorium.db" \
@@ -45,6 +51,8 @@ SCRIPTORIUM_VOTE_RATE=3 \
 SCRIPTORIUM_SECOND_FACTOR_RATE=20 \
 SCRIPTORIUM_AUTH_IP_RATE=150 \
 SCRIPTORIUM_MAIL=outbox \
+ANTHROPIC_API_KEY=smoke-stub-key \
+SCRIPTORIUM_ANTHROPIC_URL="http://127.0.0.1:$STUB_PORT" \
 SCRIPTORIUM_BACKUP_DIR="$TMP/backups" \
 SCRIPTORIUM_METRICS_TOKEN="smoke-metrics-token-0123456789" \
 SCRIPTORIUM_OUTBOX="$TMP/outbox.jsonl" \
@@ -279,6 +287,38 @@ MISMATCH=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$API/works/$WID/bible
 DUP=$(curl -s -o /dev/null -w '%{http_code}' -X PATCH "$API/bible/$SKID" -H "$AUTH" -H 'content-type: application/json' \
   -d '{"fields":[{"key":"a","label":"One"},{"key":"a","label":"Two"}]}')
 [ "$DUP" = "400" ] && echo "  two fields cannot share a key" || { echo "  EXPECTED 400, got $DUP"; exit 1; }
+
+step "Summaries"
+curl -s "$API/features" | python3 -c "import sys,json;d=json.load(sys.stdin);assert d['summaries'];print('  summaries are available on this server')"
+NOPE=$(curl -s -X POST "$API/scenes/$SCENE/summary" -H "$AUTH")
+echo "$NOPE" | python3 -c "
+import sys,json;e=json.load(sys.stdin)['error'];assert e['code']=='forbidden', e
+print('  not until the writer turns them on:', e['message'])"
+[ ! -s "$TMP/stub.jsonl" ] && echo "  and nothing was sent anywhere" || { echo "  TEXT LEFT WITHOUT CONSENT"; exit 1; }
+curl -s -X POST "$API/me/summaries" -H "$AUTH" | python3 -c "import sys,json;assert json.load(sys.stdin)['summariesAllowedAt']"
+curl -s -X POST "$API/scenes/$SCENE/summary" -H "$AUTH" | python3 -c "
+import sys,json;d=json.load(sys.stdin);assert not d['cached'] and d['summary'].startswith('A stub summary'), d
+print(f\"  a scene: {d['summary']} ({d['model']})\")"
+python3 - "$TMP/stub.jsonl" <<'PY'
+import json, sys
+sent = [json.loads(l) for l in open(sys.argv[1])][-1]
+h = {k.lower(): v for k, v in sent["headers"].items()}
+b = sent["body"]
+assert h["anthropic-beta"] == "server-side-fallback-2026-07-01" and h["anthropic-version"] == "2023-06-01", h
+assert b["model"] == "claude-opus-5-5" and b["fallbacks"] == "default" and "thinking" not in b, b
+assert "<manuscript>" in b["messages"][0]["content"]
+print("  sent as the API expects: opus 5.5, server-side fallbacks, the text inside <manuscript> tags")
+PY
+curl -s -X POST "$API/scenes/$SCENE/summary" -H "$AUTH" | python3 -c "
+import sys,json;assert json.load(sys.stdin)['cached'];print('  the same text again comes from the store, not another call')"
+CALLS=$(wc -l < "$TMP/stub.jsonl" | tr -d ' ')
+[ "$CALLS" = "1" ] && echo "  one call so far" || { echo "  EXPECTED one call, got $CALLS"; exit 1; }
+CH=$(curl -s "$API/works/$WID/outline" -H "$AUTH" | field chapters.0.id)
+curl -s -X POST "$API/chapters/$CH/summary" -H "$AUTH" | field summary | sed 's/^/  a chapter: /'
+curl -s -X POST "$API/works/$WID/summary" -H "$AUTH" | field summary | sed 's/^/  the book: /'
+curl -s -X DELETE "$API/me/summaries" -H "$AUTH" >/dev/null
+[ "$(curl -s -o /dev/null -w '%{http_code}' -X POST "$API/works/$WID/summary" -H "$AUTH")" = "403" ] \
+  && echo "  turned off, they stop" || { echo "  EXPECTED 403"; exit 1; }
 
 step "Snapshotting, revising, snapshotting again"
 V1=$(curl -s -X POST "$API/works/$WID/versions" -H "$AUTH" -H 'content-type: application/json' -d '{"label":"First pass"}' | field id)

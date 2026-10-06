@@ -10,7 +10,7 @@ import type {
   TaskState, ReportView, BlockView, SinceResponse, Profile, FollowState, AuthorCard,
   Genre, LengthBand, WindowFilter, FeedSort, CollaboratorRole, CollaboratorView, ActivityView,
   SessionView, TwoFactorSetup, RecoveryCodes, AuditEvent, Terms, StatusReport, SceneHit, ShareLink,
-  SketchField, SketchTemplate,
+  SketchField, SketchTemplate, SummaryView, Features,
 } from './types'
 
 const BASE = '/api'
@@ -583,6 +583,21 @@ export const api = {
     sessions: () => get<SessionView[]>('/me/sessions'),
     revokeSession: (sessionId: string) => del<{ ok: boolean }>(`/me/sessions/${sessionId}`),
     signOutOthers: () => post<{ ok: boolean }>('/me/sessions/sign-out-others'),
+  },
+
+  /** What this server can do. */
+  features: () => get<Features>('/features'),
+
+  /**
+   * Summaries written by Claude. Off until the writer turns them on, because
+   * turning them on sends the text they ask about to Anthropic.
+   */
+  summaries: {
+    allow: () => post<User>('/me/summaries'),
+    withdraw: () => del<User>('/me/summaries'),
+    scene: (sceneId: string) => post<SummaryView>(`/scenes/${sceneId}/summary`),
+    chapter: (chapterId: string) => post<SummaryView>(`/chapters/${chapterId}/summary`),
+    work: (workId: string) => post<SummaryView>(`/works/${workId}/summary`),
   },
 
   /** Whether the service is fit to serve. Public. */

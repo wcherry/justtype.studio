@@ -32,6 +32,8 @@ pub enum Action {
     Requests,
     /// Requests to the sign-in, sign-up and reset routes from one address.
     AuthRequests,
+    /// Summaries asked for, per writer: each one is a paid call to a model.
+    Summaries,
 }
 
 impl Action {
@@ -44,6 +46,7 @@ impl Action {
             Action::SecondFactor => "codes",
             Action::Requests => "requests",
             Action::AuthRequests => "sign-in requests",
+            Action::Summaries => "summaries",
         }
     }
 }

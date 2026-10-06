@@ -222,6 +222,13 @@ button.danger { border-color: var(--del); color: var(--del); }
 .terms { max-width: var(--measure); font-family: var(--serif); line-height: 1.6; }
 .terms h1, .terms h2 { font-weight: 500; }
 
+/* --- summaries ------------------------------------------------------------ */
+
+.summaries { padding: 0 16px 16px; font-size: 14px; }
+.summaries__targets { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.summaries__result { border-top: 1px solid var(--line); padding-top: 10px; }
+.summaries__text { font-family: var(--serif); font-size: 15px; line-height: 1.6; white-space: pre-wrap; }
+
 /* --- sketches ------------------------------------------------------------- */
 
 .bible__here { margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }

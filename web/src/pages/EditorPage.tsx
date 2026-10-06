@@ -11,6 +11,7 @@ import { ActivityPanel } from '../components/ActivityPanel'
 import { ChangesPanel } from '../components/ChangesPanel'
 import { CollaboratorsPanel } from '../components/CollaboratorsPanel'
 import { FindPanel } from '../components/FindPanel'
+import { SummaryPanel } from '../components/SummaryPanel'
 import { ConflictBanner } from '../components/ConflictBanner'
 import { Corkboard } from '../components/Corkboard'
 import { FrontMatter } from '../components/FrontMatter'
@@ -67,6 +68,7 @@ export function EditorPage() {
       | 'people'
       | 'activity'
       | 'find'
+      | 'summary'
     >('none')
   const [view, setView] = useState<'write' | 'corkboard'>('write')
   /** What the writer has selected, in the same positions a proposal records. */
@@ -102,6 +104,11 @@ export function EditorPage() {
   }, [editor, preferences.focusMode, preferences.typewriter])
 
   const page = useDistractionFree()
+  // Summaries exist only where the server has been set up to write them.
+  const [summariesOn, setSummariesOn] = useState(false)
+  useEffect(() => {
+    api.features().then((f) => setSummariesOn(f.summaries)).catch(() => setSummariesOn(false))
+  }, [])
   const can = permissions(outline?.access)
   const { user } = useAuth()
 
@@ -447,6 +454,14 @@ export function EditorPage() {
             >
               Find
             </button>
+            {summariesOn && can.canWrite(scene?.chapterId ?? '') && (
+              <button
+                type="button"
+                onClick={() => setPanel((p) => (p === 'summary' ? 'none' : 'summary'))}
+              >
+                Summarise
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setPanel((p) => (p === 'people' ? 'none' : 'people'))}
@@ -715,6 +730,23 @@ export function EditorPage() {
                 .flatMap((chapter) => chapter.scenes)
                 .find((candidate) => candidate.id === id)
               if (target) void openScene(target)
+            }}
+          />
+        </aside>
+      )}
+
+      {panel === 'summary' && (
+        <aside className="versions">
+          <header className="versions__header">
+            <h3>Summarise</h3>
+          </header>
+          <SummaryPanel
+            outline={outline}
+            scene={scene}
+            canUseSynopsis={can.isOwner}
+            onApplied={() => {
+              void loadOutline()
+              if (scene) void api.scenes.get(scene.id).then((s) => setScene((c) => (c ? { ...c, summary: s.summary } : c)))
             }}
           />
         </aside>

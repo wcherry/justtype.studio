@@ -20,6 +20,7 @@ diesel::table! {
         terms_version -> Nullable<Integer>,
         terms_accepted_at -> Nullable<Text>,
         weekly_word_goal -> Nullable<Integer>,
+        summaries_allowed_at -> Nullable<Text>,
     }
 }
 
@@ -474,6 +475,22 @@ diesel::table! {
     }
 }
 
+diesel::table! {
+    summaries (id) {
+        id -> Text,
+        work_id -> Text,
+        target_kind -> Text,
+        target_id -> Text,
+        input_hash -> Text,
+        summary -> Text,
+        model -> Text,
+        input_tokens -> Integer,
+        output_tokens -> Integer,
+        created_by -> Nullable<Text>,
+        created_at -> Text,
+    }
+}
+
 diesel::joinable!(refresh_tokens -> users (user_id));
 diesel::joinable!(sessions -> users (user_id));
 diesel::joinable!(work_collaborators -> works (work_id));
@@ -539,4 +556,5 @@ diesel::allow_tables_to_appear_in_same_query!(
     email_tokens,
     recovery_codes,
     audit_events,
+    summaries,
 );

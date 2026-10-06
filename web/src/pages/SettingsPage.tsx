@@ -16,6 +16,7 @@ export function SettingsPage() {
       <PasswordSection />
       <TwoFactorSection />
       <SessionsSection />
+      <SummariesSection />
       <DataSection />
     </main>
   )
@@ -291,6 +292,39 @@ function SessionsSection() {
   )
 }
 
+function SummariesSection() {
+  const { user, updateUser } = useAuth()
+  const [available, setAvailable] = useState(false)
+  const { busy, run, status } = useRun()
+  useEffect(() => {
+    api.features().then((f) => setAvailable(f.summaries)).catch(() => undefined)
+  }, [])
+  if (!available || !user) return null
+  const on = !!user.summariesAllowedAt
+  return (
+    <Section title="Summaries">
+      <p className="field__hint">
+        Summaries of a scene, a chapter or the book are written by Claude, a model Anthropic
+        runs. When they are on, the text you ask to summarise — only that, only when you ask — is
+        sent to Anthropic. Summaries already written stay with your work if you turn this off.
+      </p>
+      <div className="settings__row">
+        <span>{on ? `On since ${new Date(user.summariesAllowedAt!).toLocaleDateString()}` : 'Off'}</span>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => run(async () => {
+            updateUser(on ? await api.summaries.withdraw() : await api.summaries.allow())
+          })}
+        >
+          {on ? 'Turn off' : 'Turn on'}
+        </button>
+      </div>
+      {status}
+    </Section>
+  )
+}
+
 const ACTION_LABEL: Record<string, string> = {
   password_reset: 'Password reset by email',
   password_changed: 'Password changed',
@@ -312,6 +346,10 @@ const ACTION_LABEL: Record<string, string> = {
   reader_blocked: 'Reader blocked',
   reader_unblocked: 'Reader unblocked',
   terms_accepted: 'Terms agreed',
+  summaries_allowed: 'Summaries turned on',
+  summaries_withdrawn: 'Summaries turned off',
+  share_link_made: 'Share link made',
+  share_links_revoked: 'Share links withdrawn',
 }
 
 function DataSection() {

@@ -672,3 +672,31 @@ works. Separately, one address may make 30 requests a minute to `/auth/*` and
 is a `429` with `retryAfter`. Behind a reverse proxy, set
 `SCRIPTORIUM_TRUST_PROXY=true` so the address is the proxy's last
 `X-Forwarded-For` entry — never the first, which is whatever the client wrote.
+
+## Summaries
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/features` | `{ summaries, summaryProvider }` — whether this server can write them |
+| `POST` / `DELETE` | `/me/summaries` | turn summaries on or off for this account |
+| `POST` | `/scenes/{id}/summary` | two to four sentences |
+| `POST` | `/chapters/{id}/summary` | a paragraph |
+| `POST` | `/works/{id}/summary` | a synopsis of the whole book |
+
+Written by Claude (`claude-opus-5-5`, medium effort, server-side refusal
+fallbacks) through the Messages API. Three rules hold:
+
+- **Nothing leaves without consent.** Until the account has turned summaries
+  on, every call is refused before any text is read, and the terms (version 2)
+  say where the text goes when it is on.
+- **Each answer is kept** against a digest of the exact text, instructions and
+  model it came from; asking again for unchanged text returns the stored
+  answer with `cached: true` and costs nothing. New calls are limited to six a
+  minute per writer.
+- **It is a suggestion.** Nothing is written into the manuscript; the client
+  offers to put it in the scene's or chapter's summary, or the book's synopsis.
+
+Changing a scene's text needs `write` on it, and so does summarising it. The
+manuscript is sent inside `<manuscript>` tags, and the instructions say that
+nothing inside them is an instruction. A book too long for one request (about
+850k tokens) is refused, so it is never cut short without saying so.

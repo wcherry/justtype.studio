@@ -180,7 +180,9 @@
           "reader_unblocked",
           "terms_accepted",
           "share_link_made",
-          "share_links_revoked"
+          "share_links_revoked",
+          "summaries_allowed",
+          "summaries_withdrawn"
         ],
         "type": "string"
       },
@@ -1588,6 +1590,25 @@
         },
         "required": [
           "error"
+        ],
+        "type": "object"
+      },
+      "Features": {
+        "properties": {
+          "summaries": {
+            "description": "Whether this server can write summaries at all.",
+            "type": "boolean"
+          },
+          "summaryProvider": {
+            "description": "Who writes them, for the consent screen.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "summaries"
         ],
         "type": "object"
       },
@@ -3379,6 +3400,39 @@
         ],
         "type": "object"
       },
+      "SummaryView": {
+        "properties": {
+          "cached": {
+            "description": "True when this is an earlier answer for the same text, not a new call.",
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "scope": {
+            "description": "`scene`, `chapter` or `work`.",
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "targetId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "scope",
+          "targetId",
+          "summary",
+          "model",
+          "cached",
+          "createdAt"
+        ],
+        "type": "object"
+      },
       "TagRequest": {
         "properties": {
           "tag": {
@@ -4167,6 +4221,13 @@
             ]
           },
           "phone": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "summariesAllowedAt": {
+            "description": "When they agreed that text they ask to summarise may be sent to the\nmodel provider. Unset, no summary is ever asked for on their behalf.",
             "type": [
               "string",
               "null"
@@ -5650,6 +5711,46 @@
         ]
       }
     },
+    "/api/chapters/{chapter_id}/summary": {
+      "post": {
+        "operationId": "chapter",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "chapter_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SummaryView"
+                }
+              }
+            },
+            "description": "A summary of the chapter"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "summaries"
+        ]
+      }
+    },
     "/api/circles": {
       "get": {
         "operationId": "list_circles",
@@ -6071,6 +6172,26 @@
         "summary": "Votes surface the feedback other reviewers agree with. One vote per person\nper comment; sending the same value again clears it.",
         "tags": [
           "comments"
+        ]
+      }
+    },
+    "/api/features": {
+      "get": {
+        "operationId": "features",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Features"
+                }
+              }
+            },
+            "description": "What this server can do"
+          }
+        },
+        "tags": [
+          "summaries"
         ]
       }
     },
@@ -6606,6 +6727,66 @@
         },
         "tags": [
           "account"
+        ]
+      }
+    },
+    "/api/me/summaries": {
+      "delete": {
+        "operationId": "withdraw",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            },
+            "description": "Withdrawn"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "Taking it back. Summaries already written stay; no new one is asked for.",
+        "tags": [
+          "summaries"
+        ]
+      },
+      "post": {
+        "operationId": "allow",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            },
+            "description": "Allowed"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "Agreeing that text you ask to summarise may be sent to Anthropic.",
+        "tags": [
+          "summaries"
         ]
       }
     },
@@ -8552,6 +8733,46 @@
         ]
       }
     },
+    "/api/scenes/{scene_id}/summary": {
+      "post": {
+        "operationId": "scene",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scene_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SummaryView"
+                }
+              }
+            },
+            "description": "A summary of the scene"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "summaries"
+        ]
+      }
+    },
     "/api/status": {
       "get": {
         "operationId": "status",
@@ -10117,6 +10338,46 @@
         ]
       }
     },
+    "/api/works/{work_id}/summary": {
+      "post": {
+        "operationId": "work",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SummaryView"
+                }
+              }
+            },
+            "description": "A synopsis of the whole book"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "summaries"
+        ]
+      }
+    },
     "/api/works/{work_id}/tasks": {
       "get": {
         "operationId": "list",
@@ -10387,6 +10648,10 @@
     {
       "description": "Tickets for the live channel",
       "name": "live"
+    },
+    {
+      "description": "Summaries written by Claude, with the writer's consent",
+      "name": "summaries"
     },
     {
       "description": "Proving an address, getting back in, a second factor, sessions",

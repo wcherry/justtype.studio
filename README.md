@@ -128,6 +128,9 @@ A running server also serves the document at `/api/openapi.json`.
 | `SCRIPTORIUM_IP_RATE` | `600` | Requests per minute from one address; `0` turns it off |
 | `SCRIPTORIUM_AUTH_IP_RATE` | `30` | Sign-in, sign-up and reset requests per minute from one address |
 | `SCRIPTORIUM_TRUST_PROXY` | `false` | Read the client address from the proxy's last `X-Forwarded-For` entry |
+| `ANTHROPIC_API_KEY` | *(none)* | Turns on summaries; unset, the feature is off and hidden |
+| `SCRIPTORIUM_SUMMARY_MODEL` | `claude-opus-5-5` | The model that writes them |
+| `SCRIPTORIUM_ANTHROPIC_URL` | `https://api.anthropic.com` | Where to send them (the smoke points it at a stub) |
 | `SCRIPTORIUM_CACHE_MB` | `64` | Memory for snapshot scene bodies |
 | `SCRIPTORIUM_METRICS_TOKEN` | *(none)* | Turns on `/api/metrics` (Prometheus text) behind this bearer token |
 

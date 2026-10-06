@@ -19,6 +19,7 @@ pub mod scenes;
 pub mod search;
 pub mod share;
 pub mod status;
+pub mod summaries;
 pub mod support;
 pub mod tasks;
 pub mod templates;
@@ -42,6 +43,11 @@ fn api_router() -> OpenApiRouter<AppState> {
         .routes(routes!(status::metrics))
         .routes(routes!(search::search_work))
         .routes(routes!(crate::live::ticket))
+        .routes(routes!(summaries::features))
+        .routes(routes!(summaries::allow, summaries::withdraw))
+        .routes(routes!(summaries::scene))
+        .routes(routes!(summaries::chapter))
+        .routes(routes!(summaries::work))
         .routes(routes!(share::make))
         .routes(routes!(share::revoke))
         // A WebSocket, so not in the OpenAPI document; see docs/API.md.

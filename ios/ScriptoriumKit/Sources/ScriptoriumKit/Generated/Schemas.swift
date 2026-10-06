@@ -202,6 +202,8 @@ public enum API {
         case terms_accepted = "terms_accepted"
         case share_link_made = "share_link_made"
         case share_links_revoked = "share_links_revoked"
+        case summaries_allowed = "summaries_allowed"
+        case summaries_withdrawn = "summaries_withdrawn"
     }
 
     public struct AuditEvent: Codable, Hashable, Sendable {
@@ -1289,6 +1291,21 @@ public enum API {
             error: ErrorBody
         ) {
             self.error = error
+        }
+    }
+
+    public struct Features: Codable, Hashable, Sendable {
+        /// Whether this server can write summaries at all.
+        public var summaries: Bool
+        /// Who writes them, for the consent screen.
+        public var summaryProvider: String?
+
+        public init(
+            summaries: Bool,
+            summaryProvider: String? = nil
+        ) {
+            self.summaries = summaries
+            self.summaryProvider = summaryProvider
         }
     }
 
@@ -2909,6 +2926,33 @@ public enum API {
         }
     }
 
+    public struct SummaryView: Codable, Hashable, Sendable {
+        /// True when this is an earlier answer for the same text, not a new call.
+        public var cached: Bool
+        public var createdAt: String
+        public var model: String
+        /// `scene`, `chapter` or `work`.
+        public var scope: String
+        public var summary: String
+        public var targetId: String
+
+        public init(
+            cached: Bool,
+            createdAt: String,
+            model: String,
+            scope: String,
+            summary: String,
+            targetId: String
+        ) {
+            self.cached = cached
+            self.createdAt = createdAt
+            self.model = model
+            self.scope = scope
+            self.summary = summary
+            self.targetId = targetId
+        }
+    }
+
     public struct TagRequest: Codable, Hashable, Sendable {
         public var tag: String
 
@@ -3458,6 +3502,9 @@ public enum API {
         public var legalName: String?
         public var mailingAddress: String?
         public var phone: String?
+        /// When they agreed that text they ask to summarise may be sent to the
+        /// model provider. Unset, no summary is ever asked for on their behalf.
+        public var summariesAllowedAt: String?
         public var termsAcceptedAt: String?
         /// The version of the terms they last agreed to.
         public var termsVersion: Int?
@@ -3478,6 +3525,7 @@ public enum API {
             legalName: String? = nil,
             mailingAddress: String? = nil,
             phone: String? = nil,
+            summariesAllowedAt: String? = nil,
             termsAcceptedAt: String? = nil,
             termsVersion: Int? = nil,
             totpEnabledAt: String? = nil,
@@ -3494,6 +3542,7 @@ public enum API {
             self.legalName = legalName
             self.mailingAddress = mailingAddress
             self.phone = phone
+            self.summariesAllowedAt = summariesAllowedAt
             self.termsAcceptedAt = termsAcceptedAt
             self.termsVersion = termsVersion
             self.totpEnabledAt = totpEnabledAt
