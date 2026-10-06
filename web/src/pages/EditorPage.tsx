@@ -32,6 +32,8 @@ import { useSessionGoals } from '../editor/useSessionGoals'
 import { cache } from '../offline/cache'
 import { pendingFor, startQueueReplay } from '../offline/queue'
 import { permissions } from '../state/permissions'
+import { useAuth } from '../state/auth'
+import { here, useLive, usePresence } from '../live'
 
 const SAVE_LABEL: Record<string, string> = {
   idle: '',
@@ -99,6 +101,23 @@ export function EditorPage() {
   }, [editor, preferences.focusMode, preferences.typewriter])
 
   const can = permissions(outline?.access)
+  const { user } = useAuth()
+
+  // Who else is writing the book right now, and where.
+  const room = `work:${workId}`
+  const present = usePresence(room).filter((p) => p.id !== user?.id)
+  useEffect(() => {
+    here(room, scene?.id ?? null)
+  }, [room, scene?.id])
+  /** Someone else saved the scene open here: their text is newer than ours. */
+  const [savedElsewhere, setSavedElsewhere] = useState<string | null>(null)
+  useLive(room, (notice) => {
+    const by = notice.by as { id: string; displayName: string } | undefined
+    if (notice.type === 'scene_saved' && notice.sceneId === scene?.id && by && by.id !== user?.id) {
+      setSavedElsewhere(by.displayName)
+    }
+  })
+  useEffect(() => setSavedElsewhere(null), [scene?.id])
   // Someone handed only some chapters, or here to read or suggest, gets the
   // text without a caret: still selectable, so an editor can point at words.
   const writable = scene ? can.canWrite(scene.chapterId) : false
@@ -444,6 +463,39 @@ export function EditorPage() {
               setWordCount(words)
             }}
           />
+        )}
+
+        {present.length > 0 && (
+          <p className="presence">
+            {present.map((person) => {
+              const where = outline.chapters
+                .flatMap((c) => c.scenes)
+                .find((s) => s.id === person.sceneId)
+              return (
+                <span key={person.id} className={person.sceneId === scene?.id ? 'presence__person is-here' : 'presence__person'}>
+                  {person.displayName}
+                  {where ? ` · ${person.sceneId === scene?.id ? 'here' : where.title}` : ''}
+                </span>
+              )
+            })}
+          </p>
+        )}
+
+        {savedElsewhere && scene && (
+          <p className="access-note">
+            {savedElsewhere} just saved this scene.{' '}
+            <button
+              type="button"
+              className="linklike"
+              onClick={() => {
+                setSavedElsewhere(null)
+                void openScene(scene)
+              }}
+            >
+              Load their version
+            </button>
+            {' '}— or keep writing, and the next save asks which to keep.
+          </p>
         )}
 
         {scene && !writable && (

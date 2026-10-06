@@ -18,4 +18,6 @@ pub struct AppState {
     pub started_at: std::time::Instant,
     /// Snapshot scene bodies — see `cache`.
     pub scene_cache: Arc<crate::cache::SceneCache>,
+    /// The live channel's rooms — see `live`.
+    pub hub: Arc<crate::live::Hub>,
 }

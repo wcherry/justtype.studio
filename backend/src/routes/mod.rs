@@ -40,6 +40,9 @@ fn api_router() -> OpenApiRouter<AppState> {
         .routes(routes!(status::status))
         .routes(routes!(status::metrics))
         .routes(routes!(search::search_work))
+        .routes(routes!(crate::live::ticket))
+        // A WebSocket, so not in the OpenAPI document; see docs/API.md.
+        .route("/api/live", axum::routing::get(crate::live::connect))
         .routes(routes!(auth::register))
         .routes(routes!(auth::login))
         .routes(routes!(auth::refresh))

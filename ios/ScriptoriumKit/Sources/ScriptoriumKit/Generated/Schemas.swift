@@ -1392,6 +1392,17 @@ public enum API {
         }
     }
 
+    public struct LiveTicket: Codable, Hashable, Sendable {
+        /// Single use, good for thirty seconds: `GET /api/live?ticket=…`.
+        public var ticket: String
+
+        public init(
+            ticket: String
+        ) {
+            self.ticket = ticket
+        }
+    }
+
     public struct LoginRequest: Codable, Hashable, Sendable {
         /// The six digits from an authenticator, or a recovery code, for an
         /// account with two-factor sign-in on. Asked for with a

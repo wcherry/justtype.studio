@@ -608,10 +608,25 @@ do not build toward it, and do not carry a compatibility layer for it.
   Separate indexes for the short fields and the text, because FTS5 scores
   against a whole row's length and a novel's text would bury its own title.
 
-### 7.3 Real-time
-- WebSocket channel for live comment updates in the review reader.
-- CRDT-backed co-editing (Yjs + `y-prosemirror`) for co-authored works.
-- Presence indicators.
+### 7.3 Real-time — **live notices done; co-editing deferred**
+- A WebSocket channel, opened with a single-use thirty-second ticket because a
+  browser cannot send an Authorization header on a WebSocket and a token in a
+  URL is a token in a log. It carries notices, never content: "the notes
+  changed", "Kit saved Midpoint". The client fetches through the ordinary API,
+  so spoilers, filters and blocks still decide what it sees, and a notice
+  cannot leak what a fetch would refuse.
+- Live comments in the review reader: a note someone writes appears for
+  everyone reading, and so do resolves, deletions and votes.
+- Presence: co-authors see each other by name and by scene in the editor;
+  readers of a review see only how many others are reading. And when someone
+  else saves the scene open in front of you, it says so at once — with a
+  button to load their version — instead of at your next save's conflict.
+- **Deferred: CRDT co-editing** (Yjs + `y-prosemirror`). It replaces the save
+  model — whole-document saves with hash conflicts, the offline queues on web
+  and iOS — for any scene two people have open, which makes it a rewrite of
+  the write path rather than an addition, and it wants its own phase. The
+  save notice above is what narrows the gap until then.
+- iOS does not join the live channel yet; it keeps the 1.1 conflict rules.
 
 ### 7.4 Security
 - Argon2 parameter tuning and a rehash-on-login path.

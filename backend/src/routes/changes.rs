@@ -427,6 +427,7 @@ async fn resolve_one(
         .await?;
     let edited = apply(&change, &document, &scene.content_hash).map_err(ApiError::Conflict)?;
     let scene = store_scene(&state, &scene, &edited).await?;
+    crate::live::announce_save(&state, &scene, &user.id).await;
 
     let change = blocking(&state.pool, move |conn| {
         mark_resolved(conn, &change_id, &user, true)
@@ -535,7 +536,9 @@ pub async fn resolve_all(
     }
 
     let scene = if accepted && !applied.is_empty() {
-        store_scene(&state, &scene, &document).await?
+        let stored = store_scene(&state, &scene, &document).await?;
+        crate::live::announce_save(&state, &stored, &user.id).await;
+        stored
     } else {
         scene
     };

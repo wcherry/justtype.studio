@@ -222,6 +222,15 @@ button.danger { border-color: var(--del); color: var(--del); }
 .terms { max-width: var(--measure); font-family: var(--serif); line-height: 1.6; }
 .terms h1, .terms h2 { font-weight: 500; }
 
+/* --- live --------------------------------------------------------------- */
+
+.presence { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 10px; font-size: 12px; }
+.presence__person {
+  border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; color: var(--ink-soft);
+}
+.presence__person.is-here { border-color: var(--accent); color: var(--accent); }
+.reader__live { margin-left: 10px; color: var(--add); font-size: 12px; }
+
 /* --- reader pages -------------------------------------------------------- */
 
 .reader__pages {

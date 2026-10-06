@@ -432,6 +432,9 @@ pub async fn put_content(
     })
     .await?;
 
+    if !unchanged {
+        crate::live::announce_save(&state, &scene, &user.id).await;
+    }
     Ok(Json(SaveResult {
         scene,
         revision_id,

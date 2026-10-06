@@ -14,6 +14,7 @@ import type { AnchorSpec } from '../editor/commentAnchors'
 import type { ReactionKind } from '../editor/reactionGutter'
 import { useReadingProgress } from '../reader/useReadingProgress'
 import { useAuth } from '../state/auth'
+import { useLive } from '../live'
 
 export function ReviewPage() {
   const { publicationId = '' } = useParams()
@@ -37,6 +38,14 @@ export function ReviewPage() {
   const loadComments = useCallback(() => {
     api.comments.list(publicationId, filters).then(setComments).catch(() => undefined)
   }, [publicationId, filters])
+
+  // Notes arrive as they are written. The channel only says that something
+  // changed; the list is fetched again, through the same filters and rules.
+  const [readers, setReaders] = useState(0)
+  useLive(`publication:${publicationId}`, (notice) => {
+    if (notice.type === 'comments') loadComments()
+    if (notice.type === 'presence' && typeof notice.readers === 'number') setReaders(notice.readers)
+  })
 
   useEffect(() => {
     api.publications.get(publicationId)
@@ -169,6 +178,7 @@ export function ReviewPage() {
             {card.versionLabel} ·{' '}
             {card.wordCount.toLocaleString()} words
             <span className={`badge badge--${card.visibility}`}>{card.visibility}</span>
+            {readers > 1 && <span className="reader__live">{readers} reading now</span>}
           </p>
           {notice && (
             <p className="error" onClick={() => setNotice(null)}>

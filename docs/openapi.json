@@ -1691,6 +1691,18 @@
         ],
         "type": "object"
       },
+      "LiveTicket": {
+        "properties": {
+          "ticket": {
+            "description": "Single use, good for thirty seconds: `GET /api/live?ticket=…`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ticket"
+        ],
+        "type": "object"
+      },
       "LoginRequest": {
         "properties": {
           "code": {
@@ -5845,6 +5857,37 @@
         },
         "tags": [
           "health"
+        ]
+      }
+    },
+    "/api/live/ticket": {
+      "post": {
+        "operationId": "ticket",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveTicket"
+                }
+              }
+            },
+            "description": "A ticket"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "A ticket to open the live channel with. A WebSocket cannot carry an\nAuthorization header from a browser, and a token in a URL ends up in logs,\nso the socket is opened with this instead: single use, and dead in thirty\nseconds whether or not it was used.",
+        "tags": [
+          "live"
         ]
       }
     },
@@ -10018,6 +10061,10 @@
     {
       "description": "Authors, and who follows them",
       "name": "profiles"
+    },
+    {
+      "description": "Tickets for the live channel",
+      "name": "live"
     },
     {
       "description": "Proving an address, getting back in, a second factor, sessions",

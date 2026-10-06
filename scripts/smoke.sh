@@ -1037,6 +1037,13 @@ curl -s "$API/publications?q=field" | python3 -c "
 import sys,json;rows=json.load(sys.stdin);assert all(r['visibility']=='public' for r in rows), rows
 print(f'  signed out, the same search sees only public work ({len(rows)} found)')"
 
+step "Live: presence, saves and notes as they happen"
+curl -s -X POST "$API/works/$WID/collaborators" -H "$AUTH" -H 'content-type: application/json' \
+  -d '{"email":"kit@example.com","role":"writer"}' >/dev/null
+LIVE_SCENE=$(curl -s "$API/works/$WID/outline" -H "$AUTH" | field chapters.0.scenes.0.id)
+API="$API" ADA="$TOKEN" KIT="$KTOKEN" HAL="$HTOKEN" WID="$WID" PID="$PID" SCENE="$LIVE_SCENE" \
+  node "$ROOT/scripts/live_check.mjs" || exit 1
+
 step "Request ids"
 HDR=$(curl -s -D - -o /dev/null "$API/works" -H "$AUTH" | tr -d '\r' | awk -F': ' 'tolower($1)=="x-request-id"{print $2}')
 [ ${#HDR} -ge 8 ] && echo "  every response carries one: $HDR" || { echo "  NO REQUEST ID"; exit 1; }

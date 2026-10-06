@@ -610,3 +610,38 @@ indexed row remembers what it was built from (a scene's content hash, a
 publication's metadata), and anything that has moved since is re-read. A
 scene is written from a dozen places, and an index each of them had to
 remember to update would drift.
+
+## Live
+
+| Method | Path | Notes |
+|---|---|---|
+| `POST` | `/live/ticket` | a single-use ticket, good for thirty seconds; signed out is fine |
+| `GET` | `/live?ticket=…` | upgrades to a WebSocket |
+
+A browser cannot put an Authorization header on a WebSocket, and a token in a
+URL ends up in logs, so the socket is opened with a ticket fetched over the
+ordinary authenticated API instead.
+
+The channel carries notices, never content. Commands are JSON text frames:
+
+| Sent | Meaning |
+|---|---|
+| `{"type":"join","room":"publication:<id>"}` | hear about a review; the same rules as reading it |
+| `{"type":"join","room":"work:<id>","sceneId":"…"}` | hear about a book you can read, and say where you are in it |
+| `{"type":"here","room":"work:<id>","sceneId":"…"}` | you moved to another scene |
+| `{"type":"leave","room":"…"}` | |
+
+| Received | Meaning |
+|---|---|
+| `joined`, `denied` (with `message`) | the answer to a join |
+| `comments` (`publicationId`) | the notes on a review changed — fetch them again |
+| `presence` (`people` in a work room; `readers` in a review) | who is there: by name and scene for co-authors, a number for readers |
+| `scene_saved` (`sceneId`, `contentHash`, `by`) | a scene's text changed — a save or an accepted change |
+
+Because a notice only says *that* something changed, a client fetches the
+change through the API, and the API's rules — spoilers, filters, blocks —
+decide what it sees. Readers of a review are a count, not a list: who else is
+reading a draft is not something one reader is owed about another.
+
+In memory and in one process, like the rate limiter. A second process would
+put a broker behind `live::Hub`.

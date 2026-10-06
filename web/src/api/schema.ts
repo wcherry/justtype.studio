@@ -535,6 +535,11 @@ export interface LinkRequest {
   sceneId: string
 }
 
+export interface LiveTicket {
+  // Single use, good for thirty seconds: `GET /api/live?ticket=…`.
+  ticket: string
+}
+
 export interface LoginRequest {
   // The six digits from an authenticator, or a recovery code, for an
   // account with two-factor sign-in on. Asked for with a

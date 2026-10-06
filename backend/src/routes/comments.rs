@@ -413,6 +413,7 @@ pub async fn create(
         })
     })
     .await?;
+    state.hub.comments_changed(&view.comment.publication_id);
     Ok(Json(view))
 }
 
@@ -478,6 +479,7 @@ pub async fn bulk_state(
         ));
     }
 
+    let notify = publication_id.clone();
     let changed = blocking(&state.pool, move |conn| {
         support::publication_for_owner(conn, &publication_id, &user)?;
         let mut q = diesel::update(comments::table)
@@ -503,6 +505,9 @@ pub async fn bulk_state(
         .execute(conn)?)
     })
     .await?;
+    if changed > 0 {
+        state.hub.comments_changed(&notify);
+    }
     Ok(Json(BulkStateResponse { changed }))
 }
 
@@ -566,6 +571,7 @@ pub async fn update(
             .first(conn)?)
     })
     .await?;
+    state.hub.comments_changed(&comment.publication_id);
     Ok(Json(comment))
 }
 
@@ -586,7 +592,7 @@ pub async fn delete_comment(
     user: AuthUser,
     Path(comment_id): Path<String>,
 ) -> ApiResult<Json<Value>> {
-    blocking(&state.pool, move |conn| {
+    let publication = blocking(&state.pool, move |conn| {
         let comment: Comment = comments::table
             .find(&comment_id)
             .select(Comment::as_select())
@@ -606,9 +612,10 @@ pub async fn delete_comment(
                 comments::updated_at.eq(now_iso()),
             ))
             .execute(conn)?;
-        Ok(())
+        Ok(comment.publication_id)
     })
     .await?;
+    state.hub.comments_changed(&publication);
     Ok(Json(serde_json::json!({ "ok": true })))
 }
 
@@ -696,13 +703,19 @@ pub async fn vote(
             .find(&comment.id)
             .select(comments::score)
             .first(conn)?;
-        Ok(VoteResponse {
-            comment_id: comment.id,
-            score,
-            viewer_vote,
-        })
+        Ok((
+            VoteResponse {
+                comment_id: comment.id,
+                score,
+                viewer_vote,
+            },
+            comment.publication_id,
+        ))
     })
     .await?;
+    let (response, publication) = response;
+    // Scores move the order of the thread, so it is a change readers see.
+    state.hub.comments_changed(&publication);
     Ok(Json(response))
 }
 

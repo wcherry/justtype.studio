@@ -6,6 +6,7 @@ mod domain;
 mod error;
 mod export;
 mod limit;
+mod live;
 mod mail;
 mod metrics;
 mod ops;
@@ -164,6 +165,7 @@ async fn main() -> anyhow::Result<()> {
         store,
         limiter: Arc::new(limit::RateLimiter::new()),
         scene_cache: Arc::new(cache::SceneCache::new(cache_bytes)),
+        hub: Arc::new(live::Hub::default()),
     };
 
     // Outermost first in effect: the request id wraps everything, so even a
