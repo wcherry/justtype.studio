@@ -490,15 +490,46 @@ body.writing-page--outline .outline {
 }
 .editor__header h1 { font-family: var(--serif); font-weight: 500; font-size: 22px; margin: 0; }
 .editor__meta { color: var(--ink-faint); font-size: 12px; margin: 2px 0 0; }
-/* Fifteen tools and a side panel do not fit on one line; they wrap into a
-   second row rather than squeezing labels into columns or under the panel. */
 .editor__header > div:first-child { flex: 0 1 220px; min-width: 160px; }
+/* Status on the left, then the tools you toggle while writing, then three
+   menus for the side panels. Narrow, the groups wrap whole, never mid-group. */
 .editor__header-actions {
-  display: flex; align-items: center; gap: 6px 8px;
+  display: flex; align-items: center; gap: 8px 14px;
   flex-wrap: wrap; justify-content: flex-end; min-width: 0;
 }
 .editor__header-actions button { white-space: nowrap; }
 .editor__header-actions select { width: auto; }
+.editor__tools, .editor__menus { display: flex; align-items: center; gap: 4px; }
+.editor__tools .segmented { margin-right: 4px; }
+.tool { border-color: transparent; background: none; padding: 6px 10px; color: var(--ink-soft); }
+.tool:hover:not(:disabled) { border-color: var(--line); }
+.tool.is-active { background: var(--accent-soft); color: var(--accent); }
+
+.menu { position: relative; }
+.menu__button { display: inline-flex; align-items: center; gap: 6px; }
+.menu__button.is-active { border-color: var(--accent); color: var(--accent); }
+.menu__caret { font-size: 10px; color: var(--ink-faint); }
+.menu__list {
+  position: absolute; right: 0; top: calc(100% + 4px); z-index: 30;
+  min-width: 200px; padding: 4px;
+  display: flex; flex-direction: column;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+.menu__item {
+  display: grid; grid-template-columns: 16px 1fr auto; align-items: center; gap: 6px;
+  border: none; border-radius: 6px; background: none; text-align: left; padding: 7px 10px 7px 6px;
+}
+.menu__item:hover:not(:disabled), .menu__item:focus-visible { background: var(--accent-soft); outline: none; }
+.menu__check { color: var(--accent); font-size: 12px; }
+.menu__hint { color: var(--ink-faint); font-size: 12px; }
+
+.panel-close {
+  border: none; background: none; padding: 2px 8px; margin-left: auto;
+  font-size: 18px; line-height: 1; color: var(--ink-faint);
+}
+.panel-close:hover:not(:disabled) { color: var(--ink); }
+.versions__header { gap: 8px; }
 
 .save { font-size: 12px; color: var(--ink-faint); min-width: 92px; text-align: right; }
 .save--saved { color: var(--add); }

@@ -21,6 +21,8 @@ import { SceneDetails } from '../components/SceneDetails'
 import { StoryBible } from '../components/StoryBible'
 import { TaskList } from '../components/TaskList'
 import { RevisionPanel } from '../components/RevisionPanel'
+import { Menu } from '../components/Menu'
+import { SidePanel } from '../components/SidePanel'
 import { Toolbar } from '../components/Toolbar'
 import { WritingPreferencesPanel } from '../components/WritingPreferences'
 import { VersionPanel } from '../components/VersionPanel'
@@ -48,28 +50,36 @@ const SAVE_LABEL: Record<string, string> = {
   error: 'Save failed — retrying on next edit',
 }
 
+/** The side panels; one is open at a time, or none. */
+type Panel =
+  | 'none'
+  | 'versions'
+  | 'history'
+  | 'prefs'
+  | 'front'
+  | 'details'
+  | 'bible'
+  | 'changes'
+  | 'tasks'
+  | 'people'
+  | 'activity'
+  | 'find'
+  | 'summary'
+
+// Which header menu each panel is reached from, so the menu shows it is open.
+const SCENE_PANELS: Panel[] = ['details', 'changes', 'history', 'summary']
+const BOOK_PANELS: Panel[] = ['find', 'bible', 'tasks', 'front', 'versions']
+const PEOPLE_PANELS: Panel[] = ['people', 'activity']
+
 export function EditorPage() {
   const { workId = '' } = useParams()
   const [outline, setOutline] = useState<OutlineType | null>(null)
   const [versions, setVersions] = useState<VersionSummary[]>([])
   const [scene, setScene] = useState<Scene | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [panel, setPanel] =
-    useState<
-      | 'none'
-      | 'versions'
-      | 'history'
-      | 'prefs'
-      | 'front'
-      | 'details'
-      | 'bible'
-      | 'changes'
-      | 'tasks'
-      | 'people'
-      | 'activity'
-      | 'find'
-      | 'summary'
-    >('none')
+  const [panel, setPanel] = useState<Panel>('none')
+  const toggle = (which: Panel) => setPanel((p) => (p === which ? 'none' : which))
+  const closePanel = () => setPanel('none')
   const [view, setView] = useState<'write' | 'corkboard'>('write')
   /** What the writer has selected, in the same positions a proposal records. */
   const [selection, setSelection] = useState<{ from: number; to: number; quote: string } | null>(null)
@@ -388,106 +398,89 @@ export function EditorPage() {
                 <option value="done">Done</option>
               </select>
             )}
-            <button
-              type="button"
-              title="Put everything away but the page (⌘⇧F)"
-              onClick={page.enter}
-            >
-              Page
-            </button>
-            <button
-              type="button"
-              className={preferences.focusMode ? 'is-active' : undefined}
-              title="Dim everything but the paragraph you are in"
-              onClick={() => setPreference('focusMode', !preferences.focusMode)}
-            >
-              Focus
-            </button>
-            <button
-              type="button"
-              onClick={() => setPanel((p) => (p === 'prefs' ? 'none' : 'prefs'))}
-            >
-              Aa
-            </button>
-            <button
-              type="button"
-              className={view === 'corkboard' ? 'is-active' : undefined}
-              onClick={() => setView((v) => (v === 'write' ? 'corkboard' : 'write'))}
-            >
-              {view === 'write' ? 'Corkboard' : 'Write'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setPanel((p) => (p === 'details' ? 'none' : 'details'))}
-            >
-              Scene
-            </button>
-            <button
-              type="button"
-              onClick={() => setPanel((p) => (p === 'changes' ? 'none' : 'changes'))}
-            >
-              Changes
-            </button>
-            <button
-              type="button"
-              onClick={() => setPanel((p) => (p === 'bible' ? 'none' : 'bible'))}
-            >
-              Bible
-            </button>
-            <button
-              type="button"
-              onClick={() => setPanel((p) => (p === 'tasks' ? 'none' : 'tasks'))}
-            >
-              To do
-            </button>
-            {can.isOwner && (
+            <div className="editor__tools" role="toolbar" aria-label="Writing">
+              <div className="segmented" role="group" aria-label="View">
+                <button
+                  type="button"
+                  className={view === 'write' ? 'is-active' : undefined}
+                  aria-pressed={view === 'write'}
+                  onClick={() => setView('write')}
+                >
+                  Write
+                </button>
+                <button
+                  type="button"
+                  className={view === 'corkboard' ? 'is-active' : undefined}
+                  aria-pressed={view === 'corkboard'}
+                  onClick={() => setView('corkboard')}
+                >
+                  Corkboard
+                </button>
+              </div>
               <button
                 type="button"
-                onClick={() => setPanel((p) => (p === 'front' ? 'none' : 'front'))}
+                className="tool"
+                title="Put everything away but the page (⌘⇧F)"
+                onClick={page.enter}
               >
-                Front matter
+                Page
               </button>
-            )}
-            <button
-              type="button"
-              onClick={() => setPanel((p) => (p === 'find' ? 'none' : 'find'))}
-            >
-              Find
-            </button>
-            {summariesOn && can.canWrite(scene?.chapterId ?? '') && (
               <button
                 type="button"
-                onClick={() => setPanel((p) => (p === 'summary' ? 'none' : 'summary'))}
+                className={preferences.focusMode ? 'tool is-active' : 'tool'}
+                aria-pressed={preferences.focusMode}
+                title="Dim everything but the paragraph you are in"
+                onClick={() => setPreference('focusMode', !preferences.focusMode)}
               >
-                Summarise
+                Focus
               </button>
-            )}
-            <button
-              type="button"
-              onClick={() => setPanel((p) => (p === 'people' ? 'none' : 'people'))}
-            >
-              People
-            </button>
-            <button
-              type="button"
-              onClick={() => setPanel((p) => (p === 'activity' ? 'none' : 'activity'))}
-            >
-              Activity
-            </button>
-            <button
-              type="button"
-              onClick={() => setPanel((p) => (p === 'history' ? 'none' : 'history'))}
-            >
-              History
-            </button>
-            {can.isOwner && (
               <button
                 type="button"
-                onClick={() => setPanel((p) => (p === 'versions' ? 'none' : 'versions'))}
+                className={panel === 'prefs' ? 'tool is-active' : 'tool'}
+                aria-pressed={panel === 'prefs'}
+                title="Type, size and spacing"
+                onClick={() => toggle('prefs')}
               >
-                {panel === 'versions' ? 'Hide versions' : 'Versions'}
+                Aa
               </button>
-            )}
+            </div>
+            <div className="editor__menus">
+              <Menu
+                label="Scene"
+                active={SCENE_PANELS.includes(panel)}
+                items={[
+                  { key: 'details', label: 'Details', checked: panel === 'details', disabled: !scene, onSelect: () => toggle('details') },
+                  { key: 'changes', label: 'Proposed changes', checked: panel === 'changes', disabled: !scene, onSelect: () => toggle('changes') },
+                  { key: 'history', label: 'History', checked: panel === 'history', disabled: !scene, onSelect: () => toggle('history') },
+                  ...(summariesOn && can.canWrite(scene?.chapterId ?? '')
+                    ? [{ key: 'summary', label: 'Summarise…', checked: panel === 'summary', onSelect: () => toggle('summary') }]
+                    : []),
+                ]}
+              />
+              <Menu
+                label="Book"
+                active={BOOK_PANELS.includes(panel)}
+                items={[
+                  { key: 'find', label: 'Find', checked: panel === 'find', onSelect: () => toggle('find') },
+                  { key: 'bible', label: 'Story bible', checked: panel === 'bible', onSelect: () => toggle('bible') },
+                  { key: 'tasks', label: 'To do', checked: panel === 'tasks', onSelect: () => toggle('tasks') },
+                  ...(can.isOwner
+                    ? [
+                        { key: 'front', label: 'Front matter', checked: panel === 'front', onSelect: () => toggle('front') },
+                        { key: 'versions', label: 'Versions', checked: panel === 'versions', onSelect: () => toggle('versions') },
+                      ]
+                    : []),
+                ]}
+              />
+              <Menu
+                label="People"
+                active={PEOPLE_PANELS.includes(panel)}
+                items={[
+                  { key: 'people', label: 'Who is on this book', checked: panel === 'people', onSelect: () => toggle('people') },
+                  { key: 'activity', label: 'Activity', checked: panel === 'activity', onSelect: () => toggle('activity') },
+                ]}
+              />
+            </div>
           </div>
         </header>
 
@@ -625,23 +618,17 @@ export function EditorPage() {
       </section>
 
       {panel === 'prefs' && (
-        <aside className="versions">
-          <header className="versions__header">
-            <h3>Writing</h3>
-          </header>
+        <SidePanel title="Writing" onClose={closePanel}>
           <WritingPreferencesPanel
             preferences={preferences}
             onChange={setPreference}
             onReset={resetPreferences}
           />
-        </aside>
+        </SidePanel>
       )}
 
       {panel === 'details' && scene && (
-        <aside className="versions">
-          <header className="versions__header">
-            <h3>{scene.title}</h3>
-          </header>
+        <SidePanel title={scene.title} onClose={closePanel}>
           <SceneDetails
             scene={scene}
             canMerge={!!nextScene}
@@ -652,14 +639,11 @@ export function EditorPage() {
               void loadOutline()
             }}
           />
-        </aside>
+        </SidePanel>
       )}
 
       {panel === 'changes' && scene && (
-        <aside className="versions">
-          <header className="versions__header">
-            <h3>Proposed changes</h3>
-          </header>
+        <SidePanel title="Proposed changes" onClose={closePanel}>
           <ChangesPanel
             scene={scene}
             selection={selection}
@@ -672,23 +656,17 @@ export function EditorPage() {
               void loadOutline()
             }}
           />
-        </aside>
+        </SidePanel>
       )}
 
       {panel === 'bible' && (
-        <aside className="versions">
-          <header className="versions__header">
-            <h3>Story bible</h3>
-          </header>
+        <SidePanel title="Story bible" onClose={closePanel}>
           <StoryBible workId={workId} scene={scene} />
-        </aside>
+        </SidePanel>
       )}
 
       {panel === 'tasks' && (
-        <aside className="versions">
-          <header className="versions__header">
-            <h3>To do</h3>
-          </header>
+        <SidePanel title="To do" onClose={closePanel}>
           <TaskList
             workId={workId}
             sceneId={scene?.id ?? null}
@@ -701,28 +679,22 @@ export function EditorPage() {
               if (target) void openScene(target)
             }}
           />
-        </aside>
+        </SidePanel>
       )}
 
       {panel === 'front' && outline && (
-        <aside className="versions">
-          <header className="versions__header">
-            <h3>Front matter</h3>
-          </header>
+        <SidePanel title="Front matter" onClose={closePanel}>
           <FrontMatter
             work={outline}
             onSaved={(work) =>
               setOutline((current) => (current ? { ...current, ...work } : current))
             }
           />
-        </aside>
+        </SidePanel>
       )}
 
       {panel === 'find' && (
-        <aside className="versions">
-          <header className="versions__header">
-            <h3>Find</h3>
-          </header>
+        <SidePanel title="Find" onClose={closePanel}>
           <FindPanel
             workId={workId}
             onOpen={(id) => {
@@ -732,14 +704,11 @@ export function EditorPage() {
               if (target) void openScene(target)
             }}
           />
-        </aside>
+        </SidePanel>
       )}
 
       {panel === 'summary' && (
-        <aside className="versions">
-          <header className="versions__header">
-            <h3>Summarise</h3>
-          </header>
+        <SidePanel title="Summarise" onClose={closePanel}>
           <SummaryPanel
             outline={outline}
             scene={scene}
@@ -749,30 +718,25 @@ export function EditorPage() {
               if (scene) void api.scenes.get(scene.id).then((s) => setScene((c) => (c ? { ...c, summary: s.summary } : c)))
             }}
           />
-        </aside>
+        </SidePanel>
       )}
 
       {panel === 'people' && (
-        <aside className="versions">
-          <header className="versions__header">
-            <h3>People</h3>
-          </header>
+        <SidePanel title="People" onClose={closePanel}>
           <CollaboratorsPanel outline={outline} permissions={can} />
-        </aside>
+        </SidePanel>
       )}
 
       {panel === 'activity' && (
-        <aside className="versions">
-          <header className="versions__header">
-            <h3>Activity</h3>
-          </header>
+        <SidePanel title="Activity" onClose={closePanel}>
           <ActivityPanel workId={workId} refreshKey={savedAt} />
-        </aside>
+        </SidePanel>
       )}
 
       {panel === 'versions' && (
         <VersionPanel
           workId={workId}
+          onClose={closePanel}
           versions={versions}
           onChanged={() => {
             void loadVersions()
@@ -782,10 +746,7 @@ export function EditorPage() {
       )}
 
       {panel === 'history' && scene && (
-        <aside className="versions">
-          <header className="versions__header">
-            <h3>This scene</h3>
-          </header>
+        <SidePanel title="This scene" onClose={closePanel}>
           <RevisionPanel
             sceneId={scene.id}
             refreshKey={savedAt}
@@ -794,7 +755,7 @@ export function EditorPage() {
               void loadOutline()
             }}
           />
-        </aside>
+        </SidePanel>
       )}
     </main>
   )

@@ -3,19 +3,21 @@ import { api } from '../api/client'
 import type { DiffResponse, VersionSummary, Visibility } from '../api/types'
 import { DiffView } from './DiffView'
 import { ExportDialog } from './ExportDialog'
+import { CloseButton } from './SidePanel'
 import { VersionCard } from './VersionCard'
 
 interface Props {
   workId: string
   versions: VersionSummary[]
   onChanged: () => void
+  onClose?: () => void
 }
 
 /**
  * The version lifecycle in one place: snapshot the working copy, compare two
  * snapshots, publish one, offer it for review, or freeze it as final.
  */
-export function VersionPanel({ workId, versions, onChanged }: Props) {
+export function VersionPanel({ workId, versions, onChanged, onClose }: Props) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [diff, setDiff] = useState<DiffResponse | null>(null)
@@ -74,6 +76,7 @@ export function VersionPanel({ workId, versions, onChanged }: Props) {
         >
           Snapshot now
         </button>
+        {onClose && <CloseButton onClose={onClose} />}
       </header>
 
       {error && <p className="error">{error}</p>}

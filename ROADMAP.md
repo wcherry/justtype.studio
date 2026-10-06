@@ -720,9 +720,15 @@ do not build toward it, and do not carry a compatibility layer for it.
   the request shape is checked against the documented API and a recording
   stub, and the live round trip still wants one try with a working key.
 
-### 8.5 UI polish · **Later**
+### 8.5 UI polish · **Done**
 - A more polished interface overall. The row of text buttons across the top of
   the editor becomes a menu, a toolbar, or both.
+- **Done:** the header's fifteen buttons are now three groups. Next to the
+  save state and the scene's status, a small toolbar holds what you toggle
+  while writing (Write / Corkboard, Page, Focus, Aa); three menus — *Scene*,
+  *Book*, *People* — open the side panels, tick the one that is open, and
+  light up while one of theirs is. The menus work from the keyboard (arrows,
+  Home, End, Escape back to the button). Every side panel has a close button.
 
 ### 8.6 Context menu on selected text · **Later**
 - Right-click (or ⌘-click) on selected text to add a highlight, a bookmark or a
