@@ -1,0 +1,99 @@
+name: ✨ Feature Request
+description: Suggest new functionality for Just Type Studio.
+title: "[Feature]: "
+labels: ["feature"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for functionality Just Type Studio doesn't have yet. If it already does the thing but does it badly, use the **Improvement** template instead.
+
+        Check [ROADMAP.md](https://github.com/wcherry/justtype.studio/blob/main/ROADMAP.md) first — it may already be planned or deliberately deferred.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Preflight checks
+      options:
+        - label: I searched existing issues and the roadmap, and this hasn't been requested yet.
+          required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe the underlying need in your writing or reviewing workflow rather than jumping straight to a solution.
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: What would you like Just Type Studio to do?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: How are you solving this today? What other approaches did you think about?
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      multiple: true
+      options:
+        - Editor
+        - Writing room (distraction-free)
+        - Chapters, scenes & outline
+        - Notebook
+        - Word-count goals
+        - Versions & snapshots
+        - Diffs & tracked changes
+        - Publishing & review
+        - Feedback & comments
+        - Moderation & reporting
+        - Profiles, following & discovery
+        - Collaboration
+        - AI summaries
+        - Manuscript formatting & export
+        - Accounts / sign-in
+        - Notifications
+        - iOS app
+        - Offline sync
+        - Web UI
+        - API
+        - Docker / Deployment
+        - Other / Not sure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: beneficiaries
+    attributes:
+      label: Who would benefit?
+      multiple: true
+      options:
+        - Authors
+        - Reviewers / beta readers
+        - Co-authors and collaborators
+        - Moderators
+        - Self-hosters
+        - Developers
+        - Other
+
+  - type: textarea
+    id: mockups
+    attributes:
+      label: Mockups, examples, or prior art
+      description: Optional. Screenshots of how other writing tools solve this, sketches, links.
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution
+      options:
+        - label: I'd be willing to help implement this.

@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 🔒 Report a Security Vulnerability
+    url: https://github.com/wcherry/justtype.studio/security/advisories/new
+    about: Please do NOT open a public issue. Report vulnerabilities privately through GitHub Security Advisories.
+  - name: 📖 Documentation & Setup Guide
+    url: https://github.com/wcherry/justtype.studio/blob/main/README.md
+    about: Running locally, Docker deployment, and the iOS build.
+  - name: 🗺️ Roadmap
+    url: https://github.com/wcherry/justtype.studio/blob/main/ROADMAP.md
+    about: What's built, what's next, and what's deliberately deferred.

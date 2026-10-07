@@ -1,0 +1,51 @@
+name: 📚 Documentation
+description: Something is missing, incorrect, or unclear in the docs.
+title: "[Docs]: "
+labels: ["documentation"]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which documentation?
+      multiple: true
+      options:
+        - README / getting started
+        - Docker deployment
+        - Operations (docs/OPERATIONS.md)
+        - Configuration / environment variables
+        - API reference (docs/API.md, OpenAPI)
+        - Architecture (docs/ARCHITECTURE.md)
+        - Data model (docs/DATA_MODEL.md)
+        - Roadmap
+        - iOS build & TestFlight
+        - In-app help / UI copy
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: location
+    attributes:
+      label: Where is it?
+      description: File path, URL, or the page/section name.
+      placeholder: "README.md#running-it, or docs/OPERATIONS.md"
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What's wrong or missing?
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested improvement
+      description: If you know what it should say, write it here — we'll happily take the wording.
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution
+      options:
+        - label: I'd be willing to open a PR for this.

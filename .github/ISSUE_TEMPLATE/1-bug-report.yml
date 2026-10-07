@@ -1,0 +1,164 @@
+name: 🐛 Bug Report
+description: Something isn't working correctly.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug report.
+
+        ⚠️ **Do not use this form for security vulnerabilities.** Please report those privately — see the Security Vulnerability option on the new-issue chooser.
+
+        🔏 **Please don't paste manuscript text you want kept private.** A short placeholder passage that reproduces the problem is just as useful.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Preflight checks
+      options:
+        - label: I searched existing issues and this hasn't been reported yet.
+          required: true
+        - label: I'm running a recent version of Just Type Studio.
+          required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the problem.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open a manuscript and go to '...'
+        2. Click on '...'
+        3. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should have happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What happened instead?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      description: Which part of Just Type Studio is affected?
+      multiple: true
+      options:
+        - Editor
+        - Writing room (distraction-free)
+        - Chapters, scenes & outline
+        - Notebook
+        - Word-count goals
+        - Versions & snapshots
+        - Diffs & tracked changes
+        - Publishing & review
+        - Feedback & comments
+        - Moderation & reporting
+        - Profiles, following & discovery
+        - Collaboration
+        - AI summaries
+        - Manuscript formatting & export
+        - Accounts / sign-in
+        - Notifications
+        - iOS app
+        - Offline sync
+        - Web UI
+        - API
+        - Docker / Deployment
+        - Other / Not sure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: data-loss
+    attributes:
+      label: Was any writing lost or corrupted?
+      options:
+        - "No"
+        - Yes — recovered from a snapshot or another device
+        - Yes — lost
+        - Not sure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: frequency
+    attributes:
+      label: Can you reproduce this consistently?
+      options:
+        - Always
+        - Sometimes
+        - Only happened once
+        - Unknown
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Just Type Studio version
+      placeholder: "e.g. iOS 1.1.0 (7), or the commit SHA you built from"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install-method
+    attributes:
+      label: How are you using it?
+      options:
+        - Hosted (justtype.studio)
+        - iOS app (App Store / TestFlight)
+        - Docker
+        - Built from source
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Browser, OS or device, and Docker image/tag if applicable.
+      placeholder: |
+        - Browser: Safari 18
+        - OS / device: iPadOS 18.1, iPad Pro 13-inch (M4)
+        - Docker image: ghcr.io/wcherry/justtype-studio:latest
+      value: |
+        - Browser:
+        - OS / device:
+        - Docker image/tag:
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / error messages
+      description: Server logs, browser console output, Xcode console, or stack traces. This is automatically formatted as code, so no backticks needed.
+      render: shell
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots / recordings
+      description: Optional. Drag and drop images or video here.

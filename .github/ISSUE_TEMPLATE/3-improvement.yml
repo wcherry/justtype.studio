@@ -1,0 +1,78 @@
+name: 🔧 Improvement
+description: Something already works, but it could be substantially better.
+title: "[Improvement]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Feature vs. Improvement:** if Just Type Studio *can't* do X, file a Feature Request. If it *does* X but it's slow, awkward, or confusing, you're in the right place.
+
+        Good examples: faster loading of long manuscripts, smoother scene reordering, clearer diffs, better keyboard shortcuts in the editor.
+
+  - type: textarea
+    id: current
+    attributes:
+      label: Current behavior
+      description: What does Just Type Studio do today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed
+    attributes:
+      label: Proposed improvement
+      description: What should it do instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it matters
+      description: What's the concrete impact — time lost, focus broken, workflow blocked?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      multiple: true
+      options:
+        - Editor
+        - Writing room (distraction-free)
+        - Chapters, scenes & outline
+        - Notebook
+        - Word-count goals
+        - Versions & snapshots
+        - Diffs & tracked changes
+        - Publishing & review
+        - Feedback & comments
+        - Moderation & reporting
+        - Profiles, following & discovery
+        - Collaboration
+        - AI summaries
+        - Manuscript formatting & export
+        - Accounts / sign-in
+        - Notifications
+        - iOS app
+        - Offline sync
+        - Web UI
+        - API
+        - Docker / Deployment
+        - Other / Not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: examples
+    attributes:
+      label: Screenshots or examples
+      description: Optional. Before/after sketches, examples from other tools, timing measurements.
+
+  - type: input
+    id: related
+    attributes:
+      label: Related issues
+      placeholder: "#123, #456"

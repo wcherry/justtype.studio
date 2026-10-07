@@ -1,0 +1,111 @@
+name: 📱 Platform / Compatibility
+description: A browser, iPhone/iPad, OS, Docker, or hardware-specific problem.
+title: "[Compat]: "
+labels: ["bug", "compatibility"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this when the problem is specific to one environment — it works in Chrome but not Safari, works on iPad but not iPhone, works on x86 but not ARM, works from source but not in Docker. If it's broken everywhere, file a regular **Bug Report** instead.
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      multiple: true
+      options:
+        - Web (desktop browser)
+        - Web (mobile browser)
+        - iOS app (iPhone)
+        - iOS app (iPad)
+        - macOS
+        - Windows
+        - Linux
+        - Docker
+        - Server / backend
+        - API client
+        - Multiple
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What's the problem?
+      description: Describe what breaks or renders incorrectly on this platform.
+    validations:
+      required: true
+
+  - type: textarea
+    id: works-where
+    attributes:
+      label: Where does it work correctly?
+      description: Which browsers, devices, OS versions, or architectures behave as expected? This is the most useful part of a compatibility report.
+      placeholder: "Works in Chrome 131 on macOS; broken in Safari 18 on the same machine."
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. ...
+        2. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment details
+      description: Exact versions, device model, architecture, and Docker specifics where relevant.
+      value: |
+        - Just Type Studio version:
+        - OS and version:
+        - Browser and version / device model:
+        - Architecture (x86_64 / arm64):
+        - Docker image/tag and host OS:
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      multiple: true
+      options:
+        - Editor
+        - Writing room (distraction-free)
+        - Chapters, scenes & outline
+        - Notebook
+        - Word-count goals
+        - Versions & snapshots
+        - Diffs & tracked changes
+        - Publishing & review
+        - Feedback & comments
+        - Moderation & reporting
+        - Profiles, following & discovery
+        - Collaboration
+        - AI summaries
+        - Manuscript formatting & export
+        - Accounts / sign-in
+        - Notifications
+        - iOS app
+        - Offline sync
+        - Web UI
+        - API
+        - Docker / Deployment
+        - Other / Not sure
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / console output
+      render: shell
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots / recordings
+      description: Optional, but very helpful for rendering, layout, and keyboard problems.
