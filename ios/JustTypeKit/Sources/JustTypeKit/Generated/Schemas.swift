@@ -295,49 +295,6 @@ public enum API {
         }
     }
 
-    public struct BibleEntry: Codable, Hashable, Sendable {
-        public var body: String?
-        public var createdAt: String
-        public var id: String
-        public var kind: BibleKind
-        public var name: String
-        public var summary: String?
-        /// The sketch template it was started from, if any.
-        public var templateId: String?
-        public var updatedAt: String
-        public var workId: String
-
-        public init(
-            body: String? = nil,
-            createdAt: String,
-            id: String,
-            kind: BibleKind,
-            name: String,
-            summary: String? = nil,
-            templateId: String? = nil,
-            updatedAt: String,
-            workId: String
-        ) {
-            self.body = body
-            self.createdAt = createdAt
-            self.id = id
-            self.kind = kind
-            self.name = name
-            self.summary = summary
-            self.templateId = templateId
-            self.updatedAt = updatedAt
-            self.workId = workId
-        }
-    }
-
-    public enum BibleKind: String, Codable, CaseIterable, Hashable, Sendable {
-        case character = "character"
-        case place = "place"
-        case thing = "thing"
-        case group = "group"
-        case note = "note"
-    }
-
     /// One paragraph's fate between two versions.
     public enum BlockChangeKind: String, Codable, CaseIterable, Hashable, Sendable {
         case unchanged = "unchanged"
@@ -940,11 +897,13 @@ public enum API {
 
     public struct CreateChapterRequest: Codable, Hashable, Sendable {
         public var summary: String?
-        public var title: String
+        /// Left out or empty, it is untitled and shown as "Chapter 2" for where it
+        /// falls, until the writer names it.
+        public var title: String?
 
         public init(
             summary: String? = nil,
-            title: String
+            title: String? = nil
         ) {
             self.summary = summary
             self.title = title
@@ -989,16 +948,16 @@ public enum API {
     public struct CreateEntryRequest: Codable, Hashable, Sendable {
         public var body: String?
         /// `character`, `place` or `note`.
-        public var kind: BibleKind
+        public var kind: NotebookKind
         public var name: String
         public var summary: String?
-        /// A sketch template (`GET /api/bible/templates`) to start from: its fields
+        /// A sketch template (`GET /api/notebook/templates`) to start from: its fields
         /// arrive empty, ready to fill in.
         public var templateId: String?
 
         public init(
             body: String? = nil,
-            kind: BibleKind,
+            kind: NotebookKind,
             name: String,
             summary: String? = nil,
             templateId: String? = nil
@@ -1067,13 +1026,15 @@ public enum API {
         public var content: DocNode?
         public var pov: String?
         public var summary: String?
-        public var title: String
+        /// Left out or empty, it is untitled and shown as "Scene 2" for where it
+        /// falls, until the writer names it.
+        public var title: String?
 
         public init(
             content: DocNode? = nil,
             pov: String? = nil,
             summary: String? = nil,
-            title: String
+            title: String? = nil
         ) {
             self.content = content
             self.pov = pov
@@ -1298,7 +1259,7 @@ public enum API {
         public var body: String?
         public var createdAt: String
         public var id: String
-        public var kind: BibleKind
+        public var kind: NotebookKind
         public var name: String
         public var summary: String?
         /// The sketch template it was started from, if any.
@@ -1314,7 +1275,7 @@ public enum API {
             body: String? = nil,
             createdAt: String,
             id: String,
-            kind: BibleKind,
+            kind: NotebookKind,
             name: String,
             summary: String? = nil,
             templateId: String? = nil,
@@ -1634,6 +1595,49 @@ public enum API {
         case edited = "edited"
         case gone = "gone"
         case unanchored = "unanchored"
+    }
+
+    public struct NotebookEntry: Codable, Hashable, Sendable {
+        public var body: String?
+        public var createdAt: String
+        public var id: String
+        public var kind: NotebookKind
+        public var name: String
+        public var summary: String?
+        /// The sketch template it was started from, if any.
+        public var templateId: String?
+        public var updatedAt: String
+        public var workId: String
+
+        public init(
+            body: String? = nil,
+            createdAt: String,
+            id: String,
+            kind: NotebookKind,
+            name: String,
+            summary: String? = nil,
+            templateId: String? = nil,
+            updatedAt: String,
+            workId: String
+        ) {
+            self.body = body
+            self.createdAt = createdAt
+            self.id = id
+            self.kind = kind
+            self.name = name
+            self.summary = summary
+            self.templateId = templateId
+            self.updatedAt = updatedAt
+            self.workId = workId
+        }
+    }
+
+    public enum NotebookKind: String, Codable, CaseIterable, Hashable, Sendable {
+        case character = "character"
+        case place = "place"
+        case thing = "thing"
+        case group = "group"
+        case note = "note"
     }
 
     public enum Op: String, Codable, CaseIterable, Hashable, Sendable {
@@ -2888,14 +2892,14 @@ public enum API {
         public var description: String
         public var fields: [TemplateField]
         public var id: String
-        public var kind: BibleKind
+        public var kind: NotebookKind
         public var name: String
 
         public init(
             description: String,
             fields: [TemplateField],
             id: String,
-            kind: BibleKind,
+            kind: NotebookKind,
             name: String
         ) {
             self.description = description

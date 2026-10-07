@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '../api/client'
-import type { BibleKind, EntryView, Scene, SketchField, SketchTemplate } from '../api/types'
+import type { NotebookKind, EntryView, Scene, SketchField, SketchTemplate } from '../api/types'
 
 interface Props {
   workId: string
@@ -9,7 +9,7 @@ interface Props {
 }
 
 // Singulars spelled out rather than derived: "people" does not lose an "s".
-const KINDS: { value: BibleKind; label: string; one: string }[] = [
+const KINDS: { value: NotebookKind; label: string; one: string }[] = [
   { value: 'character', label: 'People', one: 'person' },
   { value: 'place', label: 'Places', one: 'place' },
   { value: 'thing', label: 'Things', one: 'thing' },
@@ -24,21 +24,21 @@ const KINDS: { value: BibleKind; label: string; one: string }[] = [
  * Whoever is in the scene open now comes first, so a writer checking her eye
  * colour mid-sentence does not have to go looking.
  */
-export function StoryBible({ workId, scene }: Props) {
+export function Notebook({ workId, scene }: Props) {
   const [entries, setEntries] = useState<EntryView[]>([])
   const [templates, setTemplates] = useState<SketchTemplate[]>([])
-  const [kind, setKind] = useState<BibleKind>('character')
+  const [kind, setKind] = useState<NotebookKind>('character')
   const [adding, setAdding] = useState(false)
   const [expanded, setExpanded] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(() => {
-    api.bible.list(workId).then(setEntries).catch(() => setEntries([]))
+    api.notebook.list(workId).then(setEntries).catch(() => setEntries([]))
   }, [workId])
 
   useEffect(load, [load])
   useEffect(() => {
-    api.bible.templates().then(setTemplates).catch(() => setTemplates([]))
+    api.notebook.templates().then(setTemplates).catch(() => setTemplates([]))
   }, [])
 
   const here = scene ? entries.filter((entry) => entry.sceneIds.includes(scene.id)) : []
@@ -52,8 +52,8 @@ export function StoryBible({ workId, scene }: Props) {
     try {
       replace(
         entry.sceneIds.includes(scene.id)
-          ? await api.bible.unlink(entry.id, scene.id)
-          : await api.bible.link(entry.id, scene.id),
+          ? await api.notebook.unlink(entry.id, scene.id)
+          : await api.notebook.link(entry.id, scene.id),
       )
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not change that link')
@@ -63,16 +63,16 @@ export function StoryBible({ workId, scene }: Props) {
   // Keyed by list as well as entry: someone in this scene is in both lists,
   // and opening them in one should not open them in the other.
   const row = (list: string) => (entry: EntryView) => (
-    <li key={entry.id} className="bible__entry">
+    <li key={entry.id} className="notebook__entry">
       <button
         type="button"
-        className="bible__row"
+        className="notebook__row"
         onClick={() => setExpanded(expanded === `${list}:${entry.id}` ? null : `${list}:${entry.id}`)}
       >
-        <span className="bible__name">{entry.name}</span>
-        <span className="bible__count">{entry.sceneIds.length}</span>
+        <span className="notebook__name">{entry.name}</span>
+        <span className="notebook__count">{entry.sceneIds.length}</span>
       </button>
-      {entry.summary && <p className="bible__summary">{entry.summary}</p>}
+      {entry.summary && <p className="notebook__summary">{entry.summary}</p>}
       {expanded === `${list}:${entry.id}` && (
         <EntryDetail
           entry={entry}
@@ -88,15 +88,15 @@ export function StoryBible({ workId, scene }: Props) {
   )
 
   return (
-    <div className="bible">
+    <div className="notebook">
       {here.length > 0 && (
-        <section className="bible__here">
+        <section className="notebook__here">
           <h4>In this scene</h4>
-          <ul className="bible__list">{here.map(row('here'))}</ul>
+          <ul className="notebook__list">{here.map(row('here'))}</ul>
         </section>
       )}
 
-      <div className="bible__kinds">
+      <div className="notebook__kinds">
         {KINDS.map((option) => (
           <button
             key={option.value}
@@ -115,7 +115,7 @@ export function StoryBible({ workId, scene }: Props) {
         <p className="empty">Nothing here yet. Add the ones you keep having to look up.</p>
       )}
 
-      <ul className="bible__list">{shown.map(row('all'))}</ul>
+      <ul className="notebook__list">{shown.map(row('all'))}</ul>
 
       {adding ? (
         <NewEntry
@@ -166,7 +166,7 @@ function EntryDetail({
   const save = async () => {
     setBusy(true)
     try {
-      onSaved(await api.bible.update(entry.id, { fields, body, summary }))
+      onSaved(await api.notebook.update(entry.id, { fields, body, summary }))
       setEditing(false)
     } catch (e) {
       onError(e instanceof Error ? e.message : 'Could not save that')
@@ -178,7 +178,7 @@ function EntryDetail({
   const filled = entry.fields.filter((f) => (f.value ?? '').trim())
 
   return (
-    <div className="bible__detail">
+    <div className="notebook__detail">
       {editing ? (
         <div className="sketch sketch--editing">
           <label>
@@ -218,7 +218,7 @@ function EntryDetail({
             Notes
             <textarea rows={4} value={body} onChange={(e) => setBody(e.target.value)} />
           </label>
-          <div className="bible__actions">
+          <div className="notebook__actions">
             <button type="button" disabled={busy} onClick={() => void save()}>Save</button>
             <button
               type="button"
@@ -258,7 +258,7 @@ function EntryDetail({
         Appears in {entry.sceneIds.length} scene{entry.sceneIds.length === 1 ? '' : 's'}.
       </p>
       {!editing && (
-        <div className="bible__actions">
+        <div className="notebook__actions">
           <button type="button" onClick={() => setEditing(true)}>
             {entry.fields.length > 0 ? 'Fill in the sketch' : 'Edit'}
           </button>
@@ -270,7 +270,7 @@ function EntryDetail({
           <button
             type="button"
             onClick={async () => {
-              await api.bible.remove(entry.id)
+              await api.notebook.remove(entry.id)
               onDeleted()
             }}
           >
@@ -286,7 +286,7 @@ function NewEntry({
   workId, kind, templates, onDone, onCancel,
 }: {
   workId: string
-  kind: BibleKind
+  kind: NotebookKind
   templates: SketchTemplate[]
   onDone: (entry: EntryView) => void
   onCancel: () => void
@@ -301,12 +301,12 @@ function NewEntry({
 
   return (
     <form
-      className="bible__new"
+      className="notebook__new"
       onSubmit={async (event) => {
         event.preventDefault()
         setBusy(true)
         try {
-          onDone(await api.bible.create(workId, {
+          onDone(await api.notebook.create(workId, {
             kind, name, summary, templateId: templateId || undefined,
           }))
         } finally {
@@ -340,7 +340,7 @@ function NewEntry({
           )}
         </label>
       )}
-      <div className="bible__actions">
+      <div className="notebook__actions">
         <button type="submit" disabled={busy || !name.trim()}>Add</button>
         <button type="button" onClick={onCancel}>Cancel</button>
       </div>

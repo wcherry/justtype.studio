@@ -10,8 +10,8 @@
 export type {
   Anchor,
   AuthorCard,
-  BibleEntry,
-  BibleKind,
+  NotebookEntry,
+  NotebookKind,
   BlockChangeKind,
   BlockDiff,
   CircleMember,

@@ -44,7 +44,7 @@ export function CircleManager() {
               onClick={() => setExpanded(expanded === circle.id ? null : circle.id)}
             >
               <span>{circle.name}</span>
-              <span className="bible__count">{circle.members.length}</span>
+              <span className="notebook__count">{circle.members.length}</span>
             </button>
 
             {expanded === circle.id && (

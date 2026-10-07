@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { EditorContent, useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
@@ -18,17 +18,22 @@ import { FrontMatter } from '../components/FrontMatter'
 import { GoalBar } from '../components/GoalBar'
 import { Outline } from '../components/Outline'
 import { SceneDetails } from '../components/SceneDetails'
-import { StoryBible } from '../components/StoryBible'
+import { Notebook } from '../components/Notebook'
 import { TaskList } from '../components/TaskList'
 import { RevisionPanel } from '../components/RevisionPanel'
+import { Icon } from '../components/Icon'
 import { Menu } from '../components/Menu'
+import type { MenuItem } from '../components/Menu'
 import { MarksPanel } from '../components/MarksPanel'
 import { SelectionMenu, useSelectionMenu } from '../components/SelectionMenu'
 import type { SelectionAction } from '../components/SelectionMenu'
 import { SidePanel } from '../components/SidePanel'
-import { Toolbar } from '../components/Toolbar'
+import { Tabs } from '../components/Tabs'
+import { FORMAT_ACTIONS, ToolButton, Toolbar } from '../components/Toolbar'
+import type { IconName } from '../components/Icon'
 import { WritingPreferencesPanel } from '../components/WritingPreferences'
 import { VersionPanel } from '../components/VersionPanel'
+import { WritingRoomBar } from '../components/WritingRoomBar'
 import { Annotations, MAX_MARK_QUOTE, currentRanges, findQuote, refreshAnnotations, tighten } from '../editor/annotations'
 import type { AnnotationSpec } from '../editor/annotations'
 import { useAnnotations } from '../editor/useAnnotations'
@@ -44,6 +49,7 @@ import { pendingFor, startQueueReplay } from '../offline/queue'
 import { permissions } from '../state/permissions'
 import { useAuth } from '../state/auth'
 import { here, useLive, usePresence } from '../live'
+import { isUntitled, withPlaceholderNames } from '../naming'
 
 const SAVE_LABEL: Record<string, string> = {
   idle: '',
@@ -60,12 +66,11 @@ const SAVE_LABEL: Record<string, string> = {
 type Panel =
   | 'none'
   | 'versions'
-  | 'history'
   | 'prefs'
   | 'front'
-  | 'details'
-  | 'bible'
-  | 'changes'
+  | 'notebook'
+  /** The open scene: its details, proposed changes and history, as tabs. */
+  | 'scene'
   | 'tasks'
   | 'people'
   | 'activity'
@@ -73,10 +78,26 @@ type Panel =
   | 'summary'
   | 'marks'
 
-// Which header menu each panel is reached from, so the menu shows it is open.
-const SCENE_PANELS: Panel[] = ['details', 'changes', 'history', 'summary']
-const BOOK_PANELS: Panel[] = ['find', 'marks', 'bible', 'tasks', 'front', 'versions']
-const PEOPLE_PANELS: Panel[] = ['people', 'activity']
+/** The panels used most while writing get a button of their own as well. */
+const TOOLBAR_PANELS: { panel: Panel; icon: IconName; label: string }[] = [
+  { panel: 'find', icon: 'find', label: 'Find in the book' },
+  { panel: 'notebook', icon: 'notebook', label: 'Notebook: characters, places and continuity notes' },
+  { panel: 'tasks', icon: 'tasks', label: 'To do' },
+]
+
+type SceneTab = 'details' | 'changes' | 'history'
+const SCENE_TABS: { key: SceneTab; label: string }[] = [
+  { key: 'details', label: 'Details' },
+  { key: 'changes', label: 'Proposed changes' },
+  { key: 'history', label: 'History' },
+]
+
+const SCENE_STATUSES: { value: Scene['status']; label: string }[] = [
+  { value: 'outline', label: 'Outline' },
+  { value: 'drafting', label: 'Drafting' },
+  { value: 'revised', label: 'Revised' },
+  { value: 'done', label: 'Done' },
+]
 
 export function EditorPage() {
   const { workId = '' } = useParams()
@@ -84,9 +105,18 @@ export function EditorPage() {
   const [versions, setVersions] = useState<VersionSummary[]>([])
   const [scene, setScene] = useState<Scene | null>(null)
   const [error, setError] = useState<string | null>(null)
+  /** For showing only: untitled chapters and scenes called by their place. */
+  const named = useMemo(() => (outline ? withPlaceholderNames(outline) : null), [outline])
   const [panel, setPanel] = useState<Panel>('none')
   const toggle = (which: Panel) => setPanel((p) => (p === which ? 'none' : which))
   const closePanel = () => setPanel('none')
+  const [sceneTab, setSceneTab] = useState<SceneTab>('details')
+  /** Opens the scene panel on one tab, or puts it away if it is already showing that one. */
+  const toggleSceneTab = (tab: SceneTab) => {
+    if (panel === 'scene' && sceneTab === tab) return setPanel('none')
+    setSceneTab(tab)
+    setPanel('scene')
+  }
   const [view, setView] = useState<'write' | 'corkboard'>('write')
   /** What the writer has selected, in the same positions a proposal records. */
   const [selection, setSelection] = useState<{ from: number; to: number; quote: string } | null>(null)
@@ -122,6 +152,13 @@ export function EditorPage() {
   }, [editor, preferences.focusMode, preferences.typewriter])
 
   const page = useDistractionFree()
+  // In the writing room the page is a share of the screen rather than a
+  // number of characters, and the zoom scales the type within it.
+  const roomStyle = {
+    ...proseStyle,
+    '--prose-size': `${(preferences.fontSize * preferences.roomZoom) / 100}px`,
+    '--measure': `${preferences.roomWidth}%`,
+  } as React.CSSProperties
   // Summaries exist only where the server has been set up to write them.
   const [summariesOn, setSummariesOn] = useState(false)
   useEffect(() => {
@@ -468,65 +505,200 @@ export function EditorPage() {
     }
   }
 
+  const setStatus = async (status: Scene['status']) => {
+    if (!scene) return
+    await api.scenes.update(scene.id, { status })
+    setScene({ ...scene, status })
+    void loadOutline()
+  }
+
+  /** A side panel as a menu item: ticked while it is open. */
+  const panelItem = (which: Panel, label: string, extra: Partial<MenuItem> = {}): MenuItem => ({
+    key: which, label, checked: panel === which, onSelect: () => toggle(which), ...extra,
+  })
+  const format = (run: (e: NonNullable<typeof editor>) => void) => () => {
+    if (!editor) return
+    run(editor)
+    // The closing menu hands focus back to its button; take it back for the
+    // page once it has, so typing carries on.
+    setTimeout(() => editor.view.focus(), 0)
+  }
+  const mainMenu: MenuItem[] = [
+    {
+      key: 'scene',
+      label: 'Scene',
+      items: [
+        ...SCENE_TABS.map(({ key, label }) => ({
+          key,
+          label,
+          disabled: !scene,
+          checked: panel === 'scene' && sceneTab === key,
+          onSelect: () => toggleSceneTab(key),
+        })),
+        ...(summariesOn && can.canWrite(scene?.chapterId ?? '') ? [panelItem('summary', 'Summarise…')] : []),
+        {
+          key: 'status',
+          label: 'Status',
+          divider: true,
+          disabled: !scene || !writable,
+          items: SCENE_STATUSES.map((s) => ({
+            key: s.value, label: s.label, checked: scene?.status === s.value, onSelect: () => void setStatus(s.value),
+          })),
+        },
+        { key: 'split', label: 'Split at the cursor', disabled: !scene || !writable, onSelect: () => void splitHere() },
+        { key: 'merge', label: 'Merge with the next scene', disabled: !nextScene || !writable, onSelect: () => void mergeNext() },
+      ],
+    },
+    {
+      key: 'book',
+      label: 'Book',
+      items: [
+        panelItem('find', 'Find'),
+        panelItem('notebook', 'Notebook'),
+        panelItem('tasks', 'To do'),
+        panelItem('marks', 'Highlights & bookmarks'),
+        ...(can.isOwner
+          ? [panelItem('front', 'Front matter', { divider: true }), panelItem('versions', 'Versions')]
+          : []),
+      ],
+    },
+    {
+      key: 'format',
+      label: 'Format',
+      disabled: !writable,
+      items: [
+        ...FORMAT_ACTIONS.map((action, index) => ({
+          key: action.title,
+          label: action.title.replace(/ \(.*\)$/, ''),
+          hint: action.title.match(/\((.*)\)$/)?.[1],
+          divider: index === 4 || index === 8,
+          checked: action.title === 'Scene break' ? undefined : !!editor && action.isActive(editor),
+          onSelect: format(action.run),
+        })),
+        { key: 'undo', label: 'Undo', hint: '⌘Z', divider: true, onSelect: format((e) => e.chain().focus().undo().run()) },
+        { key: 'redo', label: 'Redo', hint: '⇧⌘Z', onSelect: format((e) => e.chain().focus().redo().run()) },
+      ],
+    },
+    {
+      key: 'view',
+      label: 'View',
+      items: [
+        { key: 'write', label: 'Write', checked: view === 'write', onSelect: () => setView('write') },
+        { key: 'corkboard', label: 'Corkboard', checked: view === 'corkboard', onSelect: () => setView('corkboard') },
+        { key: 'room', label: 'Writing room', hint: '⌘⇧F', divider: true, onSelect: page.enter },
+        {
+          key: 'focus', label: 'Focus on the paragraph', checked: preferences.focusMode,
+          onSelect: () => setPreference('focusMode', !preferences.focusMode),
+        },
+        {
+          key: 'typewriter', label: 'Typewriter scrolling', checked: preferences.typewriter,
+          onSelect: () => setPreference('typewriter', !preferences.typewriter),
+        },
+        panelItem('prefs', 'Type, size and spacing…', { divider: true }),
+      ],
+    },
+    {
+      key: 'people',
+      label: 'People',
+      items: [panelItem('people', 'Who is on this book'), panelItem('activity', 'Activity')],
+    },
+  ]
+
   if (error) return <main className="editor"><p className="error">{error}</p></main>
   if (!outline) return <main className="editor"><p className="empty">Opening…</p></main>
+
+  /** A scene's title, or "Scene 2" for where it sits when it has none. */
+  const nameOf = (sceneId: string) =>
+    (named ?? outline).chapters.flatMap((c) => c.scenes).find((s) => s.id === sceneId)?.title ?? ''
+
+  // The same outline in the sidebar and in the writing room's popup.
+  const outlineProps: React.ComponentProps<typeof Outline> = {
+    outline,
+    activeSceneId: scene?.id ?? null,
+    onSelectScene: openScene,
+    onAddChapter: async () => {
+      await api.chapters.create(workId, '')
+      void loadOutline()
+    },
+    onAddScene: async (chapterId) => {
+      const created = await api.scenes.create(chapterId, '')
+      await loadOutline()
+      void openScene(created)
+    },
+    onMoveScene: async (chapterId, ids) => {
+      await api.scenes.reorder(chapterId, ids)
+      void loadOutline()
+    },
+    onRenameScene: async (sceneId, title) => {
+      await api.scenes.update(sceneId, { title })
+      void loadOutline()
+    },
+    canWrite: can.canWrite,
+    canShape: can.canShape,
+  }
 
   return (
     <main className="editor">
       {page.on && (
         <>
-          {/* The pointer at the top edge brings this back; otherwise it is
-              not there at all. */}
-          <div className="page-bar" role="toolbar" aria-label="Page">
-            <span className="page-bar__title">{scene?.title ?? outline.title}</span>
-            <span className="page-bar__meta">{wordCount.toLocaleString()} words</span>
-            <span className={`save save--${saveState}`}>{SAVE_LABEL[saveState]}</span>
-            <span className="page-bar__spacer" />
-            <button type="button" className="linklike" onClick={page.toggleOutline}>
-              {page.outline ? 'Hide outline' : 'Outline'} <kbd>⌘⇧O</kbd>
-            </button>
-            <button type="button" className="linklike" onClick={page.leave}>
-              Back to the desk <kbd>Esc</kbd>
-            </button>
-          </div>
+          <WritingRoomBar
+            outline={named ?? outline}
+            scene={scene}
+            wordCount={wordCount}
+            saveLabel={SAVE_LABEL[saveState]}
+            zoom={preferences.roomZoom}
+            onZoom={(percent) => setPreference('roomZoom', percent)}
+            width={preferences.roomWidth}
+            onWidth={(percent) => setPreference('roomWidth', percent)}
+            outlineShown={page.outline}
+            onToggleOutline={page.toggleOutline}
+            outlinePanel={
+              <Outline
+                {...outlineProps}
+                className="outline--popup"
+                // Choosing a scene puts the outline away and goes back to the
+                // words; adding or moving scenes leaves it open.
+                onSelectScene={(target) => {
+                  page.toggleOutline()
+                  void openScene(target).then(() => setTimeout(() => editor?.view.focus(), 0))
+                }}
+              />
+            }
+            onOpenScene={(target) => {
+              void openScene(target).then(() => setTimeout(() => editor?.view.focus(), 0))
+            }}
+            onLeave={page.leave}
+          />
           {/* Quiet enough to ignore, there for a glance. */}
           <div className={`page-status save--${saveState}`} aria-live="polite">
             {wordCount.toLocaleString()} · {SAVE_LABEL[saveState] || 'Saved'}
           </div>
         </>
       )}
-      <Outline
-        outline={outline}
-        activeSceneId={scene?.id ?? null}
-        onSelectScene={openScene}
-        onAddChapter={async (title) => {
-          await api.chapters.create(workId, title)
-          void loadOutline()
-        }}
-        onAddScene={async (chapterId, title) => {
-          const created = await api.scenes.create(chapterId, title)
-          await loadOutline()
-          void openScene(created)
-        }}
-        onMoveScene={async (chapterId, ids) => {
-          await api.scenes.reorder(chapterId, ids)
-          void loadOutline()
-        }}
-        onRenameScene={async (sceneId, title) => {
-          await api.scenes.update(sceneId, { title })
-          void loadOutline()
-        }}
-        canWrite={can.canWrite}
-        canShape={can.canShape}
-      />
+      <Outline {...outlineProps} />
 
       <section className="editor__main">
         <header className="editor__header">
-          <div>
-            <h1>{scene?.title ?? outline.title}</h1>
+          <div className="editor__heading">
+            <Menu
+              label={<Icon name="menu" />}
+              ariaLabel="Menu"
+              tip="Menu: everything, by where it belongs"
+              caret={false}
+              align="left"
+              className="editor__menu"
+              active={panel !== 'none' && !TOOLBAR_PANELS.some((t) => t.panel === panel)}
+              items={mainMenu}
+            />
+            <div className="editor__title">
+            <h1 className={scene && isUntitled(scene.title) ? 'is-placeholder' : undefined}>
+              {scene ? nameOf(scene.id) : outline.title}
+            </h1>
             <p className="editor__meta">
+              {scene && `${SCENE_STATUSES.find((s) => s.value === scene.status)?.label} · `}
               {wordCount.toLocaleString()} words in this scene · {outline.wordCount.toLocaleString()} in the work
             </p>
+            </div>
           </div>
           <div className="editor__header-actions">
             <span className={`save save--${saveState}`}>
@@ -537,106 +709,6 @@ export function EditorPage() {
                 </span>
               )}
             </span>
-            {scene && writable && (
-              <select
-                value={scene.status}
-                onChange={async (e) => {
-                  const status = e.target.value as Scene['status']
-                  await api.scenes.update(scene.id, { status })
-                  setScene({ ...scene, status })
-                  void loadOutline()
-                }}
-              >
-                <option value="outline">Outline</option>
-                <option value="drafting">Drafting</option>
-                <option value="revised">Revised</option>
-                <option value="done">Done</option>
-              </select>
-            )}
-            <div className="editor__tools" role="toolbar" aria-label="Writing">
-              <div className="segmented" role="group" aria-label="View">
-                <button
-                  type="button"
-                  className={view === 'write' ? 'is-active' : undefined}
-                  aria-pressed={view === 'write'}
-                  onClick={() => setView('write')}
-                >
-                  Write
-                </button>
-                <button
-                  type="button"
-                  className={view === 'corkboard' ? 'is-active' : undefined}
-                  aria-pressed={view === 'corkboard'}
-                  onClick={() => setView('corkboard')}
-                >
-                  Corkboard
-                </button>
-              </div>
-              <button
-                type="button"
-                className="tool"
-                title="Put everything away but the page (⌘⇧F)"
-                onClick={page.enter}
-              >
-                Page
-              </button>
-              <button
-                type="button"
-                className={preferences.focusMode ? 'tool is-active' : 'tool'}
-                aria-pressed={preferences.focusMode}
-                title="Dim everything but the paragraph you are in"
-                onClick={() => setPreference('focusMode', !preferences.focusMode)}
-              >
-                Focus
-              </button>
-              <button
-                type="button"
-                className={panel === 'prefs' ? 'tool is-active' : 'tool'}
-                aria-pressed={panel === 'prefs'}
-                title="Type, size and spacing"
-                onClick={() => toggle('prefs')}
-              >
-                Aa
-              </button>
-            </div>
-            <div className="editor__menus">
-              <Menu
-                label="Scene"
-                active={SCENE_PANELS.includes(panel)}
-                items={[
-                  { key: 'details', label: 'Details', checked: panel === 'details', disabled: !scene, onSelect: () => toggle('details') },
-                  { key: 'changes', label: 'Proposed changes', checked: panel === 'changes', disabled: !scene, onSelect: () => toggle('changes') },
-                  { key: 'history', label: 'History', checked: panel === 'history', disabled: !scene, onSelect: () => toggle('history') },
-                  ...(summariesOn && can.canWrite(scene?.chapterId ?? '')
-                    ? [{ key: 'summary', label: 'Summarise…', checked: panel === 'summary', onSelect: () => toggle('summary') }]
-                    : []),
-                ]}
-              />
-              <Menu
-                label="Book"
-                active={BOOK_PANELS.includes(panel)}
-                items={[
-                  { key: 'find', label: 'Find', checked: panel === 'find', onSelect: () => toggle('find') },
-                  { key: 'marks', label: 'Highlights & bookmarks', checked: panel === 'marks', onSelect: () => toggle('marks') },
-                  { key: 'bible', label: 'Story bible', checked: panel === 'bible', onSelect: () => toggle('bible') },
-                  { key: 'tasks', label: 'To do', checked: panel === 'tasks', onSelect: () => toggle('tasks') },
-                  ...(can.isOwner
-                    ? [
-                        { key: 'front', label: 'Front matter', checked: panel === 'front', onSelect: () => toggle('front') },
-                        { key: 'versions', label: 'Versions', checked: panel === 'versions', onSelect: () => toggle('versions') },
-                      ]
-                    : []),
-                ]}
-              />
-              <Menu
-                label="People"
-                active={PEOPLE_PANELS.includes(panel)}
-                items={[
-                  { key: 'people', label: 'Who is on this book', checked: panel === 'people', onSelect: () => toggle('people') },
-                  { key: 'activity', label: 'Activity', checked: panel === 'activity', onSelect: () => toggle('activity') },
-                ]}
-              />
-            </div>
           </div>
         </header>
 
@@ -663,7 +735,7 @@ export function EditorPage() {
         {present.length > 0 && (
           <p className="presence">
             {present.map((person) => {
-              const where = outline.chapters
+              const where = (named ?? outline).chapters
                 .flatMap((c) => c.scenes)
                 .find((s) => s.id === person.sceneId)
               return (
@@ -698,12 +770,30 @@ export function EditorPage() {
             {can.role === 'reader'
               ? `You are reading ${outline.access?.owner.displayName ?? 'this'}’s draft. The text is read only.`
               : can.role === 'editor'
-                ? 'You are on this book as an editor: select a passage and open Changes to propose an edit.'
+                ? 'You are on this book as an editor: select a passage, then ⓘ → Proposed changes to propose an edit.'
                 : 'This chapter is not one of yours. You can read it; the chapters you were handed are marked in the outline.'}
           </p>
         )}
 
-        {writable && <Toolbar editor={editor} />}
+        <Toolbar editor={editor} canFormat={writable && view === 'write'}>
+          {TOOLBAR_PANELS.map(({ panel: which, icon, label }) => (
+            <ToolButton
+              key={which}
+              icon={icon}
+              label={label}
+              pressed={panel === which}
+              onClick={() => toggle(which)}
+            />
+          ))}
+          <ToolButton icon="room" label="Writing room: nothing but the words (⌘⇧F)" onClick={page.enter} />
+          <ToolButton
+            icon="info"
+            label={scene ? 'About this scene: details, proposed changes, history' : 'Open a scene to see about it'}
+            pressed={panel === 'scene'}
+            disabled={!scene}
+            onClick={() => toggle('scene')}
+          />
+        </Toolbar>
 
         {markError && (
           <p className="access-note" role="alert">
@@ -743,7 +833,7 @@ export function EditorPage() {
         {view === 'corkboard' ? (
           <div className="prose-scroll">
             <Corkboard
-              outline={outline}
+              outline={named ?? outline}
               activeSceneId={scene?.id ?? null}
               onOpenScene={(target) => {
                 setView('write')
@@ -775,7 +865,7 @@ export function EditorPage() {
             <EditorContent
               editor={editor}
               className="prose prose--editable"
-              style={proseStyle}
+              style={page.on ? roomStyle : proseStyle}
             />
           </div>
         ) : (
@@ -793,41 +883,54 @@ export function EditorPage() {
         </SidePanel>
       )}
 
-      {panel === 'details' && scene && (
-        <SidePanel title={scene.title} onClose={closePanel}>
-          <SceneDetails
-            scene={scene}
-            canMerge={!!nextScene}
-            onSplit={splitHere}
-            onMerge={mergeNext}
-            onSaved={(updated) => {
-              setScene((current) => (current ? { ...current, ...updated } : current))
-              void loadOutline()
-            }}
-          />
+      {panel === 'scene' && scene && (
+        <SidePanel title={nameOf(scene.id)} onClose={closePanel}>
+          <Tabs label="About this scene" tabs={SCENE_TABS} active={sceneTab} onChange={setSceneTab}>
+            {sceneTab === 'details' && (
+              <SceneDetails
+                scene={scene}
+                canGenerate={summariesOn && writable}
+                beforeGenerate={() => flush(true)}
+                canMerge={!!nextScene}
+                onSplit={splitHere}
+                onMerge={mergeNext}
+                onSaved={(updated) => {
+                  setScene((current) => (current ? { ...current, ...updated } : current))
+                  void loadOutline()
+                }}
+              />
+            )}
+            {sceneTab === 'changes' && (
+              <ChangesPanel
+                scene={scene}
+                selection={selection}
+                canPropose={can.canSuggest(scene.chapterId)}
+                canResolve={writable}
+                // The server edited the document, so the editor has to re-read
+                // it rather than keep the copy it was holding.
+                onApplied={() => {
+                  void openScene(scene)
+                  void loadOutline()
+                }}
+              />
+            )}
+            {sceneTab === 'history' && (
+              <RevisionPanel
+                sceneId={scene.id}
+                refreshKey={savedAt}
+                onRestored={() => {
+                  void openScene(scene)
+                  void loadOutline()
+                }}
+              />
+            )}
+          </Tabs>
         </SidePanel>
       )}
 
-      {panel === 'changes' && scene && (
-        <SidePanel title="Proposed changes" onClose={closePanel}>
-          <ChangesPanel
-            scene={scene}
-            selection={selection}
-            canPropose={can.canSuggest(scene.chapterId)}
-            canResolve={writable}
-            // The server edited the document, so the editor has to re-read it
-            // rather than keep the copy it was holding.
-            onApplied={() => {
-              void openScene(scene)
-              void loadOutline()
-            }}
-          />
-        </SidePanel>
-      )}
-
-      {panel === 'bible' && (
-        <SidePanel title="Story bible" onClose={closePanel}>
-          <StoryBible workId={workId} scene={scene} />
+      {panel === 'notebook' && (
+        <SidePanel title="Notebook" onClose={closePanel}>
+          <Notebook workId={workId} scene={scene} />
         </SidePanel>
       )}
 
@@ -863,6 +966,7 @@ export function EditorPage() {
       {panel === 'find' && (
         <SidePanel title="Find" onClose={closePanel}>
           <FindPanel
+            nameOf={nameOf}
             workId={workId}
             onOpen={(id) => {
               const target = outline.chapters
@@ -892,7 +996,7 @@ export function EditorPage() {
         <SidePanel title="Highlights & bookmarks" onClose={closePanel}>
           <MarksPanel
             marks={marks.list}
-            scenes={outline.chapters.flatMap((c) => c.scenes)}
+            scenes={(named ?? outline).chapters.flatMap((c) => c.scenes)}
             lost={lostMarks}
             onOpen={openMark}
             onRemove={(id) => void marks.remove(id)}
@@ -903,7 +1007,7 @@ export function EditorPage() {
 
       {panel === 'people' && (
         <SidePanel title="People" onClose={closePanel}>
-          <CollaboratorsPanel outline={outline} permissions={can} />
+          <CollaboratorsPanel outline={named ?? outline} permissions={can} />
         </SidePanel>
       )}
 
@@ -925,18 +1029,6 @@ export function EditorPage() {
         />
       )}
 
-      {panel === 'history' && scene && (
-        <SidePanel title="This scene" onClose={closePanel}>
-          <RevisionPanel
-            sceneId={scene.id}
-            refreshKey={savedAt}
-            onRestored={() => {
-              void openScene(scene)
-              void loadOutline()
-            }}
-          />
-        </SidePanel>
-      )}
     </main>
   )
 }

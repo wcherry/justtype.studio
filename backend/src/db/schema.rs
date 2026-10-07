@@ -120,7 +120,7 @@ diesel::table! {
 }
 
 diesel::table! {
-    bible_entries (id) {
+    notebook_entries (id) {
         id -> Text,
         work_id -> Text,
         kind -> Text,
@@ -135,7 +135,7 @@ diesel::table! {
 }
 
 diesel::table! {
-    scene_bible_links (id) {
+    scene_notebook_links (id) {
         id -> Text,
         scene_id -> Text,
         entry_id -> Text,
@@ -515,8 +515,8 @@ diesel::joinable!(work_collaborators -> works (work_id));
 diesel::joinable!(collaborator_chapters -> work_collaborators (collaborator_id));
 diesel::joinable!(work_activity -> works (work_id));
 diesel::joinable!(writing_days -> users (user_id));
-diesel::joinable!(bible_entries -> works (work_id));
-diesel::joinable!(scene_bible_links -> bible_entries (entry_id));
+diesel::joinable!(notebook_entries -> works (work_id));
+diesel::joinable!(scene_notebook_links -> notebook_entries (entry_id));
 diesel::joinable!(works -> users (owner_id));
 diesel::joinable!(chapters -> works (work_id));
 diesel::joinable!(scenes -> chapters (chapter_id));
@@ -554,8 +554,8 @@ diesel::allow_tables_to_appear_in_same_query!(
     versions,
     works,
     writing_days,
-    bible_entries,
-    scene_bible_links,
+    notebook_entries,
+    scene_notebook_links,
     version_tags,
     publication_invites,
     reader_circles,

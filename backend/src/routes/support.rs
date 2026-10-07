@@ -208,7 +208,7 @@ pub fn work_access(conn: &mut Conn, work_id: &str, user: &AuthUser) -> ApiResult
 }
 
 /// A work the caller may act on as `need` asks, anywhere in it that is not a
-/// particular chapter — the bible, the to-do list, the snapshots.
+/// particular chapter — the notebook, the to-do list, the snapshots.
 pub fn work_for(conn: &mut Conn, work_id: &str, user: &AuthUser, need: Ability) -> ApiResult<Work> {
     let (work, access) = work_access(conn, work_id, user)?;
     access.require(need)?;
@@ -655,6 +655,41 @@ pub fn author_cards(
         .into_iter()
         .map(|(id, display_name)| (id.clone(), AuthorCard { id, display_name }))
         .collect())
+}
+
+/// What to call a scene in an activity line or a message: its title, or
+/// "Scene 2" for where it sits in its chapter when it has none.
+pub fn scene_label(conn: &mut Conn, scene: &Scene) -> QueryResult<String> {
+    if !scene.title.trim().is_empty() {
+        return Ok(scene.title.trim().to_string());
+    }
+    let order: Vec<String> = scenes::table
+        .filter(scenes::chapter_id.eq(&scene.chapter_id))
+        .order(scenes::position.asc())
+        .select(scenes::id)
+        .load(conn)?;
+    let number = order
+        .iter()
+        .position(|id| id == &scene.id)
+        .map_or(order.len() + 1, |i| i + 1);
+    Ok(crate::domain::naming::scene_name(&scene.title, number))
+}
+
+/// What to call a chapter: its title, or "Chapter 3" for where it sits.
+pub fn chapter_label(conn: &mut Conn, chapter: &Chapter) -> QueryResult<String> {
+    if !chapter.title.trim().is_empty() {
+        return Ok(chapter.title.trim().to_string());
+    }
+    let order: Vec<String> = chapters::table
+        .filter(chapters::work_id.eq(&chapter.work_id))
+        .order(chapters::position.asc())
+        .select(chapters::id)
+        .load(conn)?;
+    let number = order
+        .iter()
+        .position(|id| id == &chapter.id)
+        .map_or(order.len() + 1, |i| i + 1);
+    Ok(crate::domain::naming::chapter_name(&chapter.title, number))
 }
 
 #[cfg(test)]

@@ -251,40 +251,40 @@ d = json.load(sys.stdin)
 print(f\"  after the scene moved on: applied {d['applied']}, left pending {len(d['stale'])}\")
 for s in d['stale']: print('   ', s['reason'])"
 
-step "Story bible"
-ENTRY=$(curl -s -X POST "$API/works/$WID/bible" -H "$AUTH" -H 'content-type: application/json' \
+step "Notebook"
+ENTRY=$(curl -s -X POST "$API/works/$WID/notebook" -H "$AUTH" -H 'content-type: application/json' \
   -d '{"kind":"character","name":"Ada","summary":"Walks into the dark on purpose."}')
 EID=$(echo "$ENTRY" | field id)
-curl -s -X POST "$API/bible/$EID/links" -H "$AUTH" -H 'content-type: application/json' \
+curl -s -X POST "$API/notebook/$EID/links" -H "$AUTH" -H 'content-type: application/json' \
   -d "{\"sceneId\":\"$SCENE\"}" >/dev/null
 # Linking twice is what someone does when unsure whether they already did.
-curl -s -X POST "$API/bible/$EID/links" -H "$AUTH" -H 'content-type: application/json' \
+curl -s -X POST "$API/notebook/$EID/links" -H "$AUTH" -H 'content-type: application/json' \
   -d "{\"sceneId\":\"$SCENE\"}" >/dev/null
-curl -s "$API/works/$WID/bible" -H "$AUTH" | python3 -c "
+curl -s "$API/works/$WID/notebook" -H "$AUTH" | python3 -c "
 import sys,json
 for e in json.load(sys.stdin):
     print(f\"  {e['kind']}: {e['name']} — in {len(e['sceneIds'])} scene(s)\")"
 
 step "Sketches"
-curl -s "$API/bible/templates" | python3 -c "
+curl -s "$API/notebook/templates" | python3 -c "
 import sys,json;t=json.load(sys.stdin);kinds=sorted({x['kind'] for x in t})
 print(f'  {len(t)} templates across {\", \".join(kinds)}')"
-SK=$(curl -s -X POST "$API/works/$WID/bible" -H "$AUTH" -H 'content-type: application/json' \
+SK=$(curl -s -X POST "$API/works/$WID/notebook" -H "$AUTH" -H 'content-type: application/json' \
   -d '{"kind":"character","name":"Tom Ashby","templateId":"character-main"}')
 SKID=$(echo "$SK" | field id)
 echo "$SK" | python3 -c "
 import sys,json;d=json.load(sys.stdin);f=d['fields']
 assert d['templateId']=='character-main' and len(f)==10 and all(x['value']=='' for x in f), d
 print(f\"  started from a template: {', '.join(x['label'] for x in f[:4])}, …\")"
-curl -s -X PATCH "$API/bible/$SKID" -H "$AUTH" -H 'content-type: application/json' \
+curl -s -X PATCH "$API/notebook/$SKID" -H "$AUTH" -H 'content-type: application/json' \
   -d '{"fields":[{"key":"want","label":"Want","value":"One more winter at the light"},{"key":"","label":"Boat","value":"The Margaret"}]}' | python3 -c "
 import sys,json;f=json.load(sys.stdin)['fields']
 assert f[0]['value']=='One more winter at the light' and f[1]['key'], f
 print(f\"  filled in, and a field of the writer's own kept with a key of its own: {f[1]['label']} = {f[1]['value']}\")"
-MISMATCH=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$API/works/$WID/bible" -H "$AUTH" -H 'content-type: application/json' \
+MISMATCH=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$API/works/$WID/notebook" -H "$AUTH" -H 'content-type: application/json' \
   -d '{"kind":"place","name":"Nowhere","templateId":"character-main"}')
 [ "$MISMATCH" = "400" ] && echo "  a character template will not start a place" || { echo "  EXPECTED 400, got $MISMATCH"; exit 1; }
-DUP=$(curl -s -o /dev/null -w '%{http_code}' -X PATCH "$API/bible/$SKID" -H "$AUTH" -H 'content-type: application/json' \
+DUP=$(curl -s -o /dev/null -w '%{http_code}' -X PATCH "$API/notebook/$SKID" -H "$AUTH" -H 'content-type: application/json' \
   -d '{"fields":[{"key":"a","label":"One"},{"key":"a","label":"Two"}]}')
 [ "$DUP" = "400" ] && echo "  two fields cannot share a key" || { echo "  EXPECTED 400, got $DUP"; exit 1; }
 

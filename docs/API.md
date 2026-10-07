@@ -43,16 +43,16 @@ edited would be much worse than refusing.
 `storyDate` is free text. Fiction rarely runs on the Gregorian calendar, and
 "the third day of the siege" is a timeline position too.
 
-## Story bible
+## Notebook
 
 | Method | Path | Notes |
 |---|---|---|
-| `GET` | `/works/{id}/bible?kind=&sceneId=` | entries, with the scenes each appears in |
-| `POST` | `/works/{id}/bible` | `kind` (`character`/`place`/`note`), `name`, `summary`, `body` |
-| `PATCH` | `/bible/{entryId}` | `name`, `summary`, `body` |
-| `DELETE` | `/bible/{entryId}` | |
-| `POST` | `/bible/{entryId}/links` | `sceneId`; idempotent |
-| `DELETE` | `/bible/{entryId}/links/{sceneId}` | |
+| `GET` | `/works/{id}/notebook?kind=&sceneId=` | entries, with the scenes each appears in |
+| `POST` | `/works/{id}/notebook` | `kind` (`character`/`place`/`note`), `name`, `summary`, `body` |
+| `PATCH` | `/notebook/{entryId}` | `name`, `summary`, `body` |
+| `DELETE` | `/notebook/{entryId}` | |
+| `POST` | `/notebook/{entryId}/links` | `sceneId`; idempotent |
+| `DELETE` | `/notebook/{entryId}/links/{sceneId}` | |
 
 Entries link to scenes through a join table rather than a list on either side,
 because the question gets asked from both directions — "who is in this scene"
@@ -475,7 +475,7 @@ Roles, each including the ones before it:
 |---|---|
 | `reader` | open the working draft, its history, its snapshots, its publications |
 | `editor` | propose tracked changes; add to and tick off the to-do list |
-| `writer` | change the text and the structure; accept or reject proposals; edit the bible |
+| `writer` | change the text and the structure; accept or reject proposals; edit the notebook |
 | `owner` | snapshots, publishing, publications, front matter, who is on the book |
 
 The person who started the work is an owner and is not a row in the list, so
@@ -555,7 +555,7 @@ The terms say, first, that the writer keeps their copyright. Raising
 `TERMS_VERSION` in `routes/privacy.rs` asks everyone to agree again.
 
 The export is a zip: `account.json`, `works.json` (every work you started, with
-its outline, snapshots, publications, the feedback on them by name only, bible,
+its outline, snapshots, publications, the feedback on them by name only, notebook,
 to-do list, co-authors and activity), `contributions.json` (what you did on
 other people's work), `audit.json`, and `manuscripts/` with every file behind
 each of your works exactly as stored. No password hash.

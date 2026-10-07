@@ -225,7 +225,7 @@ const README: &str = "Everything Just Type Studio holds about you, as of the mom
 account.json        your account, sessions, the people you follow and have blocked,
                     your reader circles and your writing days
 works.json          every work you started: its outline, snapshots, publications,
-                    the feedback left on them, its bible, to-do list, co-authors
+                    the feedback left on them, its notebook, to-do list, co-authors
                     and activity
 contributions.json  what you did on other people's work: notes, votes, reactions,
                     answers, how far you read, changes you proposed, books you
@@ -341,9 +341,9 @@ fn gather(conn: &mut Conn, user_id: &str) -> ApiResult<Vec<(&'static str, Value)
             .load(conn)?;
         let names: Vec<String> = feedback.iter().map(|c| c.author_id.clone()).collect();
         let names = support::author_cards(conn, &names)?;
-        let bible: Vec<BibleEntry> = bible_entries::table
-            .filter(bible_entries::work_id.eq(&work.id))
-            .select(BibleEntry::as_select())
+        let notebook: Vec<NotebookEntry> = notebook_entries::table
+            .filter(notebook_entries::work_id.eq(&work.id))
+            .select(NotebookEntry::as_select())
             .load(conn)?;
         let tasks: Vec<RevisionTask> = revision_tasks::table
             .filter(revision_tasks::work_id.eq(&work.id))
@@ -368,7 +368,7 @@ fn gather(conn: &mut Conn, user_id: &str) -> ApiResult<Vec<(&'static str, Value)
                 "comment": c,
                 "author": names.get(&c.author_id).map(|a| a.display_name.clone()),
             })).collect::<Vec<_>>(),
-            "bible": bible,
+            "notebook": notebook,
             "tasks": tasks,
             "collaborators": collaborators,
             "activity": activity,

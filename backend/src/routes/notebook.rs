@@ -1,4 +1,4 @@
-//! The story bible: characters, places, and the continuity notes that belong to
+//! The notebook: characters, places, and the continuity notes that belong to
 //! neither.
 //!
 //! Entries link to scenes through a join table rather than a list on either
@@ -12,9 +12,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::auth::AuthUser;
 use crate::db::blocking;
-use crate::db::models::{BibleEntry, NewBibleEntry, NewSceneBibleLink};
-use crate::db::schema::{bible_entries, scene_bible_links, scenes};
-use crate::domain::enums::BibleKind;
+use crate::db::models::{NewNotebookEntry, NewSceneNotebookLink, NotebookEntry};
+use crate::db::schema::{notebook_entries, scene_notebook_links, scenes};
+use crate::domain::enums::NotebookKind;
 use crate::domain::{new_id, now_iso};
 use crate::error::{ApiError, ApiResult, ErrorEnvelope};
 use crate::state::AppState;
@@ -25,14 +25,14 @@ use super::support::{self, Ability};
 #[serde(rename_all = "camelCase")]
 pub struct CreateEntryRequest {
     /// `character`, `place` or `note`.
-    #[schema(value_type = crate::domain::enums::BibleKind)]
+    #[schema(value_type = crate::domain::enums::NotebookKind)]
     pub kind: String,
     pub name: String,
     #[serde(default)]
     pub summary: Option<String>,
     #[serde(default)]
     pub body: Option<String>,
-    /// A sketch template (`GET /api/bible/templates`) to start from: its fields
+    /// A sketch template (`GET /api/notebook/templates`) to start from: its fields
     /// arrive empty, ready to fill in.
     #[serde(default)]
     pub template_id: Option<String>,
@@ -85,7 +85,7 @@ pub struct EntryQuery {
 #[serde(rename_all = "camelCase")]
 pub struct EntryView {
     #[serde(flatten)]
-    pub entry: BibleEntry,
+    pub entry: NotebookEntry,
     /// Scenes this entry appears in, in reading order.
     pub scene_ids: Vec<String>,
     /// The sketch, in order. Empty for an entry that is just a name and notes.
@@ -131,8 +131,8 @@ fn checked_fields(mut fields: Vec<SketchField>) -> ApiResult<String> {
 /// The sketch templates entries can be started from.
 #[utoipa::path(
     get,
-    path = "/api/bible/templates",
-    tag = "bible",
+    path = "/api/notebook/templates",
+    tag = "notebook",
     responses((status = 200, description = "Built-in sketch templates", body = Vec<crate::domain::sketches::SketchTemplate>))
 )]
 pub async fn templates() -> Json<Vec<crate::domain::sketches::SketchTemplate>> {
@@ -140,15 +140,15 @@ pub async fn templates() -> Json<Vec<crate::domain::sketches::SketchTemplate>> {
 }
 
 fn load_entry(conn: &mut crate::db::Conn, entry_id: &str) -> ApiResult<EntryView> {
-    let entry: BibleEntry = bible_entries::table
+    let entry: NotebookEntry = notebook_entries::table
         .find(entry_id)
-        .select(BibleEntry::as_select())
+        .select(NotebookEntry::as_select())
         .first(conn)?;
-    let scene_ids = scene_bible_links::table
-        .inner_join(scenes::table.on(scenes::id.eq(scene_bible_links::scene_id)))
-        .filter(scene_bible_links::entry_id.eq(entry_id))
+    let scene_ids = scene_notebook_links::table
+        .inner_join(scenes::table.on(scenes::id.eq(scene_notebook_links::scene_id)))
+        .filter(scene_notebook_links::entry_id.eq(entry_id))
         .order((scenes::chapter_id.asc(), scenes::position.asc()))
-        .select(scene_bible_links::scene_id)
+        .select(scene_notebook_links::scene_id)
         .load(conn)?;
     Ok(EntryView {
         fields: parse_fields(entry.fields.as_deref()),
@@ -163,10 +163,10 @@ fn entry_for(
     entry_id: &str,
     user: &AuthUser,
     need: Ability,
-) -> ApiResult<BibleEntry> {
-    let entry: BibleEntry = bible_entries::table
+) -> ApiResult<NotebookEntry> {
+    let entry: NotebookEntry = notebook_entries::table
         .find(entry_id)
-        .select(BibleEntry::as_select())
+        .select(NotebookEntry::as_select())
         .first(conn)
         .optional()?
         .ok_or_else(|| ApiError::NotFound("entry not found".into()))?;
@@ -176,8 +176,8 @@ fn entry_for(
 
 #[utoipa::path(
     get,
-    path = "/api/works/{work_id}/bible",
-    tag = "bible",
+    path = "/api/works/{work_id}/notebook",
+    tag = "notebook",
     params(("work_id" = String, Path)),
     responses(
         (status = 200, description = "The work's entries", body = Vec<EntryView>),
@@ -194,19 +194,19 @@ pub async fn list(
         support::work_for(conn, &work_id, &user, Ability::Read)?;
 
         let ids: Vec<String> = match &query.scene_id {
-            Some(scene_id) => scene_bible_links::table
-                .filter(scene_bible_links::scene_id.eq(scene_id))
-                .select(scene_bible_links::entry_id)
+            Some(scene_id) => scene_notebook_links::table
+                .filter(scene_notebook_links::scene_id.eq(scene_id))
+                .select(scene_notebook_links::entry_id)
                 .load(conn)?,
             None => {
-                let mut q = bible_entries::table
-                    .filter(bible_entries::work_id.eq(&work_id))
+                let mut q = notebook_entries::table
+                    .filter(notebook_entries::work_id.eq(&work_id))
                     .into_boxed();
                 if let Some(kind) = &query.kind {
-                    q = q.filter(bible_entries::kind.eq(kind.clone()));
+                    q = q.filter(notebook_entries::kind.eq(kind.clone()));
                 }
-                q.order((bible_entries::kind.asc(), bible_entries::name.asc()))
-                    .select(bible_entries::id)
+                q.order((notebook_entries::kind.asc(), notebook_entries::name.asc()))
+                    .select(notebook_entries::id)
                     .load(conn)?
             }
         };
@@ -219,8 +219,8 @@ pub async fn list(
 
 #[utoipa::path(
     post,
-    path = "/api/works/{work_id}/bible",
-    tag = "bible",
+    path = "/api/works/{work_id}/notebook",
+    tag = "notebook",
     params(("work_id" = String, Path)),
     request_body = CreateEntryRequest,
     responses(
@@ -234,10 +234,10 @@ pub async fn create(
     Path(work_id): Path<String>,
     Json(body): Json<CreateEntryRequest>,
 ) -> ApiResult<Json<EntryView>> {
-    if !BibleKind::accepts(&body.kind) {
+    if !NotebookKind::accepts(&body.kind) {
         return Err(ApiError::BadRequest(format!(
             "kind must be one of {}",
-            BibleKind::options()
+            NotebookKind::options()
         )));
     }
     let name = body.name.trim().to_string();
@@ -278,7 +278,7 @@ pub async fn create(
     let entry = blocking(&state.pool, move |conn| {
         support::work_for(conn, &work_id, &user, Ability::Write)?;
         let now = now_iso();
-        let row = NewBibleEntry {
+        let row = NewNotebookEntry {
             id: new_id(),
             work_id,
             kind: body.kind.clone(),
@@ -290,7 +290,7 @@ pub async fn create(
             fields,
             template_id: template.map(|t| t.id.to_string()),
         };
-        diesel::insert_into(bible_entries::table)
+        diesel::insert_into(notebook_entries::table)
             .values(&row)
             .execute(conn)?;
         load_entry(conn, &row.id)
@@ -301,8 +301,8 @@ pub async fn create(
 
 #[utoipa::path(
     patch,
-    path = "/api/bible/{entry_id}",
-    tag = "bible",
+    path = "/api/notebook/{entry_id}",
+    tag = "notebook",
     params(("entry_id" = String, Path)),
     request_body = UpdateEntryRequest,
     responses(
@@ -322,27 +322,27 @@ pub async fn update(
             if name.trim().is_empty() {
                 return Err(ApiError::BadRequest("an entry needs a name".into()));
             }
-            diesel::update(bible_entries::table.find(&entry_id))
-                .set(bible_entries::name.eq(name.trim()))
+            diesel::update(notebook_entries::table.find(&entry_id))
+                .set(notebook_entries::name.eq(name.trim()))
                 .execute(conn)?;
         }
         if let Some(summary) = &body.summary {
-            diesel::update(bible_entries::table.find(&entry_id))
-                .set(bible_entries::summary.eq(summary))
+            diesel::update(notebook_entries::table.find(&entry_id))
+                .set(notebook_entries::summary.eq(summary))
                 .execute(conn)?;
         }
         if let Some(text) = &body.body {
-            diesel::update(bible_entries::table.find(&entry_id))
-                .set(bible_entries::body.eq(text))
+            diesel::update(notebook_entries::table.find(&entry_id))
+                .set(notebook_entries::body.eq(text))
                 .execute(conn)?;
         }
         if let Some(fields) = body.fields.clone() {
-            diesel::update(bible_entries::table.find(&entry_id))
-                .set(bible_entries::fields.eq(checked_fields(fields)?))
+            diesel::update(notebook_entries::table.find(&entry_id))
+                .set(notebook_entries::fields.eq(checked_fields(fields)?))
                 .execute(conn)?;
         }
-        diesel::update(bible_entries::table.find(&entry_id))
-            .set(bible_entries::updated_at.eq(now_iso()))
+        diesel::update(notebook_entries::table.find(&entry_id))
+            .set(notebook_entries::updated_at.eq(now_iso()))
             .execute(conn)?;
         load_entry(conn, &entry_id)
     })
@@ -352,8 +352,8 @@ pub async fn update(
 
 #[utoipa::path(
     delete,
-    path = "/api/bible/{entry_id}",
-    tag = "bible",
+    path = "/api/notebook/{entry_id}",
+    tag = "notebook",
     params(("entry_id" = String, Path)),
     responses(
         (status = 200, description = "Removed"),
@@ -367,7 +367,7 @@ pub async fn delete_entry(
 ) -> ApiResult<Json<serde_json::Value>> {
     blocking(&state.pool, move |conn| {
         entry_for(conn, &entry_id, &user, Ability::Write)?;
-        diesel::delete(bible_entries::table.find(&entry_id)).execute(conn)?;
+        diesel::delete(notebook_entries::table.find(&entry_id)).execute(conn)?;
         Ok(())
     })
     .await?;
@@ -384,8 +384,8 @@ pub struct LinkRequest {
 /// a writer does when they are not sure whether they already did.
 #[utoipa::path(
     post,
-    path = "/api/bible/{entry_id}/links",
-    tag = "bible",
+    path = "/api/notebook/{entry_id}/links",
+    tag = "notebook",
     params(("entry_id" = String, Path)),
     request_body = LinkRequest,
     responses(
@@ -407,14 +407,17 @@ pub async fn link(
                 "an entry can only be linked to scenes in its own work".into(),
             ));
         }
-        diesel::insert_into(scene_bible_links::table)
-            .values(&NewSceneBibleLink {
+        diesel::insert_into(scene_notebook_links::table)
+            .values(&NewSceneNotebookLink {
                 id: new_id(),
                 scene_id: scene.id,
                 entry_id: entry_id.clone(),
                 created_at: now_iso(),
             })
-            .on_conflict((scene_bible_links::scene_id, scene_bible_links::entry_id))
+            .on_conflict((
+                scene_notebook_links::scene_id,
+                scene_notebook_links::entry_id,
+            ))
             .do_nothing()
             .execute(conn)?;
         load_entry(conn, &entry_id)
@@ -425,8 +428,8 @@ pub async fn link(
 
 #[utoipa::path(
     delete,
-    path = "/api/bible/{entry_id}/links/{scene_id}",
-    tag = "bible",
+    path = "/api/notebook/{entry_id}/links/{scene_id}",
+    tag = "notebook",
     params(("entry_id" = String, Path), ("scene_id" = String, Path)),
     responses(
         (status = 200, description = "The entry, with its scenes", body = EntryView),
@@ -441,9 +444,9 @@ pub async fn unlink(
     let entry = blocking(&state.pool, move |conn| {
         entry_for(conn, &entry_id, &user, Ability::Write)?;
         diesel::delete(
-            scene_bible_links::table
-                .filter(scene_bible_links::entry_id.eq(&entry_id))
-                .filter(scene_bible_links::scene_id.eq(&scene_id)),
+            scene_notebook_links::table
+                .filter(scene_notebook_links::entry_id.eq(&entry_id))
+                .filter(scene_notebook_links::scene_id.eq(&scene_id)),
         )
         .execute(conn)?;
         load_entry(conn, &entry_id)

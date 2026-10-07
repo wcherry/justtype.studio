@@ -115,7 +115,7 @@ api_enum!(ChangeKind {
     Format => "format",
 });
 
-api_enum!(BibleKind {
+api_enum!(NotebookKind {
     Character => "character",
     Place => "place",
     /// An object the plot turns on.

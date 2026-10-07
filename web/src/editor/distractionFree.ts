@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 
 /**
- * The page and nothing else.
+ * The writing room: the page and nothing else.
  *
  * Puts away the shell, the outline, the header, the toolbar, the goals and
  * every panel, and asks the browser for the whole screen. What stays is the
@@ -10,8 +10,8 @@ import { useCallback, useEffect, useState } from 'react'
  * a save conflict, or being offline with work waiting. Hiding those is how a
  * writer loses words.
  *
- * Everything else comes back on request: the pointer at the top edge brings a
- * slim bar, ⌘⇧O the outline, and Escape or ⌘⇧F ends it.
+ * Everything else comes back on request: the pointer at the top edge brings
+ * down the bar (WritingRoomBar), ⌘⇧O the outline, and Escape or ⌘⇧F ends it.
  *
  * Done with a class on `<body>` rather than by re-rendering the page without
  * its parts, so the editor, its selection and its undo history are untouched
@@ -36,11 +36,10 @@ export function useDistractionFree() {
 
   useEffect(() => {
     document.body.classList.toggle('writing-page', on)
-    document.body.classList.toggle('writing-page--outline', on && outline)
     return () => {
-      document.body.classList.remove('writing-page', 'writing-page--outline')
+      document.body.classList.remove('writing-page')
     }
-  }, [on, outline])
+  }, [on])
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -52,7 +51,8 @@ export function useDistractionFree() {
       } else if (on && mod && event.shiftKey && event.key.toLowerCase() === 'o') {
         event.preventDefault()
         setOutline((o) => !o)
-      } else if (on && event.key === 'Escape' && !document.fullscreenElement) {
+      } else if (on && event.key === 'Escape' && !event.defaultPrevented && !document.fullscreenElement) {
+        // A menu that took the Escape to close itself keeps it.
         leave()
       }
     }

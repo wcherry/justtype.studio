@@ -231,8 +231,8 @@ button.danger { border-color: var(--del); color: var(--del); }
 
 /* --- sketches ------------------------------------------------------------- */
 
-.bible__here { margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
-.bible__here h4 { margin: 0 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-faint); }
+.notebook__here { margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.notebook__here h4 { margin: 0 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-faint); }
 .sketch { margin: 6px 0; display: grid; gap: 8px; }
 .sketch__field { display: grid; gap: 1px; }
 .sketch dt { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-faint); }
@@ -263,25 +263,52 @@ body.writing-page aside.versions { display: none; }
 body.writing-page .editor { grid-template-columns: minmax(0, 1fr); height: 100vh; }
 body.writing-page .editor__main { background: var(--paper); }
 body.writing-page .prose-scroll { padding-top: 12vh; }
-/* Asked for: the outline slides in over the margin, the page does not move. */
-body.writing-page--outline .outline {
-  display: block; position: fixed; left: 0; top: 0; bottom: 0; width: 260px; z-index: 20;
-  background: var(--surface); border-right: 1px solid var(--line); overflow: auto;
-  box-shadow: 0 0 24px rgba(0, 0, 0, 0.18);
-}
-.page-bar {
+.room-bar {
   position: fixed; top: 0; left: 0; right: 0; z-index: 30;
-  display: flex; gap: 14px; align-items: center; padding: 10px 20px;
+  display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; padding: 8px 20px;
   background: var(--surface); border-bottom: 1px solid var(--line); font-size: 13px;
-  transform: translateY(-100%); transition: transform 160ms ease 300ms;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.12);
+  transform: translateY(-100%); transition: transform 180ms ease;
 }
-/* A strip along the top edge catches the pointer and brings the bar down. */
-.page-bar::after { content: ''; position: absolute; left: 0; right: 0; top: 100%; height: 14px; }
-.page-bar:hover, .page-bar:focus-within { transform: translateY(0); transition-delay: 0ms; }
-.page-bar__title { font-family: var(--serif); font-size: 15px; color: var(--ink); }
-.page-bar__meta { color: var(--ink-faint); }
-.page-bar__spacer { flex: 1; }
-.page-bar kbd, .page-status kbd { font-family: var(--family-sans); font-size: 11px; color: var(--ink-faint); margin-left: 4px; }
+/* Down when asked for, and whenever focus is in it, so the keyboard can use it. */
+.room-bar.is-shown, .room-bar:focus-within { transform: translateY(0); }
+.room-bar__where.menu__button { border-color: transparent; background: none; padding: 4px 8px; }
+.room-bar__where.menu__button:hover { border-color: var(--line); }
+.room-bar__chapter { color: var(--ink-faint); }
+.room-bar__scene { font-family: var(--serif); font-size: 15px; color: var(--ink); }
+.room-bar .menu__list { max-height: 70vh; overflow-y: auto; min-width: 260px; }
+.room-bar__meta { color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+.room-bar__spacer { flex: 1; }
+.room-bar__actions { display: flex; align-items: center; gap: 2px; }
+/* The outline, under its button: the same outline as beside the editor. */
+.room-outline { position: relative; }
+.room-outline__popup {
+  position: absolute; top: calc(100% + 8px); right: 0; z-index: 31;
+  width: 300px; max-height: 75vh; overflow-y: auto;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+body.writing-page .room-outline .outline { display: block; border: none; max-height: none; width: auto; }
+.room-bar kbd, .page-status kbd { font-family: var(--family-sans); font-size: 11px; color: var(--ink-faint); margin-left: 4px; }
+.room-slider { display: inline-flex; align-items: center; gap: 8px; }
+.room-slider__label { color: var(--ink-faint); }
+/* The value hangs under the slider, so the label lines up with the slider
+   itself and the bar keeps its height. */
+.room-slider__control { position: relative; display: inline-flex; }
+/* Without the padding and border every input gets, so the thumb travels the
+   whole of the track it is drawn on. */
+.room-slider input[type='range'] {
+  width: 140px; margin: 0; padding: 0; border: none; background: none;
+  accent-color: var(--accent);
+}
+.room-slider__value {
+  position: absolute; top: 100%; left: 0; right: 0; text-align: center;
+  font-size: 10px; line-height: 1;
+  color: var(--ink-faint); font-variant-numeric: tabular-nums;
+}
+@media (prefers-reduced-motion: reduce) {
+  .room-bar { transition: none; }
+}
 .page-status {
   position: fixed; right: 18px; bottom: 14px; z-index: 10; font-size: 12px;
   color: var(--ink-faint); opacity: 0.45; transition: opacity 200ms;
@@ -490,20 +517,18 @@ body.writing-page--outline .outline {
 }
 .editor__header h1 { font-family: var(--serif); font-weight: 500; font-size: 22px; margin: 0; }
 .editor__meta { color: var(--ink-faint); font-size: 12px; margin: 2px 0 0; }
-.editor__header > div:first-child { flex: 0 1 220px; min-width: 160px; }
-/* Status on the left, then the tools you toggle while writing, then three
-   menus for the side panels. Narrow, the groups wrap whole, never mid-group. */
-.editor__header-actions {
-  display: flex; align-items: center; gap: 8px 14px;
-  flex-wrap: wrap; justify-content: flex-end; min-width: 0;
-}
+.editor__header > div:first-child { flex: 1 1 auto; min-width: 0; }
+/* The main menu, as a hamburger to the left of the title. */
+.editor__heading { display: flex; align-items: flex-start; gap: 10px; }
+.editor__title { min-width: 0; }
+.editor__menu.menu__button { padding: 6px; margin-top: 1px; border-color: transparent; background: none; color: var(--ink-soft); }
+.editor__menu.menu__button:hover, .editor__menu.menu__button[aria-expanded='true'] { border-color: var(--line); color: var(--ink); }
+.editor__menu.menu__button.is-active { border-color: var(--accent); color: var(--accent); }
+.editor__menu .icon { display: block; width: 18px; height: 18px; }
+/* Just the save state: the main menu is beside the title, and what is used
+   most is on the toolbar below as well. */
+.editor__header-actions { display: flex; align-items: center; gap: 14px; }
 .editor__header-actions button { white-space: nowrap; }
-.editor__header-actions select { width: auto; }
-.editor__tools, .editor__menus { display: flex; align-items: center; gap: 4px; }
-.editor__tools .segmented { margin-right: 4px; }
-.tool { border-color: transparent; background: none; padding: 6px 10px; color: var(--ink-soft); }
-.tool:hover:not(:disabled) { border-color: var(--line); }
-.tool.is-active { background: var(--accent-soft); color: var(--accent); }
 
 .menu { position: relative; }
 .menu__button { display: inline-flex; align-items: center; gap: 6px; }
@@ -511,7 +536,8 @@ body.writing-page--outline .outline {
 .menu__caret { font-size: 10px; color: var(--ink-faint); }
 .menu__list {
   position: absolute; right: 0; top: calc(100% + 4px); z-index: 30;
-  min-width: 200px; padding: 4px;
+  /* As wide as its longest item, wherever it opens, so items never wrap. */
+  width: max-content; min-width: 200px; max-width: min(360px, calc(100vw - 32px)); padding: 4px;
   display: flex; flex-direction: column;
   background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
@@ -521,8 +547,24 @@ body.writing-page--outline .outline {
   border: none; border-radius: 6px; background: none; text-align: left; padding: 7px 10px 7px 6px;
 }
 .menu__item:hover:not(:disabled), .menu__item:focus-visible { background: var(--accent-soft); outline: none; }
+.menu__item.is-open { background: var(--accent-soft); }
+.menu__entry { position: relative; display: flex; flex-direction: column; }
+.menu__entry.has-divider { border-top: 1px solid var(--line); margin-top: 4px; padding-top: 4px; }
+/* The main menu sits at the right of the header, so its submenus open to the
+   left, beside the item that opened them. */
+.menu__sub { top: -5px; right: calc(100% + 4px); }
+.menu__heading {
+  padding: 8px 10px 4px 28px; font-size: 11px; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--ink-faint);
+}
+.menu--left .menu__list { right: auto; left: 0; }
+.menu--left .menu__sub { right: auto; left: calc(100% + 4px); }
 .menu__check { color: var(--accent); font-size: 12px; }
 .menu__hint { color: var(--ink-faint); font-size: 12px; }
+@media (max-width: 700px) {
+  /* No room beside it: the submenu opens in place, under its item. */
+  .menu__sub { position: static; box-shadow: none; border: none; padding: 0 0 0 12px; min-width: 0; }
+}
 
 .panel-close {
   border: none; background: none; padding: 2px 8px; margin-left: auto;
@@ -537,7 +579,7 @@ body.writing-page--outline .outline {
 
 .toolbar {
   display: flex; align-items: center; gap: 2px;
-  padding: 6px 24px; border-block: 1px solid var(--line);
+  flex-wrap: wrap; padding: 6px 24px; border-block: 1px solid var(--line);
   background: var(--surface); flex-shrink: 0;
 }
 .toolbar__btn {
@@ -547,6 +589,28 @@ body.writing-page--outline .outline {
 .toolbar__btn:hover { background: var(--accent-soft); }
 .toolbar__btn.is-active { background: var(--accent-soft); color: var(--accent); }
 .toolbar__spacer { flex: 1; }
+.toolbar__divider { width: 1px; height: 18px; margin: 0 6px; background: var(--line); }
+.toolbar__btn .icon { display: block; margin: 0 auto; }
+
+/* Help tips: quicker and plainer than the browser's title, under the button,
+   on hover or keyboard focus. Not there at all until then, so a tip that is
+   not showing can never widen the page. */
+.has-tip { position: relative; }
+.has-tip:hover::after, .has-tip:focus-visible::after {
+  content: attr(data-tip); position: absolute; top: calc(100% + 6px); left: 50%;
+  transform: translateX(-50%); z-index: 40; pointer-events: none;
+  padding: 4px 8px; border-radius: 6px; white-space: nowrap;
+  font-size: 12px; line-height: 1.3; color: var(--surface); background: var(--ink);
+  animation: tip-in 120ms ease 350ms both;
+}
+.has-tip:focus-visible::after { animation-delay: 0ms; }
+.has-tip.tip-end::after { left: auto; right: 0; transform: none; }
+.has-tip.tip-start::after { left: 0; right: auto; transform: none; }
+@keyframes tip-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .has-tip:hover::after, .has-tip:focus-visible::after { animation: none; }
+}
+.has-tip[aria-expanded='true']::after { display: none; }
 
 /* --- prose -------------------------------------------------------------- */
 
@@ -835,7 +899,7 @@ body.writing-page--outline .outline {
 .change__actions { display: flex; gap: 6px; }
 .change__actions button { font-size: 12px; padding: 3px 8px; }
 
-/* --- scene details and story bible --------------------------------------- */
+/* --- scene details and notebook --------------------------------------- */
 
 .scene-details label { margin-bottom: 12px; }
 .scene-details > button[type='submit'] { width: 100%; }
@@ -848,29 +912,29 @@ body.writing-page--outline .outline {
   letter-spacing: 0.06em; color: var(--ink-faint);
 }
 
-.bible__kinds { display: flex; gap: 4px; margin-bottom: 12px; }
-.bible__kinds button {
+.notebook__kinds { display: flex; gap: 4px; margin-bottom: 12px; }
+.notebook__kinds button {
   flex: 1; padding: 4px 6px; font-size: 12px;
   border: none; background: none; color: var(--ink-faint);
   border-bottom: 2px solid transparent;
 }
-.bible__kinds button.is-active { color: var(--accent); border-bottom-color: var(--accent); }
-.bible__list { list-style: none; padding: 0; margin: 0 0 12px; }
-.bible__entry { border-top: 1px solid var(--line); padding: 8px 0; }
-.bible__row {
+.notebook__kinds button.is-active { color: var(--accent); border-bottom-color: var(--accent); }
+.notebook__list { list-style: none; padding: 0; margin: 0 0 12px; }
+.notebook__entry { border-top: 1px solid var(--line); padding: 8px 0; }
+.notebook__row {
   display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
   width: 100%; border: none; background: none; padding: 0; text-align: left;
 }
-.bible__name { font-size: 14px; }
-.bible__count {
+.notebook__name { font-size: 14px; }
+.notebook__count {
   font-size: 11px; color: var(--ink-faint);
   background: var(--accent-soft); padding: 1px 6px; border-radius: 99px;
 }
-.bible__summary { margin: 3px 0 0; font-size: 12px; color: var(--ink-soft); }
-.bible__detail { margin-top: 8px; font-size: 13px; }
-.bible__actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-.bible__actions button { font-size: 12px; padding: 3px 8px; }
-.bible__new {
+.notebook__summary { margin: 3px 0 0; font-size: 12px; color: var(--ink-soft); }
+.notebook__detail { margin-top: 8px; font-size: 13px; }
+.notebook__actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.notebook__actions button { font-size: 12px; padding: 3px 8px; }
+.notebook__new {
   margin-top: 10px; padding: 10px;
   background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
 }
@@ -1291,3 +1355,32 @@ body.writing-page--outline .outline {
   margin: 10px 0 4px; padding: 12px 14px; max-height: 50vh; overflow: auto;
   border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface);
 }
+
+/* An untitled chapter or scene, called by its place until it is named: shown
+   the way a placeholder is, so it reads as a stand-in rather than a title. */
+.is-placeholder { color: var(--ink-faint); font-style: italic; }
+
+/* --- tabs ------------------------------------------------------------------ */
+.tabs__list { display: flex; gap: 4px; margin-bottom: 14px; border-bottom: 1px solid var(--line); }
+.tabs__tab {
+  padding: 6px 8px; font-size: 12px; border: none; border-radius: 0; background: none;
+  color: var(--ink-faint); border-bottom: 2px solid transparent; margin-bottom: -1px;
+}
+/* Hovering a tab never looks like choosing it: only the chosen one is underlined in the accent. */
+.tabs__tab:hover:not(.is-active) { color: var(--ink); border-bottom-color: var(--line); background: none; }
+.tabs__tab.is-active { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* The summary's label with "AI Generate" on the same line, over the field. */
+.scene-details__summary-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.scene-details__summary-head label { margin-bottom: 0; }
+/* Spaced as a field inside its label would be. */
+.scene-details > textarea { margin: 4px 0 12px; }
+.scene-details > textarea + .error, .scene-details > textarea + .field__hint { margin: -6px 0 12px; }
+.scene-details__generate { font-size: 12px; padding: 3px 10px; }
+.scene-details__consent {
+  font-size: 12px; color: var(--ink-soft); background: var(--accent-soft);
+  border-radius: var(--radius); padding: 8px 10px; margin: 6px 0;
+}
+.scene-details__consent p { margin: 0 0 8px; }
+.scene-details__consent-actions { display: flex; align-items: center; gap: 12px; }
+
