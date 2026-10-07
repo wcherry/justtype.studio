@@ -82,8 +82,20 @@ public struct APIClient: Sendable {
 
     // MARK: - Transport
 
+    /// `appendingPathComponent` percent-encodes a `?`, so a query in `path`
+    /// would become part of the path and the route would 404. Split it off.
+    func url(for path: String) -> URL {
+        let parts = path.split(separator: "?", maxSplits: 1)
+        let url = baseURL.appendingPathComponent(String(parts[0]))
+        guard parts.count == 2,
+              var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        else { return url }
+        components.percentEncodedQuery = String(parts[1])
+        return components.url ?? url
+    }
+
     private func makeRequest(_ method: String, _ path: String, body: Data?) async -> URLRequest {
-        var request = URLRequest(url: baseURL.appendingPathComponent(path))
+        var request = URLRequest(url: url(for: path))
         request.httpMethod = method
         if let body {
             request.httpBody = body
@@ -99,6 +111,9 @@ public struct APIClient: Sendable {
         _ method: String,
         _ path: String,
         body: Encodable? = nil,
+        // Off for signing in: a 401 there is a wrong password or a request for a
+        // two-factor code, not an expired session, and refreshing would replace
+        // the server's answer with "You are signed out".
         retryOn401: Bool = true
     ) async throws -> T {
         let payload = try body.map { try JSONEncoder().encode(AnyEncodable($0)) }
@@ -188,7 +203,8 @@ public struct APIClient: Sendable {
             "POST", "auth/register",
             body: RegisterBody(
                 email: email, password: password, displayName: displayName, acceptTerms: acceptTerms
-            )
+            ),
+            retryOn401: false
         )
         await tokens.save(session)
         return session
@@ -199,7 +215,8 @@ public struct APIClient: Sendable {
     public func signIn(email: String, password: String, code: String? = nil) async throws -> API.SessionResponse {
         let session: API.SessionResponse = try await send(
             "POST", "auth/login",
-            body: SignInBody(email: email, password: password, code: code)
+            body: SignInBody(email: email, password: password, code: code),
+            retryOn401: false
         )
         await tokens.save(session)
         return session
@@ -211,7 +228,9 @@ public struct APIClient: Sendable {
 
     public func signOut() async {
         if let refreshToken = await tokens.refreshToken {
-            _ = try? await send("POST", "auth/logout", body: ["refreshToken": refreshToken]) as EmptyResponse
+            _ = try? await send(
+                "POST", "auth/logout", body: ["refreshToken": refreshToken], retryOn401: false
+            ) as EmptyResponse
         }
         await tokens.clear()
     }
