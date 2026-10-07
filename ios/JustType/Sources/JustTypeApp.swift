@@ -46,7 +46,6 @@ enum AppConfig {
            let url = URL(string: raw) {
             return url
         }
-        // Simulator default: the backend running on the host machine.
-        return URL(string: "http://127.0.0.1:8088/api")!
+        return URL(string: "https://www.justtype.studio/api")!
     }
 }

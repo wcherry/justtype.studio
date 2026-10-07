@@ -150,6 +150,11 @@ public struct WebEditorView: ViewRepresentable {
     }
 
     private func update(_ webView: WKWebView, _ context: Context) {
+        // The coordinator outlives this struct, and `ready` reads the document
+        // from it. Without this it would push the one the view was made with —
+        // empty, since a scene is still loading then — and the page would stay
+        // blank until something else happened to redraw it.
+        context.coordinator.parent = self
         // Only push a document the page has not got: setContent resets the
         // selection, and doing it on every SwiftUI update would fight the
         // writer for the caret.
@@ -171,7 +176,7 @@ public struct WebEditorView: ViewRepresentable {
     }
 
     public final class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
-        private let parent: WebEditorView
+        fileprivate var parent: WebEditorView
         weak var webView: WKWebView?
         private(set) var loaded = false
         private(set) var pushed: API.DocNode?

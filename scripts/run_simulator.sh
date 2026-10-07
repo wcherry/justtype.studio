@@ -29,6 +29,11 @@
 #   --os VERSION      runtime version, e.g. 18.0 (default: newest installed).
 #                     Simulator only — a device runs the OS it runs
 #   --release         build the Release configuration instead of Debug
+#   --api URL         the API the app talks to (default: production, from
+#                     project.yml). A local backend from the simulator is
+#                     http://127.0.0.1:8088/api; from a device it is
+#                     http://<this Mac>.local:8088/api, with the backend bound
+#                     to 0.0.0.0 — 127.0.0.1 on a phone is the phone
 #   --clean           clean the build directory first
 #   --no-build        install and launch whatever was built last
 #   --no-generate     skip xcodegen (use the .xcodeproj as it is on disk)
@@ -64,6 +69,7 @@ DO_RESET=0
 DO_UNINSTALL=0
 DO_CONSOLE=0
 SCREENSHOT_PATH=""
+API_URL=""
 
 log()  { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33mwarning:\033[0m %s\n' "$*" >&2; }
@@ -88,7 +94,9 @@ while [[ $# -gt 0 ]]; do
     --console)      DO_CONSOLE=1; shift ;;
     --screenshot)   SCREENSHOT_PATH="$BUILD_DIR/screenshot.png"; shift ;;
     --screenshot=*) SCREENSHOT_PATH="${1#*=}"; shift ;;
-    -h|--help)      sed -n '2,43p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    --api)          API_URL="${2:-}"; [[ -n "$API_URL" ]] || die "--api needs a URL"; shift 2 ;;
+    --api=*)        API_URL="${1#*=}"; shift ;;
+    -h|--help)      sed -n '2,48p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *)              die "unknown argument: $1" ;;
   esac
 done
@@ -284,6 +292,8 @@ else
   PLATFORM_DIR="iphonesimulator"
 fi
 
+[[ -z "$API_URL" ]] || log "API: $API_URL"
+
 # --- generate & build --------------------------------------------------------
 
 if [[ $DO_GENERATE -eq 1 ]]; then
@@ -316,6 +326,7 @@ if [[ $DO_BUILD -eq 1 ]]; then
   # register the device and fetch a development profile the first time round;
   # the team comes from ios/Signing.xcconfig, passed again on the command line
   # so a stale generated project cannot quietly win.
+  [[ -z "$API_URL" ]] || build_args+=("API_BASE_URL=$API_URL")
   if [[ "$TARGET" == "device" ]]; then
     build_args+=(-allowProvisioningUpdates "DEVELOPMENT_TEAM=$DEVELOPMENT_TEAM")
   fi

@@ -15,15 +15,15 @@ packages:
 settings:
   base:
     SWIFT_VERSION: "5.9"
-    API_BASE_URL: http://127.0.0.1:8088/api
+    # Every build talks to production. For a local backend, pass
+    # scripts/run_simulator.sh --api http://127.0.0.1:8088/api (simulator) or
+    # --api http://<this Mac>.local:8088/api (device, backend on 0.0.0.0).
+    API_BASE_URL: https://www.justtype.studio/api
     # scripts/deploy_testflight.sh rewrites these two and regenerates the
     # project, so this file is the source of truth for both. The Info.plist
     # below refers to them rather than repeating the numbers.
     MARKETING_VERSION: "0.1.0"
     CURRENT_PROJECT_VERSION: "1"
-  configs:
-    Release:
-      API_BASE_URL: https://www.justtype.studio/api
 
 targets:
   JustType:
@@ -45,6 +45,9 @@ targets:
         # shipping anything that talks to a real host.
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
+        # A Debug build on a phone talks to the backend on the developer's Mac,
+        # which iOS lets through only after asking with this text.
+        NSLocalNetworkUsageDescription: Just Type Studio connects to a development server on your local network.
     dependencies:
       - package: JustTypeKit
         product: JustTypeUI

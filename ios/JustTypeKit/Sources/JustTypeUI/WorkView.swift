@@ -3,10 +3,11 @@ import JustTypeKit
 
 /// A work: its outline, and whatever scene is open.
 ///
-/// A `NavigationSplitView` rather than a stack, which costs nothing on a phone
-/// — it collapses to exactly the stack it was — and gives an iPad the thing an
-/// iPad is for: the outline beside the page, so a writer can see where they
-/// are in the book while they work on a paragraph of it.
+/// It is pushed onto the desk's `NavigationStack`, so it cannot be a
+/// `NavigationSplitView`: SwiftUI does not support one inside a stack, and on
+/// a phone it drew an empty page. A phone pushes the scene onto the same stack;
+/// an iPad (regular width) keeps the outline beside the page, so a writer can
+/// see where they are in the book while they work on a paragraph of it.
 struct WorkView: View {
     let workId: String
     let title: String
@@ -14,27 +15,48 @@ struct WorkView: View {
     @EnvironmentObject private var session: SessionStore
     @State private var outline: API.OutlineResponse?
     @State private var selected: API.Scene?
+    @Environment(\.horizontalSizeClass) private var sizeClass
 
     var body: some View {
-        NavigationSplitView {
-            outlineList
-        } detail: {
-            if let selected {
-                SceneEditorView(
-                    sceneId: selected.id,
-                    title: name(of: selected),
-                    editable: outline?.canWrite(chapterId: selected.chapterId) ?? true
-                )
-                .id(selected.id)
+        Group {
+            if sizeClass == .regular {
+                HStack(spacing: 0) {
+                    outlineList
+                        .frame(width: 320)
+                    Divider()
+                    detail
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
             } else {
-                ContentUnavailableView(
-                    "Pick a scene",
-                    systemImage: "text.alignleft",
-                    description: Text("Or add one. A chapter with nothing in it is still a plan.")
-                )
+                outlineList
+                    .navigationDestination(item: $selected) { scene in
+                        editor(for: scene)
+                    }
             }
         }
         .task { await load() }
+    }
+
+    @ViewBuilder
+    private var detail: some View {
+        if let selected {
+            editor(for: selected)
+        } else {
+            ContentUnavailableView(
+                "Pick a scene",
+                systemImage: "text.alignleft",
+                description: Text("Or add one. A chapter with nothing in it is still a plan.")
+            )
+        }
+    }
+
+    private func editor(for scene: API.Scene) -> some View {
+        SceneEditorView(
+            sceneId: scene.id,
+            title: name(of: scene),
+            editable: outline?.canWrite(chapterId: scene.chapterId) ?? true
+        )
+        .id(scene.id)
     }
 
     /// A new scene is untitled — shown as "Scene 3" for where it falls — rather
@@ -56,12 +78,14 @@ struct WorkView: View {
     }
 
     private var outlineList: some View {
-        List(selection: $selected) {
+        List {
             if let outline {
                 ForEach(Array(outline.chapters.enumerated()), id: \.element.id) { chapterIndex, chapter in
                     Section {
                         ForEach(Array(chapter.scenes.enumerated()), id: \.element.id) { sceneIndex, scene in
-                            NavigationLink(value: scene) {
+                            Button {
+                                selected = scene
+                            } label: {
                                 HStack {
                                     Text(Naming.scene(scene.title, number: sceneIndex + 1))
                                         .foregroundStyle(Naming.isUntitled(scene.title) ? .secondary : .primary)
@@ -70,8 +94,19 @@ struct WorkView: View {
                                     Text("\(scene.wordCount)")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
+                                    if sizeClass != .regular {
+                                        Image(systemName: "chevron.right")
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(.tertiary)
+                                    }
                                 }
+                                .contentShape(Rectangle())
                             }
+                            .buttonStyle(.plain)
+                            .listRowBackground(
+                                sizeClass == .regular && selected?.id == scene.id
+                                    ? Color.accentColor.opacity(0.15) : nil
+                            )
                         }
                         Button {
                             Task { await addScene(to: chapter) }
