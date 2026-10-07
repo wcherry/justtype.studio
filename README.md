@@ -168,6 +168,11 @@ GitHub's registry (`.github/workflows/ghcr-publish.yml`) as
 `ghcr.io/<owner>/justtype-studio`, tagged `latest`, `main`, the commit's short
 sha and a version (`0.1.<run>`), which `/api/health` and `/api/status` report.
 
+To try the image locally, `cargo docker` builds it from the working tree and
+runs it on <http://localhost:8080>, with the repo's JWT secret and its own data
+volume (`--port <n>`, `--no-build`, `--detach`, `--fresh`; `cargo xtask` lists
+them). By hand:
+
 ```sh
 docker build -t justtype-studio .
 docker run -p 8080:8080 -v justtype-data:/usr/local/data \

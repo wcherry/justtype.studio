@@ -63,6 +63,11 @@ Tasks:
   check              fmt, clippy, and the web type-check
   smoke              End-to-end API walkthrough on a throwaway database
   backup             Back up the database and manuscripts, then restore-drill it
+  docker [options]   Build the Docker image and run it on http://localhost:8080
+                       --port <n>   publish on another port
+                       --no-build   run the image last built
+                       --detach     run in the background (docker stop justtype-local)
+                       --fresh      start from an empty data volume
   fmt                Format the Rust sources";
 
 fn main() {
@@ -95,6 +100,7 @@ fn main() {
         // A backup is only as good as its last restore, so the one command
         // does both; `--drill-only` re-proves the newest.
         "backup" => run_script(&cfg.workspace_root, "scripts/backup.sh", &extra),
+        "docker" => run_docker(&cfg, &extra),
         "fmt" => run("cargo", &["fmt", "--all"], &cfg.workspace_root),
         other => {
             eprintln!("Unknown task: {other}\n\n{USAGE}");
@@ -390,6 +396,240 @@ fn unquote(value: &str) -> &str {
         .and_then(|v| v.strip_suffix('"'))
         .or_else(|| value.strip_prefix('\'').and_then(|v| v.strip_suffix('\'')))
         .unwrap_or(value)
+}
+
+// --- docker --------------------------------------------------------------
+
+/// The image `cargo xtask docker` builds, its container and its data volume.
+/// Named apart from anything published, so a local run never clobbers a pulled
+/// `ghcr.io/…:latest` and never touches a real deployment's data.
+const DOCKER_IMAGE: &str = "justtype-studio:local";
+const DOCKER_CONTAINER: &str = "justtype-local";
+const DOCKER_VOLUME: &str = "justtype-local-data";
+/// Where the image listens inside the container (the Dockerfile's EXPOSE).
+const DOCKER_INTERNAL_PORT: u16 = 8080;
+
+struct DockerOptions {
+    port: u16,
+    build: bool,
+    detach: bool,
+    fresh: bool,
+}
+
+fn docker_options(extra: &[String]) -> DockerOptions {
+    let mut options = DockerOptions {
+        port: DOCKER_INTERNAL_PORT,
+        build: true,
+        detach: false,
+        fresh: false,
+    };
+    let mut args = extra.iter();
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--no-build" => options.build = false,
+            "--detach" | "-d" => options.detach = true,
+            "--fresh" => options.fresh = true,
+            "--port" | "-p" => {
+                options.port = args.next().and_then(|p| p.parse().ok()).unwrap_or_else(|| {
+                    eprintln!("--port needs a port number");
+                    process::exit(1);
+                })
+            }
+            other => {
+                eprintln!("Unknown option for docker: {other}\n\n{USAGE}");
+                process::exit(1);
+            }
+        }
+    }
+    options
+}
+
+/// Builds the image from the working tree and runs it the way it runs in
+/// production — the same binary, web build, user and volume layout — with
+/// only what a local run needs: the repo's JWT secret, and localhost as the
+/// public address.
+///
+/// Deliberately not the whole `.env`: its database and data paths point into
+/// this checkout, which does not exist inside the container.
+fn run_docker(cfg: &Config, extra: &[String]) {
+    let root = &cfg.workspace_root;
+    let options = docker_options(extra);
+    require_tools(&["docker"]);
+    let daemon_up = Command::new("docker")
+        .args(["info", "--format", "{{.ServerVersion}}"])
+        .stdout(process::Stdio::null())
+        .stderr(process::Stdio::null())
+        .status()
+        .is_ok_and(|s| s.success());
+    if !daemon_up {
+        eprintln!("Docker is installed but not running — start Docker Desktop and try again.");
+        process::exit(1);
+    }
+
+    // The same secret as `cargo dev`, so it stays put between runs: a new one
+    // would sign out every session in the volume.
+    ensure_env(root);
+    let secret = env::var("JUSTTYPE_JWT_SECRET")
+        .ok()
+        .filter(|s| !s.trim().is_empty())
+        .or_else(|| {
+            fs::read_to_string(root.join(".env"))
+                .ok()
+                .and_then(|contents| env_file_value(&contents, "JUSTTYPE_JWT_SECRET"))
+        })
+        .unwrap_or_else(|| {
+            eprintln!("JUSTTYPE_JWT_SECRET is not set in the environment or .env");
+            process::exit(1);
+        });
+
+    if options.build {
+        section("Building the image");
+        let commit = git_output(root, &["rev-parse", "HEAD"]).unwrap_or_default();
+        let short = commit.get(..7).unwrap_or("dev");
+        let version = format!("local-{short}");
+        run(
+            "docker",
+            &[
+                "build",
+                "-t",
+                DOCKER_IMAGE,
+                "--build-arg",
+                &format!("APP_VERSION={version}"),
+                "--build-arg",
+                &format!("BUILD_COMMIT={commit}"),
+                ".",
+            ],
+            root,
+        );
+    }
+
+    // A container left from an earlier run holds the name and the port.
+    Command::new("docker")
+        .args(["rm", "-f", DOCKER_CONTAINER])
+        .stdout(process::Stdio::null())
+        .stderr(process::Stdio::null())
+        .status()
+        .ok();
+    if options.fresh {
+        Command::new("docker")
+            .args(["volume", "rm", DOCKER_VOLUME])
+            .stdout(process::Stdio::null())
+            .stderr(process::Stdio::null())
+            .status()
+            .ok();
+        println!("starting from an empty {DOCKER_VOLUME} volume");
+    }
+
+    let url = format!("http://localhost:{}", options.port);
+    let publish = format!("127.0.0.1:{}:{DOCKER_INTERNAL_PORT}", options.port);
+    let volume = format!("{DOCKER_VOLUME}:/usr/local/data");
+    let public_url = format!("JUSTTYPE_PUBLIC_URL={url}");
+    let origins = format!("JUSTTYPE_CORS_ORIGINS={url}");
+    let mut args: Vec<&str> = vec![
+        "run",
+        "--rm",
+        // The server is PID 1 in the container, and PID 1 ignores Ctrl-C
+        // unless it handles it; tini, as --init, passes it on.
+        "--init",
+        "--name",
+        DOCKER_CONTAINER,
+        // Localhost only: nothing else on the network should reach it.
+        "-p",
+        &publish,
+        "-v",
+        &volume,
+        // Named, not `KEY=value`: the value comes from this process's
+        // environment, so the secret is not on a command line `ps` can read.
+        "-e",
+        "JUSTTYPE_JWT_SECRET",
+        "-e",
+        &public_url,
+        "-e",
+        &origins,
+        "-e",
+        "JUSTTYPE_LOG_FORMAT=text",
+    ];
+    // Summaries, if this machine has a key for them; off otherwise.
+    let anthropic_key = env::var("ANTHROPIC_API_KEY").ok().or_else(|| {
+        fs::read_to_string(root.join(".env"))
+            .ok()
+            .and_then(|contents| env_file_value(&contents, "ANTHROPIC_API_KEY"))
+    });
+    if anthropic_key.is_some() {
+        args.extend(["-e", "ANTHROPIC_API_KEY"]);
+    }
+    if options.detach {
+        args.push("--detach");
+    }
+    args.push(DOCKER_IMAGE);
+
+    section("Running the container");
+    let mut command = Command::new("docker");
+    command
+        .args(&args)
+        .current_dir(root)
+        .env("JUSTTYPE_JWT_SECRET", &secret);
+    if let Some(key) = &anthropic_key {
+        command.env("ANTHROPIC_API_KEY", key);
+    }
+    if options.detach {
+        command.stdout(process::Stdio::null());
+    }
+    let mut container = command
+        .spawn()
+        .unwrap_or_else(|e| panic!("failed to spawn `docker run`: {e}"));
+
+    let health = format!("127.0.0.1:{}", options.port);
+    let deadline = Instant::now() + Duration::from_secs(60);
+    loop {
+        if backend_healthy(&health, &cfg.health_path) {
+            break;
+        }
+        // In the foreground the run *is* the container; detached, it exits as
+        // soon as the container has started, and that is fine.
+        if !options.detach {
+            if let Some(status) = container
+                .try_wait()
+                .expect("failed to wait on `docker run`")
+            {
+                eprintln!("the container exited before it became healthy");
+                process::exit(status.code().unwrap_or(1));
+            }
+        }
+        if Instant::now() >= deadline {
+            eprintln!(
+                "the container was not healthy within 60s — `docker logs {DOCKER_CONTAINER}`"
+            );
+            process::exit(1);
+        }
+        thread::sleep(Duration::from_millis(500));
+    }
+
+    println!();
+    println!("Just Type Studio is running at {url}");
+    println!("  data:  the {DOCKER_VOLUME} volume (--fresh to start over)");
+    println!("  mail:  docker exec {DOCKER_CONTAINER} cat /usr/local/data/outbox.jsonl");
+    if options.detach {
+        println!("  logs:  docker logs -f {DOCKER_CONTAINER}");
+        println!("  stop:  docker stop {DOCKER_CONTAINER}");
+        container.wait().ok();
+        return;
+    }
+    println!("  stop:  Ctrl-C");
+    println!();
+    let status = container.wait().expect("failed to wait on `docker run`");
+    process::exit(status.code().unwrap_or(0));
+}
+
+fn git_output(dir: &Path, args: &[&str]) -> Option<String> {
+    let out = Command::new("git")
+        .args(args)
+        .current_dir(dir)
+        .output()
+        .ok()?;
+    out.status
+        .success()
+        .then(|| String::from_utf8_lossy(&out.stdout).trim().to_string())
 }
 
 // --- the rest ------------------------------------------------------------
