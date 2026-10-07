@@ -1,4 +1,4 @@
-//! Templates for story bible sketches.
+//! Templates for notebook sketches.
 //!
 //! Built in, like the structural templates: the questions a writer is glad to
 //! have been asked about a character or a place. Each field has a prompt as
@@ -9,7 +9,7 @@
 #[serde(rename_all = "camelCase")]
 pub struct SketchTemplate {
     pub id: &'static str,
-    #[schema(value_type = crate::domain::enums::BibleKind)]
+    #[schema(value_type = crate::domain::enums::NotebookKind)]
     pub kind: &'static str,
     pub name: &'static str,
     pub description: &'static str,
@@ -214,7 +214,7 @@ mod tests {
                 template.id
             );
             assert!(
-                crate::domain::enums::BibleKind::accepts(template.kind),
+                crate::domain::enums::NotebookKind::accepts(template.kind),
                 "{} has an unknown kind",
                 template.id
             );
@@ -230,7 +230,7 @@ mod tests {
             }
         }
         // Every kind has at least one template to start from.
-        for kind in crate::domain::enums::BibleKind::ALL {
+        for kind in crate::domain::enums::NotebookKind::ALL {
             assert!(
                 all.iter().any(|t| t.kind == *kind),
                 "no template for {kind}"

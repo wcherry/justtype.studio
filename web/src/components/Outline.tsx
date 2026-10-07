@@ -1,18 +1,22 @@
-import { useState } from 'react'
 import type { Outline as OutlineType, Scene } from '../api/types'
+import { chapterName, isUntitled, sceneName } from '../naming'
 
 interface Props {
   outline: OutlineType
   activeSceneId: string | null
   onSelectScene: (scene: Scene) => void
-  onAddChapter: (title: string) => void
-  onAddScene: (chapterId: string, title: string) => void
+  /** Adds an untitled chapter at the end, shown as "Chapter N" until named. */
+  onAddChapter: () => void
+  /** Adds an untitled scene at the end of a chapter, shown as "Scene N". */
+  onAddScene: (chapterId: string) => void
   onMoveScene: (chapterId: string, sceneIds: string[]) => void
   onRenameScene: (sceneId: string, title: string) => void
   /** Whether this chapter's scenes may be added, moved or renamed. */
   canWrite?: (chapterId: string) => boolean
   /** Whether chapters may be added. */
   canShape?: boolean
+  /** Added to the outline's own class, for where it is shown. */
+  className?: string
 }
 
 const STATUS_DOT: Record<Scene['status'], string> = {
@@ -24,11 +28,8 @@ const STATUS_DOT: Record<Scene['status'], string> = {
 
 export function Outline({
   outline, activeSceneId, onSelectScene, onAddChapter, onAddScene, onMoveScene, onRenameScene,
-  canWrite = () => true, canShape = true,
+  canWrite = () => true, canShape = true, className,
 }: Props) {
-  const [adding, setAdding] = useState<string | null>(null)
-  const [draftTitle, setDraftTitle] = useState('')
-
   const move = (chapterId: string, scenes: Scene[], index: number, delta: number) => {
     const next = [...scenes]
     const target = index + delta
@@ -38,7 +39,7 @@ export function Outline({
   }
 
   return (
-    <nav className="outline">
+    <nav className={className ? `outline ${className}` : 'outline'}>
       <header className="outline__header">
         <h2>{outline.title}</h2>
         <p className="outline__meta">
@@ -46,7 +47,7 @@ export function Outline({
         </p>
       </header>
 
-      {outline.chapters.map((chapter) => {
+      {outline.chapters.map((chapter, chapterIndex) => {
         const writable = canWrite(chapter.id)
         return (
         <section
@@ -54,7 +55,9 @@ export function Outline({
           className={writable ? 'outline__chapter' : 'outline__chapter is-read-only'}
         >
           <h3>
-            {chapter.title}
+            <span className={isUntitled(chapter.title) ? 'is-placeholder' : undefined}>
+              {chapterName(chapter.title, chapterIndex + 1)}
+            </span>
             {!writable && <span className="outline__lock" title="You can read this chapter but not change it"> · read only</span>}
           </h3>
           <ul>
@@ -66,14 +69,16 @@ export function Outline({
                 <button type="button" className="outline__scene-btn" onClick={() => onSelectScene(scene)}>
                   <span className="outline__dot" title={scene.status}>{STATUS_DOT[scene.status]}</span>
                   <span
-                    className="outline__title"
+                    className={isUntitled(scene.title) ? 'outline__title is-placeholder' : 'outline__title'}
+                    title={writable ? 'Double-click to name it' : undefined}
                     onDoubleClick={() => {
                       if (!writable) return
-                      const title = window.prompt('Scene title', scene.title)
-                      if (title && title !== scene.title) onRenameScene(scene.id, title)
+                      // Emptied, it goes back to being called by its place.
+                      const title = window.prompt(`Name for ${sceneName(scene.title, index + 1)}`, scene.title)
+                      if (title !== null && title.trim() !== scene.title.trim()) onRenameScene(scene.id, title.trim())
                     }}
                   >
-                    {scene.title}
+                    {sceneName(scene.title, index + 1)}
                   </span>
                   <span className="outline__words">{scene.wordCount}</span>
                 </button>
@@ -87,26 +92,12 @@ export function Outline({
             ))}
           </ul>
 
-          {!writable ? null : adding === chapter.id ? (
-            <form
-              className="outline__add"
-              onSubmit={(event) => {
-                event.preventDefault()
-                if (draftTitle.trim()) onAddScene(chapter.id, draftTitle.trim())
-                setDraftTitle('')
-                setAdding(null)
-              }}
+          {writable && (
+            <button
+              type="button"
+              className="outline__add-btn"
+              onClick={() => onAddScene(chapter.id)}
             >
-              <input
-                autoFocus
-                value={draftTitle}
-                placeholder="Scene title"
-                onChange={(e) => setDraftTitle(e.target.value)}
-                onBlur={() => setAdding(null)}
-              />
-            </form>
-          ) : (
-            <button type="button" className="outline__add-btn" onClick={() => setAdding(chapter.id)}>
               + Scene
             </button>
           )}
@@ -118,10 +109,7 @@ export function Outline({
       <button
         type="button"
         className="outline__add-btn outline__add-btn--chapter"
-        onClick={() => {
-          const title = window.prompt('Chapter title', `Chapter ${outline.chapters.length + 1}`)
-          if (title) onAddChapter(title)
-        }}
+        onClick={() => onAddChapter()}
       >
         + Chapter
       </button>
@@ -129,3 +117,4 @@ export function Outline({
     </nav>
   )
 }
+

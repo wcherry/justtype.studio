@@ -245,6 +245,9 @@ pub async fn create(
 
     // Narrowed before anything is written, so a scoped snapshot contains
     // exactly what it claims to and nothing else.
+    // Untitled chapters and scenes are named before the outline is narrowed,
+    // so a snapshot of the third chapter alone still calls it "Chapter 3".
+    let outline = super::works::with_placeholder_names(outline);
     let outline = narrow_outline(outline, &scope, body.scope_ref_id.as_deref());
 
     if outline.chapters.iter().all(|c| c.scenes.is_empty()) {
@@ -752,31 +755,32 @@ pub async fn diff(
 
 /// Resolves one side of a comparison: a version id, or `working`.
 fn load_side(conn: &mut crate::db::Conn, work_id: &str, reference: &str) -> ApiResult<Side> {
-    use crate::db::schema::{chapters, scenes};
-
     if reference == "working" {
-        let rows: Vec<(Scene, String)> = scenes::table
-            .inner_join(chapters::table.on(chapters::id.eq(scenes::chapter_id)))
-            .filter(scenes::work_id.eq(work_id))
-            .order((chapters::position.asc(), scenes::position.asc()))
-            .select((Scene::as_select(), chapters::title))
-            .load(conn)?;
-
-        return Ok(Side {
-            label: "Working draft".into(),
-            version: None,
-            entries: rows
-                .into_iter()
-                .map(|(scene, chapter_title)| DiffEntry {
+        // Named as a version would name them, so an untitled scene compares
+        // under the same name on both sides.
+        let outline =
+            super::works::with_placeholder_names(super::works::load_outline(conn, work_id)?);
+        let entries = outline
+            .chapters
+            .into_iter()
+            .flat_map(|chapter| {
+                let chapter_title = chapter.chapter.title;
+                chapter.scenes.into_iter().map(move |scene| DiffEntry {
                     scene_id: scene.id,
                     scene_title: scene.title,
-                    chapter_title,
+                    chapter_title: chapter_title.clone(),
                     content_hash: scene.content_hash,
                     word_count: scene.word_count,
                     chapter_id: scene.chapter_id,
                     position: scene.position,
                 })
-                .collect(),
+            })
+            .collect();
+
+        return Ok(Side {
+            label: "Working draft".into(),
+            version: None,
+            entries,
         });
     }
 

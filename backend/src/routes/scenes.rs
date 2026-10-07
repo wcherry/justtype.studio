@@ -20,6 +20,9 @@ use super::works::ReorderRequest;
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateSceneRequest {
+    /// Left out or empty, it is untitled and shown as "Scene 2" for where it
+    /// falls, until the writer names it.
+    #[serde(default)]
     pub title: String,
     #[serde(default)]
     pub summary: Option<String>,
@@ -384,7 +387,7 @@ pub async fn put_content(
     let revision_for_db = revision_id.clone();
     let author_id = user.id.clone();
     let actor_id = user.id.clone();
-    let scene_title = scene.title.clone();
+    let scene_for_label = scene.clone();
     let local_day = body.local_day.clone();
     let (scene, work_word_count) = blocking(&state.pool, move |conn| {
         let now = now_iso();
@@ -415,13 +418,14 @@ pub async fn put_content(
         }
         let total = support::recount_work(conn, &work_id, &now)?;
         if !unchanged {
+            let label = support::scene_label(conn, &scene_for_label)?;
             record(
                 conn,
                 &work_id,
                 &actor_id,
                 ActivityKind::SceneEdited,
                 Some(&scene_id_db),
-                &scene_title,
+                &label,
             )?;
         }
         let scene: Scene = scenes::table
@@ -459,6 +463,7 @@ pub async fn delete_scene(
 ) -> ApiResult<Json<Value>> {
     let (work_id, scene_id) = blocking(&state.pool, move |conn| {
         let (scene, work) = support::scene_for(conn, &scene_id, &user, Ability::Write)?;
+        let label = support::scene_label(conn, &scene)?;
         diesel::delete(scenes::table.find(&scene.id)).execute(conn)?;
         record(
             conn,
@@ -466,7 +471,7 @@ pub async fn delete_scene(
             &user.id,
             ActivityKind::SceneRemoved,
             Some(&scene.id),
-            &scene.title,
+            &label,
         )?;
         support::recount_work(conn, &work.id, &now_iso())?;
         Ok((work.id, scene.id))
@@ -763,7 +768,15 @@ pub async fn split_scene(
         .map(str::trim)
         .filter(|t| !t.is_empty())
         .map(str::to_string)
-        .unwrap_or_else(|| format!("{} (continued)", scene.title));
+        // An untitled scene's second half is untitled too, and takes its own
+        // number from where it lands.
+        .unwrap_or_else(|| {
+            if scene.title.trim().is_empty() {
+                String::new()
+            } else {
+                format!("{} (continued)", scene.title)
+            }
+        });
 
     // Files first: a scene row pointing at a document that was never written
     // would read as lost work, where an orphaned file is merely untidy.

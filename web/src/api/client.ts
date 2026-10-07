@@ -3,7 +3,7 @@ import type {
   RevisionWithContent, SaveResult, Scene, SceneRevision, SceneWithContent, Session, Template,
   TrackedChange,
   User, Version, VersionContent, VersionDetail, Work, WorkKind, Visibility, CommentCategory,
-  WritingSummary, EntryView, BibleKind, SplitSceneResponse, ResolveResponse,
+  WritingSummary, EntryView, NotebookKind, SplitSceneResponse, ResolveResponse,
   BulkResolveResponse, RestoreResponse, VersionSummary, InviteView, CircleView,
   ReaderProgressView, BlockReactions, ReactionKind, ReviewQuestion, AnswerView,
   QuestionKind, QuestionScope, Standing, BulkStateResponse, ReportReason, TaskView,
@@ -489,26 +489,26 @@ export const api = {
     standing: (userId: string) => get<Standing>(`/users/${userId}/standing`),
   },
 
-  bible: {
+  notebook: {
     list: (workId: string, opts: { kind?: string; sceneId?: string } = {}) => {
       const params = new URLSearchParams()
       if (opts.kind) params.set('kind', opts.kind)
       if (opts.sceneId) params.set('sceneId', opts.sceneId)
       const qs = params.toString()
-      return get<EntryView[]>(`/works/${workId}/bible${qs ? `?${qs}` : ''}`)
+      return get<EntryView[]>(`/works/${workId}/notebook${qs ? `?${qs}` : ''}`)
     },
-    templates: () => get<SketchTemplate[]>('/bible/templates'),
+    templates: () => get<SketchTemplate[]>('/notebook/templates'),
     create: (workId: string, input: {
-      kind: BibleKind; name: string; summary?: string; body?: string; templateId?: string
-    }) => post<EntryView>(`/works/${workId}/bible`, input),
+      kind: NotebookKind; name: string; summary?: string; body?: string; templateId?: string
+    }) => post<EntryView>(`/works/${workId}/notebook`, input),
     update: (entryId: string, input: {
       name?: string; summary?: string; body?: string; fields?: SketchField[]
-    }) => patch<EntryView>(`/bible/${entryId}`, input),
-    remove: (entryId: string) => del<{ ok: boolean }>(`/bible/${entryId}`),
+    }) => patch<EntryView>(`/notebook/${entryId}`, input),
+    remove: (entryId: string) => del<{ ok: boolean }>(`/notebook/${entryId}`),
     link: (entryId: string, sceneId: string) =>
-      post<EntryView>(`/bible/${entryId}/links`, { sceneId }),
+      post<EntryView>(`/notebook/${entryId}/links`, { sceneId }),
     unlink: (entryId: string, sceneId: string) =>
-      del<EntryView>(`/bible/${entryId}/links/${sceneId}`),
+      del<EntryView>(`/notebook/${entryId}/links/${sceneId}`),
   },
 
   circles: {

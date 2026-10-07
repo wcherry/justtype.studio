@@ -2,7 +2,6 @@ pub mod account;
 pub mod annotations;
 pub mod audit;
 pub mod auth;
-pub mod bible;
 pub mod changes;
 pub mod collaborators;
 pub mod comments;
@@ -11,6 +10,7 @@ pub mod export;
 pub mod feedback;
 pub mod goals;
 pub mod moderation;
+pub mod notebook;
 pub mod openapi;
 pub mod privacy;
 pub mod profiles;
@@ -71,11 +71,11 @@ fn api_router() -> OpenApiRouter<AppState> {
         .routes(routes!(works::list, works::create))
         .routes(routes!(works::get_one, works::update, works::delete_work))
         .routes(routes!(works::outline))
-        .routes(routes!(bible::templates))
-        .routes(routes!(bible::list, bible::create))
-        .routes(routes!(bible::update, bible::delete_entry))
-        .routes(routes!(bible::link))
-        .routes(routes!(bible::unlink))
+        .routes(routes!(notebook::templates))
+        .routes(routes!(notebook::list, notebook::create))
+        .routes(routes!(notebook::update, notebook::delete_entry))
+        .routes(routes!(notebook::link))
+        .routes(routes!(notebook::unlink))
         .routes(routes!(works::create_chapter))
         .routes(routes!(works::reorder_chapters))
         .routes(routes!(works::update_chapter, works::delete_chapter))

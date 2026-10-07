@@ -144,7 +144,7 @@ handler knew nothing about them, so a pen name saved silently did nothing.
   free text: fiction rarely runs on the Gregorian calendar.
 - ✅ Split and merge, cutting between blocks rather than inside them. Lossless by
   construction, and guarded by `baseHash` on every scene involved.
-- ✅ Story bible: characters, places and continuity notes, linked to scenes from
+- ✅ Notebook: characters, places and continuity notes, linked to scenes from
   both directions.
 - **Done when** a writer can rearrange a novel without opening a single scene,
   and split one in two without losing a word. *Verified in the browser: a scene
@@ -659,16 +659,31 @@ do not build toward it, and do not carry a compatibility layer for it.
   outline, toolbar or panels until the writer asks for them. It builds on
   *1.2*'s focus mode, typewriter scrolling and typography, which stay as they
   are.
-- **Done:** *Page* in the editor (or ⌘⇧F) puts away the shell, the outline,
+- **Done:** the *Writing room* (⌘⇧F) puts away the shell, the outline,
   the header, the toolbar, the goals and every panel, and asks the browser for
   the whole screen. Focus mode, typewriter scrolling and the writer's type
   settings keep working underneath, because the mode is a class on the page
   rather than a different page: the editor, its selection and its undo history
   are untouched on the way in and out. A word count and the save state sit
   faintly in a corner. The pointer at the top edge brings back a slim bar;
-  ⌘⇧O slides the outline in over the margin; Escape goes back to the desk.
+  ⌘⇧O opens the outline; Escape goes back to the desk.
   A save conflict or being offline with work waiting still shows — hiding
   those is how a writer loses words.
+
+- **Done:** the writing room's bar pulls down on the way in for three
+  seconds, then gets out of the way until the pointer comes into the strip it
+  would cover, down to where its bottom edge sits (or a tap there, on a touch
+  screen); it stays while the
+  pointer is on it or focus is in it. It holds a scene picker — every chapter
+  and its scenes, the current one ticked — that moves you anywhere in the book
+  without leaving the room; sliders for the zoom (25–400%, also ⌘=, ⌘−, ⌘0)
+  and for how much of the screen the page takes (10–100%), each with its
+  percentage in small type under it and kept per device; and two icon
+  buttons with help tips: the outline (⌘⇧O), which opens in a popup under
+  its button — the whole outline, scenes added, moved and renamed as beside
+  the editor — and closes on a click elsewhere, Escape or choosing a scene;
+  and the way back to the desk. The editor toolbar's icon buttons have the
+  same help tips.
 
 ### 8.2 Word-count goals · **Done**
 - Daily, weekly and per-project targets, each with a progress indicator. This
@@ -688,17 +703,17 @@ do not build toward it, and do not carry a compatibility layer for it.
   the browser declines to submit without saying why. Any whole number now
   works.
 
-### 8.3 Story bible sketches · **Done**
+### 8.3 Notebook sketches · **Done**
 - Sketches for characters, locations and the like, each started from a
   template, kept with the work and to hand while writing.
-- **Done:** a bible entry can be a sketch — named fields in order, started
+- **Done:** a notebook entry can be a sketch — named fields in order, started
   from one of seven built-in templates: a main or supporting character, a
   location or a room, an object, a family or organisation, a timeline event.
   Each field carries the question it is asking ("What happened that they are
   still answering?"), shown until it is answered, and a writer can add
   questions of their own. Two new kinds join people, places and notes:
   *things* and *groups*.
-- To hand while writing: the bible panel opens with whoever and whatever is
+- To hand while writing: the notebook panel opens with whoever and whatever is
   linked to the scene in front of you, sketch and all, before the rest.
 
 ### 8.4 AI summaries · **Done**
@@ -723,12 +738,38 @@ do not build toward it, and do not carry a compatibility layer for it.
 ### 8.5 UI polish · **Done**
 - A more polished interface overall. The row of text buttons across the top of
   the editor becomes a menu, a toolbar, or both.
-- **Done:** the header's fifteen buttons are now three groups. Next to the
-  save state and the scene's status, a small toolbar holds what you toggle
-  while writing (Write / Corkboard, Page, Focus, Aa); three menus — *Scene*,
-  *Book*, *People* — open the side panels, tick the one that is open, and
-  light up while one of theirs is. The menus work from the keyboard (arrows,
-  Home, End, Escape back to the button). Every side panel has a close button.
+- **Done:** one main menu holds everything, each thing under where it
+  belongs: *Scene* (details, proposed changes, history, summarise, status,
+  split, merge), *Book* (find, notebook, to do, highlights & bookmarks, front
+  matter, versions), *Format* (every formatting command, undo, redo), *View*
+  (write or corkboard, the writing room, focus, typewriter scrolling, type
+  and spacing) and *People* (who is on the book, activity). Submenus open on
+  hover or with →; the whole menu works from the keyboard and ticks whatever
+  is open or switched on. The menu is a ☰ button to the left of the scene's
+  title; otherwise the header holds only the title (with its status) and the
+  save state. The toolbar under it keeps what is
+  reached for most a click away: the formatting, undo and redo, then icon
+  buttons for Find, Notebook, To do, the Writing room and, last, ⓘ for the
+  open scene — one panel with *Details*, *Proposed changes* and *History* as
+  tabs (← → between them), the same panel *Scene* in the menu opens on the
+  matching tab. Over the summary on *Details*, **AI Generate** has
+  Claude read the scene (unsaved typing is saved first) and puts the summary
+  it writes into the field as a draft — kept only when the writer saves, with
+  a way to put back what was there. It shows only where summaries are set up
+  and the writer may change the scene, and the first time it asks to turn
+  summaries on, saying what that sends to Anthropic. Every side panel
+  has a close button.
+- A new scene or chapter is added without asking for a title, on the web
+  and on the phone, and a new scene opens straight away. Until the writer
+  names it, it is untitled and shown — faintly, as a placeholder — by where it
+  falls: *Scene 5* within its chapter, *Chapter 4* in the book, a number that
+  follows it when it moves. Emptying a name puts the placeholder back. A
+  version freezes the placeholder names as they stood, so exports and
+  published versions never have a blank heading; the activity feed and the
+  draft comparison use them too.
+- The story bible is now the *Notebook*, everywhere: in the app, the API
+  (`/api/works/{id}/notebook`, `/api/notebook/…`), the database and the
+  data export.
 
 ### 8.6 Context menu on selected text · **Done**
 - Right-click (or ⌘-click) on selected text to add a highlight, a bookmark or a

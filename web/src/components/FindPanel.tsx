@@ -4,7 +4,14 @@ import type { SceneHit } from '../api/types'
 import { Snippet } from './Snippet'
 
 /** Words anywhere in the work's working text, best matches first. */
-export function FindPanel({ workId, onOpen }: { workId: string; onOpen: (sceneId: string) => void }) {
+export function FindPanel({
+  workId, onOpen, nameOf,
+}: {
+  workId: string
+  onOpen: (sceneId: string) => void
+  /** What to call an untitled scene: "Scene 2", for where it sits. */
+  nameOf: (sceneId: string) => string
+}) {
   const [q, setQ] = useState('')
   const [hits, setHits] = useState<SceneHit[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -38,7 +45,7 @@ export function FindPanel({ workId, onOpen }: { workId: string; onOpen: (sceneId
         {hits?.map((hit) => (
           <li key={hit.sceneId}>
             <button type="button" className="find__hit" onClick={() => onOpen(hit.sceneId)}>
-              <strong>{hit.title}</strong>
+              <strong>{hit.title.trim() || nameOf(hit.sceneId)}</strong>
               <Snippet text={hit.snippet} />
             </button>
           </li>

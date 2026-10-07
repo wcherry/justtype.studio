@@ -232,13 +232,14 @@ pub async fn create(
         diesel::insert_into(tracked_changes::table)
             .values(&row)
             .execute(conn)?;
+        let label = support::scene_label(conn, &scene)?;
         record(
             conn,
             &row.work_id,
             &user.id,
             ActivityKind::ChangeProposed,
             Some(&scene.id),
-            &scene.title,
+            &label,
         )?;
         Ok(tracked_changes::table
             .find(&row.id)
@@ -369,12 +370,15 @@ fn note_resolved(
     accepted: bool,
     count: usize,
 ) -> ApiResult<()> {
-    let title: String = scenes::table
+    let scene: Option<Scene> = scenes::table
         .find(scene_id)
-        .select(scenes::title)
+        .select(Scene::as_select())
         .first(conn)
-        .optional()?
-        .unwrap_or_default();
+        .optional()?;
+    let title = match scene {
+        Some(scene) => support::scene_label(conn, &scene)?,
+        None => String::new(),
+    };
     let subject = if count == 1 {
         title
     } else {

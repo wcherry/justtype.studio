@@ -104,21 +104,6 @@ export interface AuthorCard {
   id: string
 }
 
-export interface BibleEntry {
-  body?: string | null
-  createdAt: string
-  id: string
-  kind: BibleKind
-  name: string
-  summary?: string | null
-  // The sketch template it was started from, if any.
-  templateId?: string | null
-  updatedAt: string
-  workId: string
-}
-
-export type BibleKind = 'character' | 'place' | 'thing' | 'group' | 'note'
-
 // One paragraph's fate between two versions.
 export type BlockChangeKind = 'unchanged' | 'modified' | 'added' | 'removed' | 'moved'
 
@@ -351,7 +336,9 @@ export interface CreateChangeRequest {
 
 export interface CreateChapterRequest {
   summary?: string | null
-  title: string
+  // Left out or empty, it is untitled and shown as "Chapter 2" for where it
+  // falls, until the writer names it.
+  title?: string
 }
 
 export interface CreateCircleRequest {
@@ -370,10 +357,10 @@ export interface CreateCommentRequest {
 export interface CreateEntryRequest {
   body?: string | null
   // `character`, `place` or `note`.
-  kind: BibleKind
+  kind: NotebookKind
   name: string
   summary?: string | null
-  // A sketch template (`GET /api/bible/templates`) to start from: its fields
+  // A sketch template (`GET /api/notebook/templates`) to start from: its fields
   // arrive empty, ready to fill in.
   templateId?: string | null
 }
@@ -404,7 +391,9 @@ export interface CreateSceneRequest {
   content?: DocNode | null
   pov?: string | null
   summary?: string | null
-  title: string
+  // Left out or empty, it is untitled and shown as "Scene 2" for where it
+  // falls, until the writer names it.
+  title?: string
 }
 
 export interface CreateTaskRequest {
@@ -499,7 +488,7 @@ export interface EntryView {
   body?: string | null
   createdAt: string
   id: string
-  kind: BibleKind
+  kind: NotebookKind
   name: string
   summary?: string | null
   // The sketch template it was started from, if any.
@@ -632,6 +621,21 @@ export interface NoteFate {
 
 // What became of the text a note was attached to.
 export type NoteStatus = 'untouched' | 'edited' | 'gone' | 'unanchored'
+
+export interface NotebookEntry {
+  body?: string | null
+  createdAt: string
+  id: string
+  kind: NotebookKind
+  name: string
+  summary?: string | null
+  // The sketch template it was started from, if any.
+  templateId?: string | null
+  updatedAt: string
+  workId: string
+}
+
+export type NotebookKind = 'character' | 'place' | 'thing' | 'group' | 'note'
 
 export type Op = 'equal' | 'insert' | 'delete'
 
@@ -1134,7 +1138,7 @@ export interface SketchTemplate {
   description: string
   fields: TemplateField[]
   id: string
-  kind: BibleKind
+  kind: NotebookKind
   name: string
 }
 

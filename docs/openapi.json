@@ -307,66 +307,6 @@
         ],
         "type": "object"
       },
-      "BibleEntry": {
-        "properties": {
-          "body": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "createdAt": {
-            "type": "string"
-          },
-          "id": {
-            "type": "string"
-          },
-          "kind": {
-            "$ref": "#/components/schemas/BibleKind"
-          },
-          "name": {
-            "type": "string"
-          },
-          "summary": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "templateId": {
-            "description": "The sketch template it was started from, if any.",
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "updatedAt": {
-            "type": "string"
-          },
-          "workId": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "workId",
-          "kind",
-          "name",
-          "createdAt",
-          "updatedAt"
-        ],
-        "type": "object"
-      },
-      "BibleKind": {
-        "enum": [
-          "character",
-          "place",
-          "thing",
-          "group",
-          "note"
-        ],
-        "type": "string"
-      },
       "BlockChangeKind": {
         "description": "One paragraph's fate between two versions.",
         "enum": [
@@ -1123,12 +1063,10 @@
             ]
           },
           "title": {
+            "description": "Left out or empty, it is untitled and shown as \"Chapter 2\" for where it\nfalls, until the writer names it.",
             "type": "string"
           }
         },
-        "required": [
-          "title"
-        ],
         "type": "object"
       },
       "CreateCircleRequest": {
@@ -1201,7 +1139,7 @@
             ]
           },
           "kind": {
-            "$ref": "#/components/schemas/BibleKind",
+            "$ref": "#/components/schemas/NotebookKind",
             "description": "`character`, `place` or `note`."
           },
           "name": {
@@ -1214,7 +1152,7 @@
             ]
           },
           "templateId": {
-            "description": "A sketch template (`GET /api/bible/templates`) to start from: its fields\narrive empty, ready to fill in.",
+            "description": "A sketch template (`GET /api/notebook/templates`) to start from: its fields\narrive empty, ready to fill in.",
             "type": [
               "string",
               "null"
@@ -1325,12 +1263,10 @@
             ]
           },
           "title": {
+            "description": "Left out or empty, it is untitled and shown as \"Scene 2\" for where it\nfalls, until the writer names it.",
             "type": "string"
           }
         },
-        "required": [
-          "title"
-        ],
         "type": "object"
       },
       "CreateTaskRequest": {
@@ -1639,7 +1575,7 @@
       "EntryView": {
         "allOf": [
           {
-            "$ref": "#/components/schemas/BibleEntry"
+            "$ref": "#/components/schemas/NotebookEntry"
           },
           {
             "properties": {
@@ -2012,6 +1948,66 @@
           "edited",
           "gone",
           "unanchored"
+        ],
+        "type": "string"
+      },
+      "NotebookEntry": {
+        "properties": {
+          "body": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/NotebookKind"
+          },
+          "name": {
+            "type": "string"
+          },
+          "summary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "templateId": {
+            "description": "The sketch template it was started from, if any.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updatedAt": {
+            "type": "string"
+          },
+          "workId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "workId",
+          "kind",
+          "name",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "NotebookKind": {
+        "enum": [
+          "character",
+          "place",
+          "thing",
+          "group",
+          "note"
         ],
         "type": "string"
       },
@@ -3377,7 +3373,7 @@
             "type": "string"
           },
           "kind": {
-            "$ref": "#/components/schemas/BibleKind"
+            "$ref": "#/components/schemas/NotebookKind"
           },
           "name": {
             "type": "string"
@@ -5476,210 +5472,6 @@
         ]
       }
     },
-    "/api/bible/templates": {
-      "get": {
-        "operationId": "templates",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/SketchTemplate"
-                  },
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Built-in sketch templates"
-          }
-        },
-        "summary": "The sketch templates entries can be started from.",
-        "tags": [
-          "bible"
-        ]
-      }
-    },
-    "/api/bible/{entry_id}": {
-      "delete": {
-        "operationId": "delete_entry",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "entry_id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Removed"
-          },
-          "4": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            },
-            "description": "Refused"
-          }
-        },
-        "tags": [
-          "bible"
-        ]
-      },
-      "patch": {
-        "operationId": "update",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "entry_id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateEntryRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EntryView"
-                }
-              }
-            },
-            "description": "The updated entry"
-          },
-          "4": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            },
-            "description": "Refused"
-          }
-        },
-        "tags": [
-          "bible"
-        ]
-      }
-    },
-    "/api/bible/{entry_id}/links": {
-      "post": {
-        "operationId": "link",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "entry_id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/LinkRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EntryView"
-                }
-              }
-            },
-            "description": "The entry, with its scenes"
-          },
-          "4": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            },
-            "description": "Refused"
-          }
-        },
-        "summary": "Records that an entry appears in a scene. Idempotent — linking twice is what\na writer does when they are not sure whether they already did.",
-        "tags": [
-          "bible"
-        ]
-      }
-    },
-    "/api/bible/{entry_id}/links/{scene_id}": {
-      "delete": {
-        "operationId": "unlink",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "entry_id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "scene_id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EntryView"
-                }
-              }
-            },
-            "description": "The entry, with its scenes"
-          },
-          "4": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            },
-            "description": "Refused"
-          }
-        },
-        "tags": [
-          "bible"
-        ]
-      }
-    },
     "/api/changes/{change_id}/accept": {
       "post": {
         "operationId": "accept",
@@ -7253,6 +7045,210 @@
         "summary": "Prometheus text for a dashboard to scrape. Exists only when\n`JUSTTYPE_METRICS_TOKEN` is set, and wants it as a bearer token.",
         "tags": [
           "health"
+        ]
+      }
+    },
+    "/api/notebook/templates": {
+      "get": {
+        "operationId": "templates",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SketchTemplate"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Built-in sketch templates"
+          }
+        },
+        "summary": "The sketch templates entries can be started from.",
+        "tags": [
+          "notebook"
+        ]
+      }
+    },
+    "/api/notebook/{entry_id}": {
+      "delete": {
+        "operationId": "delete_entry",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Removed"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "notebook"
+        ]
+      },
+      "patch": {
+        "operationId": "update",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateEntryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntryView"
+                }
+              }
+            },
+            "description": "The updated entry"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "notebook"
+        ]
+      }
+    },
+    "/api/notebook/{entry_id}/links": {
+      "post": {
+        "operationId": "link",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntryView"
+                }
+              }
+            },
+            "description": "The entry, with its scenes"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "Records that an entry appears in a scene. Idempotent — linking twice is what\na writer does when they are not sure whether they already did.",
+        "tags": [
+          "notebook"
+        ]
+      }
+    },
+    "/api/notebook/{entry_id}/links/{scene_id}": {
+      "delete": {
+        "operationId": "unlink",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "scene_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntryView"
+                }
+              }
+            },
+            "description": "The entry, with its scenes"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "notebook"
         ]
       }
     },
@@ -10278,97 +10274,6 @@
         ]
       }
     },
-    "/api/works/{work_id}/bible": {
-      "get": {
-        "operationId": "list",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "work_id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/EntryView"
-                  },
-                  "type": "array"
-                }
-              }
-            },
-            "description": "The work's entries"
-          },
-          "4": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            },
-            "description": "Refused"
-          }
-        },
-        "tags": [
-          "bible"
-        ]
-      },
-      "post": {
-        "operationId": "create",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "work_id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateEntryRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EntryView"
-                }
-              }
-            },
-            "description": "The new entry"
-          },
-          "4": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            },
-            "description": "Refused"
-          }
-        },
-        "tags": [
-          "bible"
-        ]
-      }
-    },
     "/api/works/{work_id}/chapters": {
       "post": {
         "operationId": "create_chapter",
@@ -10668,6 +10573,97 @@
         },
         "tags": [
           "collaboration"
+        ]
+      }
+    },
+    "/api/works/{work_id}/notebook": {
+      "get": {
+        "operationId": "list",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/EntryView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "The work's entries"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "notebook"
+        ]
+      },
+      "post": {
+        "operationId": "create",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateEntryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntryView"
+                }
+              }
+            },
+            "description": "The new entry"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "notebook"
         ]
       }
     },

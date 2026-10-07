@@ -223,7 +223,7 @@ mod tests {
             schema::version_tags::table
                 .count()
                 .get_result::<i64>(&mut conn),
-            schema::bible_entries::table
+            schema::notebook_entries::table
                 .count()
                 .get_result::<i64>(&mut conn),
             schema::writing_days::table

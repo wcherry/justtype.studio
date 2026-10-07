@@ -549,6 +549,19 @@ pub async fn outline(
     Ok(Json(outline))
 }
 
+/// The outline with every untitled chapter and scene called by where it
+/// falls — "Chapter 3", "Scene 2" — as a version freezes them.
+pub(crate) fn with_placeholder_names(mut outline: OutlineResponse) -> OutlineResponse {
+    use crate::domain::naming::{chapter_name, scene_name};
+    for (c, chapter) in outline.chapters.iter_mut().enumerate() {
+        chapter.chapter.title = chapter_name(&chapter.chapter.title, c + 1);
+        for (s, scene) in chapter.scenes.iter_mut().enumerate() {
+            scene.title = scene_name(&scene.title, s + 1);
+        }
+    }
+    outline
+}
+
 pub(crate) fn load_outline(
     conn: &mut crate::db::Conn,
     work_id: &str,
@@ -592,6 +605,9 @@ pub(crate) fn load_outline(
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateChapterRequest {
+    /// Left out or empty, it is untitled and shown as "Chapter 2" for where it
+    /// falls, until the writer names it.
+    #[serde(default)]
     pub title: String,
     #[serde(default)]
     pub summary: Option<String>,
@@ -645,18 +661,20 @@ pub async fn create_chapter(
         diesel::insert_into(chapters::table)
             .values(&row)
             .execute(conn)?;
+        let chapter: Chapter = chapters::table
+            .find(&row.id)
+            .select(Chapter::as_select())
+            .first(conn)?;
+        let label = support::chapter_label(conn, &chapter)?;
         record(
             conn,
             &row.work_id,
             &user.id,
             ActivityKind::ChapterAdded,
             Some(&row.id),
-            &row.title,
+            &label,
         )?;
-        Ok(chapters::table
-            .find(&row.id)
-            .select(Chapter::as_select())
-            .first(conn)?)
+        Ok(chapter)
     })
     .await?;
     Ok(Json(chapter))
@@ -728,6 +746,8 @@ pub async fn delete_chapter(
             .filter(scenes::chapter_id.eq(&chapter.id))
             .select(scenes::id)
             .load(conn)?;
+        // Named before it goes, while it still has a place to be named by.
+        let label = support::chapter_label(conn, &chapter)?;
         diesel::delete(chapters::table.find(&chapter.id)).execute(conn)?;
         support::recount_work(conn, &work.id, &now_iso())?;
         record(
@@ -736,7 +756,7 @@ pub async fn delete_chapter(
             &user.id,
             ActivityKind::ChapterRemoved,
             Some(&chapter.id),
-            &chapter.title,
+            &label,
         )?;
         Ok((work.id, ids))
     })

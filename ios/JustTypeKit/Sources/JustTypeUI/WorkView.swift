@@ -13,8 +13,6 @@ struct WorkView: View {
 
     @EnvironmentObject private var session: SessionStore
     @State private var outline: API.OutlineResponse?
-    @State private var addingScene: String?
-    @State private var newSceneTitle = ""
     @State private var selected: API.Scene?
 
     var body: some View {
@@ -24,7 +22,7 @@ struct WorkView: View {
             if let selected {
                 SceneEditorView(
                     sceneId: selected.id,
-                    title: selected.title,
+                    title: name(of: selected),
                     editable: outline?.canWrite(chapterId: selected.chapterId) ?? true
                 )
                 .id(selected.id)
@@ -37,32 +35,37 @@ struct WorkView: View {
             }
         }
         .task { await load() }
-        .alert("New scene", isPresented: .constant(addingScene != nil)) {
-            TextField("Title", text: $newSceneTitle)
-            Button("Add") {
-                let chapterId = addingScene
-                addingScene = nil
-                Task {
-                    if let chapterId, !newSceneTitle.isEmpty {
-                        _ = try? await session.client.createScene(chapterId: chapterId, title: newSceneTitle)
-                        newSceneTitle = ""
-                        await load()
-                    }
-                }
-            }
-            Button("Cancel", role: .cancel) { addingScene = nil }
-        }
+    }
+
+    /// A new scene is untitled — shown as "Scene 3" for where it falls — rather
+    /// than asked for a name, so adding one never stops the writing; it opens
+    /// straight away.
+    private func addScene(to chapter: API.OutlineChapter) async {
+        guard let created = try? await session.client.createScene(chapterId: chapter.id, title: "")
+        else { return }
+        await load()
+        selected = created
+    }
+
+    /// A scene's title, or "Scene 2" for where it sits in its chapter.
+    private func name(of scene: API.Scene) -> String {
+        guard Naming.isUntitled(scene.title) else { return scene.title }
+        let siblings = outline?.chapters.first(where: { $0.id == scene.chapterId })?.scenes ?? []
+        let number = (siblings.firstIndex(where: { $0.id == scene.id }) ?? siblings.count) + 1
+        return Naming.scene(scene.title, number: number)
     }
 
     private var outlineList: some View {
         List(selection: $selected) {
             if let outline {
-                ForEach(outline.chapters) { chapter in
+                ForEach(Array(outline.chapters.enumerated()), id: \.element.id) { chapterIndex, chapter in
                     Section {
-                        ForEach(chapter.scenes) { scene in
+                        ForEach(Array(chapter.scenes.enumerated()), id: \.element.id) { sceneIndex, scene in
                             NavigationLink(value: scene) {
                                 HStack {
-                                    Text(scene.title)
+                                    Text(Naming.scene(scene.title, number: sceneIndex + 1))
+                                        .foregroundStyle(Naming.isUntitled(scene.title) ? .secondary : .primary)
+                                        .italic(Naming.isUntitled(scene.title))
                                     Spacer()
                                     Text("\(scene.wordCount)")
                                         .font(.caption)
@@ -71,13 +74,13 @@ struct WorkView: View {
                             }
                         }
                         Button {
-                            addingScene = chapter.id
+                            Task { await addScene(to: chapter) }
                         } label: {
                             Label("Add scene", systemImage: "plus")
                                 .font(.footnote)
                         }
                     } header: {
-                        Text(chapter.title)
+                        Text(Naming.chapter(chapter.title, number: chapterIndex + 1))
                     }
                 }
             } else {

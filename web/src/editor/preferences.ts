@@ -15,6 +15,10 @@ export interface WritingPreferences {
   fontSize: number
   lineHeight: number
   family: 'serif' | 'sans' | 'mono'
+  /** The writing room's zoom, in percent: the type and the page width together. */
+  roomZoom: number
+  /** How much of the screen's width the writing room's page takes, in percent. */
+  roomWidth: number
 }
 
 export const DEFAULT_PREFERENCES: WritingPreferences = {
@@ -24,6 +28,8 @@ export const DEFAULT_PREFERENCES: WritingPreferences = {
   fontSize: 18,
   lineHeight: 1.7,
   family: 'serif',
+  roomZoom: 100,
+  roomWidth: 40,
 }
 
 const KEY = 'justtype.writingPreferences'

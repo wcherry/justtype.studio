@@ -172,10 +172,10 @@ row!(Scene, scenes, {
     story_date: Option<String>,
 });
 
-row!(BibleEntry, bible_entries, {
+row!(NotebookEntry, notebook_entries, {
     id: String,
     work_id: String,
-    #[schema(value_type = crate::domain::enums::BibleKind)]
+    #[schema(value_type = crate::domain::enums::NotebookKind)]
     kind: String,
     name: String,
     summary: Option<String>,
@@ -189,7 +189,7 @@ row!(BibleEntry, bible_entries, {
     template_id: Option<String>,
 });
 
-row!(SceneBibleLink, scene_bible_links, {
+row!(SceneNotebookLink, scene_notebook_links, {
     id: String,
     scene_id: String,
     entry_id: String,
@@ -580,14 +580,14 @@ new_row!(NewScene, scenes, {
     target_words: Option<i32>, location: Option<String>, story_date: Option<String>,
 });
 
-new_row!(NewBibleEntry, bible_entries, {
+new_row!(NewNotebookEntry, notebook_entries, {
     id: String, work_id: String, kind: String, name: String,
     summary: Option<String>, body: Option<String>,
     created_at: String, updated_at: String,
     fields: Option<String>, template_id: Option<String>,
 });
 
-new_row!(NewSceneBibleLink, scene_bible_links, {
+new_row!(NewSceneNotebookLink, scene_notebook_links, {
     id: String, scene_id: String, entry_id: String, created_at: String,
 });
 

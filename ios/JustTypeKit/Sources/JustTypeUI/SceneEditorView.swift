@@ -93,7 +93,8 @@ struct SceneEditorView: View {
             }
             .opacity(0)
         }
-        .navigationTitle(scene?.title ?? title)
+        // An untitled scene keeps the name it was opened under, "Scene 2".
+        .navigationTitle(scene.map { Naming.isUntitled($0.title) ? title : $0.title } ?? title)
         .alert("This scene changed somewhere else", isPresented: $showConflict) {
             Button("Reload it") {
                 Task {
@@ -155,7 +156,11 @@ struct SceneEditorView: View {
         // So "start writing" comes back here, and the widget knows whose
         // words it is counting.
         await session.publishWritingSnapshot(
-            lastScene: (id: loaded.scene.id, title: loaded.scene.title, workId: loaded.scene.workId)
+            lastScene: (
+                id: loaded.scene.id,
+                title: Naming.isUntitled(loaded.scene.title) ? title : loaded.scene.title,
+                workId: loaded.scene.workId
+            )
         )
     }
 
