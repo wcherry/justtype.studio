@@ -178,7 +178,8 @@
       "AnnotationKind": {
         "enum": [
           "highlight",
-          "bookmark"
+          "bookmark",
+          "comment"
         ],
         "type": "string"
       },
