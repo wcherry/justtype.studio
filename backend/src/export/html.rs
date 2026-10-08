@@ -3,7 +3,8 @@
 use super::epub::spans_to_html;
 use super::{xml_escape, Block, Manuscript};
 
-const STYLE: &str = "body{max-width:36em;margin:3em auto;padding:0 1em;font:1.1em/1.6 Georgia,serif;color:#222}\
+const STYLE: &str =
+    "body{max-width:36em;margin:3em auto;padding:0 1em;font:1.1em/1.6 Georgia,serif;color:#222}\
 h1,h2{font-weight:normal}.title-page{text-align:center;margin:6em 0}.title-page h1{font-size:2.4em}\
 .byline,.subtitle{font-style:italic}.dedication,.epigraph{margin:2em auto;max-width:24em}\
 section.chapter{margin-top:4em}p{margin:0;text-indent:1.5em}p.first{text-indent:0}\
@@ -16,14 +17,26 @@ pub fn write(manuscript: &Manuscript) -> String {
         xml_escape(&manuscript.title)
     );
     if let Some(subtitle) = &manuscript.subtitle {
-        body.push_str(&format!("<p class=\"subtitle\">{}</p>\n", xml_escape(subtitle)));
+        body.push_str(&format!(
+            "<p class=\"subtitle\">{}</p>\n",
+            xml_escape(subtitle)
+        ));
     }
-    body.push_str(&format!("<p class=\"byline\">by {}</p>\n", xml_escape(&manuscript.byline)));
+    body.push_str(&format!(
+        "<p class=\"byline\">by {}</p>\n",
+        xml_escape(&manuscript.byline)
+    ));
     if let Some(dedication) = &manuscript.dedication {
-        body.push_str(&format!("<p class=\"dedication\">{}</p>\n", xml_escape(dedication)));
+        body.push_str(&format!(
+            "<p class=\"dedication\">{}</p>\n",
+            xml_escape(dedication)
+        ));
     }
     if let Some(epigraph) = &manuscript.epigraph {
-        body.push_str(&format!("<blockquote class=\"epigraph\"><p>{}</p>", xml_escape(epigraph)));
+        body.push_str(&format!(
+            "<blockquote class=\"epigraph\"><p>{}</p>",
+            xml_escape(epigraph)
+        ));
         if let Some(source) = &manuscript.epigraph_source {
             body.push_str(&format!("<p class=\"source\">— {}</p>", xml_escape(source)));
         }
@@ -55,7 +68,10 @@ pub fn write(manuscript: &Manuscript) -> String {
                     }
                     Block::Quote(spans) => {
                         first = true;
-                        body.push_str(&format!("<blockquote><p>{}</p></blockquote>\n", spans_to_html(spans)));
+                        body.push_str(&format!(
+                            "<blockquote><p>{}</p></blockquote>\n",
+                            spans_to_html(spans)
+                        ));
                     }
                     Block::SceneBreak => {
                         first = true;

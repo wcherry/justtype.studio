@@ -82,7 +82,9 @@ fn checked(body: &CreateAnnotationRequest) -> ApiResult<(String, Option<String>)
     }
     let note = checked_note(body.note.as_deref())?;
     if body.kind == "comment" && note.is_none() {
-        return Err(ApiError::BadRequest("a comment needs something to say".into()));
+        return Err(ApiError::BadRequest(
+            "a comment needs something to say".into(),
+        ));
     }
     Ok((quote, note))
 }
