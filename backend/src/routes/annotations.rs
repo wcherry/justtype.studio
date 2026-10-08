@@ -80,7 +80,11 @@ fn checked(body: &CreateAnnotationRequest) -> ApiResult<(String, Option<String>)
             "select some text to mark first".into(),
         ));
     }
-    Ok((quote, checked_note(body.note.as_deref())?))
+    let note = checked_note(body.note.as_deref())?;
+    if body.kind == "comment" && note.is_none() {
+        return Err(ApiError::BadRequest("a comment needs something to say".into()));
+    }
+    Ok((quote, note))
 }
 
 fn check_range(from: i32, to: i32) -> ApiResult<()> {

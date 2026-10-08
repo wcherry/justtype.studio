@@ -36,21 +36,18 @@ export function pace(words: number, target: number, today: string, deadline: str
   return { left, days, perDay: Math.ceil(left / days) }
 }
 
-function Meter({ value, of, label }: { value: number; of: number; label: string }) {
+/**
+ * A goal's own background is its progress bar: filled from the left in
+ * proportion to how far along it is, and green once it is met.
+ */
+function fillOf(value: number, of: number | null): React.CSSProperties | undefined {
+  if (!of) return undefined
   const fraction = Math.max(0, Math.min(1, value / of))
-  return (
-    <div
-      className={fraction >= 1 ? 'goals__meter is-met' : 'goals__meter'}
-      role="progressbar"
-      aria-label={label}
-      aria-valuemin={0}
-      aria-valuemax={of}
-      aria-valuenow={Math.max(0, value)}
-    >
-      <div className="goals__fill" style={{ width: `${fraction * 100}%` }} />
-    </div>
-  )
+  return { '--fill': `${fraction * 100}%` } as React.CSSProperties
 }
+
+const goalClass = (value: number, of: number | null) =>
+  `goals__stat goals__button${of ? (value >= of ? ' has-goal is-met' : ' has-goal') : ''}`
 
 function plural(n: number, word: string) {
   return `${n.toLocaleString()} ${word}${Math.abs(n) === 1 ? '' : 's'}`
@@ -87,12 +84,12 @@ export function GoalBar({
           <strong>{sessionWords >= 0 ? '+' : ''}{sessionWords.toLocaleString()}</strong> this sitting
         </span>
 
-        <button type="button" className="goals__stat goals__button" onClick={() => setEditing(editing === 'daily' ? null : 'daily')}>
+        <button type="button" className={goalClass(today, goal)} style={fillOf(today, goal)} onClick={() => setEditing(editing === 'daily' ? null : 'daily')}>
           <strong>{today.toLocaleString()}</strong>
           {goal ? ` of ${goal.toLocaleString()} today` : ' today'}
         </button>
 
-        <button type="button" className="goals__stat goals__button" onClick={() => setEditing(editing === 'weekly' ? null : 'weekly')}>
+        <button type="button" className={goalClass(week, weeklyGoal)} style={fillOf(week, weeklyGoal)} onClick={() => setEditing(editing === 'weekly' ? null : 'weekly')}>
           <strong>{week.toLocaleString()}</strong>
           {weeklyGoal ? ` of ${weeklyGoal.toLocaleString()} this week` : ' this week'}
         </button>
@@ -107,7 +104,8 @@ export function GoalBar({
 
         <button
           type="button"
-          className="goals__stat goals__button"
+          className={goalClass(bookWords, bookTarget)}
+          style={fillOf(bookWords, bookTarget)}
           disabled={!canSetBookTarget && !bookTarget}
           title={canSetBookTarget ? 'Set a target for the book' : undefined}
           onClick={() => canSetBookTarget && setEditing(editing === 'book' ? null : 'book')}
@@ -123,17 +121,12 @@ export function GoalBar({
           )}
         </button>
 
-        <button type="button" className="goals__stat goals__button" onClick={() => setEditing(editing === 'scene' ? null : 'scene')}>
+        <button type="button" className={goalClass(sceneWords, sceneTarget)} style={fillOf(sceneWords, sceneTarget)} onClick={() => setEditing(editing === 'scene' ? null : 'scene')}>
           <strong>{sceneWords.toLocaleString()}</strong>
           {sceneTarget ? ` of ${sceneTarget.toLocaleString()} in this scene` : ' in this scene'}
         </button>
       </div>
 
-      <div className="goals__meters">
-        {goal !== null && <Meter value={today} of={goal} label="Today" />}
-        {weeklyGoal !== null && <Meter value={week} of={weeklyGoal} label="This week" />}
-        {bookTarget !== null && <Meter value={bookWords} of={bookTarget} label="The book" />}
-      </div>
       {met && <p className="goals__met">Target met — {plural(today - goal, 'word')} past it.</p>}
 
       {editing === 'daily' && (

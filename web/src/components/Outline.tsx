@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { Outline as OutlineType, Scene } from '../api/types'
 import { chapterName, isUntitled, sceneName } from '../naming'
 
@@ -11,6 +12,7 @@ interface Props {
   onAddScene: (chapterId: string) => void
   onMoveScene: (chapterId: string, sceneIds: string[]) => void
   onRenameScene: (sceneId: string, title: string) => void
+  onRenameChapter?: (chapterId: string, title: string) => void
   /** Whether this chapter's scenes may be added, moved or renamed. */
   canWrite?: (chapterId: string) => boolean
   /** Whether chapters may be added. */
@@ -27,9 +29,40 @@ const STATUS_DOT: Record<Scene['status'], string> = {
 }
 
 export function Outline({
-  outline, activeSceneId, onSelectScene, onAddChapter, onAddScene, onMoveScene, onRenameScene,
+  outline, activeSceneId, onSelectScene, onAddChapter, onAddScene, onMoveScene, onRenameScene, onRenameChapter,
   canWrite = () => true, canShape = true, className,
 }: Props) {
+  /** The one name being edited in place, and what has been typed into it. */
+  const [editing, setEditing] = useState<string | null>(null)
+  const [draft, setDraft] = useState('')
+  const edit = (id: string, shown: string) => {
+    setEditing(id)
+    setDraft(shown)
+  }
+  /** Commits on Enter or leaving; a name left as it was shown stays unchanged. */
+  const renameField = (id: string, shown: string, current: string, save: (title: string) => void) => (
+    <input
+      className="outline__rename"
+      autoFocus
+      value={draft}
+      aria-label="Name"
+      onFocus={(e) => e.currentTarget.select()}
+      onChange={(e) => setDraft(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') setEditing(null)
+        else if (e.key === 'Enter') e.currentTarget.blur()
+      }}
+      onBlur={() => {
+        if (editing !== id) return
+        setEditing(null)
+        const title = draft.trim()
+        // Left as the default it was shown as, or emptied: still untitled.
+        const next = title === shown ? current.trim() : title
+        if (next !== current.trim()) save(next)
+      }}
+    />
+  )
+
   const move = (chapterId: string, scenes: Scene[], index: number, delta: number) => {
     const next = [...scenes]
     const target = index + delta
@@ -55,9 +88,17 @@ export function Outline({
           className={writable ? 'outline__chapter' : 'outline__chapter is-read-only'}
         >
           <h3>
-            <span className={isUntitled(chapter.title) ? 'is-placeholder' : undefined}>
-              {chapterName(chapter.title, chapterIndex + 1)}
-            </span>
+            {editing === chapter.id ? (
+              renameField(chapter.id, chapterName(chapter.title, chapterIndex + 1), chapter.title, (t) => onRenameChapter?.(chapter.id, t))
+            ) : (
+              <span
+                className={isUntitled(chapter.title) ? 'is-placeholder' : undefined}
+                title={writable && onRenameChapter ? 'Double-click to name it' : undefined}
+                onDoubleClick={() => writable && onRenameChapter && edit(chapter.id, chapterName(chapter.title, chapterIndex + 1))}
+              >
+                {chapterName(chapter.title, chapterIndex + 1)}
+              </span>
+            )}
             {!writable && <span className="outline__lock" title="You can read this chapter but not change it"> · read only</span>}
           </h3>
           <ul>
@@ -66,22 +107,21 @@ export function Outline({
                 key={scene.id}
                 className={scene.id === activeSceneId ? 'outline__scene is-active' : 'outline__scene'}
               >
+                {editing === scene.id ? (
+                  renameField(scene.id, sceneName(scene.title, index + 1), scene.title, (t) => onRenameScene(scene.id, t))
+                ) : (
                 <button type="button" className="outline__scene-btn" onClick={() => onSelectScene(scene)}>
                   <span className="outline__dot" title={scene.status}>{STATUS_DOT[scene.status]}</span>
                   <span
                     className={isUntitled(scene.title) ? 'outline__title is-placeholder' : 'outline__title'}
                     title={writable ? 'Double-click to name it' : undefined}
-                    onDoubleClick={() => {
-                      if (!writable) return
-                      // Emptied, it goes back to being called by its place.
-                      const title = window.prompt(`Name for ${sceneName(scene.title, index + 1)}`, scene.title)
-                      if (title !== null && title.trim() !== scene.title.trim()) onRenameScene(scene.id, title.trim())
-                    }}
+                    onDoubleClick={() => writable && edit(scene.id, sceneName(scene.title, index + 1))}
                   >
                     {sceneName(scene.title, index + 1)}
                   </span>
                   <span className="outline__words">{scene.wordCount}</span>
                 </button>
+                )}
                 {writable && (
                   <span className="outline__move">
                     <button type="button" onClick={() => move(chapter.id, chapter.scenes, index, -1)} title="Move up">↑</button>

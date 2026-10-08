@@ -244,8 +244,6 @@ button.danger { border-color: var(--del); color: var(--del); }
 
 /* --- goals: day, week, book --------------------------------------------- */
 
-.goals__meters { display: grid; gap: 3px; }
-.goals__meters:empty { display: none; }
 .goals__button:disabled { cursor: default; opacity: 1; border-color: transparent; }
 
 /* --- the page, and nothing else ------------------------------------------ */
@@ -677,20 +675,17 @@ body.writing-page .room-outline .outline { display: block; border: none; max-hei
 .goals__spacer { flex: 1; }
 .goals__stat strong { color: var(--ink-soft); font-weight: 600; }
 .goals__button {
-  border: none; background: none; padding: 0; font: inherit; color: inherit;
-  border-bottom: 1px dotted transparent;
+  border: none; background: none; padding: 2px 8px; font: inherit; color: inherit;
+  border-radius: var(--radius); border-bottom: 1px dotted transparent;
 }
 .goals__button:hover { border-bottom-color: var(--ink-faint); }
 .goals__streak { color: var(--accent); }
-.goals__meter {
-  height: 3px; margin-top: 6px; border-radius: 99px;
-  background: var(--line); overflow: hidden;
+.goals__button.has-goal {
+  --goal-color: var(--accent-soft);
+  background: linear-gradient(to right, var(--goal-color) var(--fill, 0%), transparent var(--fill, 0%));
+  transition: background-size 300ms ease-out;
 }
-.goals__fill {
-  height: 100%; background: var(--accent);
-  transition: width 300ms ease-out;
-}
-.goals__meter.is-met .goals__fill { background: var(--add); }
+.goals__button.has-goal.is-met { --goal-color: color-mix(in srgb, var(--add) 28%, transparent); }
 .goals__met { margin: 6px 0 0; color: var(--add); font-size: 12px; }
 .goals__form {
   display: flex; align-items: flex-end; gap: 10px; margin-top: 8px;
@@ -1311,6 +1306,11 @@ body.writing-page .room-outline .outline { display: block; border: none; max-hei
 
 /* --- your own marks: highlights and bookmarks -------------------------- */
 .mark-highlight { background: var(--mark-highlight); border-radius: 2px; }
+.mark-comment {
+  text-decoration: underline; text-decoration-color: var(--accent);
+  text-decoration-thickness: 2px; text-underline-offset: 3px;
+}
+.marks__item--comment { border-left-color: var(--accent); }
 .mark-bookmark { background: var(--mark-bookmark); border-radius: 2px; }
 .mark-bookmark__flag {
   display: inline-block; width: 0; height: 1em; position: relative;
@@ -1384,3 +1384,12 @@ body.writing-page .room-outline .outline { display: block; border: none; max-hei
 .scene-details__consent p { margin: 0 0 8px; }
 .scene-details__consent-actions { display: flex; align-items: center; gap: 12px; }
 
+
+.goals-panel { display: flex; flex-direction: column; gap: 12px; }
+.goals-panel label { display: flex; flex-direction: column; gap: 4px; margin: 0; }
+.about { display: flex; flex-direction: column; gap: 8px; }
+.about h3 { margin: 0; }
+.outline__rename {
+  flex: 1; min-width: 0; font: inherit; font-size: 14px; padding: 4px 6px; margin: 2px 4px;
+  border: 1px solid var(--accent); border-radius: var(--radius); background: var(--surface); color: var(--ink);
+}

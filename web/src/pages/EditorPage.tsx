@@ -24,6 +24,7 @@ import { RevisionPanel } from '../components/RevisionPanel'
 import { Icon } from '../components/Icon'
 import { Menu } from '../components/Menu'
 import type { MenuItem } from '../components/Menu'
+import { GoalsPanel } from '../components/GoalsPanel'
 import { MarksPanel } from '../components/MarksPanel'
 import { SelectionMenu, useSelectionMenu } from '../components/SelectionMenu'
 import type { SelectionAction } from '../components/SelectionMenu'
@@ -77,6 +78,9 @@ type Panel =
   | 'find'
   | 'summary'
   | 'marks'
+  | 'comments'
+  | 'goals'
+  | 'about'
 
 /** The panels used most while writing get a button of their own as well. */
 const TOOLBAR_PANELS: { panel: Panel; icon: IconName; label: string }[] = [
@@ -99,6 +103,27 @@ const SCENE_STATUSES: { value: Scene['status']; label: string }[] = [
   { value: 'done', label: 'Done' },
 ]
 
+/** Where the writer was in a book: the scene, and the selection within it. */
+interface Resume { sceneId: string; from: number; to: number }
+const resumeKey = (workId: string) => `justtype.resume.${workId}`
+function readResume(workId: string): Resume | null {
+  try {
+    const value = JSON.parse(localStorage.getItem(resumeKey(workId)) ?? 'null')
+    return value && typeof value.sceneId === 'string' && Number.isFinite(value.from) && Number.isFinite(value.to)
+      ? value
+      : null
+  } catch {
+    return null
+  }
+}
+function writeResume(workId: string, resume: Resume) {
+  try {
+    localStorage.setItem(resumeKey(workId), JSON.stringify(resume))
+  } catch {
+    // Blocked site data: the writer just starts at the top next time.
+  }
+}
+
 export function EditorPage() {
   const { workId = '' } = useParams()
   const [outline, setOutline] = useState<OutlineType | null>(null)
@@ -117,6 +142,8 @@ export function EditorPage() {
     setSceneTab(tab)
     setPanel('scene')
   }
+  /** The scene open now, for the selection handler to file the cursor under. */
+  const sceneRef = useRef<string | null>(null)
   const [view, setView] = useState<'write' | 'corkboard'>('write')
   /** What the writer has selected, in the same positions a proposal records. */
   const [selection, setSelection] = useState<{ from: number; to: number; quote: string } | null>(null)
@@ -258,7 +285,6 @@ export function EditorPage() {
   // Right-click (or ⌘-click) on selected text, or on a mark.
   const contextMenu = useSelectionMenu(editor)
   const [markError, setMarkError] = useState<string | null>(null)
-  const [taskRefresh, setTaskRefresh] = useState(0)
   const selectionActions = (): SelectionAction[] => {
     const target = contextMenu.target
     if (!target || !scene || !editor) return []
@@ -287,15 +313,21 @@ export function EditorPage() {
           key: 'comment',
           label: 'Comment…',
           compose: {
-            placeholder: 'A note for the to-do list',
-            submit: 'Add to the list',
+            placeholder: 'Your comment on this passage',
+            submit: 'Comment',
             onSubmit: async (body) => {
-              await api.tasks.create(workId, {
-                body,
-                sceneId: scene.id,
-                quote: editor.state.doc.textBetween(range.from, range.to, ' '),
-              })
-              setTaskRefresh((n) => n + 1)
+              const quote = editor.state.doc.textBetween(range.from, range.to, ' ')
+              if (quote.length > MAX_MARK_QUOTE) {
+                setMarkError(`A comment holds ${MAX_MARK_QUOTE.toLocaleString()} characters of text at most — select less.`)
+                return
+              }
+              setMarkError(null)
+              try {
+                await marks.add({ sceneId: scene.id, kind: 'comment', ...range, quote, note: body.trim().slice(0, 500) })
+                setPanel('comments')
+              } catch (e) {
+                setMarkError(e instanceof Error ? e.message : 'Could not add that comment')
+              }
             },
           },
         })
@@ -310,7 +342,7 @@ export function EditorPage() {
     if (mark) {
       actions.push({
         key: 'remove',
-        label: mark.kind === 'highlight' ? 'Remove highlight' : 'Remove bookmark',
+        label: mark.kind === 'highlight' ? 'Remove highlight' : mark.kind === 'comment' ? 'Remove comment' : 'Remove bookmark',
         onSelect: () => void marks.remove(mark.id).catch((e) => setMarkError(e instanceof Error ? e.message : 'Could not remove that')),
       })
     }
@@ -398,7 +430,10 @@ export function EditorPage() {
     void (async () => {
       const next = await loadOutline()
       await loadVersions()
-      const first = next?.chapters.flatMap((c) => c.scenes)[0]
+      const scenes = next?.chapters.flatMap((c) => c.scenes) ?? []
+      // Where the writer left off, if that scene is still in the book.
+      const left = readResume(workId)
+      const first = scenes.find((s) => s.id === left?.sceneId) ?? scenes[0]
       if (first) void openScene(first)
     })()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -425,13 +460,22 @@ export function EditorPage() {
       // reopening a scene edited offline would show the older text, and the next
       // keystroke would be based on it — quietly undoing the recovered writing
       // the moment the queue flushed.
+      const resume = readResume(workId)
       const queued = await pendingFor(target.id)
       const content = queued?.content ?? full.content ?? { type: 'doc', content: [] }
+      sceneRef.current = full.id
       setScene(full)
       setWordCount(full.wordCount)
       editor?.commands.setContent(content as never, false)
+      // Back in the scene they left, at the words they left off at.
+      if (editor && resume && resume.sceneId === full.id) {
+        const size = editor.state.doc.content.size
+        if (resume.to <= size) {
+          editor.chain().setTextSelection({ from: resume.from, to: resume.to }).scrollIntoView().run()
+        }
+      }
     },
-    [editor, flush, saveState, setWordCount],
+    [editor, flush, saveState, setWordCount, workId],
   )
 
   // The editor instance outlives scene changes, so wire the change handler once
@@ -451,6 +495,7 @@ export function EditorPage() {
     if (!editor) return
     const handler = () => {
       const { from, to, empty } = editor.state.selection
+      if (sceneRef.current) writeResume(workId, { sceneId: sceneRef.current, from, to })
       setSelection(
         empty ? null : { from, to, quote: editor.state.doc.textBetween(from, to, ' ') },
       )
@@ -459,7 +504,7 @@ export function EditorPage() {
     return () => {
       editor.off('selectionUpdate', handler)
     }
-  }, [editor])
+  }, [editor, workId])
 
   /** The scene after this one in the same chapter, if there is one. */
   const nextScene = (() => {
@@ -512,6 +557,28 @@ export function EditorPage() {
     void loadOutline()
   }
 
+  /** Sets or clears goals; whatever is left out of `goals` stays as it is. */
+  const saveGoals = async (goals: {
+    daily?: number | null
+    weekly?: number | null
+    scene?: number | null
+    book?: { target: number | null; deadline: string | null }
+  }) => {
+    if (goals.daily !== undefined) await setDailyGoal(goals.daily)
+    if (goals.weekly !== undefined) await setWeeklyGoal(goals.weekly)
+    if (goals.scene !== undefined && scene) {
+      const updated = await api.scenes.update(scene.id, { targetWords: goals.scene })
+      setScene((current) => (current ? { ...current, targetWords: updated.targetWords } : current))
+    }
+    if (goals.book && can.isOwner) {
+      const work = await api.works.update(workId, {
+        targetWords: goals.book.target ?? 0,
+        targetDate: goals.book.deadline ?? '',
+      })
+      setOutline((current) => (current ? { ...current, ...work } : current))
+    }
+  }
+
   /** A side panel as a menu item: ticked while it is open. */
   const panelItem = (which: Panel, label: string, extra: Partial<MenuItem> = {}): MenuItem => ({
     key: which, label, checked: panel === which, onSelect: () => toggle(which), ...extra,
@@ -556,6 +623,7 @@ export function EditorPage() {
         panelItem('find', 'Find'),
         panelItem('notebook', 'Notebook'),
         panelItem('tasks', 'To do'),
+        panelItem('comments', 'Comments'),
         panelItem('marks', 'Highlights & bookmarks'),
         ...(can.isOwner
           ? [panelItem('front', 'Front matter', { divider: true }), panelItem('versions', 'Versions')]
@@ -598,9 +666,22 @@ export function EditorPage() {
       ],
     },
     {
+      key: 'progress',
+      label: 'Progress',
+      items: [
+        panelItem('goals', 'Set or reset goals…'),
+        { key: 'reset', label: 'Reset all goals', onSelect: () => void saveGoals({ daily: null, weekly: null, scene: null, book: { target: null, deadline: null } }) },
+      ],
+    },
+    {
       key: 'people',
       label: 'People',
       items: [panelItem('people', 'Who is on this book'), panelItem('activity', 'Activity')],
+    },
+    {
+      key: 'help',
+      label: 'Help',
+      items: [panelItem('about', 'About Just Type Studio')],
     },
   ]
 
@@ -631,6 +712,10 @@ export function EditorPage() {
     },
     onRenameScene: async (sceneId, title) => {
       await api.scenes.update(sceneId, { title })
+      void loadOutline()
+    },
+    onRenameChapter: async (chapterId, title) => {
+      await api.chapters.update(chapterId, { title })
       void loadOutline()
     },
     canWrite: can.canWrite,
@@ -938,7 +1023,6 @@ export function EditorPage() {
         <SidePanel title="To do" onClose={closePanel}>
           <TaskList
             workId={workId}
-            refreshKey={taskRefresh}
             sceneId={scene?.id ?? null}
             onOpenScene={(id) => {
               // The list keeps ids; the editor opens whole scenes, so look it
@@ -1002,6 +1086,44 @@ export function EditorPage() {
             onRemove={(id) => void marks.remove(id)}
             onRename={(id, note) => marks.update(id, { note })}
           />
+        </SidePanel>
+      )}
+
+      {panel === 'comments' && (
+        <SidePanel title="Comments" onClose={closePanel}>
+          <MarksPanel
+            comments
+            marks={marks.list}
+            scenes={(named ?? outline).chapters.flatMap((c) => c.scenes)}
+            lost={lostMarks}
+            onOpen={openMark}
+            onRemove={(id) => void marks.remove(id)}
+            onRename={(id, note) => marks.update(id, { note })}
+          />
+        </SidePanel>
+      )}
+
+      {panel === 'goals' && (
+        <SidePanel title="Goals" onClose={closePanel}>
+          <GoalsPanel
+            // Fresh fields whenever the goals underneath them change.
+            key={`${summary?.dailyWordGoal}|${summary?.weeklyWordGoal}|${scene?.id}|${scene?.targetWords}|${outline.targetWords}|${outline.targetDate}`}
+            daily={summary?.dailyWordGoal ?? null}
+            weekly={summary?.weeklyWordGoal ?? null}
+            scene={scene ? { target: scene.targetWords ?? null } : null}
+            book={can.isOwner ? { target: outline.targetWords ?? null, deadline: outline.targetDate ?? null } : null}
+            onSave={saveGoals}
+          />
+        </SidePanel>
+      )}
+
+      {panel === 'about' && (
+        <SidePanel title="About" onClose={closePanel}>
+          <div className="about">
+            <h3>Just Type Studio</h3>
+            <p>Version {__APP_VERSION__}</p>
+            <p className="field__hint">A writing tool for long-form fiction, and a review surface for the readers you choose.</p>
+          </div>
         </SidePanel>
       )}
 

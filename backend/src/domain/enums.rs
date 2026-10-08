@@ -273,4 +273,7 @@ api_enum!(AnnotationKind {
     Highlight => "highlight",
     /// A named place to come back to.
     Bookmark => "bookmark",
+    /// A note written against a passage; unlike a to-do, it belongs to the
+    /// place in the text it is about.
+    Comment => "comment",
 });

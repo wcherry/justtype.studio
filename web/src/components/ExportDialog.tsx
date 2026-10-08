@@ -7,13 +7,14 @@ interface Props {
   onClose: () => void
 }
 
-type Format = 'docx' | 'epub' | 'pdf' | 'txt'
+type Format = 'docx' | 'epub' | 'pdf' | 'html' | 'txt'
 type Style = 'manuscript' | 'book'
 
 const FORMATS: { value: Format; label: string; note: string }[] = [
   { value: 'docx', label: 'Word (.docx)', note: 'What agents and magazines ask for' },
   { value: 'pdf', label: 'PDF', note: 'Courier, laid out as a submission' },
   { value: 'epub', label: 'EPUB', note: 'For beta readers on an e-reader' },
+  { value: 'html', label: 'HTML', note: 'One web page, to read in a browser or publish' },
   { value: 'txt', label: 'Plain text', note: 'For pasting into a submission form' },
 ]
 

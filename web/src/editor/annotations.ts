@@ -6,7 +6,7 @@ import { Decoration, DecorationSet } from '@tiptap/pm/view'
 
 export interface AnnotationSpec {
   id: string
-  kind: 'highlight' | 'bookmark'
+  kind: 'highlight' | 'bookmark' | 'comment'
   from: number
   to: number
 }
@@ -23,10 +23,10 @@ function build(doc: PmNode, annotations: AnnotationSpec[]): DecorationSet {
         const passage = Decoration.inline(
           a.from,
           a.to,
-          { class: a.kind === 'highlight' ? 'mark-highlight' : 'mark-bookmark', 'data-annotation-id': a.id },
+          { class: `mark-${a.kind}`, 'data-annotation-id': a.id },
           { id: a.id },
         )
-        if (a.kind === 'highlight') return [passage]
+        if (a.kind !== 'bookmark') return [passage]
         // A bookmark is a place: a flag where it starts, and a faint tint on
         // the passage so it can still be found and right-clicked.
         const flag = () => {

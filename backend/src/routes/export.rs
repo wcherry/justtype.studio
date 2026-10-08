@@ -23,7 +23,7 @@ use super::versions::{self, VersionDetail};
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ExportQuery {
-    /// `docx`, `epub`, `pdf` or `txt`.
+    /// `docx`, `epub`, `pdf`, `html` or `txt`.
     pub format: String,
     /// `manuscript` (Shunn) or `book`. Ignored for EPUB, which has no pages,
     /// and for PDF, which is manuscript-only — see `export::pdf`.
@@ -176,6 +176,11 @@ pub async fn export_version(
             "epub",
         ),
         "pdf" => (export::pdf::write(&manuscript), "application/pdf", "pdf"),
+        "html" => (
+            export::html::write(&manuscript).into_bytes(),
+            "text/html; charset=utf-8",
+            "html",
+        ),
         "txt" => (
             export::text::write(&manuscript, style).into_bytes(),
             "text/plain; charset=utf-8",
@@ -183,7 +188,7 @@ pub async fn export_version(
         ),
         other => {
             return Err(ApiError::BadRequest(format!(
-                "format must be one of docx, epub, pdf, txt — got `{other}`"
+                "format must be one of docx, epub, pdf, html, txt — got `{other}`"
             )))
         }
     };

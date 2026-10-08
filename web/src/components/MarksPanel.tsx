@@ -8,7 +8,7 @@ type Filter = 'all' | 'bookmark' | 'highlight'
  * passage. Only you see them.
  */
 export function MarksPanel({
-  marks, scenes, lost = new Set(), onOpen, onRemove, onRename,
+  marks, scenes, lost = new Set(), onOpen, onRemove, onRename, comments = false,
 }: {
   marks: Annotation[]
   /** Every scene in reading order, for grouping and titles. */
@@ -18,12 +18,14 @@ export function MarksPanel({
   onOpen: (id: string) => void
   onRemove: (id: string) => void
   onRename: (id: string, note: string) => Promise<unknown>
+  /** Shows comments, which are about a passage and always say something, instead of marks. */
+  comments?: boolean
 }) {
   const [filter, setFilter] = useState<Filter>('all')
   const [editing, setEditing] = useState<string | null>(null)
   const [name, setName] = useState('')
 
-  const shown = marks.filter((m) => filter === 'all' || m.kind === filter)
+  const shown = marks.filter((m) => (comments ? m.kind === 'comment' : m.kind !== 'comment' && (filter === 'all' || m.kind === filter)))
   const order = new Map(scenes.map((s, i) => [s.id, i]))
   const groups = scenes
     .map((scene) => ({
@@ -39,9 +41,11 @@ export function MarksPanel({
   return (
     <div className="marks">
       <p className="field__hint">
-        Select text and right-click it (or ⌘-click) to highlight or bookmark it. Only you see these.
+        {comments
+          ? 'Select text and right-click it (or ⌘-click) to comment on it. The passage is underlined in the text. To-dos, which belong to no place, are on the To do list.'
+          : 'Select text and right-click it (or ⌘-click) to highlight or bookmark it. Only you see these.'}
       </p>
-      <div className="segmented" role="group" aria-label="Show">
+      {!comments && <div className="segmented" role="group" aria-label="Show">
         {(['all', 'bookmark', 'highlight'] as Filter[]).map((f) => (
           <button
             key={f}
@@ -53,9 +57,9 @@ export function MarksPanel({
             {f === 'all' ? 'All' : f === 'bookmark' ? 'Bookmarks' : 'Highlights'}
           </button>
         ))}
-      </div>
+      </div>}
 
-      {shown.length === 0 && <p className="empty">Nothing marked yet.</p>}
+      {shown.length === 0 && <p className="empty">{comments ? 'No comments yet.' : 'Nothing marked yet.'}</p>}
 
       {groups.map(({ scene, marks: list }) => (
         <section key={scene.id} className="marks__scene">
@@ -76,7 +80,7 @@ export function MarksPanel({
                       autoFocus
                       value={name}
                       maxLength={500}
-                      placeholder={mark.kind === 'bookmark' ? 'Name this bookmark' : 'A line about it'}
+                      placeholder={mark.kind === 'bookmark' ? 'Name this bookmark' : mark.kind === 'comment' ? 'Your comment' : 'A line about it'}
                       onChange={(e) => setName(e.target.value)}
                     />
                     <button type="submit">Save</button>
@@ -97,7 +101,7 @@ export function MarksPanel({
                   <p className="field__hint">These words are no longer in the draft.</p>
                 )}
                 <div className="marks__actions">
-                  <span className="field__hint">{mark.kind === 'bookmark' ? 'Bookmark' : 'Highlight'}</span>
+                  <span className="field__hint">{mark.kind === 'bookmark' ? 'Bookmark' : mark.kind === 'comment' ? 'Comment' : 'Highlight'}</span>
                   <button
                     type="button"
                     className="linklike"
@@ -106,7 +110,7 @@ export function MarksPanel({
                       setName(mark.note ?? '')
                     }}
                   >
-                    {mark.kind === 'bookmark' ? 'Name' : 'Note'}
+                    {mark.kind === 'bookmark' ? 'Name' : mark.kind === 'comment' ? 'Edit' : 'Note'}
                   </button>
                   <button type="button" className="linklike" onClick={() => onRemove(mark.id)}>
                     Remove
