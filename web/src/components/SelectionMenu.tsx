@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { Editor } from '@tiptap/react'
+import { wordAt } from '../editor/spelling/spellcheck'
 
 /** What was under the pointer when the menu was asked for. */
 export interface MenuTarget {
@@ -9,27 +10,35 @@ export interface MenuTarget {
   selection: { from: number; to: number; quote: string } | null
   /** A highlight or bookmark the click landed on. */
   annotationId: string | null
+  /** The word under the pointer, when nothing was selected there. */
+  word: { from: number; to: number; text: string } | null
 }
 
 export interface SelectionAction {
   key: string
   label: string
   hint?: string
+  /** A small heading above this item, starting a group. */
+  heading?: string
+  /** A line above this item. */
+  divider?: boolean
+  /** Shown, but not something to choose: "Looking…". */
+  disabled?: boolean
   /** Opens a one-line form in the menu instead of acting at once. */
   compose?: { placeholder: string; submit: string; onSubmit: (text: string) => Promise<void> | void }
   onSelect?: () => void
 }
 
 /**
- * Listens on an editor for a right-click (or ⌘-click) on selected text, or on
- * one of the person's own marks, and reports where.
+ * Listens on an editor for a right-click (or ⌘-click) on selected text, on
+ * one of the person's own marks, or — with `words` — on any word, and
+ * reports where.
  *
  * The menu key works too, on a selection made from the keyboard. Anything
- * else — a right-click with nothing selected, or Shift held down — is left
- * to the browser, so its own menu (spelling suggestions, above all)
- * is still there when it is wanted.
+ * else — a right-click between words, or with Shift held down — is left to
+ * the browser, so its own menu is there when it is wanted.
  */
-export function useSelectionMenu(editor: Editor | null, enabled = true) {
+export function useSelectionMenu(editor: Editor | null, enabled = true, words = false) {
   const [target, setTarget] = useState<MenuTarget | null>(null)
 
   useEffect(() => {
@@ -47,8 +56,13 @@ export function useSelectionMenu(editor: Editor | null, enabled = true) {
           selection = { from, to, quote: editor.state.doc.textBetween(from, to, ' ') }
         }
       }
-      if (!selection && !annotationId) return null
-      return { x: event.clientX, y: event.clientY, selection, annotationId }
+      let word: MenuTarget['word'] = null
+      if (!selection && words && event.type === 'contextmenu') {
+        const pos = editor.view.posAtCoords({ left: event.clientX, top: event.clientY })
+        word = pos ? wordAt(editor.state, pos.pos) : null
+      }
+      if (!selection && !annotationId && !word) return null
+      return { x: event.clientX, y: event.clientY, selection, annotationId, word }
     }
 
     const onContextMenu = (event: MouseEvent) => {
@@ -64,6 +78,7 @@ export function useSelectionMenu(editor: Editor | null, enabled = true) {
           y: end.bottom + 4,
           selection: { from, to, quote: editor.state.doc.textBetween(from, to, ' ') },
           annotationId: null,
+          word: null,
         })
         return
       }
@@ -88,7 +103,7 @@ export function useSelectionMenu(editor: Editor | null, enabled = true) {
       dom.removeEventListener('contextmenu', onContextMenu)
       dom.removeEventListener('mousedown', onMouseDown)
     }
-  }, [editor, enabled])
+  }, [editor, enabled, words])
 
   return { target, close: () => setTarget(null) }
 }
@@ -200,12 +215,18 @@ export function SelectionMenu({
           </div>
         </form>
       ) : (
-        actions.map((action) => (
+        actions.map((action) => [
+          action.heading && (
+            <div key={`${action.key}-heading`} className={`menu__heading${action.divider ? ' has-divider' : ''}`}>
+              {action.heading}
+            </div>
+          ),
           <button
             key={action.key}
             type="button"
             role="menuitem"
-            className="menu__item"
+            className={`menu__item${action.divider && !action.heading ? ' has-divider' : ''}`}
+            disabled={action.disabled}
             onClick={() => {
               if (action.compose) {
                 setComposing(action)
@@ -218,8 +239,8 @@ export function SelectionMenu({
             <span className="menu__check" aria-hidden="true" />
             <span className="menu__label">{action.label}</span>
             {action.hint && <span className="menu__hint">{action.hint}</span>}
-          </button>
-        ))
+          </button>,
+        ])
       )}
     </div>
   )

@@ -41,6 +41,7 @@ pub struct Config {
     pub anthropic_api_key: Option<String>,
     pub anthropic_url: String,
     pub summary_model: String,
+    pub assistant_model: String,
     /// A built web app (`web/dist`) to serve beside the API, as the Docker
     /// image does. Unset in development, where Vite serves it.
     pub web_dir: Option<PathBuf>,
@@ -132,6 +133,7 @@ impl Config {
                 .trim_end_matches('/')
                 .to_string(),
             summary_model: env_or("JUSTTYPE_SUMMARY_MODEL", "claude-opus-5-5"),
+            assistant_model: env_or("JUSTTYPE_ASSISTANT_MODEL", "claude-opus-5-5"),
             web_dir: std::env::var("JUSTTYPE_WEB_DIR")
                 .ok()
                 .filter(|s| !s.is_empty())

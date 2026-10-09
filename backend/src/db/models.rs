@@ -52,6 +52,9 @@ row!(User, users, {
     summaries_allowed_at: Option<String>,
     /// A paragraph about the writer, reusable as back matter in any book.
     about_author: Option<String>,
+    /// When they agreed that text they hand the writing assistant may be sent
+    /// to the model provider. Separate from summaries: a different use.
+    assistant_allowed_at: Option<String>,
 });
 
 #[derive(Debug, Clone, Queryable, Selectable, Serialize, Deserialize, utoipa::ToSchema)]
@@ -547,6 +550,7 @@ new_row!(NewUser, users, {
     totp_enabled_at: Option<String>, totp_last_step: Option<i64>,
     terms_version: Option<i32>, terms_accepted_at: Option<String>,
     weekly_word_goal: Option<i32>, summaries_allowed_at: Option<String>,
+    assistant_allowed_at: Option<String>,
 });
 
 new_row!(NewExportProfile, export_profiles, {

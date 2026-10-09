@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """A stand-in for the Anthropic Messages API, for the smoke walkthrough.
 
-Answers POST /v1/messages with a short summary built from the request, and
+Answers POST /v1/messages with a short summary built from the request — or,
+for the writing assistant, a proofread, rewrite, continuation or answer — and
 writes every request it receives (headers and body) to a log so the smoke can
 check what the server sent: the model, the fallback header, the manuscript in
 its tags. Spends nothing and needs no key.
@@ -22,6 +23,18 @@ class Handler(BaseHTTPRequestHandler):
             log.write(json.dumps({"path": self.path, "headers": dict(self.headers), "body": body}) + "\n")
         text = body["messages"][0]["content"]
         words = len(text.split())
+        answer = f"A stub summary of {words} words of manuscript."
+        # The writing assistant: an answer shaped like the one it asked for.
+        if "writing assistant" in body["system"]:
+            passage = text.split("<passage>\n", 1)[1].split("\n</passage>", 1)[0] if "<passage>" in text else ""
+            if "Proofread" in body["system"]:
+                answer = passage.replace("teh", "the").replace("recieve", "receive")
+            elif "Rewrite the passage" in body["system"]:
+                answer = f"A stub rewrite of {len(passage.split())} words."
+            elif "Continue the scene" in body["system"]:
+                answer = "the stub went on.\n\nA second stub paragraph."
+            else:
+                answer = "A stub answer to the question."
         reply = {
             "id": "msg_stub",
             "type": "message",
@@ -30,7 +43,7 @@ class Handler(BaseHTTPRequestHandler):
             "stop_reason": "end_turn",
             "content": [
                 {"type": "thinking", "thinking": ""},
-                {"type": "text", "text": f"A stub summary of {words} words of manuscript."},
+                {"type": "text", "text": answer},
             ],
             "usage": {"input_tokens": words, "output_tokens": 9},
         }

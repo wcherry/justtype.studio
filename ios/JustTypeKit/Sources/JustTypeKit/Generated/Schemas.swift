@@ -234,6 +234,57 @@ public enum API {
         }
     }
 
+    public struct AssistRequest: Codable, Hashable, Sendable {
+        /// The scene's text after the selection. Only the start of it is sent on.
+        public var after: String?
+        /// The scene's text before the selection, or before the cursor. Only the
+        /// end of it is sent on.
+        public var before: String?
+        /// What the writer wants: how to rewrite, or what to ask.
+        public var instruction: String?
+        /// The selected passage. Needed to rewrite or proofread; optional to ask.
+        public var selection: String?
+        public var task: AssistTask
+
+        public init(
+            after: String? = nil,
+            before: String? = nil,
+            instruction: String? = nil,
+            selection: String? = nil,
+            task: AssistTask
+        ) {
+            self.after = after
+            self.before = before
+            self.instruction = instruction
+            self.selection = selection
+            self.task = task
+        }
+    }
+
+    /// What the writer asked the assistant to do.
+    public enum AssistTask: String, Codable, CaseIterable, Hashable, Sendable {
+        case `continue` = "continue"
+        case rewrite = "rewrite"
+        case proofread = "proofread"
+        case ask = "ask"
+    }
+
+    public struct AssistView: Codable, Hashable, Sendable {
+        public var model: String
+        public var task: String
+        public var text: String
+
+        public init(
+            model: String,
+            task: String,
+            text: String
+        ) {
+            self.model = model
+            self.task = task
+            self.text = text
+        }
+    }
+
     public enum AuditAction: String, Codable, CaseIterable, Hashable, Sendable {
         case password_reset = "password_reset"
         case password_changed = "password_changed"
@@ -259,6 +310,8 @@ public enum API {
         case share_links_revoked = "share_links_revoked"
         case summaries_allowed = "summaries_allowed"
         case summaries_withdrawn = "summaries_withdrawn"
+        case assistant_allowed = "assistant_allowed"
+        case assistant_withdrawn = "assistant_withdrawn"
     }
 
     public struct AuditEvent: Codable, Hashable, Sendable {
@@ -1482,15 +1535,19 @@ public enum API {
     }
 
     public struct Features: Codable, Hashable, Sendable {
+        /// Whether this server has the writing assistant.
+        public var assistant: Bool
         /// Whether this server can write summaries at all.
         public var summaries: Bool
         /// Who writes them, for the consent screen.
         public var summaryProvider: String?
 
         public init(
+            assistant: Bool,
             summaries: Bool,
             summaryProvider: String? = nil
         ) {
+            self.assistant = assistant
             self.summaries = summaries
             self.summaryProvider = summaryProvider
         }
@@ -2161,6 +2218,13 @@ public enum API {
         case trade5x8 = "trade5x8"
         case trade5_5x8_5 = "trade5_5x8_5"
         case trade6x9 = "trade6x9"
+    }
+
+    public enum PartOfSpeech: String, Codable, CaseIterable, Hashable, Sendable {
+        case noun = "noun"
+        case verb = "verb"
+        case adjective = "adjective"
+        case adverb = "adverb"
     }
 
     /// Page setup for PDF. Book-layout PDF reads these; manuscript PDF is fixed.
@@ -3276,6 +3340,32 @@ public enum API {
         case selected = "selected"
     }
 
+    /// One meaning of the word, and the words for it.
+    public struct Sense: Codable, Hashable, Sendable {
+        public var antonyms: [String]
+        /// What this sense means, briefly, to tell it from the others.
+        public var gloss: String
+        public var partOfSpeech: PartOfSpeech
+        /// Near it: similar words, and more particular ones ("walk" → "march").
+        public var related: [String]
+        /// Words with this same meaning.
+        public var synonyms: [String]
+
+        public init(
+            antonyms: [String],
+            gloss: String,
+            partOfSpeech: PartOfSpeech,
+            related: [String],
+            synonyms: [String]
+        ) {
+            self.antonyms = antonyms
+            self.gloss = gloss
+            self.partOfSpeech = partOfSpeech
+            self.related = related
+            self.synonyms = synonyms
+        }
+    }
+
     public struct Session: Codable, Hashable, Sendable {
         public var createdAt: String
         public var id: String
@@ -3846,6 +3936,27 @@ public enum API {
         }
     }
 
+    public struct ThesaurusEntry: Codable, Hashable, Sendable {
+        /// The form it was found under: "walked" is found as "walk". When the word
+        /// is both a word and a form of another ("running"), this is the other,
+        /// and its senses come first.
+        public var base: String
+        /// Most common meaning first.
+        public var senses: [Sense]
+        /// The word as asked for.
+        public var word: String
+
+        public init(
+            base: String,
+            senses: [Sense],
+            word: String
+        ) {
+            self.base = base
+            self.senses = senses
+            self.word = word
+        }
+    }
+
     public struct TocChapter: Codable, Hashable, Sendable {
         public var chapterId: String
         /// In reading order.
@@ -4265,6 +4376,9 @@ public enum API {
     public struct User: Codable, Hashable, Sendable {
         /// A paragraph about the writer, reusable as back matter in any book.
         public var aboutAuthor: String?
+        /// When they agreed that text they hand the writing assistant may be sent
+        /// to the model provider. Separate from summaries: a different use.
+        public var assistantAllowedAt: String?
         public var bio: String?
         public var createdAt: String
         /// The writer's daily target in words, when they have set one.
@@ -4294,6 +4408,7 @@ public enum API {
 
         public init(
             aboutAuthor: String? = nil,
+            assistantAllowedAt: String? = nil,
             bio: String? = nil,
             createdAt: String,
             dailyWordGoal: Int? = nil,
@@ -4312,6 +4427,7 @@ public enum API {
             weeklyWordGoal: Int? = nil
         ) {
             self.aboutAuthor = aboutAuthor
+            self.assistantAllowedAt = assistantAllowedAt
             self.bio = bio
             self.createdAt = createdAt
             self.dailyWordGoal = dailyWordGoal

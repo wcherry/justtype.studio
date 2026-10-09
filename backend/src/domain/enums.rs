@@ -266,6 +266,8 @@ api_enum!(AuditAction {
     ShareLinksRevoked => "share_links_revoked",
     SummariesAllowed => "summaries_allowed",
     SummariesWithdrawn => "summaries_withdrawn",
+    AssistantAllowed => "assistant_allowed",
+    AssistantWithdrawn => "assistant_withdrawn",
 });
 
 api_enum!(AnnotationKind {

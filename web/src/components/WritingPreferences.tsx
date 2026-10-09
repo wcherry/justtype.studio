@@ -35,6 +35,28 @@ export function WritingPreferencesPanel({ preferences, onChange, onReset }: Prop
         <span className="prefs__hint">Hold the line you are writing at a fixed height</span>
       </label>
 
+      <label className="prefs__toggle">
+        <input
+          type="checkbox"
+          checked={preferences.spellcheck}
+          onChange={(e) => onChange('spellcheck', e.target.checked)}
+        />
+        Check spelling as I type
+        <span className="prefs__hint">Right-click an underlined word for corrections</span>
+      </label>
+
+      <label>
+        Spelling
+        <select
+          value={preferences.spellingLanguage}
+          disabled={!preferences.spellcheck}
+          onChange={(e) => onChange('spellingLanguage', e.target.value as Preferences['spellingLanguage'])}
+        >
+          <option value="en-US">American English</option>
+          <option value="en-GB">British English</option>
+        </select>
+      </label>
+
       <label>
         Typeface
         <select

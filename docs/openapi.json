@@ -234,6 +234,62 @@
           }
         ]
       },
+      "AssistRequest": {
+        "properties": {
+          "after": {
+            "description": "The scene's text after the selection. Only the start of it is sent on.",
+            "type": "string"
+          },
+          "before": {
+            "description": "The scene's text before the selection, or before the cursor. Only the\nend of it is sent on.",
+            "type": "string"
+          },
+          "instruction": {
+            "description": "What the writer wants: how to rewrite, or what to ask.",
+            "type": "string"
+          },
+          "selection": {
+            "description": "The selected passage. Needed to rewrite or proofread; optional to ask.",
+            "type": "string"
+          },
+          "task": {
+            "$ref": "#/components/schemas/AssistTask"
+          }
+        },
+        "required": [
+          "task"
+        ],
+        "type": "object"
+      },
+      "AssistTask": {
+        "description": "What the writer asked the assistant to do.",
+        "enum": [
+          "continue",
+          "rewrite",
+          "proofread",
+          "ask"
+        ],
+        "type": "string"
+      },
+      "AssistView": {
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "task": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "task",
+          "text",
+          "model"
+        ],
+        "type": "object"
+      },
       "AuditAction": {
         "enum": [
           "password_reset",
@@ -259,7 +315,9 @@
           "share_link_made",
           "share_links_revoked",
           "summaries_allowed",
-          "summaries_withdrawn"
+          "summaries_withdrawn",
+          "assistant_allowed",
+          "assistant_withdrawn"
         ],
         "type": "string"
       },
@@ -1924,6 +1982,10 @@
       },
       "Features": {
         "properties": {
+          "assistant": {
+            "description": "Whether this server has the writing assistant.",
+            "type": "boolean"
+          },
           "summaries": {
             "description": "Whether this server can write summaries at all.",
             "type": "boolean"
@@ -1937,7 +1999,8 @@
           }
         },
         "required": [
-          "summaries"
+          "summaries",
+          "assistant"
         ],
         "type": "object"
       },
@@ -2741,6 +2804,15 @@
           "trade5x8",
           "trade5_5x8_5",
           "trade6x9"
+        ],
+        "type": "string"
+      },
+      "PartOfSpeech": {
+        "enum": [
+          "noun",
+          "verb",
+          "adjective",
+          "adverb"
         ],
         "type": "string"
       },
@@ -4058,6 +4130,46 @@
         ],
         "type": "string"
       },
+      "Sense": {
+        "description": "One meaning of the word, and the words for it.",
+        "properties": {
+          "antonyms": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "gloss": {
+            "description": "What this sense means, briefly, to tell it from the others.",
+            "type": "string"
+          },
+          "partOfSpeech": {
+            "$ref": "#/components/schemas/PartOfSpeech"
+          },
+          "related": {
+            "description": "Near it: similar words, and more particular ones (\"walk\" → \"march\").",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "synonyms": {
+            "description": "Words with this same meaning.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "partOfSpeech",
+          "gloss",
+          "synonyms",
+          "related",
+          "antonyms"
+        ],
+        "type": "object"
+      },
       "Session": {
         "properties": {
           "createdAt": {
@@ -4775,6 +4887,31 @@
         ],
         "type": "object"
       },
+      "ThesaurusEntry": {
+        "properties": {
+          "base": {
+            "description": "The form it was found under: \"walked\" is found as \"walk\". When the word\nis both a word and a form of another (\"running\"), this is the other,\nand its senses come first.",
+            "type": "string"
+          },
+          "senses": {
+            "description": "Most common meaning first.",
+            "items": {
+              "$ref": "#/components/schemas/Sense"
+            },
+            "type": "array"
+          },
+          "word": {
+            "description": "The word as asked for.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "word",
+          "base",
+          "senses"
+        ],
+        "type": "object"
+      },
       "TocChapter": {
         "properties": {
           "chapterId": {
@@ -5423,6 +5560,13 @@
         "properties": {
           "aboutAuthor": {
             "description": "A paragraph about the writer, reusable as back matter in any book.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "assistantAllowedAt": {
+            "description": "When they agreed that text they hand the writing assistant may be sent\nto the model provider. Separate from summaries: a different use.",
             "type": [
               "string",
               "null"
@@ -7581,6 +7725,66 @@
         ]
       }
     },
+    "/api/me/assistant": {
+      "delete": {
+        "operationId": "withdraw",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            },
+            "description": "Withdrawn"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "Taking it back. No further request is sent.",
+        "tags": [
+          "assistant"
+        ]
+      },
+      "post": {
+        "operationId": "allow",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            },
+            "description": "Allowed"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "Agreeing that text you hand the writing assistant may be sent to Anthropic.",
+        "tags": [
+          "assistant"
+        ]
+      }
+    },
     "/api/me/audit": {
       "get": {
         "operationId": "list",
@@ -7729,6 +7933,125 @@
         },
         "tags": [
           "moderation"
+        ]
+      }
+    },
+    "/api/me/dictionary": {
+      "get": {
+        "operationId": "list",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "The words you have added, in order"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "words"
+        ]
+      }
+    },
+    "/api/me/dictionary/{word}": {
+      "delete": {
+        "operationId": "remove",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "word",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "The words you have added, now"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "Take a word back out. Taking out one that is not there is fine.",
+        "tags": [
+          "words"
+        ]
+      },
+      "put": {
+        "operationId": "add",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "word",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "The words you have added, now"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "Tell the spellchecker a word is right. Adding one already there is fine.",
+        "tags": [
+          "words"
         ]
       }
     },
@@ -9875,6 +10198,56 @@
         ]
       }
     },
+    "/api/scenes/{scene_id}/assist": {
+      "post": {
+        "operationId": "assist",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scene_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssistRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistView"
+                }
+              }
+            },
+            "description": "The assistant's suggestion"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "assistant"
+        ]
+      }
+    },
     "/api/scenes/{scene_id}/changes": {
       "get": {
         "operationId": "list",
@@ -10561,6 +10934,46 @@
         },
         "tags": [
           "trust"
+        ]
+      }
+    },
+    "/api/thesaurus/{word}": {
+      "get": {
+        "operationId": "lookup",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "word",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThesaurusEntry"
+                }
+              }
+            },
+            "description": "The word's meanings, and the words for each"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not a word the thesaurus has"
+          }
+        },
+        "tags": [
+          "words"
         ]
       }
     },
@@ -13296,6 +13709,14 @@
     {
       "description": "Summaries written by Claude, with the writer's consent",
       "name": "summaries"
+    },
+    {
+      "description": "The writing assistant, Claude, with the writer's consent",
+      "name": "assistant"
+    },
+    {
+      "description": "The thesaurus, and your own words for the spellchecker",
+      "name": "words"
     },
     {
       "description": "Proving an address, getting back in, a second factor, sessions",

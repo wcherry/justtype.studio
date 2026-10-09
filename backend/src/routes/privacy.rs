@@ -66,6 +66,7 @@ pub fn seed_former_member(conn: &mut Conn, now: &str) -> ApiResult<()> {
             terms_accepted_at: None,
             weekly_word_goal: None,
             summaries_allowed_at: None,
+            assistant_allowed_at: None,
         })
         .execute(conn)?;
     Ok(())
@@ -223,7 +224,8 @@ pub async fn export(State(state): State<AppState>, user: AuthUser) -> ApiResult<
 const README: &str = "Everything Just Type Studio holds about you, as of the moment this was made.
 
 account.json        your account, sessions, the people you follow and have blocked,
-                    your reader circles and your writing days
+                    your reader circles, your writing days and the words you
+                    added to the spellchecker
 works.json          every work you started: its outline, snapshots, publications,
                     the feedback left on them, its notebook, to-do list, co-authors
                     and activity
@@ -302,6 +304,11 @@ fn gather(conn: &mut Conn, user_id: &str) -> ApiResult<Vec<(&'static str, Value)
             writing_days::saves,
         ))
         .load(conn)?;
+    let dictionary: Vec<String> = dictionary_words::table
+        .filter(dictionary_words::user_id.eq(user_id))
+        .order(dictionary_words::word.asc())
+        .select(dictionary_words::word)
+        .load(conn)?;
     let account = json!({
         "user": user,
         "sessions": my_sessions,
@@ -315,6 +322,7 @@ fn gather(conn: &mut Conn, user_id: &str) -> ApiResult<Vec<(&'static str, Value)
         "writingDays": days.iter().map(|(day, words, saves)| json!({
             "day": day, "netWords": words, "saves": saves,
         })).collect::<Vec<_>>(),
+        "dictionary": dictionary,
     });
 
     // --- works they started

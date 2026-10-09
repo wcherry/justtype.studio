@@ -17,7 +17,7 @@ copyright with us, and nothing in these terms changes that.
 We store and display your work only to run the service for you: to save it,
 to show it to the people you choose to show it to, and to give it back to you.
 We do not publish it, sell it, train anything on it, or show it to anyone you
-have not shared it with — with the one exception you can choose below.
+have not shared it with — with the two exceptions you can choose below.
 
 ## Summaries
 
@@ -29,6 +29,22 @@ summary comes back to you. It is a suggestion: nothing in your manuscript
 changes unless you put it there. You can turn summaries off at any time;
 summaries already written stay with your work. How Anthropic handles what is
 sent to it is set out in its own terms for its API.
+
+## The writing assistant
+
+The writing assistant — continuing from the cursor, rewriting or proofreading
+a passage, answering a question about it — is also a model Anthropic runs.
+It is off until you turn it on in your account, separately from summaries.
+Once it is on, what you hand it — the passage you selected, or the scene up
+to the cursor, with some of the scene around it so it can follow along — is
+sent to Anthropic when you ask, and only then. What comes back is a
+suggestion: it goes into your manuscript only if you put it there. You can
+turn the assistant off at any time.
+
+Spelling and the thesaurus are not like this. The spellchecker runs in your
+browser and the thesaurus on our server; neither sends your words anywhere.
+Words you add to your dictionary are kept with your account so they follow
+you between devices.
 
 ## Sharing is your decision
 

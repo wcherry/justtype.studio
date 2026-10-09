@@ -799,6 +799,37 @@ do not build toward it, and do not carry a compatibility layer for it.
   it opens the note for that passage; in the editor, a note on the to-do
   list, which now keeps the passage it was written against.
 
+### 8.7 Spelling, thesaurus and writing assistant · **Done**
+- Our own spellchecker instead of the browser's, a thesaurus, and an AI
+  writing assistant, as in Neutrino Docs.
+- **Done:** spelling is checked in the browser by nspell against the Hunspell
+  dictionaries, American or British (*Tools → Spelling*, defaulting from the
+  browser's language), in a worker so typing never waits on it. Misspellings
+  get a wavy underline; the word still being typed is left alone until the
+  caret leaves it. The browser's own checker is off in the editor. Right-click
+  an underlined word for corrections, *Add to dictionary* or *Ignore*. Names in
+  the book's notebook are known without being added; the personal dictionary
+  is kept on the account (*Tools → Your dictionary*), follows the writer to
+  every device, works offline from a local copy, and is in the data export.
+- Right-click any word for a handful of synonyms, or *Thesaurus…* (⇧F7) for
+  every sense with its gloss and its same, near and opposite words. Clicking
+  one puts it in place, matching the capitals; ⌥-click looks it up instead.
+  The thesaurus is WordNet, served by our own server — unlike Neutrino's,
+  which asks a third party, nothing a writer looks up leaves.
+- The writing assistant (toolbar ✦, or *Tools*, or right-click a selection):
+  continue from the cursor, proofread, rewrite with a preset (tighter, more
+  vivid, plainer, more tension, vary the rhythm, show don't tell) or in the
+  writer's own words, or ask a question about the passage or scene. Claude
+  Opus 5.5 does the writing — real calls, where Neutrino's are placeholders.
+  Proofreads show what changed, word by word. Nothing goes into the scene
+  until the writer chooses *Insert* or *Replace*, as one step ⌘Z takes back,
+  and not at all if the passage has changed since it was asked about.
+- Its own consent, separate from summaries, in the panel and in Settings; the
+  terms describe it, but stay at version 2: turning the assistant on is the
+  agreement, so nobody is asked to agree again. Ten calls a minute per writer. Not on the iPhone yet.
+- **Verified against the stub, not the API**, like summaries: the request
+  shape and the whole flow in the browser, but not a live model's answers.
+
 ---
 
 ## Sequencing note

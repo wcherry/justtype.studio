@@ -727,7 +727,7 @@ is a `429` with `retryAfter`. Behind a reverse proxy, set
 
 | Method | Path | Notes |
 |---|---|---|
-| `GET` | `/features` | `{ summaries, summaryProvider }` — whether this server can write them |
+| `GET` | `/features` | `{ summaries, summaryProvider, assistant }` — whether this server can write them |
 | `POST` / `DELETE` | `/me/summaries` | turn summaries on or off for this account |
 | `POST` | `/scenes/{id}/summary` | two to four sentences |
 | `POST` | `/chapters/{id}/summary` | a paragraph |
@@ -750,6 +750,51 @@ Changing a scene's text needs `write` on it, and so does summarising it. The
 manuscript is sent inside `<manuscript>` tags, and the instructions say that
 nothing inside them is an instruction. A book too long for one request (about
 850k tokens) is refused, so it is never cut short without saying so.
+
+## The writing assistant
+
+| Method | Path | Notes |
+|---|---|---|
+| `POST` / `DELETE` | `/me/assistant` | turn the assistant on or off — separately from summaries |
+| `POST` | `/scenes/{id}/assist` | `{ task, before, selection, after, instruction }` → `{ task, text, model }` |
+
+`task` is `continue` (from the cursor; `before` must not be empty), `rewrite`
+(needs a `selection` and an `instruction`), `proofread` (needs a `selection`)
+or `ask` (needs an `instruction`, the question). Same model and fallbacks as
+summaries; proofreading runs at low effort, the rest at medium.
+
+- **Its own consent.** Refused with 403 until the account has turned the
+  assistant on; agreeing to summaries does not count. The terms say where
+  the text goes; turning the assistant on is the agreement, so they stay at
+  version 2.
+- **The client sends the text**, so unsaved typing is what is read. The
+  server keeps the last 24,000 bytes of `before` and the first 4,000 of
+  `after`; a `selection` over 12,000 bytes or an `instruction` over 500
+  characters is refused. Needs `write` on the scene.
+- **Not cached** — asking again is how a writer asks for another try — and
+  limited to ten calls a minute per writer.
+- **A suggestion.** Nothing is written into the manuscript by the server.
+
+The scene goes inside `<manuscript>` tags (with `<cursor/>` where the caret
+is, or `[the passage]` where the selection was), the selection inside
+`<passage>`, the writer's request inside `<instruction>`.
+
+## Words
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/thesaurus/{word}` | `{ word, base, senses: [{ partOfSpeech, gloss, synonyms, related, antonyms }] }`, or 404 |
+| `GET` | `/me/dictionary` | the words you have told the spellchecker are right |
+| `PUT` / `DELETE` | `/me/dictionary/{word}` | add or remove one; both return the whole list |
+
+The thesaurus is WordNet 3.1, boiled down by `scripts/build_thesaurus.py` into
+`backend/assets/thesaurus.tsv.gz` and compiled into the binary; lookups never
+leave the server. An inflected word is found under its base ("walked" →
+`walk`, verb senses first). Synonyms and related words are ordered most
+common first. Spelling is checked in the browser (nspell, with the Hunspell
+American and British English dictionaries under `web/public/dictionaries`);
+only the personal dictionary is stored here, at most 5,000 words, and it is in
+the data export.
 
 ## Highlights and bookmarks
 
