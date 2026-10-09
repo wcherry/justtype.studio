@@ -372,9 +372,14 @@ pub fn write(manuscript: &Manuscript, options: &ExportOptions) -> Vec<u8> {
 /// book on the reader's connection.
 pub fn write_limited(
     manuscript: &Manuscript,
-    _options: &ExportOptions,
+    options: &ExportOptions,
     max_pages: Option<usize>,
 ) -> Vec<u8> {
+    // A book layout is a different engine: proportional type, embedded fonts.
+    // The manuscript layout below is Courier, fixed by the format.
+    if options.style_kind() == super::Style::Book {
+        return super::pdf_book::write(manuscript, options, max_pages);
+    }
     let mut pages = lay_out(manuscript);
     if let Some(limit) = max_pages {
         pages.truncate(limit.max(1));

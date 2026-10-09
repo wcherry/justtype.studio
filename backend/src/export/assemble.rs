@@ -309,6 +309,17 @@ pub fn preflight(resolved: &Resolved, options: &ExportOptions) -> PreflightRepor
         });
     }
 
+    if options.format == Format::Pdf && options.style.preset == StylePreset::Book && !manuscript.is_empty() {
+        for (code, message) in super::pdf_book::warnings(manuscript, options) {
+            issues.push(Issue {
+                severity: Severity::Warning,
+                code: code.into(),
+                message,
+                location: None,
+            });
+        }
+    }
+
     if options.style.preset == StylePreset::Manuscript && options.style != Default::default() {
         let customised = options.style.resolve();
         let _ = customised;

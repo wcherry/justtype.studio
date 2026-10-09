@@ -23,7 +23,7 @@ type Format = ExportFormat | 'project'
 
 const FORMATS: { value: Format; label: string; note: string; draftOnly?: boolean }[] = [
   { value: 'docx', label: 'Word (.docx)', note: 'What agents and magazines ask for' },
-  { value: 'pdf', label: 'PDF', note: 'Courier, laid out as a submission' },
+  { value: 'pdf', label: 'PDF', note: 'A manuscript in Courier, or a book with embedded type' },
   { value: 'epub', label: 'EPUB', note: 'For beta readers and e-readers' },
   { value: 'html', label: 'HTML', note: 'A web page, clean markup, or a zip of pages' },
   { value: 'txt', label: 'Plain text', note: 'For pasting into a submission form' },
@@ -53,7 +53,7 @@ const STYLE_SUPPORT: Record<ExportFormat, Set<string>> = {
   epub: new Set(['font', 'size', 'spacing', 'align', 'indent', 'paragraphSpacing', 'headingStyle', 'sceneBreak', 'dropCaps', 'hyphenate']),
   html: new Set(['font', 'size', 'spacing', 'align', 'indent', 'paragraphSpacing', 'headingStyle', 'sceneBreak', 'dropCaps', 'hyphenate']),
   txt: new Set(['sceneBreak']),
-  pdf: new Set([]),
+  pdf: new Set(['font', 'size', 'spacing', 'align', 'indent', 'paragraphSpacing', 'headingStyle', 'sceneBreak', 'hyphenate']),
 }
 
 const SCENE_BREAKS: [string, string][] = [
@@ -433,10 +433,50 @@ export function ExportDialog({ version, workId: workIdProp, onClose, onGoTo }: P
               </span>
             </label>
 
-            {book && format === 'pdf' && (
-              <p className="field__hint">
-                PDF is laid out as a manuscript for now; the typography below applies to Word, EPUB, HTML and text.
-              </p>
+            {format === 'pdf' && book && (
+              <div className="export-grid">
+                <label>
+                  Page size
+                  <select
+                    value={options.pdf?.pageSize ?? 'letter'}
+                    onChange={(e) => patch({ pdf: { ...(options.pdf ?? {}), pageSize: e.target.value as NonNullable<ExportOptions['pdf']>['pageSize'] } })}
+                  >
+                    <option value="letter">Letter</option>
+                    <option value="a4">A4</option>
+                    <option value="trade5x8">5 × 8 in</option>
+                    <option value="trade5_5x8_5">5.5 × 8.5 in</option>
+                    <option value="trade6x9">6 × 9 in</option>
+                  </select>
+                </label>
+                <label>
+                  Margin (inches)
+                  <input
+                    type="number" min={0.25} max={3} step={0.05}
+                    value={options.pdf?.marginIn ?? 1}
+                    onChange={(e) => patch({ pdf: { ...(options.pdf ?? {}), marginIn: Number(e.target.value) } })}
+                  />
+                </label>
+                <label className="export-check">
+                  <input type="checkbox" checked={options.pdf?.pageNumbers ?? true}
+                    onChange={(e) => patch({ pdf: { ...(options.pdf ?? {}), pageNumbers: e.target.checked } })} />
+                  Page numbers
+                </label>
+                <label className="export-check">
+                  <input type="checkbox" checked={!!options.pdf?.romanFrontMatter}
+                    onChange={(e) => patch({ pdf: { ...(options.pdf ?? {}), romanFrontMatter: e.target.checked } })} />
+                  Roman numerals for front matter
+                </label>
+                <label className="export-check">
+                  <input type="checkbox" checked={!!options.pdf?.chaptersOnRight}
+                    onChange={(e) => patch({ pdf: { ...(options.pdf ?? {}), chaptersOnRight: e.target.checked } })} />
+                  Chapters start on right-hand pages
+                </label>
+                <label className="export-check">
+                  <input type="checkbox" checked={!!options.pdf?.landscape}
+                    onChange={(e) => patch({ pdf: { ...(options.pdf ?? {}), landscape: e.target.checked } })} />
+                  Landscape
+                </label>
+              </div>
             )}
 
             <div className="export-grid" aria-disabled={!book}>

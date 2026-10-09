@@ -178,6 +178,15 @@ impl LineSpacing {
             Self::Double => 480,
         }
     }
+    /// The multiple of the type size between baselines.
+    pub fn factor(self) -> f32 {
+        match self {
+            Self::Single => 1.2,
+            Self::OnePointOneFive => 1.35,
+            Self::OnePointFive => 1.65,
+            Self::Double => 2.1,
+        }
+    }
     pub fn css(self) -> &'static str {
         match self {
             Self::Single => "1.2",

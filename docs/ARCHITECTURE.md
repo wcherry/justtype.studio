@@ -94,6 +94,26 @@ in at compile time, and without a `rerun-if-changed` cargo does not notice a
 migration changing. Editing one and running the tests would recompile nothing,
 pass against the old SQL, and look fine until it ran somewhere real.
 
+## Export pipeline and the PDF engine
+
+`render` is staged: resolve (load text, comments, details) → select → build
+blocks and notes → render → verify. Preflight runs the first three and stops.
+The options, selection, comment anchoring and notes are pure code in
+`export/{options,pipeline,assemble}.rs`; routes only load and respond.
+
+A comment is stored as editor positions. In a draft they are tried first and
+trusted only if the text under them is still the quote; otherwise, and always
+in a version, the quote is found again in the scene; if it is gone the note is
+kept at the end of its scene and reported.
+
+**PDF engine decision.** Book layout needs real metrics and embedded type.
+Options were a crate (`printpdf`, `krilla`, Typst) or extending the writer. No
+font or PDF crate was available to the build, and what is needed is small, so
+`export/font.rs` parses `cmap`/`hmtx`/`kern` and cuts `glyf` subsets,
+`export/pdf_book.rs` breaks lines and paginates, and Liberation Serif/Sans
+(SIL OFL, `backend/assets/fonts`) are compiled in. Manuscript PDF stays on the
+original Courier path. Revisit if tagged PDF or OpenType shaping is needed.
+
 ## Web
 
 Vite + React + TipTap. The interesting part is `editor/commentAnchors.ts`:

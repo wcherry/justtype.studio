@@ -7,10 +7,13 @@
 pub mod assemble;
 pub mod docx;
 pub mod epub;
+pub mod font;
 pub mod html;
+pub mod image;
 pub mod markdown;
 pub mod options;
 pub mod pdf;
+pub mod pdf_book;
 pub mod pipeline;
 pub mod project;
 pub mod text;
