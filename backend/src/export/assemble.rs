@@ -217,10 +217,7 @@ pub fn preflight(resolved: &Resolved, options: &ExportOptions) -> PreflightRepor
     let manuscript = &prepared.manuscript;
 
     if manuscript.is_empty() {
-        let selecting = matches!(
-            options.content.scope,
-            super::options::Scope::Selected { .. }
-        );
+        let selecting = options.content.scope.is_selection();
         issues.insert(
             0,
             Issue {
@@ -287,7 +284,7 @@ pub fn preflight(resolved: &Resolved, options: &ExportOptions) -> PreflightRepor
             severity: Severity::Warning,
             code: "no_cover".into(),
             message: "There is no cover image, so e-readers will show a blank tile. Add one \
-                      under Book → Details."
+                      under Book → Front matter."
                 .into(),
             location: None,
         });
@@ -305,7 +302,7 @@ pub fn preflight(resolved: &Resolved, options: &ExportOptions) -> PreflightRepor
         issues.push(Issue {
             severity: Severity::Info,
             code: "language_assumed".into(),
-            message: "No language is set, so the file says English. Set it under Book → Details \
+            message: "No language is set, so the file says English. Set it under Book → Front matter \
                       if the book is in another language."
                 .into(),
             location: None,

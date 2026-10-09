@@ -113,6 +113,11 @@ public enum API {
         }
     }
 
+    public enum Align: String, Codable, CaseIterable, Hashable, Sendable {
+        case left = "left"
+        case justify = "justify"
+    }
+
     public struct Anchor: Codable, Hashable, Sendable {
         public var from: Int
         public var to: Int
@@ -480,6 +485,22 @@ public enum API {
         }
     }
 
+    public struct BundleRequest: Codable, Hashable, Sendable {
+        /// Any subset of `docx`, `pdf`, `epub`, `html`, `txt`.
+        public var formats: [Format]
+        /// Settings shared by every file; the per-format blocks (`pdf`, `epub`,
+        /// `html`) apply to their own format only.
+        public var options: ExportOptions?
+
+        public init(
+            formats: [Format],
+            options: ExportOptions? = nil
+        ) {
+            self.formats = formats
+            self.options = options
+        }
+    }
+
     public enum ChangeKind: String, Codable, CaseIterable, Hashable, Sendable {
         case insert = "insert"
         case delete = "delete"
@@ -510,6 +531,9 @@ public enum API {
         public var createdAt: String
         public var id: String
         public var position: Int
+        /// `chapter`, `front` or `back`. Front and back matter are not numbered and
+        /// are included or left out of an export on their own.
+        public var role: String
         public var summary: String?
         public var title: String
         public var updatedAt: String
@@ -519,6 +543,7 @@ public enum API {
             createdAt: String,
             id: String,
             position: Int,
+            role: String,
             summary: String? = nil,
             title: String,
             updatedAt: String,
@@ -527,6 +552,7 @@ public enum API {
             self.createdAt = createdAt
             self.id = id
             self.position = position
+            self.role = role
             self.summary = summary
             self.title = title
             self.updatedAt = updatedAt
@@ -803,22 +829,77 @@ public enum API {
         }
     }
 
+    /// What to do with the writer's own comments.
+    public enum CommentsMode: String, Codable, CaseIterable, Hashable, Sendable {
+        case off = "off"
+        case footnotes = "footnotes"
+        case endnotes = "endnotes"
+    }
+
     public struct ContentChapter: Codable, Hashable, Sendable {
         public var chapterId: String
         public var position: Int
+        /// `chapter`, `front` or `back`, as frozen.
+        public var role: String
         public var scenes: [ContentScene]
         public var title: String
 
         public init(
             chapterId: String,
             position: Int,
+            role: String,
             scenes: [ContentScene],
             title: String
         ) {
             self.chapterId = chapterId
             self.position = position
+            self.role = role
             self.scenes = scenes
             self.title = title
+        }
+    }
+
+    public struct ContentOptions: Codable, Hashable, Sendable {
+        /// Append the writer's *About the author* text as back matter.
+        public var aboutAuthor: Bool?
+        /// `None` takes the preset's default: off for manuscript, on for book.
+        public var backMatter: Bool?
+        /// Prefix each note with "Comment:".
+        public var commentLabel: Bool?
+        public var commentNumbering: Numbering?
+        public var comments: CommentsMode?
+        public var frontMatter: Bool?
+        public var notePlacement: NotePlacement?
+        /// `None`: off for footnotes, on for endnotes, where the note is far from
+        /// its passage.
+        public var quotePassage: Bool?
+        public var scope: Scope?
+        /// `None` takes the format's own default: on for EPUB, whose navigation
+        /// document is required, and off elsewhere.
+        public var toc: Bool?
+
+        public init(
+            aboutAuthor: Bool? = nil,
+            backMatter: Bool? = nil,
+            commentLabel: Bool? = nil,
+            commentNumbering: Numbering? = nil,
+            comments: CommentsMode? = nil,
+            frontMatter: Bool? = nil,
+            notePlacement: NotePlacement? = nil,
+            quotePassage: Bool? = nil,
+            scope: Scope? = nil,
+            toc: Bool? = nil
+        ) {
+            self.aboutAuthor = aboutAuthor
+            self.backMatter = backMatter
+            self.commentLabel = commentLabel
+            self.commentNumbering = commentNumbering
+            self.comments = comments
+            self.frontMatter = frontMatter
+            self.notePlacement = notePlacement
+            self.quotePassage = quotePassage
+            self.scope = scope
+            self.toc = toc
         }
     }
 
@@ -841,6 +922,20 @@ public enum API {
             self.sceneId = sceneId
             self.title = title
             self.wordCount = wordCount
+        }
+    }
+
+    public struct ContributorBody: Codable, Hashable, Sendable {
+        public var name: String
+        /// `editor`, `translator`, `illustrator` or `co-author`.
+        public var role: String
+
+        public init(
+            name: String,
+            role: String
+        ) {
+            self.name = name
+            self.role = role
         }
     }
 
@@ -1299,6 +1394,21 @@ public enum API {
         }
     }
 
+    public struct EpubOptions: Codable, Hashable, Sendable {
+        /// Also a cover page in the spine, not just the cover image.
+        public var coverPage: Bool?
+        /// One XHTML file per chapter (the default) or the whole book in one.
+        public var splitChapters: Bool?
+
+        public init(
+            coverPage: Bool? = nil,
+            splitChapters: Bool? = nil
+        ) {
+            self.coverPage = coverPage
+            self.splitChapters = splitChapters
+        }
+    }
+
     public struct ErrorBody: Codable, Hashable, Sendable {
         /// `bad_request`, `unauthorized`, `two_factor_required`, `forbidden`,
         /// `not_found`, `conflict`, `too_many_requests`, `internal`.
@@ -1331,6 +1441,43 @@ public enum API {
             error: ErrorBody
         ) {
             self.error = error
+        }
+    }
+
+    public struct ExportOptions: Codable, Hashable, Sendable {
+        public var content: ContentOptions?
+        public var epub: EpubOptions?
+        /// `{title}`, `{short_title}`, `{author}`, `{date}`, `{version}`,
+        /// `{format}`. Unset is the title.
+        public var filenameTemplate: String?
+        public var format: Format?
+        public var html: HtmlOptions?
+        public var metadata: MetadataOverrides?
+        public var pdf: PdfOptions?
+        /// The profile these options came from, for the export history.
+        public var profile: String?
+        public var style: StyleOptions?
+
+        public init(
+            content: ContentOptions? = nil,
+            epub: EpubOptions? = nil,
+            filenameTemplate: String? = nil,
+            format: Format? = nil,
+            html: HtmlOptions? = nil,
+            metadata: MetadataOverrides? = nil,
+            pdf: PdfOptions? = nil,
+            profile: String? = nil,
+            style: StyleOptions? = nil
+        ) {
+            self.content = content
+            self.epub = epub
+            self.filenameTemplate = filenameTemplate
+            self.format = format
+            self.html = html
+            self.metadata = metadata
+            self.pdf = pdf
+            self.profile = profile
+            self.style = style
         }
     }
 
@@ -1377,6 +1524,14 @@ public enum API {
         }
     }
 
+    public enum Format: String, Codable, CaseIterable, Hashable, Sendable {
+        case docx = "docx"
+        case pdf = "pdf"
+        case epub = "epub"
+        case html = "html"
+        case txt = "txt"
+    }
+
     public enum Genre: String, Codable, CaseIterable, Hashable, Sendable {
         case literary = "literary"
         case fantasy = "fantasy"
@@ -1388,6 +1543,12 @@ public enum API {
         case historical = "historical"
         case young_adult = "young_adult"
         case other = "other"
+    }
+
+    public enum HeadingStyle: String, Codable, CaseIterable, Hashable, Sendable {
+        case plain = "plain"
+        case smallCaps = "smallCaps"
+        case centred = "centred"
     }
 
     public struct HealthResponse: Codable, Hashable, Sendable {
@@ -1403,6 +1564,64 @@ public enum API {
             self.service = service
             self.status = status
             self.version = version
+        }
+    }
+
+    public struct HistoryItem: Codable, Hashable, Sendable {
+        public var byteSize: Int
+        /// Whether the file can be made again: it came from a frozen version, and
+        /// did not depend on comments, which can change.
+        public var canDownload: Bool
+        public var createdAt: String
+        public var filename: String
+        public var format: String
+        public var id: String
+        public var options: ExportOptions
+        public var optionsHash: String
+        public var profile: String?
+        public var versionId: String?
+        public var versionLabel: String?
+
+        public init(
+            byteSize: Int,
+            canDownload: Bool,
+            createdAt: String,
+            filename: String,
+            format: String,
+            id: String,
+            options: ExportOptions,
+            optionsHash: String,
+            profile: String? = nil,
+            versionId: String? = nil,
+            versionLabel: String? = nil
+        ) {
+            self.byteSize = byteSize
+            self.canDownload = canDownload
+            self.createdAt = createdAt
+            self.filename = filename
+            self.format = format
+            self.id = id
+            self.options = options
+            self.optionsHash = optionsHash
+            self.profile = profile
+            self.versionId = versionId
+            self.versionLabel = versionLabel
+        }
+    }
+
+    public enum HtmlMode: String, Codable, CaseIterable, Hashable, Sendable {
+        case styled = "styled"
+        case clean = "clean"
+        case package = "package"
+    }
+
+    public struct HtmlOptions: Codable, Hashable, Sendable {
+        public var mode: HtmlMode?
+
+        public init(
+            mode: HtmlMode? = nil
+        ) {
+            self.mode = mode
         }
     }
 
@@ -1453,11 +1672,73 @@ public enum API {
         }
     }
 
+    /// A thing worth knowing before the file goes out. `code` is stable: the web
+    /// app keys on it, so a message can be reworded without breaking anything.
+    public struct Issue: Codable, Hashable, Sendable {
+        public var code: String
+        public var location: Location?
+        /// Says what to do next, not just what went wrong.
+        public var message: String
+        public var severity: Severity
+
+        public init(
+            code: String,
+            location: Location? = nil,
+            message: String,
+            severity: Severity
+        ) {
+            self.code = code
+            self.location = location
+            self.message = message
+            self.severity = severity
+        }
+    }
+
+    public struct LastUsed: Codable, Hashable, Sendable {
+        public var format: String
+        public var notes: [String]
+        public var options: ExportOptions
+        public var usedAt: String
+
+        public init(
+            format: String,
+            notes: [String],
+            options: ExportOptions,
+            usedAt: String
+        ) {
+            self.format = format
+            self.notes = notes
+            self.options = options
+            self.usedAt = usedAt
+        }
+    }
+
+    public struct LastUsedResponse: Codable, Hashable, Sendable {
+        /// The latest of each format, which the dialog opens with.
+        public var byFormat: [LastUsed]
+        public var latest: LastUsed?
+
+        public init(
+            byFormat: [LastUsed],
+            latest: LastUsed? = nil
+        ) {
+            self.byFormat = byFormat
+            self.latest = latest
+        }
+    }
+
     public enum LengthBand: String, Codable, CaseIterable, Hashable, Sendable {
         case short = "short"
         case novelette = "novelette"
         case novella = "novella"
         case novel = "novel"
+    }
+
+    public enum LineSpacing: String, Codable, CaseIterable, Hashable, Sendable {
+        case single = "single"
+        case 1.15 = "1.15"
+        case 1.5 = "1.5"
+        case double = "double"
     }
 
     public struct LinkRequest: Codable, Hashable, Sendable {
@@ -1478,6 +1759,19 @@ public enum API {
             ticket: String
         ) {
             self.ticket = ticket
+        }
+    }
+
+    public struct Location: Codable, Hashable, Sendable {
+        public var chapterId: String
+        public var sceneId: String?
+
+        public init(
+            chapterId: String,
+            sceneId: String? = nil
+        ) {
+            self.chapterId = chapterId
+            self.sceneId = sceneId
         }
     }
 
@@ -1526,6 +1820,89 @@ public enum API {
             self.baseHash = baseHash
             self.with = with
             self.withBaseHash = withBaseHash
+        }
+    }
+
+    /// Export-time replacements for the work's own metadata. They apply to this
+    /// export only: a pen name for an EPUB, while the project keeps the writer's.
+    public struct MetadataOverrides: Codable, Hashable, Sendable {
+        public var author: String?
+        public var description: String?
+        public var identifier: String?
+        public var language: String?
+        public var published: String?
+        public var publisher: String?
+        public var subtitle: String?
+        public var title: String?
+
+        public init(
+            author: String? = nil,
+            description: String? = nil,
+            identifier: String? = nil,
+            language: String? = nil,
+            published: String? = nil,
+            publisher: String? = nil,
+            subtitle: String? = nil,
+            title: String? = nil
+        ) {
+            self.author = author
+            self.description = description
+            self.identifier = identifier
+            self.language = language
+            self.published = published
+            self.publisher = publisher
+            self.subtitle = subtitle
+            self.title = title
+        }
+    }
+
+    public struct MetadataResponse: Codable, Hashable, Sendable {
+        public var contributors: [ContributorBody]
+        public var coverBytes: Int?
+        public var coverHeight: Int?
+        /// Set when the cover is smaller than e-readers like.
+        public var coverWarning: String?
+        public var coverWidth: Int?
+        public var description: String?
+        public var hasCover: Bool
+        public var identifier: String?
+        public var keywords: [String]
+        public var language: String?
+        public var published: String?
+        public var publisher: String?
+        public var textDirection: String?
+        public var updatedAt: String?
+
+        public init(
+            contributors: [ContributorBody],
+            coverBytes: Int? = nil,
+            coverHeight: Int? = nil,
+            coverWarning: String? = nil,
+            coverWidth: Int? = nil,
+            description: String? = nil,
+            hasCover: Bool,
+            identifier: String? = nil,
+            keywords: [String],
+            language: String? = nil,
+            published: String? = nil,
+            publisher: String? = nil,
+            textDirection: String? = nil,
+            updatedAt: String? = nil
+        ) {
+            self.contributors = contributors
+            self.coverBytes = coverBytes
+            self.coverHeight = coverHeight
+            self.coverWarning = coverWarning
+            self.coverWidth = coverWidth
+            self.description = description
+            self.hasCover = hasCover
+            self.identifier = identifier
+            self.keywords = keywords
+            self.language = language
+            self.published = published
+            self.publisher = publisher
+            self.textDirection = textDirection
+            self.updatedAt = updatedAt
         }
     }
 
@@ -1590,6 +1967,11 @@ public enum API {
         }
     }
 
+    public enum NotePlacement: String, Codable, CaseIterable, Hashable, Sendable {
+        case chapter = "chapter"
+        case book = "book"
+    }
+
     /// What became of the text a note was attached to.
     public enum NoteStatus: String, Codable, CaseIterable, Hashable, Sendable {
         case untouched = "untouched"
@@ -1641,6 +2023,11 @@ public enum API {
         case note = "note"
     }
 
+    public enum Numbering: String, Codable, CaseIterable, Hashable, Sendable {
+        case continuous = "continuous"
+        case chapter = "chapter"
+    }
+
     public enum Op: String, Codable, CaseIterable, Hashable, Sendable {
         case equal = "equal"
         case insert = "insert"
@@ -1651,6 +2038,9 @@ public enum API {
         public var createdAt: String
         public var id: String
         public var position: Int
+        /// `chapter`, `front` or `back`. Front and back matter are not numbered and
+        /// are included or left out of an export on their own.
+        public var role: String
         public var summary: String?
         public var title: String
         public var updatedAt: String
@@ -1661,6 +2051,7 @@ public enum API {
             createdAt: String,
             id: String,
             position: Int,
+            role: String,
             summary: String? = nil,
             title: String,
             updatedAt: String,
@@ -1670,6 +2061,7 @@ public enum API {
             self.createdAt = createdAt
             self.id = id
             self.position = position
+            self.role = role
             self.summary = summary
             self.title = title
             self.updatedAt = updatedAt
@@ -1763,6 +2155,45 @@ public enum API {
         }
     }
 
+    public enum PageSize: String, Codable, CaseIterable, Hashable, Sendable {
+        case letter = "letter"
+        case a4 = "a4"
+        case trade5x8 = "trade5x8"
+        case trade5_5x8_5 = "trade5_5x8_5"
+        case trade6x9 = "trade6x9"
+    }
+
+    /// Page setup for PDF. Book-layout PDF reads these; manuscript PDF is fixed.
+    public struct PdfOptions: Codable, Hashable, Sendable {
+        public var chaptersOnRight: Bool?
+        public var landscape: Bool?
+        /// Inches; `None` is 1.
+        public var marginIn: Double?
+        /// Page numbers on the pages of the book (not on chapter openings).
+        public var pageNumbers: Bool?
+        public var pageSize: PageSize?
+        public var romanFrontMatter: Bool?
+        public var startPage: Int?
+
+        public init(
+            chaptersOnRight: Bool? = nil,
+            landscape: Bool? = nil,
+            marginIn: Double? = nil,
+            pageNumbers: Bool? = nil,
+            pageSize: PageSize? = nil,
+            romanFrontMatter: Bool? = nil,
+            startPage: Int? = nil
+        ) {
+            self.chaptersOnRight = chaptersOnRight
+            self.landscape = landscape
+            self.marginIn = marginIn
+            self.pageNumbers = pageNumbers
+            self.pageSize = pageSize
+            self.romanFrontMatter = romanFrontMatter
+            self.startPage = startPage
+        }
+    }
+
     public struct Percentiles: Codable, Hashable, Sendable {
         public var max: Double
         public var p50: Double
@@ -1779,6 +2210,28 @@ public enum API {
             self.p50 = p50
             self.p95 = p95
             self.p99 = p99
+        }
+    }
+
+    public struct PreflightReport: Codable, Hashable, Sendable {
+        /// The name the download will have, so the dialog can show it as the
+        /// template is typed.
+        public var filename: String
+        public var issues: [Issue]
+        /// False when any issue is an error. Warnings never block.
+        public var ok: Bool
+        public var summary: Summary
+
+        public init(
+            filename: String,
+            issues: [Issue],
+            ok: Bool,
+            summary: Summary
+        ) {
+            self.filename = filename
+            self.issues = issues
+            self.ok = ok
+            self.summary = summary
         }
     }
 
@@ -1820,6 +2273,50 @@ public enum API {
             self.reviews = reviews
             self.standing = standing
             self.viewerFollows = viewerFollows
+        }
+    }
+
+    public struct ProfileView: Codable, Hashable, Sendable {
+        public var builtin: Bool
+        public var description: String?
+        /// `builtin:…` for the ones that ship with the app.
+        public var id: String
+        public var name: String
+        /// What had to change to make a saved profile work today: a font that was
+        /// withdrawn, a setting that was renamed.
+        public var notes: [String]
+        public var options: ExportOptions
+        public var updatedAt: String?
+
+        public init(
+            builtin: Bool,
+            description: String? = nil,
+            id: String,
+            name: String,
+            notes: [String],
+            options: ExportOptions,
+            updatedAt: String? = nil
+        ) {
+            self.builtin = builtin
+            self.description = description
+            self.id = id
+            self.name = name
+            self.notes = notes
+            self.options = options
+            self.updatedAt = updatedAt
+        }
+    }
+
+    public struct ProfilesResponse: Codable, Hashable, Sendable {
+        public var builtin: [ProfileView]
+        public var custom: [ProfileView]
+
+        public init(
+            builtin: [ProfileView],
+            custom: [ProfileView]
+        ) {
+            self.builtin = builtin
+            self.custom = custom
         }
     }
 
@@ -2518,6 +3015,19 @@ public enum API {
         }
     }
 
+    public struct SaveProfileRequest: Codable, Hashable, Sendable {
+        public var name: String
+        public var options: ExportOptions
+
+        public init(
+            name: String,
+            options: ExportOptions
+        ) {
+            self.name = name
+            self.options = options
+        }
+    }
+
     public struct SaveResult: Codable, Hashable, Sendable {
         public var revisionId: String?
         public var scene: Scene
@@ -2738,6 +3248,34 @@ public enum API {
         }
     }
 
+    /// Which chapters and scenes go in.
+    /// 
+    /// A flat object rather than a tagged union, so every client can model it
+    /// without one: `kind` says whether the ids count.
+    public struct Scope: Codable, Hashable, Sendable {
+        /// A chapter id selects the chapter and every scene in it.
+        public var chapterIds: [String]?
+        public var kind: ScopeKind?
+        /// A scene id on its own selects just that scene (under its chapter's
+        /// title).
+        public var sceneIds: [String]?
+
+        public init(
+            chapterIds: [String]? = nil,
+            kind: ScopeKind? = nil,
+            sceneIds: [String]? = nil
+        ) {
+            self.chapterIds = chapterIds
+            self.kind = kind
+            self.sceneIds = sceneIds
+        }
+    }
+
+    public enum ScopeKind: String, Codable, CaseIterable, Hashable, Sendable {
+        case all = "all"
+        case selected = "selected"
+    }
+
     public struct Session: Codable, Hashable, Sendable {
         public var createdAt: String
         public var id: String
@@ -2817,6 +3355,12 @@ public enum API {
             self.userId = userId
             self.current = current
         }
+    }
+
+    public enum Severity: String, Codable, CaseIterable, Hashable, Sendable {
+        case error = "error"
+        case warning = "warning"
+        case info = "info"
     }
 
     public struct ShareLink: Codable, Hashable, Sendable {
@@ -3010,6 +3554,78 @@ public enum API {
             self.uptimeSeconds = uptimeSeconds
             self.version = version
             self.writePath = writePath
+        }
+    }
+
+    /// Typography. A preset plus overrides on top of it; `None` means the preset's
+    /// own value. The manuscript preset ignores every override: fixing them is the
+    /// point of the format.
+    public struct StyleOptions: Codable, Hashable, Sendable {
+        public var align: Align?
+        public var dropCaps: Bool?
+        /// A key from [`FONTS`].
+        public var font: String?
+        public var headingStyle: HeadingStyle?
+        public var hyphenate: Bool?
+        public var lineSpacing: LineSpacing?
+        /// First-line indent, in ems.
+        public var paragraphIndentEm: Double?
+        /// Space between paragraphs, in ems.
+        public var paragraphSpacingEm: Double?
+        public var preset: StylePreset?
+        /// `⁂`, `* * *`, `#`, an empty string for a blank line, or custom text.
+        public var sceneBreak: String?
+        public var sizePt: Double?
+
+        public init(
+            align: Align? = nil,
+            dropCaps: Bool? = nil,
+            font: String? = nil,
+            headingStyle: HeadingStyle? = nil,
+            hyphenate: Bool? = nil,
+            lineSpacing: LineSpacing? = nil,
+            paragraphIndentEm: Double? = nil,
+            paragraphSpacingEm: Double? = nil,
+            preset: StylePreset? = nil,
+            sceneBreak: String? = nil,
+            sizePt: Double? = nil
+        ) {
+            self.align = align
+            self.dropCaps = dropCaps
+            self.font = font
+            self.headingStyle = headingStyle
+            self.hyphenate = hyphenate
+            self.lineSpacing = lineSpacing
+            self.paragraphIndentEm = paragraphIndentEm
+            self.paragraphSpacingEm = paragraphSpacingEm
+            self.preset = preset
+            self.sceneBreak = sceneBreak
+            self.sizePt = sizePt
+        }
+    }
+
+    public enum StylePreset: String, Codable, CaseIterable, Hashable, Sendable {
+        case manuscript = "manuscript"
+        case book = "book"
+    }
+
+    /// What is going out, in numbers.
+    public struct Summary: Codable, Hashable, Sendable {
+        public var chapters: Int
+        public var comments: Int
+        public var scenes: Int
+        public var words: Int
+
+        public init(
+            chapters: Int,
+            comments: Int,
+            scenes: Int,
+            words: Int
+        ) {
+            self.chapters = chapters
+            self.comments = comments
+            self.scenes = scenes
+            self.words = words
         }
     }
 
@@ -3352,13 +3968,18 @@ public enum API {
     }
 
     public struct UpdateChapterRequest: Codable, Hashable, Sendable {
+        /// `chapter`, `front` (preface, foreword) or `back` (acknowledgments,
+        /// afterword, appendix). Front and back matter are not numbered.
+        public var role: String?
         public var summary: String?
         public var title: String?
 
         public init(
+            role: String? = nil,
             summary: String? = nil,
             title: String? = nil
         ) {
+            self.role = role
             self.summary = summary
             self.title = title
         }
@@ -3432,15 +4053,57 @@ public enum API {
         }
     }
 
+    /// Each field is sent only when it changes; an empty string (or list) clears
+    /// it, which is what a writer emptying the field in the UI means.
+    public struct UpdateMetadataRequest: Codable, Hashable, Sendable {
+        public var contributors: [ContributorBody]?
+        public var description: String?
+        /// An ISBN or any other identifier. Optional; never required.
+        public var identifier: String?
+        public var keywords: [String]?
+        /// A BCP 47 tag: `en`, `fr-CA`, `he`.
+        public var language: String?
+        /// `YYYY`, `YYYY-MM` or `YYYY-MM-DD`.
+        public var published: String?
+        public var publisher: String?
+        /// `ltr` or `rtl`. Empty follows the language.
+        public var textDirection: String?
+
+        public init(
+            contributors: [ContributorBody]? = nil,
+            description: String? = nil,
+            identifier: String? = nil,
+            keywords: [String]? = nil,
+            language: String? = nil,
+            published: String? = nil,
+            publisher: String? = nil,
+            textDirection: String? = nil
+        ) {
+            self.contributors = contributors
+            self.description = description
+            self.identifier = identifier
+            self.keywords = keywords
+            self.language = language
+            self.published = published
+            self.publisher = publisher
+            self.textDirection = textDirection
+        }
+    }
+
     public struct UpdateProfileRequest: Codable, Hashable, Sendable {
+        /// A paragraph about the writer, offered as back matter in any book's
+        /// export. An empty string clears it.
+        public var aboutAuthor: String?
         /// An empty string clears it.
         public var bio: String?
         public var displayName: String?
 
         public init(
+            aboutAuthor: String? = nil,
             bio: String? = nil,
             displayName: String? = nil
         ) {
+            self.aboutAuthor = aboutAuthor
             self.bio = bio
             self.displayName = displayName
         }
@@ -3600,6 +4263,8 @@ public enum API {
     }
 
     public struct User: Codable, Hashable, Sendable {
+        /// A paragraph about the writer, reusable as back matter in any book.
+        public var aboutAuthor: String?
         public var bio: String?
         public var createdAt: String
         /// The writer's daily target in words, when they have set one.
@@ -3628,6 +4293,7 @@ public enum API {
         public var weeklyWordGoal: Int?
 
         public init(
+            aboutAuthor: String? = nil,
             bio: String? = nil,
             createdAt: String,
             dailyWordGoal: Int? = nil,
@@ -3645,6 +4311,7 @@ public enum API {
             updatedAt: String,
             weeklyWordGoal: Int? = nil
         ) {
+            self.aboutAuthor = aboutAuthor
             self.bio = bio
             self.createdAt = createdAt
             self.dailyWordGoal = dailyWordGoal
@@ -3836,6 +4503,8 @@ public enum API {
     public struct VersionEntry: Codable, Hashable, Sendable {
         public var chapterId: String
         public var chapterPosition: Int
+        /// The chapter's role when the snapshot was taken.
+        public var chapterRole: String
         public var chapterTitle: String
         public var contentHash: String
         public var id: String
@@ -3848,6 +4517,7 @@ public enum API {
         public init(
             chapterId: String,
             chapterPosition: Int,
+            chapterRole: String,
             chapterTitle: String,
             contentHash: String,
             id: String,
@@ -3859,6 +4529,7 @@ public enum API {
         ) {
             self.chapterId = chapterId
             self.chapterPosition = chapterPosition
+            self.chapterRole = chapterRole
             self.chapterTitle = chapterTitle
             self.contentHash = contentHash
             self.id = id

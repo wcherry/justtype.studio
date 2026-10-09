@@ -15,11 +15,17 @@ export const sceneName = (title: string, number: number) => title.trim() || `Sce
 
 /** The outline with every untitled chapter and scene named, for showing — never for saving. */
 export function withPlaceholderNames(outline: Outline): Outline {
+  // Front and back matter are not numbered, and do not take a number from the
+  // chapters around them: "Chapter 4" is the fourth chapter.
+  let numbered = 0
   return {
     ...outline,
-    chapters: outline.chapters.map((chapter, c) => ({
+    chapters: outline.chapters.map((chapter) => ({
       ...chapter,
-      title: chapterName(chapter.title, c + 1),
+      title:
+        chapter.role === 'chapter'
+          ? chapterName(chapter.title, ++numbered)
+          : chapter.title.trim() || (chapter.role === 'front' ? 'Front matter' : 'Back matter'),
       scenes: chapter.scenes.map((scene, s) => ({ ...scene, title: sceneName(scene.title, s + 1) })),
     })),
   }

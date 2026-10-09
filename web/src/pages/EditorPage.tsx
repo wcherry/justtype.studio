@@ -5,7 +5,7 @@ import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
 import Placeholder from '@tiptap/extension-placeholder'
 
-import { api } from '../api/client'
+import { api, exporting } from '../api/client'
 import type { Outline as OutlineType, Scene, SceneWithContent, VersionSummary } from '../api/types'
 import { ActivityPanel } from '../components/ActivityPanel'
 import { ChangesPanel } from '../components/ChangesPanel'
@@ -14,6 +14,7 @@ import { FindPanel } from '../components/FindPanel'
 import { SummaryPanel } from '../components/SummaryPanel'
 import { ConflictBanner } from '../components/ConflictBanner'
 import { Corkboard } from '../components/Corkboard'
+import { BookDetails } from '../components/BookDetails'
 import { FrontMatter } from '../components/FrontMatter'
 import { GoalBar } from '../components/GoalBar'
 import { Outline } from '../components/Outline'
@@ -26,6 +27,7 @@ import { Menu } from '../components/Menu'
 import type { MenuItem } from '../components/Menu'
 import { AboutDialog } from '../components/AboutDialog'
 import { ExportDialog } from '../components/ExportDialog'
+import { ExportHistory } from '../components/ExportHistory'
 import { ImportDialog } from '../components/ImportDialog'
 import { GoalsPanel } from '../components/GoalsPanel'
 import { MarksPanel } from '../components/MarksPanel'
@@ -83,6 +85,7 @@ type Panel =
   | 'marks'
   | 'goals'
   | 'export'
+  | 'exports'
 
 /** The panels used most while writing get a button of their own as well. */
 const TOOLBAR_PANELS: { panel: Panel; icon: IconName; label: string }[] = [
@@ -663,6 +666,15 @@ export function EditorPage() {
               panelItem('front', 'Front matter', { divider: true }),
               panelItem('versions', 'Versions'),
               panelItem('export', 'Export…'),
+              {
+                key: 'export-again',
+                label: 'Export again',
+                hint: 'with the last settings',
+                onSelect: () => {
+                  void exporting.again(workId).catch((e) => setError(e instanceof Error ? e.message : 'Could not export'))
+                },
+              },
+              panelItem('exports', 'Export history…'),
             ]
           : []),
       ],
@@ -753,6 +765,10 @@ export function EditorPage() {
     },
     onRenameChapter: async (chapterId, title) => {
       await api.chapters.update(chapterId, { title })
+      void loadOutline()
+    },
+    onSetRole: async (chapterId, role) => {
+      await api.chapters.update(chapterId, { role })
       void loadOutline()
     },
     canWrite: can.canWrite,
@@ -1100,6 +1116,7 @@ export function EditorPage() {
               setOutline((current) => (current ? { ...current, ...work } : current))
             }
           />
+          <BookDetails workId={workId} />
         </SidePanel>
       )}
 
@@ -1145,7 +1162,18 @@ export function EditorPage() {
         </SidePanel>
       )}
 
-      {panel === 'export' && can.isOwner && <ExportDialog workId={workId} onClose={closePanel} />}
+      {panel === 'export' && can.isOwner && (
+        <ExportDialog
+          workId={workId}
+          onClose={closePanel}
+          onGoTo={({ chapterId, sceneId }) => {
+            const chapter = outline?.chapters.find((c) => c.id === chapterId)
+            const target = chapter?.scenes.find((s) => s.id === sceneId) ?? chapter?.scenes[0]
+            if (target) void openScene(target)
+          }}
+        />
+      )}
+      {panel === 'exports' && can.isOwner && <ExportHistory workId={workId} onClose={closePanel} />}
 
       {importing && (
         <ImportDialog

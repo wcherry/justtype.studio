@@ -1192,7 +1192,7 @@ print('  and an empty selection is an error there too')"
 # The writer's own comment, as a footnote — and as nothing by default.
 curl -s -X POST "$API/works/$WID/annotations" -H "$AUTH" -H 'content-type: application/json' \
   -d "{\"sceneId\":\"$SCENE\",\"kind\":\"comment\",\"from\":1,\"to\":18,\"quote\":\"The field went on\",\"note\":\"Show, do not tell\"}" >/dev/null
-code=$(export_post "$TMP/notes.docx" '{"format":"docx","style":{"preset":"book"},"content":{"comments":{"mode":"footnotes"}}}')
+code=$(export_post "$TMP/notes.docx" '{"format":"docx","style":{"preset":"book"},"content":{"comments":"footnotes"}}')
 [ "$code" = "200" ] || { echo "  footnote export: HTTP $code"; exit 1; }
 python3 - "$TMP/notes.docx" "$TMP/o1.docx" <<'PY'
 import sys, zipfile
@@ -1203,10 +1203,10 @@ plain = zipfile.ZipFile(sys.argv[2])
 assert 'word/footnotes.xml' not in plain.namelist(), 'comments are off by default'
 print('  a comment exports as a real Word footnote, and not at all unless asked')
 PY
-code=$(export_post "$TMP/notes.html" '{"format":"html","content":{"comments":{"mode":"footnotes"}}}')
+code=$(export_post "$TMP/notes.html" '{"format":"html","content":{"comments":"footnotes"}}')
 grep -q 'id="fnrefc' "$TMP/notes.html" && grep -q "Show, do not tell" "$TMP/notes.html" \
   && echo "  and in HTML, with links to the note and back" || { echo "  HTML footnotes missing ($code)"; exit 1; }
-code=$(export_post "$TMP/pdfnotes.pdf" '{"format":"pdf","content":{"comments":{"mode":"footnotes"}}}')
+code=$(export_post "$TMP/pdfnotes.pdf" '{"format":"pdf","content":{"comments":"footnotes"}}')
 [ "$code" = "200" ] && grep -aq "Show, do not tell" "$TMP/pdfnotes.pdf" && echo "  and in PDF, as notes at the end of the chapter" || { echo "  PDF notes missing"; exit 1; }
 # Details and a cover.
 [ "$(code -X PATCH "$API/works/$WID/metadata" -H "$AUTH" -H 'content-type: application/json' -d '{"language":"english"}')" = "400" ] \
@@ -1274,11 +1274,11 @@ curl -s "$API/export/profiles" -H "$AUTH" | python3 -c "
 import sys,json;d=json.load(sys.stdin);assert len(d['builtin'])==6 and d['custom']==[], d
 print('  six built-in profiles:', ', '.join(p['name'] for p in d['builtin']))"
 PROFILE=$(curl -s -X POST "$API/export/profiles" -H "$AUTH" -H 'content-type: application/json' \
-  -d "{\"name\":\"For my editor\",\"options\":{\"format\":\"docx\",\"style\":{\"preset\":\"book\"},\"content\":{\"comments\":{\"mode\":\"footnotes\"},\"scope\":{\"kind\":\"selected\",\"chapterIds\":[\"$CH0\"],\"sceneIds\":[]}},\"metadata\":{\"title\":\"Not saved\"}}}")
+  -d "{\"name\":\"For my editor\",\"options\":{\"format\":\"docx\",\"style\":{\"preset\":\"book\"},\"content\":{\"comments\":\"footnotes\",\"scope\":{\"kind\":\"selected\",\"chapterIds\":[\"$CH0\"],\"sceneIds\":[]}},\"metadata\":{\"title\":\"Not saved\"}}}")
 PID_P=$(echo "$PROFILE" | field id)
 echo "$PROFILE" | python3 -c "
 import sys,json;d=json.load(sys.stdin);o=d['options']
-assert o['content']['scope']['kind']=='all' and o['metadata']['title'] is None and o['content']['comments']['mode']=='footnotes', o
+assert o['content']['scope']['kind']=='all' and o['metadata']['title'] is None and o['content']['comments']=='footnotes', o
 print('  a saved profile keeps the presentation and leaves the selection and overrides behind')"
 [ "$(code -X DELETE "$API/export/profiles/builtin:epub" -H "$AUTH")" = "400" ] \
   && echo "  built-in profiles cannot be deleted" || { echo "  EXPECTED 400"; exit 1; }

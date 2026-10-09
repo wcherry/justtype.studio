@@ -55,21 +55,40 @@ impl Format {
     }
 }
 
-/// Which chapters and scenes go in.
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize, utoipa::ToSchema)]
-#[serde(rename_all = "camelCase", tag = "kind")]
-pub enum Scope {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum ScopeKind {
     #[default]
     All,
-    /// A chapter id selects the chapter and every scene in it; a scene id on
-    /// its own selects just that scene (and its chapter's title).
-    #[serde(rename_all = "camelCase")]
-    Selected {
-        #[serde(default)]
-        chapter_ids: Vec<String>,
-        #[serde(default)]
-        scene_ids: Vec<String>,
-    },
+    Selected,
+}
+
+/// Which chapters and scenes go in.
+///
+/// A flat object rather than a tagged union, so every client can model it
+/// without one: `kind` says whether the ids count.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase", default, deny_unknown_fields)]
+pub struct Scope {
+    pub kind: ScopeKind,
+    /// A chapter id selects the chapter and every scene in it.
+    pub chapter_ids: Vec<String>,
+    /// A scene id on its own selects just that scene (under its chapter's
+    /// title).
+    pub scene_ids: Vec<String>,
+}
+
+impl Scope {
+    pub fn selected(chapter_ids: Vec<String>, scene_ids: Vec<String>) -> Self {
+        Self {
+            kind: ScopeKind::Selected,
+            chapter_ids,
+            scene_ids,
+        }
+    }
+    pub fn is_selection(&self) -> bool {
+        self.kind == ScopeKind::Selected
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, utoipa::ToSchema)]
@@ -90,16 +109,12 @@ pub enum NotePlacement {
 
 /// What to do with the writer's own comments.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, utoipa::ToSchema)]
-#[serde(rename_all = "camelCase", tag = "mode")]
+#[serde(rename_all = "lowercase")]
 pub enum CommentsMode {
     #[default]
     Off,
     Footnotes,
-    #[serde(rename_all = "camelCase")]
-    Endnotes {
-        #[serde(default)]
-        placement: NotePlacement,
-    },
+    Endnotes,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
@@ -113,6 +128,8 @@ pub struct ContentOptions {
     /// `None` takes the preset's default: off for manuscript, on for book.
     pub back_matter: Option<bool>,
     pub comments: CommentsMode,
+    /// For endnotes: at the end of each chapter, or of the book.
+    pub note_placement: NotePlacement,
     pub comment_numbering: Numbering,
     /// `None`: off for footnotes, on for endnotes, where the note is far from
     /// its passage.
@@ -126,11 +143,12 @@ pub struct ContentOptions {
 impl Default for ContentOptions {
     fn default() -> Self {
         Self {
-            scope: Scope::All,
+            scope: Scope::default(),
             front_matter: true,
             toc: None,
             back_matter: None,
             comments: CommentsMode::Off,
+            note_placement: NotePlacement::Chapter,
             comment_numbering: Numbering::Continuous,
             quote_passage: None,
             comment_label: false,
@@ -580,7 +598,7 @@ impl ExportOptions {
     /// selection and the metadata overrides stay behind.
     pub fn as_profile(&self) -> Self {
         let mut profile = self.clone();
-        profile.content.scope = Scope::All;
+        profile.content.scope = Scope::default();
         profile.metadata = MetadataOverrides::default();
         profile.profile = None;
         profile
@@ -625,17 +643,9 @@ impl ExportOptions {
                 return Err("filenameTemplate is limited to 200 characters".into());
             }
         }
-        if let Scope::Selected {
-            chapter_ids,
-            scene_ids,
-        } = &self.content.scope
-        {
-            if chapter_ids.len() + scene_ids.len() > 5_000 {
-                return Err("content.scope selects too many items".into());
-            }
-        }
-        if self.content.comments != CommentsMode::Off && self.format == Format::Epub {
-            // Supported; kept as a hook for combinations that are not.
+        let scope = &self.content.scope;
+        if scope.chapter_ids.len() + scope.scene_ids.len() > 5_000 {
+            return Err("content.scope selects too many items".into());
         }
         if let Some(pdf) = &self.pdf {
             if let Some(margin) = pdf.margin_in {
@@ -664,7 +674,7 @@ impl ExportOptions {
     pub fn quote_passage(&self) -> bool {
         self.content
             .quote_passage
-            .unwrap_or(matches!(self.content.comments, CommentsMode::Endnotes { .. }))
+            .unwrap_or(self.content.comments == CommentsMode::Endnotes)
     }
 
     pub fn epub(&self) -> EpubOptions {
@@ -688,7 +698,7 @@ mod tests {
         assert_eq!(options.format, Format::Docx);
         assert_eq!(options.style_kind(), Style::Manuscript);
         assert!(options.content.front_matter);
-        assert_eq!(options.content.scope, Scope::All);
+        assert_eq!(options.content.scope, Scope::default());
         assert!(options.validate().is_ok());
     }
 
@@ -790,17 +800,14 @@ mod tests {
             "format": "html",
             "content": {
                 "scope": {"kind": "selected", "chapterIds": ["a"], "sceneIds": []},
-                "comments": {"mode": "endnotes", "placement": "book"}
+                "comments": "endnotes",
+                "notePlacement": "book"
             }
         }))
         .unwrap();
-        assert!(matches!(options.content.scope, Scope::Selected { .. }));
-        assert_eq!(
-            options.content.comments,
-            CommentsMode::Endnotes {
-                placement: NotePlacement::Book
-            }
-        );
+        assert!(options.content.scope.is_selection());
+        assert_eq!(options.content.comments, CommentsMode::Endnotes);
+        assert_eq!(options.content.note_placement, NotePlacement::Book);
         assert!(options.quote_passage());
     }
 }

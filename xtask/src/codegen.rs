@@ -57,8 +57,10 @@ fn split_nullable(schema: &Value) -> (Value, bool) {
         let is_null = |v: &Value| v.get("type").and_then(Value::as_str) == Some("null");
         let nullable = variants.iter().any(is_null);
         let rest: Vec<&Value> = variants.iter().filter(|v| !is_null(v)).collect();
-        if nullable && rest.len() == 1 {
-            return (rest[0].clone(), true);
+        // A single variant is that variant: a struct field with a serde
+        // default comes out as `oneOf: [{$ref}]` beside its default value.
+        if rest.len() == 1 {
+            return (rest[0].clone(), nullable);
         }
     }
     match schema.get("type") {

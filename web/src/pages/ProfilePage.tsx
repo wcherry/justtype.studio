@@ -122,9 +122,10 @@ export function ProfilePage() {
 }
 
 function ProfileForm({ profile, onSaved }: { profile: Profile; onSaved: () => void }) {
-  const { updateUser } = useAuth()
+  const { user, updateUser } = useAuth()
   const [displayName, setDisplayName] = useState(profile.displayName)
   const [bio, setBio] = useState(profile.bio ?? '')
+  const [about, setAbout] = useState(user?.aboutAuthor ?? '')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -136,7 +137,7 @@ function ProfileForm({ profile, onSaved }: { profile: Profile; onSaved: () => vo
         setBusy(true)
         setError(null)
         try {
-          updateUser(await api.profiles.update({ displayName, bio }))
+          updateUser(await api.profiles.update({ displayName, bio, aboutAuthor: about }))
           onSaved()
         } catch (e) {
           setError(e instanceof Error ? e.message : 'Could not save that')
@@ -158,6 +159,19 @@ function ProfileForm({ profile, onSaved }: { profile: Profile; onSaved: () => vo
           onChange={(e) => setBio(e.target.value)}
           placeholder="What you write, and what you like to read."
         />
+      </label>
+      <label>
+        About the author
+        <textarea
+          rows={5}
+          value={about}
+          maxLength={3000}
+          onChange={(e) => setAbout(e.target.value)}
+          placeholder="A paragraph for the back of your books."
+        />
+        <span className="field__hint">
+          Private to you. You can add it as back matter when you export any book.
+        </span>
       </label>
       {error && <p className="error">{error}</p>}
       <button type="submit" disabled={busy || !displayName.trim()}>Save</button>

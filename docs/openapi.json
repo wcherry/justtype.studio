@@ -96,6 +96,13 @@
         ],
         "type": "object"
       },
+      "Align": {
+        "enum": [
+          "left",
+          "justify"
+        ],
+        "type": "string"
+      },
       "Anchor": {
         "properties": {
           "from": {
@@ -554,6 +561,25 @@
         ],
         "type": "object"
       },
+      "BundleRequest": {
+        "properties": {
+          "formats": {
+            "description": "Any subset of `docx`, `pdf`, `epub`, `html`, `txt`.",
+            "items": {
+              "$ref": "#/components/schemas/Format"
+            },
+            "type": "array"
+          },
+          "options": {
+            "$ref": "#/components/schemas/ExportOptions",
+            "description": "Settings shared by every file; the per-format blocks (`pdf`, `epub`,\n`html`) apply to their own format only."
+          }
+        },
+        "required": [
+          "formats"
+        ],
+        "type": "object"
+      },
       "ChangeKind": {
         "enum": [
           "insert",
@@ -598,6 +624,10 @@
             "format": "int32",
             "type": "integer"
           },
+          "role": {
+            "description": "`chapter`, `front` or `back`. Front and back matter are not numbered and\nare included or left out of an export on their own.",
+            "type": "string"
+          },
           "summary": {
             "type": [
               "string",
@@ -620,7 +650,8 @@
           "title",
           "position",
           "createdAt",
-          "updatedAt"
+          "updatedAt",
+          "role"
         ],
         "type": "object"
       },
@@ -928,6 +959,15 @@
           }
         ]
       },
+      "CommentsMode": {
+        "description": "What to do with the writer's own comments.",
+        "enum": [
+          "off",
+          "footnotes",
+          "endnotes"
+        ],
+        "type": "string"
+      },
       "ContentChapter": {
         "properties": {
           "chapterId": {
@@ -936,6 +976,10 @@
           "position": {
             "format": "int32",
             "type": "integer"
+          },
+          "role": {
+            "description": "`chapter`, `front` or `back`, as frozen.",
+            "type": "string"
           },
           "scenes": {
             "items": {
@@ -951,8 +995,90 @@
           "chapterId",
           "title",
           "position",
+          "role",
           "scenes"
         ],
+        "type": "object"
+      },
+      "ContentOptions": {
+        "additionalProperties": false,
+        "properties": {
+          "aboutAuthor": {
+            "default": false,
+            "description": "Append the writer's *About the author* text as back matter.",
+            "type": "boolean"
+          },
+          "backMatter": {
+            "default": null,
+            "description": "`None` takes the preset's default: off for manuscript, on for book.",
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "commentLabel": {
+            "default": false,
+            "description": "Prefix each note with \"Comment:\".",
+            "type": "boolean"
+          },
+          "commentNumbering": {
+            "default": "continuous",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Numbering"
+              }
+            ]
+          },
+          "comments": {
+            "default": "off",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CommentsMode"
+              }
+            ]
+          },
+          "frontMatter": {
+            "default": true,
+            "type": "boolean"
+          },
+          "notePlacement": {
+            "default": "chapter",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/NotePlacement",
+                "description": "For endnotes: at the end of each chapter, or of the book."
+              }
+            ]
+          },
+          "quotePassage": {
+            "default": null,
+            "description": "`None`: off for footnotes, on for endnotes, where the note is far from\nits passage.",
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "scope": {
+            "default": {
+              "chapterIds": [],
+              "kind": "all",
+              "sceneIds": []
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Scope"
+              }
+            ]
+          },
+          "toc": {
+            "default": null,
+            "description": "`None` takes the format's own default: on for EPUB, whose navigation\ndocument is required, and off elsewhere.",
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        },
         "type": "object"
       },
       "ContentScene": {
@@ -981,6 +1107,22 @@
           "position",
           "wordCount",
           "content"
+        ],
+        "type": "object"
+      },
+      "ContributorBody": {
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "role": {
+            "description": "`editor`, `translator`, `illustrator` or `co-author`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "role"
         ],
         "type": "object"
       },
@@ -1603,6 +1745,22 @@
           }
         ]
       },
+      "EpubOptions": {
+        "additionalProperties": false,
+        "properties": {
+          "coverPage": {
+            "default": true,
+            "description": "Also a cover page in the spine, not just the cover image.",
+            "type": "boolean"
+          },
+          "splitChapters": {
+            "default": true,
+            "description": "One XHTML file per chapter (the default) or the whole book in one.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
       "ErrorBody": {
         "properties": {
           "code": {
@@ -1639,6 +1797,129 @@
         "required": [
           "error"
         ],
+        "type": "object"
+      },
+      "ExportOptions": {
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "default": {
+              "aboutAuthor": false,
+              "backMatter": null,
+              "commentLabel": false,
+              "commentNumbering": "continuous",
+              "comments": "off",
+              "frontMatter": true,
+              "notePlacement": "chapter",
+              "quotePassage": null,
+              "scope": {
+                "chapterIds": [],
+                "kind": "all",
+                "sceneIds": []
+              },
+              "toc": null
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ContentOptions"
+              }
+            ]
+          },
+          "epub": {
+            "default": null,
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/EpubOptions"
+              }
+            ]
+          },
+          "filenameTemplate": {
+            "default": null,
+            "description": "`{title}`, `{short_title}`, `{author}`, `{date}`, `{version}`,\n`{format}`. Unset is the title.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "format": {
+            "default": "docx",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Format"
+              }
+            ]
+          },
+          "html": {
+            "default": null,
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/HtmlOptions"
+              }
+            ]
+          },
+          "metadata": {
+            "default": {
+              "author": null,
+              "description": null,
+              "identifier": null,
+              "language": null,
+              "published": null,
+              "publisher": null,
+              "subtitle": null,
+              "title": null
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MetadataOverrides"
+              }
+            ]
+          },
+          "pdf": {
+            "default": null,
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PdfOptions"
+              }
+            ]
+          },
+          "profile": {
+            "default": null,
+            "description": "The profile these options came from, for the export history.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "style": {
+            "default": {
+              "align": null,
+              "dropCaps": null,
+              "font": null,
+              "headingStyle": null,
+              "hyphenate": null,
+              "lineSpacing": null,
+              "paragraphIndentEm": null,
+              "paragraphSpacingEm": null,
+              "preset": "manuscript",
+              "sceneBreak": null,
+              "sizePt": null
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/StyleOptions"
+              }
+            ]
+          }
+        },
         "type": "object"
       },
       "Features": {
@@ -1694,6 +1975,16 @@
         ],
         "type": "object"
       },
+      "Format": {
+        "enum": [
+          "docx",
+          "pdf",
+          "epub",
+          "html",
+          "txt"
+        ],
+        "type": "string"
+      },
       "Genre": {
         "enum": [
           "literary",
@@ -1706,6 +1997,14 @@
           "historical",
           "young_adult",
           "other"
+        ],
+        "type": "string"
+      },
+      "HeadingStyle": {
+        "enum": [
+          "plain",
+          "smallCaps",
+          "centred"
         ],
         "type": "string"
       },
@@ -1726,6 +2025,87 @@
           "service",
           "version"
         ],
+        "type": "object"
+      },
+      "HistoryItem": {
+        "properties": {
+          "byteSize": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "canDownload": {
+            "description": "Whether the file can be made again: it came from a frozen version, and\ndid not depend on comments, which can change.",
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "filename": {
+            "type": "string"
+          },
+          "format": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "options": {
+            "$ref": "#/components/schemas/ExportOptions"
+          },
+          "optionsHash": {
+            "type": "string"
+          },
+          "profile": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "versionId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "versionLabel": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "createdAt",
+          "format",
+          "optionsHash",
+          "filename",
+          "byteSize",
+          "canDownload",
+          "options"
+        ],
+        "type": "object"
+      },
+      "HtmlMode": {
+        "enum": [
+          "styled",
+          "clean",
+          "package"
+        ],
+        "type": "string"
+      },
+      "HtmlOptions": {
+        "additionalProperties": false,
+        "properties": {
+          "mode": {
+            "default": "styled",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/HtmlMode"
+              }
+            ]
+          }
+        },
         "type": "object"
       },
       "InviteRequest": {
@@ -1766,12 +2146,104 @@
           }
         ]
       },
+      "Issue": {
+        "description": "A thing worth knowing before the file goes out. `code` is stable: the web\napp keys on it, so a message can be reworded without breaking anything.",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "location": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Location"
+              }
+            ]
+          },
+          "message": {
+            "description": "Says what to do next, not just what went wrong.",
+            "type": "string"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/Severity"
+          }
+        },
+        "required": [
+          "severity",
+          "code",
+          "message"
+        ],
+        "type": "object"
+      },
+      "LastUsed": {
+        "properties": {
+          "format": {
+            "type": "string"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "options": {
+            "$ref": "#/components/schemas/ExportOptions"
+          },
+          "usedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "format",
+          "options",
+          "usedAt",
+          "notes"
+        ],
+        "type": "object"
+      },
+      "LastUsedResponse": {
+        "properties": {
+          "byFormat": {
+            "description": "The latest of each format, which the dialog opens with.",
+            "items": {
+              "$ref": "#/components/schemas/LastUsed"
+            },
+            "type": "array"
+          },
+          "latest": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/LastUsed",
+                "description": "The most recent export of any format, which \"Export again\" repeats."
+              }
+            ]
+          }
+        },
+        "required": [
+          "byFormat"
+        ],
+        "type": "object"
+      },
       "LengthBand": {
         "enum": [
           "short",
           "novelette",
           "novella",
           "novel"
+        ],
+        "type": "string"
+      },
+      "LineSpacing": {
+        "enum": [
+          "single",
+          "1.15",
+          "1.5",
+          "double"
         ],
         "type": "string"
       },
@@ -1795,6 +2267,23 @@
         },
         "required": [
           "ticket"
+        ],
+        "type": "object"
+      },
+      "Location": {
+        "properties": {
+          "chapterId": {
+            "type": "string"
+          },
+          "sceneId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "chapterId"
         ],
         "type": "object"
       },
@@ -1851,6 +2340,164 @@
           "with",
           "baseHash",
           "withBaseHash"
+        ],
+        "type": "object"
+      },
+      "MetadataOverrides": {
+        "additionalProperties": false,
+        "description": "Export-time replacements for the work's own metadata. They apply to this\nexport only: a pen name for an EPUB, while the project keeps the writer's.",
+        "properties": {
+          "author": {
+            "default": null,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "description": {
+            "default": null,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "identifier": {
+            "default": null,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "language": {
+            "default": null,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "published": {
+            "default": null,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "publisher": {
+            "default": null,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "subtitle": {
+            "default": null,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "default": null,
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "MetadataResponse": {
+        "properties": {
+          "contributors": {
+            "items": {
+              "$ref": "#/components/schemas/ContributorBody"
+            },
+            "type": "array"
+          },
+          "coverBytes": {
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "coverHeight": {
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "coverWarning": {
+            "description": "Set when the cover is smaller than e-readers like.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "coverWidth": {
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "hasCover": {
+            "type": "boolean"
+          },
+          "identifier": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "keywords": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "language": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "published": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "publisher": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "textDirection": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updatedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "keywords",
+          "contributors",
+          "hasCover"
         ],
         "type": "object"
       },
@@ -1942,6 +2589,13 @@
         ],
         "type": "object"
       },
+      "NotePlacement": {
+        "enum": [
+          "chapter",
+          "book"
+        ],
+        "type": "string"
+      },
       "NoteStatus": {
         "description": "What became of the text a note was attached to.",
         "enum": [
@@ -2012,6 +2666,13 @@
         ],
         "type": "string"
       },
+      "Numbering": {
+        "enum": [
+          "continuous",
+          "chapter"
+        ],
+        "type": "string"
+      },
       "Op": {
         "enum": [
           "equal",
@@ -2073,6 +2734,72 @@
           }
         ]
       },
+      "PageSize": {
+        "enum": [
+          "letter",
+          "a4",
+          "trade5x8",
+          "trade5_5x8_5",
+          "trade6x9"
+        ],
+        "type": "string"
+      },
+      "PdfOptions": {
+        "additionalProperties": false,
+        "description": "Page setup for PDF. Book-layout PDF reads these; manuscript PDF is fixed.",
+        "properties": {
+          "chaptersOnRight": {
+            "default": false,
+            "type": "boolean"
+          },
+          "landscape": {
+            "default": false,
+            "type": "boolean"
+          },
+          "marginIn": {
+            "default": null,
+            "description": "Inches; `None` is 1.",
+            "format": "float",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "pageNumbers": {
+            "default": null,
+            "description": "Page numbers on the pages of the book (not on chapter openings).",
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "pageSize": {
+            "default": null,
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PageSize"
+              }
+            ]
+          },
+          "romanFrontMatter": {
+            "default": false,
+            "type": "boolean"
+          },
+          "startPage": {
+            "default": null,
+            "format": "int32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
       "Percentiles": {
         "properties": {
           "max": {
@@ -2097,6 +2824,34 @@
           "p95",
           "p99",
           "max"
+        ],
+        "type": "object"
+      },
+      "PreflightReport": {
+        "properties": {
+          "filename": {
+            "description": "The name the download will have, so the dialog can show it as the\ntemplate is typed.",
+            "type": "string"
+          },
+          "issues": {
+            "items": {
+              "$ref": "#/components/schemas/Issue"
+            },
+            "type": "array"
+          },
+          "ok": {
+            "description": "False when any issue is an error. Warnings never block.",
+            "type": "boolean"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/Summary"
+          }
+        },
+        "required": [
+          "summary",
+          "issues",
+          "ok",
+          "filename"
         ],
         "type": "object"
       },
@@ -2157,6 +2912,71 @@
           "standing",
           "publications",
           "reviews"
+        ],
+        "type": "object"
+      },
+      "ProfileView": {
+        "properties": {
+          "builtin": {
+            "type": "boolean"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "description": "`builtin:…` for the ones that ship with the app.",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "notes": {
+            "description": "What had to change to make a saved profile work today: a font that was\nwithdrawn, a setting that was renamed.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "options": {
+            "$ref": "#/components/schemas/ExportOptions"
+          },
+          "updatedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "builtin",
+          "options",
+          "notes"
+        ],
+        "type": "object"
+      },
+      "ProfilesResponse": {
+        "properties": {
+          "builtin": {
+            "items": {
+              "$ref": "#/components/schemas/ProfileView"
+            },
+            "type": "array"
+          },
+          "custom": {
+            "items": {
+              "$ref": "#/components/schemas/ProfileView"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "builtin",
+          "custom"
         ],
         "type": "object"
       },
@@ -2944,6 +3764,21 @@
           }
         ]
       },
+      "SaveProfileRequest": {
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "options": {
+            "$ref": "#/components/schemas/ExportOptions"
+          }
+        },
+        "required": [
+          "name",
+          "options"
+        ],
+        "type": "object"
+      },
       "SaveResult": {
         "properties": {
           "revisionId": {
@@ -3185,6 +4020,44 @@
           }
         ]
       },
+      "Scope": {
+        "additionalProperties": false,
+        "description": "Which chapters and scenes go in.\n\nA flat object rather than a tagged union, so every client can model it\nwithout one: `kind` says whether the ids count.",
+        "properties": {
+          "chapterIds": {
+            "default": [],
+            "description": "A chapter id selects the chapter and every scene in it.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "kind": {
+            "default": "all",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ScopeKind"
+              }
+            ]
+          },
+          "sceneIds": {
+            "default": [],
+            "description": "A scene id on its own selects just that scene (under its chapter's\ntitle).",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "ScopeKind": {
+        "enum": [
+          "all",
+          "selected"
+        ],
+        "type": "string"
+      },
       "Session": {
         "properties": {
           "createdAt": {
@@ -3269,6 +4142,14 @@
             "type": "object"
           }
         ]
+      },
+      "Severity": {
+        "enum": [
+          "error",
+          "warning",
+          "info"
+        ],
+        "type": "string"
       },
       "ShareLink": {
         "properties": {
@@ -3512,6 +4393,145 @@
           "uptimeSeconds",
           "checks",
           "writePath"
+        ],
+        "type": "object"
+      },
+      "StyleOptions": {
+        "additionalProperties": false,
+        "description": "Typography. A preset plus overrides on top of it; `None` means the preset's\nown value. The manuscript preset ignores every override: fixing them is the\npoint of the format.",
+        "properties": {
+          "align": {
+            "default": null,
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Align"
+              }
+            ]
+          },
+          "dropCaps": {
+            "default": null,
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "font": {
+            "default": null,
+            "description": "A key from [`FONTS`].",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "headingStyle": {
+            "default": null,
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/HeadingStyle"
+              }
+            ]
+          },
+          "hyphenate": {
+            "default": null,
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "lineSpacing": {
+            "default": null,
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/LineSpacing"
+              }
+            ]
+          },
+          "paragraphIndentEm": {
+            "default": null,
+            "description": "First-line indent, in ems.",
+            "format": "float",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "paragraphSpacingEm": {
+            "default": null,
+            "description": "Space between paragraphs, in ems.",
+            "format": "float",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "preset": {
+            "default": "manuscript",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/StylePreset"
+              }
+            ]
+          },
+          "sceneBreak": {
+            "default": null,
+            "description": "`⁂`, `* * *`, `#`, an empty string for a blank line, or custom text.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sizePt": {
+            "default": null,
+            "format": "float",
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "StylePreset": {
+        "enum": [
+          "manuscript",
+          "book"
+        ],
+        "type": "string"
+      },
+      "Summary": {
+        "description": "What is going out, in numbers.",
+        "properties": {
+          "chapters": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "comments": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "scenes": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "words": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "chapters",
+          "scenes",
+          "words",
+          "comments"
         ],
         "type": "object"
       },
@@ -3927,6 +4947,13 @@
       },
       "UpdateChapterRequest": {
         "properties": {
+          "role": {
+            "description": "`chapter`, `front` (preface, foreword) or `back` (acknowledgments,\nafterword, appendix). Front and back matter are not numbered.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "summary": {
             "type": [
               "string",
@@ -4046,8 +5073,79 @@
         },
         "type": "object"
       },
+      "UpdateMetadataRequest": {
+        "description": "Each field is sent only when it changes; an empty string (or list) clears\nit, which is what a writer emptying the field in the UI means.",
+        "properties": {
+          "contributors": {
+            "items": {
+              "$ref": "#/components/schemas/ContributorBody"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "identifier": {
+            "description": "An ISBN or any other identifier. Optional; never required.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "keywords": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "language": {
+            "description": "A BCP 47 tag: `en`, `fr-CA`, `he`.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "published": {
+            "description": "`YYYY`, `YYYY-MM` or `YYYY-MM-DD`.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "publisher": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "textDirection": {
+            "description": "`ltr` or `rtl`. Empty follows the language.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
       "UpdateProfileRequest": {
         "properties": {
+          "aboutAuthor": {
+            "description": "A paragraph about the writer, offered as back matter in any book's\nexport. An empty string clears it.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "bio": {
             "description": "An empty string clears it.",
             "type": [
@@ -4323,6 +5421,13 @@
       },
       "User": {
         "properties": {
+          "aboutAuthor": {
+            "description": "A paragraph about the writer, reusable as back matter in any book.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "bio": {
             "type": [
               "string",
@@ -4577,6 +5682,10 @@
             "format": "int32",
             "type": "integer"
           },
+          "chapterRole": {
+            "description": "The chapter's role when the snapshot was taken.",
+            "type": "string"
+          },
           "chapterTitle": {
             "type": "string"
           },
@@ -4614,7 +5723,8 @@
           "sceneTitle",
           "scenePosition",
           "contentHash",
-          "wordCount"
+          "wordCount",
+          "chapterRole"
         ],
         "type": "object"
       },
@@ -6198,6 +7308,155 @@
         "summary": "Votes surface the feedback other reviewers agree with. One vote per person\nper comment; sending the same value again clears it.",
         "tags": [
           "comments"
+        ]
+      }
+    },
+    "/api/export/profiles": {
+      "get": {
+        "operationId": "list_profiles",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfilesResponse"
+                }
+              }
+            },
+            "description": "Built-in and saved profiles"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "export"
+        ]
+      },
+      "post": {
+        "operationId": "create_profile",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveProfileRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileView"
+                }
+              }
+            },
+            "description": "Saved"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "export"
+        ]
+      }
+    },
+    "/api/export/profiles/{profile_id}": {
+      "delete": {
+        "operationId": "delete_profile",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "profile_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "export"
+        ]
+      },
+      "patch": {
+        "operationId": "update_profile",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "profile_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProfileRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileView"
+                }
+              }
+            },
+            "description": "Saved"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "export"
         ]
       }
     },
@@ -9628,6 +10887,205 @@
         "tags": [
           "versions"
         ]
+      },
+      "post": {
+        "operationId": "export_version_with",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportOptions"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {}
+            },
+            "description": "The manuscript as a file"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "versions"
+        ]
+      }
+    },
+    "/api/versions/{version_id}/export/bundle": {
+      "post": {
+        "operationId": "bundle_version",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BundleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/zip": {}
+            },
+            "description": "A zip of every format, with a manifest"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "export"
+        ]
+      }
+    },
+    "/api/versions/{version_id}/export/preflight": {
+      "post": {
+        "operationId": "preflight_version",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportOptions"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreflightReport"
+                }
+              }
+            },
+            "description": "What would go out, and what is wrong with it"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "versions"
+        ]
+      }
+    },
+    "/api/versions/{version_id}/export/preview": {
+      "post": {
+        "operationId": "preview_version",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "For a PDF preview: how many pages to lay out. Default 6.",
+            "in": "query",
+            "name": "pages",
+            "required": false,
+            "schema": {
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportOptions"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "text/html": {}
+            },
+            "description": "A page to look at"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "export"
+        ]
       }
     },
     "/api/versions/{version_id}/finalize": {
@@ -10646,6 +12104,134 @@
         ]
       }
     },
+    "/api/works/{work_id}/cover": {
+      "delete": {
+        "operationId": "delete_cover",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetadataResponse"
+                }
+              }
+            },
+            "description": "Removed"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "works"
+        ]
+      },
+      "get": {
+        "operationId": "get_cover",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "image/*": {}
+            },
+            "description": "The cover image"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "works"
+        ]
+      },
+      "put": {
+        "operationId": "put_cover",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "items": {
+                  "format": "int32",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "type": "array"
+              }
+            }
+          },
+          "description": "A JPEG or PNG image",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetadataResponse"
+                }
+              }
+            },
+            "description": "Saved"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "works"
+        ]
+      }
+    },
     "/api/works/{work_id}/export": {
       "get": {
         "operationId": "export_draft",
@@ -10679,6 +12265,368 @@
         },
         "tags": [
           "works"
+        ]
+      },
+      "post": {
+        "operationId": "export_draft_with",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportOptions"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {}
+            },
+            "description": "The working draft as a file"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "works"
+        ]
+      }
+    },
+    "/api/works/{work_id}/export/again": {
+      "post": {
+        "operationId": "export_again",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {}
+            },
+            "description": "The working draft, exported as it last was"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "export"
+        ]
+      }
+    },
+    "/api/works/{work_id}/export/bundle": {
+      "post": {
+        "operationId": "bundle_draft",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BundleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/zip": {}
+            },
+            "description": "A zip of every format, with a manifest"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "export"
+        ]
+      }
+    },
+    "/api/works/{work_id}/export/history": {
+      "get": {
+        "operationId": "history",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/HistoryItem"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "What was exported, newest first"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "export"
+        ]
+      }
+    },
+    "/api/works/{work_id}/export/history/{history_id}/download": {
+      "get": {
+        "operationId": "download_again",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "history_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {}
+            },
+            "description": "The file, made again from the frozen version"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "export"
+        ]
+      }
+    },
+    "/api/works/{work_id}/export/last": {
+      "get": {
+        "operationId": "last_used",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LastUsedResponse"
+                }
+              }
+            },
+            "description": "The settings last used"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "export"
+        ]
+      }
+    },
+    "/api/works/{work_id}/export/preflight": {
+      "post": {
+        "operationId": "preflight_draft",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportOptions"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreflightReport"
+                }
+              }
+            },
+            "description": "What would go out, and what is wrong with it"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "works"
+        ]
+      }
+    },
+    "/api/works/{work_id}/export/preview": {
+      "post": {
+        "operationId": "preview_draft",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "For a PDF preview: how many pages to lay out. Default 6.",
+            "in": "query",
+            "name": "pages",
+            "required": false,
+            "schema": {
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportOptions"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "text/html": {}
+            },
+            "description": "A page to look at"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "export"
         ]
       }
     },
@@ -10754,6 +12702,94 @@
           }
         },
         "summary": "A document becomes a new scene in a book that already exists.",
+        "tags": [
+          "works"
+        ]
+      }
+    },
+    "/api/works/{work_id}/metadata": {
+      "get": {
+        "operationId": "get_metadata",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetadataResponse"
+                }
+              }
+            },
+            "description": "The book's details"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "works"
+        ]
+      },
+      "patch": {
+        "operationId": "update_metadata",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMetadataRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetadataResponse"
+                }
+              }
+            },
+            "description": "Saved"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
         "tags": [
           "works"
         ]

@@ -115,18 +115,15 @@ pub fn select(chapters: Vec<SourceChapter>, options: &ExportOptions) -> Vec<Sour
             Role::Back => back,
             Role::Chapter => true,
         })
-        .filter_map(|mut chapter| match &options.content.scope {
-            Scope::All => Some(chapter),
-            Scope::Selected {
-                chapter_ids,
-                scene_ids,
-            } => {
-                if chapter_ids.contains(&chapter.id) {
-                    return Some(chapter);
-                }
-                chapter.scenes.retain(|scene| scene_ids.contains(&scene.id));
-                (!chapter.scenes.is_empty()).then_some(chapter)
+        .filter_map(|mut chapter| {
+            let scope = &options.content.scope;
+            if !scope.is_selection() || scope.chapter_ids.contains(&chapter.id) {
+                return Some(chapter);
             }
+            chapter
+                .scenes
+                .retain(|scene| scope.scene_ids.contains(&scene.id));
+            (!chapter.scenes.is_empty()).then_some(chapter)
         })
         .collect()
 }
@@ -454,9 +451,9 @@ pub fn build(
         });
     }
 
-    let note_layout = match options.content.comments {
-        CommentsMode::Off => NoteLayout::None,
-        CommentsMode::Footnotes if options.format == Format::Pdf => {
+    let note_layout = match (options.content.comments, options.content.note_placement) {
+        (CommentsMode::Off, _) => NoteLayout::None,
+        (CommentsMode::Footnotes, _) if options.format == Format::Pdf => {
             issues.push(Issue::new(
                 Severity::Info,
                 "pdf_footnotes_as_endnotes",
@@ -465,13 +462,9 @@ pub fn build(
             ));
             NoteLayout::EndnotesChapter
         }
-        CommentsMode::Footnotes => NoteLayout::Footnotes,
-        CommentsMode::Endnotes {
-            placement: NotePlacement::Chapter,
-        } => NoteLayout::EndnotesChapter,
-        CommentsMode::Endnotes {
-            placement: NotePlacement::Book,
-        } => NoteLayout::EndnotesBook,
+        (CommentsMode::Footnotes, _) => NoteLayout::Footnotes,
+        (CommentsMode::Endnotes, NotePlacement::Chapter) => NoteLayout::EndnotesChapter,
+        (CommentsMode::Endnotes, NotePlacement::Book) => NoteLayout::EndnotesBook,
     };
     if want_notes {
         issues.push(Issue::new(
@@ -524,10 +517,7 @@ mod tests {
             chapter("3", Role::Chapter, vec![("d", doc(&["w"]))]),
         ];
         let mut options = ExportOptions::default();
-        options.content.scope = Scope::Selected {
-            chapter_ids: vec!["3".into(), "1".into()],
-            scene_ids: vec!["c".into()],
-        };
+        options.content.scope = Scope::selected(vec!["3".into(), "1".into()], vec!["c".into()]);
         let picked = select(all, &options);
         let ids: Vec<&str> = picked.iter().map(|c| c.id.as_str()).collect();
         assert_eq!(ids, ["1", "2", "3"]);
@@ -539,10 +529,7 @@ mod tests {
     fn selecting_nothing_selects_nothing() {
         let all = vec![chapter("1", Role::Chapter, vec![("a", doc(&["x"]))])];
         let mut options = ExportOptions::default();
-        options.content.scope = Scope::Selected {
-            chapter_ids: vec![],
-            scene_ids: vec![],
-        };
+        options.content.scope = Scope::selected(vec![], vec![]);
         assert!(select(all, &options).is_empty());
     }
 
@@ -739,7 +726,8 @@ mod tests {
     fn endnotes_quote_the_passage_by_default() {
         let all = vec![chapter("1", Role::Chapter, vec![("a", doc(&["Hello big world."]))])];
         let c = [comment("a", 7, 10, "big", "n")];
-        let o = notes_options(CommentsMode::Endnotes { placement: NotePlacement::Book });
+        let mut o = notes_options(CommentsMode::Endnotes);
+        o.content.note_placement = NotePlacement::Book;
         let built = build(all, &c, &o, true);
         assert_eq!(built.note_layout, NoteLayout::EndnotesBook);
         assert_eq!(built.chapters[0].notes[0].quote.as_deref(), Some("big"));

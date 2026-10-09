@@ -13,6 +13,8 @@ interface Props {
   onMoveScene: (chapterId: string, sceneIds: string[]) => void
   onRenameScene: (sceneId: string, title: string) => void
   onRenameChapter?: (chapterId: string, title: string) => void
+  /** Makes a chapter front matter, back matter, or a chapter again. */
+  onSetRole?: (chapterId: string, role: 'chapter' | 'front' | 'back') => void
   /** Whether this chapter's scenes may be added, moved or renamed. */
   canWrite?: (chapterId: string) => boolean
   /** Whether chapters may be added. */
@@ -29,7 +31,7 @@ const STATUS_DOT: Record<Scene['status'], string> = {
 }
 
 export function Outline({
-  outline, activeSceneId, onSelectScene, onAddChapter, onAddScene, onMoveScene, onRenameScene, onRenameChapter,
+  outline, activeSceneId, onSelectScene, onAddChapter, onAddScene, onMoveScene, onRenameScene, onRenameChapter, onSetRole,
   canWrite = () => true, canShape = true, className,
 }: Props) {
   /** The one name being edited in place, and what has been typed into it. */
@@ -71,6 +73,8 @@ export function Outline({
     onMoveScene(chapterId, next.map((s) => s.id))
   }
 
+  let numbered = 0
+
   return (
     <nav className={className ? `outline ${className}` : 'outline'}>
       <header className="outline__header">
@@ -80,8 +84,14 @@ export function Outline({
         </p>
       </header>
 
-      {outline.chapters.map((chapter, chapterIndex) => {
+      {outline.chapters.map((chapter) => {
         const writable = canWrite(chapter.id)
+        // Front and back matter are not numbered, and do not take a number
+        // from the chapters around them.
+        const shown =
+          chapter.role === 'chapter'
+            ? chapterName(chapter.title, ++numbered)
+            : chapter.title.trim() || (chapter.role === 'front' ? 'Front matter' : 'Back matter')
         return (
         <section
           key={chapter.id}
@@ -89,15 +99,33 @@ export function Outline({
         >
           <h3>
             {editing === chapter.id ? (
-              renameField(chapter.id, chapterName(chapter.title, chapterIndex + 1), chapter.title, (t) => onRenameChapter?.(chapter.id, t))
+              renameField(chapter.id, shown, chapter.title, (t) => onRenameChapter?.(chapter.id, t))
             ) : (
               <span
                 className={isUntitled(chapter.title) ? 'is-placeholder' : undefined}
                 title={writable && onRenameChapter ? 'Double-click to name it' : undefined}
-                onDoubleClick={() => writable && onRenameChapter && edit(chapter.id, chapterName(chapter.title, chapterIndex + 1))}
+                onDoubleClick={() => writable && onRenameChapter && edit(chapter.id, shown)}
               >
-                {chapterName(chapter.title, chapterIndex + 1)}
+                {shown}
               </span>
+            )}
+            {chapter.role !== 'chapter' && (
+              <span className="outline__badge" title="Not numbered; included in an export with the front or back matter">
+                {chapter.role === 'front' ? 'front matter' : 'back matter'}
+              </span>
+            )}
+            {writable && onSetRole && editing !== chapter.id && (
+              <select
+                className="outline__role"
+                aria-label={`Role of ${shown}`}
+                title="Chapter, front matter or back matter"
+                value={chapter.role}
+                onChange={(e) => onSetRole(chapter.id, e.target.value as 'chapter' | 'front' | 'back')}
+              >
+                <option value="chapter">Chapter</option>
+                <option value="front">Front matter</option>
+                <option value="back">Back matter</option>
+              </select>
             )}
             {!writable && <span className="outline__lock" title="You can read this chapter but not change it"> · read only</span>}
           </h3>
