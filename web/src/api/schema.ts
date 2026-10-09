@@ -63,7 +63,7 @@ export interface Annotation {
   workId: string
 }
 
-export type AnnotationKind = 'highlight' | 'bookmark'
+export type AnnotationKind = 'highlight' | 'bookmark' | 'comment'
 
 export interface AnswerRequest {
   body?: string | null

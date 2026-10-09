@@ -42,7 +42,7 @@ pub fn write(manuscript: &Manuscript) -> std::io::Result<Vec<u8>> {
     Ok(zip.finish()?.into_inner())
 }
 
-fn spans_to_html(spans: &[Span]) -> String {
+pub(super) fn spans_to_html(spans: &[Span]) -> String {
     spans
         .iter()
         .map(|span| {

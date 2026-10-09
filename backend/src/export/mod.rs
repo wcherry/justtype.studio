@@ -6,6 +6,7 @@
 
 pub mod docx;
 pub mod epub;
+pub mod html;
 pub mod pdf;
 pub mod text;
 

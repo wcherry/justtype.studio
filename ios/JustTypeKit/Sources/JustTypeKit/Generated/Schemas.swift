@@ -173,6 +173,7 @@ public enum API {
     public enum AnnotationKind: String, Codable, CaseIterable, Hashable, Sendable {
         case highlight = "highlight"
         case bookmark = "bookmark"
+        case comment = "comment"
     }
 
     public struct AnswerRequest: Codable, Hashable, Sendable {
