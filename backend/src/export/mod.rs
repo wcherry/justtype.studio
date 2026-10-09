@@ -14,6 +14,7 @@ pub mod pdf;
 pub mod pipeline;
 pub mod project;
 pub mod text;
+pub mod web;
 
 use serde_json::Value;
 
@@ -180,7 +181,41 @@ pub enum Style {
     Book,
 }
 
+impl Note {
+    /// The note as one line of plain text: label, the passage it was made on if
+    /// asked for, then what the writer wrote.
+    pub fn plain(&self, label: bool) -> String {
+        let mut out = String::new();
+        if label {
+            out.push_str("Comment: ");
+        }
+        if let Some(quote) = &self.quote {
+            out.push_str(&format!("“{}” — ", quote.trim()));
+        }
+        out.push_str(&self.text);
+        out
+    }
+}
+
 impl Manuscript {
+    /// Every note in the book, in order, for endnotes that gather at the end.
+    pub fn all_notes(&self) -> Vec<&Note> {
+        self.chapters.iter().flat_map(|c| c.notes.iter()).collect()
+    }
+
+    /// Whether the writer has filled in anything beyond title and byline. A
+    /// file made without any of it comes out as it always did.
+    pub fn has_details(&self) -> bool {
+        self.description.is_some()
+            || self.publisher.is_some()
+            || self.published.is_some()
+            || self.identifier.is_some()
+            || !self.keywords.is_empty()
+            || !self.contributors.is_empty()
+            || self.cover.is_some()
+            || (!self.language.is_empty() && self.language != "en")
+    }
+
     /// The language tag, `en` when none was set.
     pub fn lang(&self) -> &str {
         if self.language.is_empty() {

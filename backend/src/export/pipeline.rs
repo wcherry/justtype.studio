@@ -578,4 +578,188 @@ mod tests {
         assert_eq!(built.summary.words, 2);
         assert!(built.issues.iter().any(|i| i.code == "chapter_empty"));
     }
+
+    fn comment(scene: &str, from: i32, to: i32, quote: &str, note: &str) -> SourceComment {
+        SourceComment {
+            scene_id: scene.into(),
+            from,
+            to,
+            quote: quote.into(),
+            note: note.into(),
+        }
+    }
+
+    fn notes_options(comments: CommentsMode) -> ExportOptions {
+        let mut o = ExportOptions::default();
+        o.content.comments = comments;
+        o
+    }
+
+    fn text_with_marks(chapter: &ChapterContent) -> String {
+        chapter
+            .scenes
+            .iter()
+            .flat_map(|s| s.blocks.iter())
+            .filter_map(spans_of)
+            .map(|spans| {
+                spans
+                    .iter()
+                    .map(|s| match s.note {
+                        Some(n) => format!("[{n}]"),
+                        None => s.text.clone(),
+                    })
+                    .collect::<String>()
+            })
+            .collect::<Vec<_>>()
+            .join("|")
+    }
+
+    #[test]
+    fn a_comment_lands_at_the_end_of_its_passage() {
+        // "Hello big world." — the paragraph's text starts at position 1.
+        let d = doc(&["Hello big world."]);
+        let all = vec![chapter("1", Role::Chapter, vec![("a", d)])];
+        // "big" is characters 6..9, so positions 7..10.
+        let c = [comment("a", 7, 10, "big", "too vague")];
+        let built = build(all, &c, &notes_options(CommentsMode::Footnotes), true);
+        assert_eq!(text_with_marks(&built.chapters[0]), "Hello big[1] world.");
+        assert_eq!(built.chapters[0].notes[0].text, "too vague");
+        assert_eq!(built.chapters[0].notes[0].quote, None);
+        assert_eq!(built.note_layout, NoteLayout::Footnotes);
+    }
+
+    #[test]
+    fn positions_that_moved_are_found_again_by_their_quote() {
+        // Text was added before the passage, so the stored positions are stale.
+        let d = doc(&["Inserted. Hello big world."]);
+        let all = vec![chapter("1", Role::Chapter, vec![("a", d)])];
+        let c = [comment("a", 7, 10, "big", "n")];
+        let built = build(all, &c, &notes_options(CommentsMode::Footnotes), true);
+        assert_eq!(text_with_marks(&built.chapters[0]), "Inserted. Hello big[1] world.");
+        assert!(!built.issues.iter().any(|i| i.code == "comment_unplaced"));
+    }
+
+    #[test]
+    fn a_version_matches_by_quote_alone() {
+        let d = doc(&["One two. Three four."]);
+        let all = vec![chapter("1", Role::Chapter, vec![("a", d)])];
+        let c = [comment("a", 999, 1002, "Three", "n")];
+        let built = build(all, &c, &notes_options(CommentsMode::Footnotes), false);
+        assert_eq!(text_with_marks(&built.chapters[0]), "One two. Three[1] four.");
+    }
+
+    #[test]
+    fn a_quote_that_has_gone_is_kept_at_the_end_of_its_scene_and_reported() {
+        let d = doc(&["First.", "Second."]);
+        let all = vec![chapter("1", Role::Chapter, vec![("a", d)])];
+        let c = [comment("a", 3, 8, "vanished words", "n")];
+        let built = build(all, &c, &notes_options(CommentsMode::Footnotes), true);
+        assert_eq!(text_with_marks(&built.chapters[0]), "First.|Second.[1]");
+        // The passage is quoted in full, since it is not beside its text.
+        assert_eq!(built.chapters[0].notes[0].quote.as_deref(), Some("vanished words"));
+        let issue = built.issues.iter().find(|i| i.code == "comment_unplaced").unwrap();
+        assert_eq!(issue.severity, Severity::Warning);
+        assert_eq!(issue.location.as_ref().unwrap().scene_id.as_deref(), Some("a"));
+    }
+
+    #[test]
+    fn two_comments_on_the_same_passage_both_land_in_order() {
+        let d = doc(&["Hello big world."]);
+        let all = vec![chapter("1", Role::Chapter, vec![("a", d)])];
+        let c = [
+            comment("a", 7, 10, "big", "first"),
+            comment("a", 7, 10, "big", "second"),
+        ];
+        let built = build(all, &c, &notes_options(CommentsMode::Footnotes), true);
+        assert_eq!(text_with_marks(&built.chapters[0]), "Hello big[1][2] world.");
+        assert_eq!(built.chapters[0].notes[1].text, "second");
+    }
+
+    #[test]
+    fn a_mark_inside_a_word_goes_after_the_word() {
+        let d = doc(&["Wonderful days."]);
+        let all = vec![chapter("1", Role::Chapter, vec![("a", d)])];
+        // The comment covers "Wonder", ending mid-word.
+        let c = [comment("a", 1, 7, "Wonder", "n")];
+        let built = build(all, &c, &notes_options(CommentsMode::Footnotes), true);
+        assert_eq!(text_with_marks(&built.chapters[0]), "Wonderful[1] days.");
+    }
+
+    #[test]
+    fn a_comment_spanning_a_hard_break_is_placed() {
+        let d = json!({"type":"doc","content":[{"type":"paragraph","content":[
+            {"type":"text","text":"line one"},
+            {"type":"hardBreak"},
+            {"type":"text","text":"line two"}
+        ]}]});
+        let all = vec![chapter("1", Role::Chapter, vec![("a", d)])];
+        // "one\nline" is 8 characters from position 6 (a hard break is 1).
+        let c = [comment("a", 6, 15, "one\nline", "n")];
+        let built = build(all, &c, &notes_options(CommentsMode::Footnotes), true);
+        assert_eq!(text_with_marks(&built.chapters[0]), "line one\nline[1] two");
+    }
+
+    #[test]
+    fn numbering_restarts_each_chapter_when_asked() {
+        let ch = |id: &str, scene: &str| {
+            chapter(id, Role::Chapter, vec![(scene, doc(&["Alpha beta."]))])
+        };
+        let c = [comment("a", 1, 6, "Alpha", "x"), comment("b", 1, 6, "Alpha", "y")];
+        let mut o = notes_options(CommentsMode::Footnotes);
+        let built = build(vec![ch("1", "a"), ch("2", "b")], &c, &o, true);
+        assert_eq!(built.chapters[1].notes[0].number, 2);
+        o.content.comment_numbering = Numbering::Chapter;
+        let built = build(vec![ch("1", "a"), ch("2", "b")], &c, &o, true);
+        assert_eq!(built.chapters[1].notes[0].number, 1);
+    }
+
+    #[test]
+    fn comments_off_leaves_the_text_untouched() {
+        let d = doc(&["Hello big world."]);
+        let all = vec![chapter("1", Role::Chapter, vec![("a", d)])];
+        let c = [comment("a", 7, 10, "big", "n")];
+        let built = build(all, &c, &ExportOptions::default(), true);
+        assert_eq!(text_with_marks(&built.chapters[0]), "Hello big world.");
+        assert!(built.chapters[0].notes.is_empty());
+        assert_eq!(built.note_layout, NoteLayout::None);
+    }
+
+    #[test]
+    fn pdf_footnotes_fall_back_to_chapter_endnotes_and_say_so() {
+        let all = vec![chapter("1", Role::Chapter, vec![("a", doc(&["Hello big world."]))])];
+        let c = [comment("a", 7, 10, "big", "n")];
+        let mut o = notes_options(CommentsMode::Footnotes);
+        o.format = Format::Pdf;
+        let built = build(all, &c, &o, true);
+        assert_eq!(built.note_layout, NoteLayout::EndnotesChapter);
+        assert!(built.issues.iter().any(|i| i.code == "pdf_footnotes_as_endnotes"));
+    }
+
+    #[test]
+    fn endnotes_quote_the_passage_by_default() {
+        let all = vec![chapter("1", Role::Chapter, vec![("a", doc(&["Hello big world."]))])];
+        let c = [comment("a", 7, 10, "big", "n")];
+        let o = notes_options(CommentsMode::Endnotes { placement: NotePlacement::Book });
+        let built = build(all, &c, &o, true);
+        assert_eq!(built.note_layout, NoteLayout::EndnotesBook);
+        assert_eq!(built.chapters[0].notes[0].quote.as_deref(), Some("big"));
+    }
+
+    #[test]
+    fn including_comments_is_always_flagged() {
+        let all = vec![chapter("1", Role::Chapter, vec![("a", doc(&["Hello."]))])];
+        let built = build(all, &[], &notes_options(CommentsMode::Footnotes), true);
+        assert!(built.issues.iter().any(|i| i.code == "comments_included"));
+    }
+
+    #[test]
+    fn utf16_positions_are_honoured_for_astral_characters() {
+        // The emoji is two UTF-16 units but one char.
+        let d = doc(&["😀 big end"]);
+        let all = vec![chapter("1", Role::Chapter, vec![("a", d)])];
+        // Positions: text starts at 1; emoji 1..3, space 3, "big" 4..7.
+        let c = [comment("a", 4, 7, "big", "n")];
+        let built = build(all, &c, &notes_options(CommentsMode::Footnotes), true);
+        assert_eq!(text_with_marks(&built.chapters[0]), "😀 big[1] end");
+    }
 }

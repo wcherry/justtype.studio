@@ -199,6 +199,24 @@ pub const FONTS: &[(&str, &str)] = &[
     ("courier", "Courier New"),
 ];
 
+/// The CSS `font-family` for a face by its display name, with a generic
+/// fallback so a reader without it still gets the right kind of type.
+pub fn font_stack(name: &str) -> String {
+    let generic = match name {
+        "Helvetica" | "Verdana" => "sans-serif",
+        "Courier New" => "monospace",
+        _ => "serif",
+    };
+    match name {
+        "Helvetica" => format!("Helvetica, Arial, {generic}"),
+        "Palatino Linotype" => format!("'Palatino Linotype', Palatino, {generic}"),
+        "Times New Roman" => format!("'Times New Roman', Times, {generic}"),
+        "Garamond" => format!("Garamond, 'EB Garamond', {generic}"),
+        "Courier New" => format!("'Courier New', Courier, {generic}"),
+        other => format!("{other}, {generic}"),
+    }
+}
+
 /// Typography. A preset plus overrides on top of it; `None` means the preset's
 /// own value. The manuscript preset ignores every override: fixing them is the
 /// point of the format.
