@@ -1398,3 +1398,4 @@ dialog.about form { margin-top: 16px; text-align: right; }
   flex: 1; min-width: 0; font: inherit; font-size: 14px; padding: 4px 6px; margin: 2px 4px;
   border: 1px solid var(--accent); border-radius: var(--radius); background: var(--surface); color: var(--ink);
 }
+dialog.about .about__version { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--ink-soft); }

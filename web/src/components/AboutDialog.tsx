@@ -9,6 +9,7 @@ export function AboutDialog({ onClose }: { onClose: () => void }) {
   const ref = useRef<HTMLDialogElement>(null)
   const [version, setVersion] = useState<string | null>(null)
   const [failed, setFailed] = useState(false)
+  const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     ref.current?.showModal()
@@ -25,7 +26,25 @@ export function AboutDialog({ onClose }: { onClose: () => void }) {
       onClick={(e) => e.target === ref.current && ref.current?.close()}
     >
       <h2 id="about-title">Just Type Studio</h2>
-      <p>{version ? `Version ${version}` : failed ? 'Version unavailable' : 'Version…'}</p>
+      <p className="about__version">
+        <span>{version ? `v${version}` : failed ? 'Version unavailable' : '…'}</span>
+        {version && (
+          <button
+            type="button"
+            className="linklike"
+            aria-label="Copy the version"
+            title="Copy the version"
+            onClick={() => {
+              void navigator.clipboard?.writeText(`v${version}`).then(() => {
+                setCopied(true)
+                setTimeout(() => setCopied(false), 1500)
+              })
+            }}
+          >
+            {copied ? 'Copied' : '⧉'}
+          </button>
+        )}
+      </p>
       <p className="field__hint">
         A writing tool for long-form fiction, and a review surface for the readers you choose.
       </p>
