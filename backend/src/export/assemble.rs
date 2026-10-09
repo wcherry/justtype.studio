@@ -6,7 +6,7 @@
 //! stage up to rendering and why each stage can be tested on its own.
 use serde::Serialize;
 
-use crate::db::models::{User, Work, WorkMetadata};
+use crate::db::models::{User, Version, Work, WorkMetadata};
 
 use super::options::{ExportOptions, Format, HtmlMode, StylePreset};
 use super::pipeline::{self, Issue, Severity, SourceChapter, SourceComment, Summary};
@@ -24,6 +24,8 @@ pub struct Resolved {
     /// A working draft's comment positions mean something; a version's do not.
     pub use_positions: bool,
     pub is_draft: bool,
+    /// The snapshot being exported, when it is one.
+    pub version: Option<Version>,
 }
 
 pub struct Prepared {
@@ -39,6 +41,9 @@ pub struct PreflightReport {
     pub issues: Vec<Issue>,
     /// False when any issue is an error. Warnings never block.
     pub ok: bool,
+    /// The name the download will have, so the dialog can show it as the
+    /// template is typed.
+    pub filename: String,
 }
 
 pub struct Rendered {
@@ -190,6 +195,11 @@ pub fn prepare(resolved: &Resolved, options: &ExportOptions) -> Prepared {
         toc: options.include_toc(),
         note_layout: built.note_layout,
         note_label: options.content.comment_label,
+        frozen_at: resolved
+            .version
+            .as_ref()
+            .map(|v| format!("{}Z", v.created_at.chars().take(19).collect::<String>())),
+        frozen_id: resolved.version.as_ref().map(|v| format!("{}:{}", v.id, options_fingerprint(options))),
     };
 
     Prepared {
@@ -322,10 +332,12 @@ pub fn preflight(resolved: &Resolved, options: &ExportOptions) -> PreflightRepor
     }
 
     let ok = !issues.iter().any(|i| i.severity == Severity::Error);
+    let filename = filename(options, resolved, &prepared.manuscript);
     PreflightReport {
         summary: prepared.summary,
         issues,
         ok,
+        filename,
     }
 }
 
@@ -405,4 +417,64 @@ pub fn scene_words(scene: &SceneContent) -> usize {
             super::Block::SceneBreak => 0,
         })
         .sum()
+}
+
+/// A short, stable hash of the options that shape the file, for deriving
+/// repeatable ids and for the export history.
+pub fn options_fingerprint(options: &ExportOptions) -> String {
+    use sha2::{Digest, Sha256};
+    let mut canonical = options.clone();
+    canonical.profile = None;
+    let json = serde_json::to_string(&canonical).unwrap_or_default();
+    hex::encode(&Sha256::digest(json.as_bytes())[..8])
+}
+
+/// Everything after the last path separator, minus anything a filesystem or a
+/// `Content-Disposition` header would rather not see.
+pub fn safe_filename(title: &str, extension: &str) -> String {
+    let mut stem = String::new();
+    for ch in title.chars() {
+        if ch.is_alphanumeric() {
+            stem.push(ch);
+        } else if !stem.ends_with('-') {
+            // Every run of punctuation or whitespace collapses to one
+            // separator, so a title with a colon in it does not come out full
+            // of `---`.
+            stem.push('-');
+        }
+    }
+    let stem = stem.trim_matches('-');
+    let stem = if stem.is_empty() { "manuscript" } else { stem };
+    format!("{stem}.{extension}")
+}
+
+/// The file extension a set of options produces: a packaged HTML site is a zip.
+pub fn extension_of(options: &ExportOptions) -> &'static str {
+    match (options.format, options.html().mode) {
+        (Format::Html, HtmlMode::Package) => "zip",
+        (format, _) => format.extension(),
+    }
+}
+
+/// The download's name: the filename template filled in, then made safe.
+pub fn filename(options: &ExportOptions, resolved: &Resolved, manuscript: &Manuscript) -> String {
+    let template = options.filename_template.as_deref().unwrap_or("{title}");
+    let date = chrono::Utc::now().format("%Y-%m-%d").to_string();
+    let version = resolved
+        .version
+        .as_ref()
+        .map(|v| v.label.clone())
+        .unwrap_or_else(|| "draft".into());
+    let stem = super::options::fill_template(
+        template,
+        &[
+            ("title", &manuscript.title),
+            ("short_title", &manuscript.short_title),
+            ("author", &manuscript.byline),
+            ("date", &date),
+            ("version", &version),
+            ("format", options.format.extension()),
+        ],
+    );
+    safe_filename(&stem, extension_of(options))
 }

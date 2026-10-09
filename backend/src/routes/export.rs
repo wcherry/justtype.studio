@@ -65,29 +65,12 @@ fn shorthand_for(query: &ExportQuery) -> ApiResult<ExportOptions> {
     shorthand(query)
 }
 
-fn checked(options: ExportOptions) -> ApiResult<ExportOptions> {
+pub(super) fn checked(options: ExportOptions) -> ApiResult<ExportOptions> {
     options.validate().map_err(ApiError::BadRequest)?;
     Ok(options)
 }
 
-/// Everything after the last path separator, minus anything a filesystem or a
-/// `Content-Disposition` header would rather not see.
-pub(super) fn safe_filename(title: &str, extension: &str) -> String {
-    let mut stem = String::new();
-    for ch in title.chars() {
-        if ch.is_alphanumeric() {
-            stem.push(ch);
-        } else if !stem.ends_with('-') {
-            // Every run of punctuation or whitespace collapses to one
-            // separator, so a title with a colon in it does not come out full
-            // of `---`.
-            stem.push('-');
-        }
-    }
-    let stem = stem.trim_matches('-');
-    let stem = if stem.is_empty() { "manuscript" } else { stem };
-    format!("{stem}.{extension}")
-}
+pub(super) use crate::export::assemble::safe_filename;
 
 /// The work's own details beyond the byline, and the writer's own comments.
 /// Comments are private to whoever wrote them, so the query is by the person
@@ -141,7 +124,7 @@ async fn load_cover(
 }
 
 /// Stage 0, for a frozen version: pull the text off disk.
-async fn resolve_version(
+pub(super) async fn resolve_version(
     state: &AppState,
     user: AuthUser,
     version_id: String,
@@ -187,11 +170,12 @@ async fn resolve_version(
         comments,
         use_positions: false,
         is_draft: false,
+        version: Some(content.version),
     })
 }
 
 /// Stage 0, for the working draft: read it scene by scene.
-async fn resolve_draft(state: &AppState, user: AuthUser, work_id: String) -> ApiResult<Resolved> {
+pub(super) async fn resolve_draft(state: &AppState, user: AuthUser, work_id: String) -> ApiResult<Resolved> {
     let (work, author, outline, meta, comments) = blocking(&state.pool, move |conn| {
         let work = support::work_for_owner(conn, &work_id, &user)?;
         let author: User = users::table
@@ -242,11 +226,20 @@ async fn resolve_draft(state: &AppState, user: AuthUser, work_id: String) -> Api
         comments,
         use_positions: true,
         is_draft: true,
+        version: None,
     })
 }
 
-/// Stages 1–4 for one request, as a download.
-fn deliver(resolved: &Resolved, options: &ExportOptions) -> ApiResult<axum::response::Response> {
+/// A finished file and what was found while making it.
+pub(super) struct BuiltFile {
+    pub bytes: Vec<u8>,
+    pub mime: &'static str,
+    pub filename: String,
+    pub issues: Vec<export::pipeline::Issue>,
+}
+
+/// Stages 1–4 for one request: refuse on errors, otherwise write the file.
+pub(super) fn build_file(resolved: &Resolved, options: &ExportOptions) -> ApiResult<BuiltFile> {
     let report = assemble::preflight(resolved, options);
     if let Some(error) = report
         .issues
@@ -256,23 +249,30 @@ fn deliver(resolved: &Resolved, options: &ExportOptions) -> ApiResult<axum::resp
         return Err(ApiError::BadRequest(error.message.clone()));
     }
     let prepared = assemble::prepare(resolved, options);
-    let Rendered {
+    let Rendered { bytes, mime, .. } =
+        assemble::render(&prepared.manuscript, options).map_err(|e| {
+            ApiError::internal(format!(
+                "export failed at the {} stage: {}",
+                e.stage, e.message
+            ))
+        })?;
+    Ok(BuiltFile {
         bytes,
         mime,
-        extension,
-    } = assemble::render(&prepared.manuscript, options).map_err(|e| {
-        ApiError::internal(format!("export failed at the {} stage: {}", e.stage, e.message))
-    })?;
+        filename: report.filename,
+        issues: report.issues,
+    })
+}
 
-    let filename = safe_filename(&prepared.manuscript.title, extension);
+pub(super) fn respond(file: BuiltFile) -> ApiResult<axum::response::Response> {
     let mut headers = HeaderMap::new();
-    headers.insert(header::CONTENT_TYPE, HeaderValue::from_static(mime));
+    headers.insert(header::CONTENT_TYPE, HeaderValue::from_static(file.mime));
     headers.insert(
         header::CONTENT_DISPOSITION,
-        HeaderValue::from_str(&format!("attachment; filename=\"{filename}\""))
+        HeaderValue::from_str(&format!("attachment; filename=\"{}\"", file.filename))
             .map_err(|e| ApiError::internal(e.to_string()))?,
     );
-    let warnings = report
+    let warnings = file
         .issues
         .iter()
         .filter(|i| i.severity == export::pipeline::Severity::Warning)
@@ -281,7 +281,62 @@ fn deliver(resolved: &Resolved, options: &ExportOptions) -> ApiResult<axum::resp
         "x-export-warnings",
         HeaderValue::from_str(&warnings.to_string()).expect("digits are a valid header value"),
     );
-    Ok((StatusCode::OK, headers, bytes).into_response())
+    Ok((StatusCode::OK, headers, file.bytes).into_response())
+}
+
+/// Stages 1–4 for one request, as a download.
+fn deliver(resolved: &Resolved, options: &ExportOptions) -> ApiResult<axum::response::Response> {
+    respond(build_file(resolved, options)?)
+}
+
+/// Remembers what was sent: the options last used for this format, and a line
+/// in the book's export history.
+pub(super) async fn remember(
+    state: &AppState,
+    user: &AuthUser,
+    resolved: &Resolved,
+    options: &ExportOptions,
+    file: &BuiltFile,
+) -> ApiResult<()> {
+    use crate::db::models::NewExportHistory;
+    use crate::db::schema::{export_history, export_last_options};
+    use sha2::{Digest, Sha256};
+
+    let work_id = resolved.work.id.clone();
+    let user_id = user.id.clone();
+    let version_id = resolved.version.as_ref().map(|v| v.id.clone());
+    let options_json = serde_json::to_string(options)?;
+    let history = NewExportHistory {
+        id: crate::domain::new_id(),
+        work_id: work_id.clone(),
+        user_id,
+        version_id,
+        format: options.format.extension().to_string(),
+        profile_name: options.profile.clone(),
+        options_hash: assemble::options_fingerprint(options),
+        options: options_json.clone(),
+        filename: file.filename.clone(),
+        byte_size: file.bytes.len() as i32,
+        content_hash: hex::encode(Sha256::digest(&file.bytes)),
+        created_at: crate::domain::now_iso(),
+    };
+    let format = options.format.extension().to_string();
+    blocking(&state.pool, move |conn| {
+        let now = crate::domain::now_iso();
+        diesel::replace_into(export_last_options::table)
+            .values((
+                export_last_options::work_id.eq(&work_id),
+                export_last_options::format.eq(&format),
+                export_last_options::options.eq(&options_json),
+                export_last_options::used_at.eq(&now),
+            ))
+            .execute(conn)?;
+        diesel::insert_into(export_history::table)
+            .values(&history)
+            .execute(conn)?;
+        Ok(())
+    })
+    .await
 }
 
 #[utoipa::path(
@@ -323,8 +378,10 @@ pub async fn export_version_with(
     Json(options): Json<ExportOptions>,
 ) -> ApiResult<axum::response::Response> {
     let options = checked(options)?;
-    let resolved = resolve_version(&state, user, version_id).await?;
-    deliver(&resolved, &options)
+    let resolved = resolve_version(&state, user.clone(), version_id).await?;
+    let file = build_file(&resolved, &options)?;
+    remember(&state, &user, &resolved, &options, &file).await?;
+    respond(file)
 }
 
 #[utoipa::path(
@@ -370,8 +427,10 @@ pub async fn export_draft_with(
     Json(options): Json<ExportOptions>,
 ) -> ApiResult<axum::response::Response> {
     let options = checked(options)?;
-    let resolved = resolve_draft(&state, user, work_id).await?;
-    deliver(&resolved, &options)
+    let resolved = resolve_draft(&state, user.clone(), work_id).await?;
+    let file = build_file(&resolved, &options)?;
+    remember(&state, &user, &resolved, &options, &file).await?;
+    respond(file)
 }
 
 #[utoipa::path(

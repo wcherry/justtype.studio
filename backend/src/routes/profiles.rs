@@ -21,6 +21,7 @@ use crate::state::AppState;
 use super::publications::{feed_cards, FeedQuery, PublicationCard};
 use super::support::{self, AuthorCard, Standing};
 
+const ABOUT_LIMIT: usize = 3000;
 const BIO_LIMIT: usize = 2_000;
 const NAME_LIMIT: usize = 80;
 /// Enough history to judge a reviewer by, without a profile turning into an
@@ -67,6 +68,10 @@ pub struct UpdateProfileRequest {
     /// An empty string clears it.
     #[serde(default)]
     pub bio: Option<String>,
+    /// A paragraph about the writer, offered as back matter in any book's
+    /// export. An empty string clears it.
+    #[serde(default)]
+    pub about_author: Option<String>,
 }
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
@@ -265,8 +270,23 @@ pub async fn update_profile(
         )));
     }
 
+    let about_author = body.about_author.as_deref().map(str::trim).map(str::to_string);
+    if about_author
+        .as_deref()
+        .is_some_and(|a| a.chars().count() > ABOUT_LIMIT)
+    {
+        return Err(ApiError::BadRequest(format!(
+            "the about-the-author text must be at most {ABOUT_LIMIT} characters"
+        )));
+    }
+
     let updated = blocking(&state.pool, move |conn| {
         let now = now_iso();
+        if let Some(about) = &about_author {
+            diesel::update(users::table.find(&user.id))
+                .set(users::about_author.eq((!about.is_empty()).then_some(about)))
+                .execute(conn)?;
+        }
         if let Some(name) = &display_name {
             diesel::update(users::table.find(&user.id))
                 .set(users::display_name.eq(name))

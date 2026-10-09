@@ -47,8 +47,13 @@ pub async fn export_project(
     user: AuthUser,
     work_id: String,
 ) -> ApiResult<Response> {
-    let (work, outline, entries, links) = blocking(&state.pool, move |conn| {
+    let (work, outline, entries, links, meta) = blocking(&state.pool, move |conn| {
         let work = support::work_for_owner(conn, &work_id, &user)?;
+        let meta = crate::db::schema::work_metadata::table
+            .find(&work.id)
+            .select(crate::db::models::WorkMetadata::as_select())
+            .first(conn)
+            .optional()?;
         let outline = load_outline(conn, &work.id)?;
         let entries: Vec<NotebookEntry> = notebook_entries::table
             .filter(notebook_entries::work_id.eq(&work.id))
@@ -64,9 +69,18 @@ pub async fn export_project(
             .filter(scene_notebook_links::scene_id.eq_any(&scene_ids))
             .select(SceneNotebookLink::as_select())
             .load(conn)?;
-        Ok((work, outline, entries, links))
+        Ok((work, outline, entries, links, meta))
     })
     .await?;
+
+    let cover = match meta.as_ref().and_then(|m| m.cover_mime.clone()) {
+        Some(mime) => state
+            .store
+            .read_cover(&work.id)
+            .await?
+            .map(|bytes| project::ProjectCover { mime, bytes }),
+        None => None,
+    };
 
     let mut project_chapters = Vec::new();
     for chapter in outline.chapters {
@@ -99,6 +113,7 @@ pub async fn export_project(
             id: chapter.chapter.id,
             title: chapter.chapter.title,
             summary: chapter.chapter.summary,
+            role: Some(chapter.chapter.role),
             scenes: project_scenes,
         });
     }
@@ -122,7 +137,33 @@ pub async fn export_project(
             genre: work.genre,
             target_words: work.target_words,
             target_date: work.target_date,
+            metadata: meta.map(|m| project::ProjectMetadata {
+                language: m.language,
+                text_direction: m.text_direction,
+                description: m.description,
+                publisher: m.publisher,
+                published: m.published,
+                identifier: m.identifier,
+                keywords: m
+                    .keywords
+                    .as_deref()
+                    .and_then(|s| serde_json::from_str(s).ok())
+                    .unwrap_or_default(),
+                contributors: m
+                    .contributors
+                    .as_deref()
+                    .and_then(|s| serde_json::from_str::<Vec<super::book_details::ContributorBody>>(s).ok())
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|c| project::ProjectContributor {
+                        name: c.name,
+                        role: c.role,
+                    })
+                    .collect(),
+                cover_file: None,
+            }),
         },
+        cover,
         chapters: project_chapters,
         notebook: entries
             .into_iter()
@@ -298,10 +339,12 @@ async fn create_from(
     let work_id = new_id();
     let db_work_id = work_id.clone();
     let creator = user.clone();
-    let (outline, pending) = blocking(&state.pool, move |conn| {
+    let cover_bytes = project.cover.as_ref().map(|c| c.bytes.clone());
+    let (outline, pending, pending_cover) = blocking(&state.pool, move |conn| {
         let now = now_iso();
         let w = &project.work;
         let mut pending: Vec<(String, Value)> = Vec::new();
+        let mut pending_cover = false;
 
         conn.transaction::<_, ApiError, _>(|conn| {
             diesel::insert_into(works::table)
@@ -376,7 +419,11 @@ async fn create_from(
                         position: c as i32,
                         created_at: now.clone(),
                         updated_at: now.clone(),
-                        role: "chapter".into(),
+                        role: chapter
+                            .role
+                            .clone()
+                            .filter(|r| matches!(r.as_str(), "chapter" | "front" | "back"))
+                            .unwrap_or_else(|| "chapter".into()),
                     })
                     .execute(conn)?;
 
@@ -421,12 +468,53 @@ async fn create_from(
                 }
             }
 
+            if let Some(meta) = &w.metadata {
+                use crate::db::schema::work_metadata;
+                let language = clean(meta.language.clone())
+                    .filter(|l| super::book_details::valid_language(l));
+                diesel::insert_into(work_metadata::table)
+                    .values((
+                        work_metadata::work_id.eq(&db_work_id),
+                        work_metadata::language.eq(language),
+                        work_metadata::text_direction.eq(clean(meta.text_direction.clone())
+                            .filter(|d| d == "ltr" || d == "rtl")),
+                        work_metadata::description.eq(clean(meta.description.clone())),
+                        work_metadata::publisher.eq(clean(meta.publisher.clone())),
+                        work_metadata::published.eq(clean(meta.published.clone())),
+                        work_metadata::identifier.eq(clean(meta.identifier.clone())),
+                        work_metadata::keywords.eq((!meta.keywords.is_empty()).then(|| {
+                            serde_json::to_string(&meta.keywords).expect("strings serialise")
+                        })),
+                        work_metadata::contributors.eq((!meta.contributors.is_empty()).then(
+                            || {
+                                serde_json::to_string(&meta.contributors)
+                                    .expect("contributors serialise")
+                            },
+                        )),
+                        work_metadata::updated_at.eq(&now),
+                    ))
+                    .execute(conn)?;
+                if let Some(cover) = &project.cover {
+                    if let Some((mime, w, h)) = super::book_details::sniff_image(&cover.bytes) {
+                        diesel::update(work_metadata::table.find(&db_work_id))
+                            .set((
+                                work_metadata::cover_mime.eq(Some(mime)),
+                                work_metadata::cover_bytes.eq(Some(cover.bytes.len() as i32)),
+                                work_metadata::cover_width.eq(Some(w as i32)),
+                                work_metadata::cover_height.eq(Some(h as i32)),
+                            ))
+                            .execute(conn)?;
+                        pending_cover = true;
+                    }
+                }
+            }
+
             support::recount_work(conn, &db_work_id, &now)?;
             Ok(())
         })?;
 
         let outline = outline_for(conn, &db_work_id, &creator)?;
-        Ok((outline, pending))
+        Ok((outline, pending, pending_cover))
     })
     .await?;
 
@@ -435,6 +523,11 @@ async fn create_from(
             .store
             .write_working_scene(&work_id, &scene_id, &content)
             .await?;
+    }
+    if pending_cover {
+        if let Some(cover) = &cover_bytes {
+            state.store.write_cover(&work_id, cover).await?;
+        }
     }
     Ok(outline)
 }

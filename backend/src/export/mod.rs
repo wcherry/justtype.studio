@@ -166,6 +166,11 @@ pub struct Manuscript {
     pub note_layout: NoteLayout,
     /// Prefix each note with "Comment:".
     pub note_label: bool,
+    /// For a frozen version: when it was taken, and an id to derive the
+    /// package id from, so exporting it again gives the same bytes. A draft
+    /// has neither and is stamped with the moment of export.
+    pub frozen_at: Option<String>,
+    pub frozen_id: Option<String>,
 }
 
 /// Which set of conventions to lay the text out under.

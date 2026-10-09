@@ -459,9 +459,133 @@ pub struct ExportOptions {
     pub pdf: Option<PdfOptions>,
     pub epub: Option<EpubOptions>,
     pub html: Option<HtmlOptions>,
+    /// `{title}`, `{short_title}`, `{author}`, `{date}`, `{version}`,
+    /// `{format}`. Unset is the title.
+    pub filename_template: Option<String>,
+    /// The profile these options came from, for the export history.
+    pub profile: Option<String>,
+}
+
+/// The placeholders a filename template may use.
+pub const FILENAME_FIELDS: &[&str] = &["title", "short_title", "author", "date", "version", "format"];
+
+/// The placeholders in a template, or the first unknown one.
+pub fn template_fields(template: &str) -> Result<Vec<String>, String> {
+    let mut fields = Vec::new();
+    let mut rest = template;
+    while let Some(start) = rest.find('{') {
+        let after = &rest[start + 1..];
+        let Some(end) = after.find('}') else {
+            return Err("filenameTemplate has a `{` with no closing `}`".into());
+        };
+        let name = &after[..end];
+        if !FILENAME_FIELDS.contains(&name) {
+            return Err(format!(
+                "filenameTemplate uses `{{{name}}}`, which is not one of {}",
+                FILENAME_FIELDS
+                    .iter()
+                    .map(|f| format!("{{{f}}}"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ));
+        }
+        fields.push(name.to_string());
+        rest = &after[end + 1..];
+    }
+    Ok(fields)
+}
+
+/// Fills a template in. Unknown placeholders are left as they are; validation
+/// refuses them before this is reached.
+pub fn fill_template(template: &str, values: &[(&str, &str)]) -> String {
+    let mut out = template.to_string();
+    for (name, value) in values {
+        out = out.replace(&format!("{{{name}}}"), value);
+    }
+    out
 }
 
 impl ExportOptions {
+    /// Brings options saved earlier up to date: anything that no longer exists
+    /// (a font that was withdrawn, a setting that was renamed) falls back to
+    /// its default, and what was changed is reported so the writer is told
+    /// rather than surprised.
+    pub fn repaired(value: serde_json::Value) -> (Self, Vec<String>) {
+        let mut notes = Vec::new();
+        let mut parsed: Self = match serde_json::from_value(value.clone()) {
+            Ok(options) => options,
+            Err(_) => {
+                // Take it a section at a time, keeping what still parses.
+                let mut options = Self::default();
+                if let Some(object) = value.as_object() {
+                    macro_rules! section {
+                        ($key:literal, $field:ident, $ty:ty) => {
+                            if let Some(v) = object.get($key) {
+                                match serde_json::from_value::<$ty>(v.clone()) {
+                                    Ok(parsed) => options.$field = parsed,
+                                    Err(_) => notes.push(format!(
+                                        "The saved `{}` settings are out of date and were reset.",
+                                        $key
+                                    )),
+                                }
+                            }
+                        };
+                    }
+                    section!("format", format, Format);
+                    section!("content", content, ContentOptions);
+                    section!("style", style, StyleOptions);
+                    section!("metadata", metadata, MetadataOverrides);
+                    section!("pdf", pdf, Option<PdfOptions>);
+                    section!("epub", epub, Option<EpubOptions>);
+                    section!("html", html, Option<HtmlOptions>);
+                    section!("filenameTemplate", filename_template, Option<String>);
+                }
+                options
+            }
+        };
+        if let Some(font) = parsed.style.font.clone() {
+            if !FONTS.iter().any(|(k, _)| *k == font) {
+                notes.push(format!(
+                    "The font `{font}` is no longer offered, so the default is used."
+                ));
+                parsed.style.font = None;
+            }
+        }
+        // Settings that belong to another format cannot be honoured; drop
+        // them and say so, rather than refuse the whole profile.
+        for (field, present, wanted) in [
+            ("pdf", parsed.pdf.is_some(), Format::Pdf),
+            ("epub", parsed.epub.is_some(), Format::Epub),
+            ("html", parsed.html.is_some(), Format::Html),
+        ] {
+            if present && parsed.format != wanted {
+                notes.push(format!("The `{field}` settings do not apply to this format and were dropped."));
+                match field {
+                    "pdf" => parsed.pdf = None,
+                    "epub" => parsed.epub = None,
+                    _ => parsed.html = None,
+                }
+            }
+        }
+        if let Some(template) = &parsed.filename_template {
+            if template_fields(template).is_err() {
+                notes.push("The saved filename template is out of date and was reset.".into());
+                parsed.filename_template = None;
+            }
+        }
+        (parsed, notes)
+    }
+
+    /// A profile is presentation, not a snapshot of the manuscript: the
+    /// selection and the metadata overrides stay behind.
+    pub fn as_profile(&self) -> Self {
+        let mut profile = self.clone();
+        profile.content.scope = Scope::All;
+        profile.metadata = MetadataOverrides::default();
+        profile.profile = None;
+        profile
+    }
+
     /// What the old `?format=&style=` query meant.
     pub fn shorthand(format: Format, style: Style) -> Self {
         Self {
@@ -495,6 +619,12 @@ impl ExportOptions {
             }
         }
         self.style.validate()?;
+        if let Some(template) = &self.filename_template {
+            template_fields(template)?;
+            if template.len() > 200 {
+                return Err("filenameTemplate is limited to 200 characters".into());
+            }
+        }
         if let Scope::Selected {
             chapter_ids,
             scene_ids,

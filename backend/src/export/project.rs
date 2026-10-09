@@ -46,6 +46,49 @@ pub struct Project {
     pub chapters: Vec<ProjectChapter>,
     #[serde(default)]
     pub notebook: Vec<ProjectEntry>,
+    /// The cover image, kept beside `project.json` in the zip rather than
+    /// inside it.
+    #[serde(skip)]
+    pub cover: Option<ProjectCover>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ProjectCover {
+    pub mime: String,
+    pub bytes: Vec<u8>,
+}
+
+/// What a book says about itself for export: language, description,
+/// contributors and the rest.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectMetadata {
+    #[serde(default)]
+    pub language: Option<String>,
+    #[serde(default)]
+    pub text_direction: Option<String>,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub publisher: Option<String>,
+    #[serde(default)]
+    pub published: Option<String>,
+    #[serde(default)]
+    pub identifier: Option<String>,
+    #[serde(default)]
+    pub keywords: Vec<String>,
+    #[serde(default)]
+    pub contributors: Vec<ProjectContributor>,
+    /// The cover's file name in the zip, when there is one.
+    #[serde(default)]
+    pub cover_file: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectContributor {
+    pub name: String,
+    pub role: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -76,6 +119,8 @@ pub struct ProjectWork {
     pub target_words: Option<i32>,
     #[serde(default)]
     pub target_date: Option<String>,
+    #[serde(default)]
+    pub metadata: Option<ProjectMetadata>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -88,6 +133,10 @@ pub struct ProjectChapter {
     pub title: String,
     #[serde(default)]
     pub summary: Option<String>,
+    /// `chapter`, `front` or `back`; absent in older projects, which are all
+    /// chapters.
+    #[serde(default)]
+    pub role: Option<String>,
     #[serde(default)]
     pub scenes: Vec<ProjectScene>,
 }
@@ -183,8 +232,20 @@ pub fn write(project: &mut Project) -> std::io::Result<Vec<u8>> {
         }
     }
 
+    if let (Some(cover), Some(meta)) = (&project.cover, project.work.metadata.as_mut()) {
+        meta.cover_file = Some(format!(
+            "cover.{}",
+            if cover.mime == "image/png" { "png" } else { "jpg" }
+        ));
+    }
+
     zip.start_file("project.json", deflated)?;
     zip.write_all(&serde_json::to_vec_pretty(&*project).map_err(std::io::Error::other)?)?;
+    if let Some(cover) = &project.cover {
+        let name = format!("cover.{}", if cover.mime == "image/png" { "png" } else { "jpg" });
+        zip.start_file(&name, deflated)?;
+        zip.write_all(&cover.bytes)?;
+    }
     zip.start_file("README.txt", deflated)?;
     zip.write_all(README.as_bytes())?;
     for (path, text) in files {
@@ -238,9 +299,11 @@ pub fn read(bytes: &[u8]) -> Result<Project, String> {
     }
 
     if let Some((index, _)) = names.iter().find(|(_, n)| n == "project.json") {
-        let mut file = archive.by_index(*index).map_err(|e| e.to_string())?;
-        let json = read_capped(&mut file, &mut remaining)?;
-        let project: Project = serde_json::from_slice(&json)
+        let json = {
+            let mut file = archive.by_index(*index).map_err(|e| e.to_string())?;
+            read_capped(&mut file, &mut remaining)?
+        };
+        let mut project: Project = serde_json::from_slice(&json)
             .map_err(|e| format!("project.json is not a Just Type Studio project: {e}"))?;
         if project.format != FORMAT {
             return Err("project.json is not a Just Type Studio project".into());
@@ -250,6 +313,25 @@ pub fn read(bytes: &[u8]) -> Result<Project, String> {
                 "that project was made by a newer Just Type Studio — update this one to open it"
                     .into(),
             );
+        }
+        // The cover sits beside it, named in the metadata.
+        let cover_name = project
+            .work
+            .metadata
+            .as_ref()
+            .and_then(|m| m.cover_file.clone());
+        if let Some(cover_name) = cover_name {
+            if let Some((index, _)) = names.iter().find(|(_, n)| *n == cover_name) {
+                let mut file = archive.by_index(*index).map_err(|e| e.to_string())?;
+                let bytes = read_capped(&mut file, &mut remaining)?;
+                // Judged by its bytes, not its name.
+                if let Some((mime, ..)) = crate::routes::book_details::sniff_image(&bytes) {
+                    project.cover = Some(ProjectCover {
+                        mime: mime.to_string(),
+                        bytes,
+                    });
+                }
+            }
         }
         return Ok(project);
     }
@@ -372,6 +454,7 @@ mod tests {
                 fields: Some(json!({"age":"34"})),
                 ..Default::default()
             }],
+            cover: None,
         }
     }
 
@@ -475,5 +558,56 @@ mod tests {
         assert_eq!(clean_name("01-the-door"), "the door");
         assert_eq!(clean_name("12_Chapter_Two"), "Chapter Two");
         assert_eq!(clean_name("2024"), "2024");
+    }
+
+    #[test]
+    fn roles_metadata_and_cover_round_trip() {
+        let mut p = project();
+        p.chapters[0].role = Some("back".into());
+        p.work.metadata = Some(ProjectMetadata {
+            language: Some("fr".into()),
+            text_direction: Some("ltr".into()),
+            description: Some("Un livre".into()),
+            publisher: Some("Press".into()),
+            published: Some("2026-03-01".into()),
+            identifier: Some("urn:isbn:9780000000002".into()),
+            keywords: vec!["mer".into()],
+            contributors: vec![ProjectContributor {
+                name: "E. Ditor".into(),
+                role: "editor".into(),
+            }],
+            cover_file: None,
+        });
+        // A PNG header is enough for the reader to accept it as a cover.
+        let mut png = b"\x89PNG\r\n\x1a\n".to_vec();
+        png.extend_from_slice(&13u32.to_be_bytes());
+        png.extend_from_slice(b"IHDR");
+        png.extend_from_slice(&1600u32.to_be_bytes());
+        png.extend_from_slice(&2560u32.to_be_bytes());
+        png.extend_from_slice(&[8, 2, 0, 0, 0]);
+        p.cover = Some(ProjectCover {
+            mime: "image/png".into(),
+            bytes: png.clone(),
+        });
+        let bytes = write(&mut p).unwrap();
+        let back = read(&bytes).unwrap();
+        assert_eq!(back.chapters[0].role.as_deref(), Some("back"));
+        let meta = back.work.metadata.unwrap();
+        assert_eq!(meta.language.as_deref(), Some("fr"));
+        assert_eq!(meta.description.as_deref(), Some("Un livre"));
+        assert_eq!(meta.publisher.as_deref(), Some("Press"));
+        assert_eq!(meta.published.as_deref(), Some("2026-03-01"));
+        assert_eq!(meta.identifier.as_deref(), Some("urn:isbn:9780000000002"));
+        assert_eq!(meta.keywords, ["mer"]);
+        assert_eq!(meta.contributors[0].name, "E. Ditor");
+        assert_eq!(back.cover.unwrap().bytes, png);
+    }
+
+    #[test]
+    fn an_older_project_without_roles_still_reads() {
+        let bytes = write(&mut project()).unwrap();
+        let back = read(&bytes).unwrap();
+        assert!(back.chapters.iter().all(|c| c.role.is_none() || c.role.as_deref() == Some("chapter")));
+        assert!(back.cover.is_none());
     }
 }

@@ -73,6 +73,8 @@ pub struct WorkMetadata {
     pub contributors: Option<String>,
     pub cover_mime: Option<String>,
     pub cover_bytes: Option<i32>,
+    pub cover_width: Option<i32>,
+    pub cover_height: Option<i32>,
     pub updated_at: String,
 }
 
@@ -96,6 +98,7 @@ row!(ExportHistoryRow, export_history, {
     options: String,
     filename: String,
     byte_size: i32,
+    content_hash: String,
     created_at: String,
 });
 
@@ -554,7 +557,8 @@ new_row!(NewExportProfile, export_profiles, {
 new_row!(NewExportHistory, export_history, {
     id: String, work_id: String, user_id: String, version_id: Option<String>,
     format: String, profile_name: Option<String>, options_hash: String,
-    options: String, filename: String, byte_size: i32, created_at: String,
+    options: String, filename: String, byte_size: i32, content_hash: String,
+    created_at: String,
 });
 
 new_row!(NewWritingDay, writing_days, {

@@ -525,6 +525,8 @@ diesel::table! {
         contributors -> Nullable<Text>,
         cover_mime -> Nullable<Text>,
         cover_bytes -> Nullable<Integer>,
+        cover_width -> Nullable<Integer>,
+        cover_height -> Nullable<Integer>,
         updated_at -> Text,
     }
 }
@@ -561,10 +563,15 @@ diesel::table! {
         options -> Text,
         filename -> Text,
         byte_size -> Integer,
+        content_hash -> Text,
         created_at -> Text,
     }
 }
 
+diesel::joinable!(export_last_options -> works (work_id));
+diesel::joinable!(export_history -> works (work_id));
+diesel::joinable!(export_profiles -> users (user_id));
+diesel::joinable!(work_metadata -> works (work_id));
 diesel::joinable!(refresh_tokens -> users (user_id));
 diesel::joinable!(sessions -> users (user_id));
 diesel::joinable!(work_collaborators -> works (work_id));

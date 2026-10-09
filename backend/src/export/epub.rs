@@ -466,6 +466,18 @@ fn navigation(m: &Manuscript, entries: &[NavEntry], parts: &[Part]) -> String {
     )
 }
 
+/// A UUID derived from a seed (version 8, "custom": the bits are ours), so
+/// the same input always names the same package.
+fn stable_uuid(seed: &str) -> uuid::Uuid {
+    use sha2::{Digest, Sha256};
+    let digest = Sha256::digest(seed.as_bytes());
+    let mut bytes = [0u8; 16];
+    bytes.copy_from_slice(&digest[..16]);
+    bytes[6] = (bytes[6] & 0x0f) | 0x80;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    uuid::Uuid::from_bytes(bytes)
+}
+
 /// MARC relator codes for the roles a contributor can have.
 fn relator(role: &str) -> &'static str {
     match role {
@@ -500,9 +512,12 @@ fn package(m: &Manuscript, parts: &[Part]) -> String {
         .map(|p| format!("    <itemref idref=\"{}\"/>\n", p.id))
         .collect();
 
-    let identifier = match &m.identifier {
-        Some(id) => xml_escape(id),
-        None => format!("urn:uuid:{}", uuid::Uuid::new_v4()),
+    let identifier = match (&m.identifier, &m.frozen_id) {
+        (Some(id), _) => xml_escape(id),
+        // The same version gives the same package id, so it exports to the
+        // same bytes every time.
+        (None, Some(seed)) => format!("urn:uuid:{}", stable_uuid(seed)),
+        (None, None) => format!("urn:uuid:{}", uuid::Uuid::new_v4()),
     };
     let mut meta = format!(
         "    <dc:identifier id=\"book-id\">{identifier}</dc:identifier>\n\
@@ -556,9 +571,12 @@ fn package(m: &Manuscript, parts: &[Part]) -> String {
     <meta property=\"schema:accessibilitySummary\">The text has a table of contents and a linear reading order. It has no images that carry meaning beyond the cover.</meta>\n",
     );
     // Second precision with a literal Z, which is what the spec asks for.
+    let modified = m
+        .frozen_at
+        .clone()
+        .unwrap_or_else(|| chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string());
     meta.push_str(&format!(
-        "    <meta property=\"dcterms:modified\">{}</meta>\n",
-        chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ")
+        "    <meta property=\"dcterms:modified\">{modified}</meta>\n"
     ));
 
     let direction = if m.rtl {

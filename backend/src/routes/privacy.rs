@@ -230,6 +230,8 @@ works.json          every work you started: its outline, snapshots, publications
 contributions.json  what you did on other people's work: notes, votes, reactions,
                     answers, how far you read, changes you proposed, books you
                     were added to, and your own highlights and bookmarks
+exports.json        your saved export profiles, the settings last used for each
+                    book, and the record of what you exported and when
 audit.json          the record of what you did to your account and your works
 manuscripts/        the files behind each work you started, exactly as stored:
                     working/ is the current draft of each scene, revisions/ its
@@ -442,10 +444,43 @@ fn gather(conn: &mut Conn, user_id: &str) -> ApiResult<Vec<(&'static str, Value)
         .select(AuditEvent::as_select())
         .load(conn)?;
 
+    // How they like their exports, and what they have sent out.
+    let profiles: Vec<ExportProfile> = export_profiles::table
+        .filter(export_profiles::user_id.eq(user_id))
+        .order(export_profiles::created_at.asc())
+        .select(ExportProfile::as_select())
+        .load(conn)?;
+    let history: Vec<ExportHistoryRow> = export_history::table
+        .filter(export_history::user_id.eq(user_id))
+        .order(export_history::created_at.asc())
+        .select(ExportHistoryRow::as_select())
+        .load(conn)?;
+    let last: Vec<(String, String, String, String)> = export_last_options::table
+        .inner_join(works::table)
+        .filter(works::owner_id.eq(user_id))
+        .select((
+            export_last_options::work_id,
+            export_last_options::format,
+            export_last_options::options,
+            export_last_options::used_at,
+        ))
+        .load(conn)?;
+    let exports = json!({
+        "profiles": profiles,
+        "history": history,
+        "lastUsed": last.iter().map(|(work, format, options, at)| json!({
+            "workId": work,
+            "format": format,
+            "options": serde_json::from_str::<Value>(options).unwrap_or(Value::Null),
+            "usedAt": at,
+        })).collect::<Vec<_>>(),
+    });
+
     Ok(vec![
         ("account", account),
         ("works", Value::Array(works_out)),
         ("contributions", contributions),
+        ("exports", exports),
         ("audit", serde_json::to_value(audit)?),
     ])
 }

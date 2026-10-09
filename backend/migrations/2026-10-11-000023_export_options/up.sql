@@ -18,6 +18,8 @@ CREATE TABLE work_metadata (
     contributors    TEXT,
     cover_mime      TEXT,
     cover_bytes     INTEGER,
+    cover_width     INTEGER,
+    cover_height    INTEGER,
     updated_at      TEXT NOT NULL
 );
 
@@ -54,6 +56,7 @@ CREATE TABLE export_history (
     options       TEXT NOT NULL,
     filename      TEXT NOT NULL,
     byte_size     INTEGER NOT NULL,
+    content_hash  TEXT NOT NULL,
     created_at    TEXT NOT NULL
 );
 CREATE INDEX idx_export_history_work ON export_history(work_id, created_at);

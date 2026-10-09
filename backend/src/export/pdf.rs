@@ -364,8 +364,21 @@ fn content_stream(page: &[Line], header: Option<&str>) -> Vec<u8> {
     out
 }
 
-pub fn write(manuscript: &Manuscript, _options: &ExportOptions) -> Vec<u8> {
-    let pages = lay_out(manuscript);
+pub fn write(manuscript: &Manuscript, options: &ExportOptions) -> Vec<u8> {
+    write_limited(manuscript, options, None)
+}
+
+/// The first `max_pages` pages, for a preview that need not lay out the whole
+/// book on the reader's connection.
+pub fn write_limited(
+    manuscript: &Manuscript,
+    _options: &ExportOptions,
+    max_pages: Option<usize>,
+) -> Vec<u8> {
+    let mut pages = lay_out(manuscript);
+    if let Some(limit) = max_pages {
+        pages.truncate(limit.max(1));
+    }
     let page_count = pages.len().max(1);
 
     // Object numbering: 1 catalog, 2 page tree, 3 and 4 the fonts, then a page

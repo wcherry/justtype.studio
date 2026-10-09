@@ -632,6 +632,10 @@ pub struct UpdateChapterRequest {
     pub title: Option<String>,
     #[serde(default)]
     pub summary: Option<String>,
+    /// `chapter`, `front` (preface, foreword) or `back` (acknowledgments,
+    /// afterword, appendix). Front and back matter are not numbered.
+    #[serde(default)]
+    pub role: Option<String>,
 }
 
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
@@ -721,6 +725,16 @@ pub async fn update_chapter(
         if let Some(summary) = &body.summary {
             diesel::update(chapters::table.find(&chapter_id))
                 .set(chapters::summary.eq(summary))
+                .execute(conn)?;
+        }
+        if let Some(role) = &body.role {
+            if !matches!(role.as_str(), "chapter" | "front" | "back") {
+                return Err(ApiError::BadRequest(
+                    "role must be `chapter`, `front` or `back`".into(),
+                ));
+            }
+            diesel::update(chapters::table.find(&chapter_id))
+                .set(chapters::role.eq(role))
                 .execute(conn)?;
         }
         diesel::update(chapters::table.find(&chapter_id))
