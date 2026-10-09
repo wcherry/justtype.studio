@@ -1,19 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
-import { api } from '../api/client'
+import { APP_VERSION, BUILD_ID, FULL_VERSION_LABEL, VERSION_LABEL } from '../lib/version'
 
 /**
- * Who this is and which build is running, in a modal dialog. The version is the
- * one the service itself reports, so it is the build actually serving the page.
+ * Who this is and which build is running, in a modal dialog. A released image
+ * shows its version and the commit; a local build shows the commit alone.
  */
 export function AboutDialog({ onClose }: { onClose: () => void }) {
   const ref = useRef<HTMLDialogElement>(null)
-  const [version, setVersion] = useState<string | null>(null)
-  const [failed, setFailed] = useState(false)
   const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     ref.current?.showModal()
-    api.status().then((s) => setVersion(s.version)).catch(() => setFailed(true))
   }, [])
 
   return (
@@ -27,15 +24,15 @@ export function AboutDialog({ onClose }: { onClose: () => void }) {
     >
       <h2 id="about-title">Just Type Studio</h2>
       <p className="about__version">
-        <span>{version ? `v${version}` : failed ? 'Version unavailable' : '…'}</span>
-        {version && (
+        <span title={FULL_VERSION_LABEL || undefined}>{VERSION_LABEL || 'Development build'}</span>
+        {FULL_VERSION_LABEL && (
           <button
             type="button"
             className="linklike"
             aria-label="Copy the version"
             title="Copy the version"
             onClick={() => {
-              void navigator.clipboard?.writeText(`v${version}`).then(() => {
+              void navigator.clipboard?.writeText(FULL_VERSION_LABEL).then(() => {
                 setCopied(true)
                 setTimeout(() => setCopied(false), 1500)
               })
@@ -45,6 +42,7 @@ export function AboutDialog({ onClose }: { onClose: () => void }) {
           </button>
         )}
       </p>
+      {APP_VERSION && BUILD_ID && <p className="field__hint">Build {BUILD_ID}</p>}
       <p className="field__hint">
         A writing tool for long-form fiction, and a review surface for the readers you choose.
       </p>

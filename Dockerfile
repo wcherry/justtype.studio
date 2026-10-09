@@ -16,6 +16,16 @@ COPY web/package.json web/pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 
 COPY web/ ./
+
+# Stamp the image's identity into web/version.txt, which the Vite build reads and
+# inlines into the bundle (vite.config.ts → src/lib/version.ts) for the About
+# dialog. Generated, never committed: outside an image build there is no version
+# to report, and a stale file would report the wrong one. Both args are optional
+# — an unstamped build reports no version rather than failing.
+ARG APP_VERSION=""
+ARG BUILD_COMMIT=""
+RUN node scripts/write-version.mjs
+
 RUN pnpm build
 
 # ── Rust Build Stage ──────────────────────────────────────────────────────────
