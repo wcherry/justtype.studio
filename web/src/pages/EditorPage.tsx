@@ -78,7 +78,6 @@ type Panel =
   | 'find'
   | 'summary'
   | 'marks'
-  | 'comments'
   | 'goals'
   | 'about'
 
@@ -144,6 +143,13 @@ export function EditorPage() {
   }
   /** The scene open now, for the selection handler to file the cursor under. */
   const sceneRef = useRef<string | null>(null)
+  /** The To do panel's two lists: what is left to do, and comments on the text. */
+  const [todoTab, setTodoTab] = useState<'todo' | 'comments'>('todo')
+  const toggleTodoTab = (tab: 'todo' | 'comments') => {
+    if (panel === 'tasks' && todoTab === tab) return setPanel('none')
+    setTodoTab(tab)
+    setPanel('tasks')
+  }
   const [view, setView] = useState<'write' | 'corkboard'>('write')
   /** What the writer has selected, in the same positions a proposal records. */
   const [selection, setSelection] = useState<{ from: number; to: number; quote: string } | null>(null)
@@ -324,7 +330,7 @@ export function EditorPage() {
               setMarkError(null)
               try {
                 await marks.add({ sceneId: scene.id, kind: 'comment', ...range, quote, note: body.trim().slice(0, 500) })
-                setPanel('comments')
+                { setTodoTab('comments'); setPanel('tasks') }
               } catch (e) {
                 setMarkError(e instanceof Error ? e.message : 'Could not add that comment')
               }
@@ -353,6 +359,19 @@ export function EditorPage() {
   const openMark = (id: string) => {
     const mark = marks.list.find((m) => m.id === id)
     if (!mark || !outline) return
+    if (lostMarks.has(id)) {
+      // Its words are gone from the draft: go to where it last was.
+      const land = () => {
+        if (!editor) return
+        const at = Math.max(1, Math.min(mark.fromPos, editor.state.doc.content.size - 1))
+        editor.chain().setTextSelection(at).scrollIntoView().run()
+        setTimeout(() => editor.view.focus(), 0)
+      }
+      if (mark.sceneId === scene?.id) return land()
+      const home = outline.chapters.flatMap((c) => c.scenes).find((s) => s.id === mark.sceneId)
+      if (home) void openScene(home).then(land)
+      return
+    }
     jumpTo.current = id
     if (mark.sceneId === scene?.id) {
       // Already here: repaint, which selects it.
@@ -622,8 +641,14 @@ export function EditorPage() {
       items: [
         panelItem('find', 'Find'),
         panelItem('notebook', 'Notebook'),
-        panelItem('tasks', 'To do'),
-        panelItem('comments', 'Comments'),
+        panelItem('tasks', 'To do', {
+          checked: panel === 'tasks' && todoTab === 'todo',
+          onSelect: () => toggleTodoTab('todo'),
+        }),
+        {
+          key: 'comments', label: 'Comments', checked: panel === 'tasks' && todoTab === 'comments',
+          onSelect: () => toggleTodoTab('comments'),
+        },
         panelItem('marks', 'Highlights & bookmarks'),
         ...(can.isOwner
           ? [panelItem('front', 'Front matter', { divider: true }), panelItem('versions', 'Versions')]
@@ -1021,18 +1046,37 @@ export function EditorPage() {
 
       {panel === 'tasks' && (
         <SidePanel title="To do" onClose={closePanel}>
-          <TaskList
-            workId={workId}
-            sceneId={scene?.id ?? null}
-            onOpenScene={(id) => {
-              // The list keeps ids; the editor opens whole scenes, so look it
-              // up in the outline rather than fetching a second copy.
-              const target = outline.chapters
-                .flatMap((chapter) => chapter.scenes)
-                .find((candidate) => candidate.id === id)
-              if (target) void openScene(target)
-            }}
-          />
+          <Tabs
+            label="To do and comments"
+            tabs={[{ key: 'todo', label: 'To do' }, { key: 'comments', label: 'Comments' }]}
+            active={todoTab}
+            onChange={setTodoTab}
+          >
+            {todoTab === 'todo' ? (
+              <TaskList
+                workId={workId}
+                sceneId={scene?.id ?? null}
+                onOpenScene={(id) => {
+                  // The list keeps ids; the editor opens whole scenes, so look it
+                  // up in the outline rather than fetching a second copy.
+                  const target = outline.chapters
+                    .flatMap((chapter) => chapter.scenes)
+                    .find((candidate) => candidate.id === id)
+                  if (target) void openScene(target)
+                }}
+              />
+            ) : (
+              <MarksPanel
+                comments
+                marks={marks.list}
+                scenes={(named ?? outline).chapters.flatMap((c) => c.scenes)}
+                lost={lostMarks}
+                onOpen={openMark}
+                onRemove={(id) => void marks.remove(id)}
+                onRename={(id, note) => marks.update(id, { note })}
+              />
+            )}
+          </Tabs>
         </SidePanel>
       )}
 
@@ -1079,20 +1123,6 @@ export function EditorPage() {
       {panel === 'marks' && (
         <SidePanel title="Highlights & bookmarks" onClose={closePanel}>
           <MarksPanel
-            marks={marks.list}
-            scenes={(named ?? outline).chapters.flatMap((c) => c.scenes)}
-            lost={lostMarks}
-            onOpen={openMark}
-            onRemove={(id) => void marks.remove(id)}
-            onRename={(id, note) => marks.update(id, { note })}
-          />
-        </SidePanel>
-      )}
-
-      {panel === 'comments' && (
-        <SidePanel title="Comments" onClose={closePanel}>
-          <MarksPanel
-            comments
             marks={marks.list}
             scenes={(named ?? outline).chapters.flatMap((c) => c.scenes)}
             lost={lostMarks}
