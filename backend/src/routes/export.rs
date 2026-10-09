@@ -728,4 +728,63 @@ mod tests {
         assert_eq!(style_from(Some("book")).unwrap(), Style::Book);
         assert!(style_from(Some("fancy")).is_err());
     }
+
+    /// Comments are private to whoever wrote them. A co-author's comments sit
+    /// on the same draft, and must never travel in the owner's file.
+    #[test]
+    fn only_the_exporters_own_comments_are_loaded() {
+        let root = std::env::temp_dir().join(format!("justtype-export-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&root).unwrap();
+        let pool = crate::db::build_pool(root.join("t.db").to_str().unwrap()).unwrap();
+        crate::db::run_migrations(&pool).unwrap();
+        let mut conn = pool.get().unwrap();
+        let now = crate::domain::now_iso();
+        let run = |conn: &mut crate::db::Conn, sql: String| {
+            diesel::sql_query(sql).execute(conn).unwrap();
+        };
+        for (id, email) in [("u1", "a@example.com"), ("u2", "b@example.com")] {
+            run(&mut conn, format!(
+                "INSERT INTO users (id, email, display_name, password_hash, created_at, updated_at) \
+                 VALUES ('{id}', '{email}', '{id}', '!', '{now}', '{now}');"));
+        }
+        run(&mut conn, format!(
+            "INSERT INTO works (id, owner_id, title, kind, status, word_count, created_at, updated_at) \
+             VALUES ('w1', 'u1', 'T', 'novel', 'draft', 0, '{now}', '{now}');"));
+        run(&mut conn, format!(
+            "INSERT INTO chapters (id, work_id, title, position, created_at, updated_at) \
+             VALUES ('c1', 'w1', 'One', 0, '{now}', '{now}');"));
+        run(&mut conn, format!(
+            "INSERT INTO scenes (id, work_id, chapter_id, title, status, position, word_count, content_hash, created_at, updated_at) \
+             VALUES ('s1', 'w1', 'c1', 'S', 'drafting', 0, 0, 'h', '{now}', '{now}');"));
+        for (id, user, kind, note) in [
+            ("a1", "u1", "comment", "mine"),
+            ("a2", "u2", "comment", "theirs"),
+            ("a3", "u1", "highlight", "no note kind"),
+        ] {
+            run(&mut conn, format!(
+                "INSERT INTO annotations (id, user_id, work_id, scene_id, kind, from_pos, to_pos, quote, note, created_at, updated_at) \
+                 VALUES ('{id}', '{user}', 'w1', 's1', '{kind}', 1, 4, 'abc', '{note}', '{now}', '{now}');"));
+        }
+
+        let work: Work = crate::db::schema::works::table
+            .find("w1")
+            .select(Work::as_select())
+            .first(&mut conn)
+            .unwrap();
+        let owner = AuthUser {
+            id: "u1".into(),
+            email: "a@example.com".into(),
+            email_verified: true,
+            session_id: "x".into(),
+        };
+        let (_, mine) = load_extras(&mut conn, &work, &owner).unwrap();
+        assert_eq!(mine.len(), 1, "only the exporter's own comments, and only comments");
+        assert_eq!(mine[0].note, "mine");
+
+        let other = AuthUser { id: "u2".into(), ..owner };
+        let (_, theirs) = load_extras(&mut conn, &work, &other).unwrap();
+        assert_eq!(theirs.len(), 1);
+        assert_eq!(theirs[0].note, "theirs");
+        std::fs::remove_dir_all(&root).ok();
+    }
 }
