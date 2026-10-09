@@ -24,6 +24,7 @@ import { RevisionPanel } from '../components/RevisionPanel'
 import { Icon } from '../components/Icon'
 import { Menu } from '../components/Menu'
 import type { MenuItem } from '../components/Menu'
+import { AboutDialog } from '../components/AboutDialog'
 import { GoalsPanel } from '../components/GoalsPanel'
 import { MarksPanel } from '../components/MarksPanel'
 import { SelectionMenu, useSelectionMenu } from '../components/SelectionMenu'
@@ -79,7 +80,6 @@ type Panel =
   | 'summary'
   | 'marks'
   | 'goals'
-  | 'about'
 
 /** The panels used most while writing get a button of their own as well. */
 const TOOLBAR_PANELS: { panel: Panel; icon: IconName; label: string }[] = [
@@ -150,6 +150,7 @@ export function EditorPage() {
     setTodoTab(tab)
     setPanel('tasks')
   }
+  const [about, setAbout] = useState(false)
   const [view, setView] = useState<'write' | 'corkboard'>('write')
   /** What the writer has selected, in the same positions a proposal records. */
   const [selection, setSelection] = useState<{ from: number; to: number; quote: string } | null>(null)
@@ -706,7 +707,7 @@ export function EditorPage() {
     {
       key: 'help',
       label: 'Help',
-      items: [panelItem('about', 'About Just Type Studio')],
+      items: [{ key: 'about', label: 'About Just Type Studio', onSelect: () => setAbout(true) }],
     },
   ]
 
@@ -1147,15 +1148,7 @@ export function EditorPage() {
         </SidePanel>
       )}
 
-      {panel === 'about' && (
-        <SidePanel title="About" onClose={closePanel}>
-          <div className="about">
-            <h3>Just Type Studio</h3>
-            <p>Version {__APP_VERSION__}</p>
-            <p className="field__hint">A writing tool for long-form fiction, and a review surface for the readers you choose.</p>
-          </div>
-        </SidePanel>
-      )}
+      {about && <AboutDialog onClose={() => setAbout(false)} />}
 
       {panel === 'people' && (
         <SidePanel title="People" onClose={closePanel}>
