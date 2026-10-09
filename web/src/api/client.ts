@@ -11,6 +11,8 @@ import type {
   Genre, LengthBand, WindowFilter, FeedSort, CollaboratorRole, CollaboratorView, ActivityView,
   SessionView, TwoFactorSetup, RecoveryCodes, AuditEvent, Terms, StatusReport, SceneHit, ShareLink,
   SketchField, SketchTemplate, SummaryView, Features, Annotation, AnnotationKind,
+  ExportOptions, ExportFormat, PreflightReport, ExportProfile, ExportProfiles, LastUsedResponse,
+  ExportHistoryItem, MetadataResponse, UpdateMetadataRequest,
 } from './types'
 
 const BASE = '/api'
@@ -344,7 +346,7 @@ export const api = {
   chapters: {
     create: (workId: string, title: string) =>
       post<Outline['chapters'][number]>(`/works/${workId}/chapters`, { title }),
-    update: (chapterId: string, input: { title?: string; summary?: string }) =>
+    update: (chapterId: string, input: { title?: string; summary?: string; role?: 'chapter' | 'front' | 'back' }) =>
       patch<Outline['chapters'][number]>(`/chapters/${chapterId}`, input),
     remove: (chapterId: string) => del<{ ok: boolean }>(`/chapters/${chapterId}`),
     reorder: (workId: string, ids: string[]) =>
@@ -704,7 +706,8 @@ export const api = {
   profiles: {
     get: (userId: string) => get<Profile>(`/users/${userId}/profile`),
     /** An empty bio clears it. */
-    update: (input: { displayName?: string; bio?: string }) => patch<User>('/me/profile', input),
+    update: (input: { displayName?: string; bio?: string; aboutAuthor?: string }) =>
+      patch<User>('/me/profile', input),
     follow: (userId: string) => put<FollowState>(`/users/${userId}/follow`, {}),
     unfollow: (userId: string) => del<FollowState>(`/users/${userId}/follow`),
     following: () => get<AuthorCard[]>('/me/following'),
@@ -735,4 +738,114 @@ export interface FeedFilters {
   length?: LengthBand
   window?: WindowFilter
   sort?: FeedSort
+}
+
+// ── Export ──────────────────────────────────────────────────────────────────
+
+/** A request with the access token, refreshed once if it has lapsed. */
+async function authed(method: string, path: string, body?: BodyInit | null, type?: string): Promise<Response> {
+  const send = () => {
+    const headers: Record<string, string> = { 'x-request-id': newRequestId(), ...shareKeys.header() }
+    if (type) headers['content-type'] = type
+    const access = tokens.access()
+    if (access) headers.authorization = `Bearer ${access}`
+    return fetch(`${BASE}${path}`, { method, headers, body })
+  }
+  let res = await send()
+  if (res.status === 401 && (await tryRefresh())) res = await send()
+  if (!res.ok) {
+    const payload = await res.json().catch(() => null)
+    const error = payload?.error
+    throw new ApiError(
+      res.status,
+      error?.code ?? 'unknown',
+      error?.message ?? res.statusText,
+      error?.details,
+      error?.requestId ?? res.headers.get('x-request-id') ?? undefined,
+    )
+  }
+  return res
+}
+
+const json = (value: unknown) => JSON.stringify(value)
+
+/** Hands a response body to the browser as a download, under the name the server chose. */
+async function saveResponse(res: Response, fallback: string): Promise<{ filename: string; warnings: number }> {
+  const named = /filename="([^"]+)"/.exec(res.headers.get('content-disposition') ?? '')
+  const filename = named?.[1] ?? fallback
+  const url = URL.createObjectURL(await res.blob())
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 10_000)
+  return { filename, warnings: Number(res.headers.get('x-export-warnings') ?? 0) }
+}
+
+/** Where an export's settings go: a version is frozen, the working draft is as it stands. */
+export type ExportTarget = { version: string } | { work: string }
+
+const targetPath = (target: ExportTarget) =>
+  'version' in target ? `/versions/${target.version}` : `/works/${target.work}`
+
+export const exporting = {
+  preflight: (target: ExportTarget, options: ExportOptions) =>
+    request<PreflightReport>('POST', `${targetPath(target)}/export/preflight`, options),
+
+  async download(target: ExportTarget, options: ExportOptions) {
+    const res = await authed('POST', `${targetPath(target)}/export`, json(options), 'application/json')
+    return saveResponse(res, `manuscript.${options.format ?? 'docx'}`)
+  },
+
+  async bundle(target: ExportTarget, formats: ExportFormat[], options: ExportOptions) {
+    const res = await authed('POST', `${targetPath(target)}/export/bundle`, json({ formats, options }), 'application/json')
+    return saveResponse(res, 'manuscript.zip')
+  },
+
+  /** Opens a preview in a new tab: the first pages of a PDF, or a web page. */
+  async preview(target: ExportTarget, options: ExportOptions) {
+    const res = await authed('POST', `${targetPath(target)}/export/preview`, json(options), 'application/json')
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+    setTimeout(() => URL.revokeObjectURL(url), 60_000)
+  },
+
+  profiles: () => get<ExportProfiles>('/export/profiles'),
+  saveProfile: (name: string, options: ExportOptions) =>
+    post<ExportProfile>('/export/profiles', { name, options }),
+  updateProfile: (id: string, input: { name?: string; options?: ExportOptions }) =>
+    patch<ExportProfile>(`/export/profiles/${id}`, input),
+  deleteProfile: (id: string) => del<void>(`/export/profiles/${id}`),
+
+  last: (workId: string) => get<LastUsedResponse>(`/works/${workId}/export/last`),
+  async again(workId: string) {
+    const res = await authed('POST', `/works/${workId}/export/again`, '{}', 'application/json')
+    return saveResponse(res, 'manuscript')
+  },
+
+  history: (workId: string) => get<ExportHistoryItem[]>(`/works/${workId}/export/history`),
+  async downloadAgain(workId: string, historyId: string) {
+    const res = await authed('GET', `/works/${workId}/export/history/${historyId}/download`)
+    const saved = await saveResponse(res, 'manuscript')
+    return { ...saved, identical: res.headers.get('x-export-identical') === 'true' }
+  },
+}
+
+/** What the book says about itself for export: language, description, cover. */
+export const bookDetails = {
+  get: (workId: string) => get<MetadataResponse>(`/works/${workId}/metadata`),
+  save: (workId: string, input: UpdateMetadataRequest) => patch<MetadataResponse>(`/works/${workId}/metadata`, input),
+  async setCover(workId: string, file: File) {
+    const res = await authed('PUT', `/works/${workId}/cover`, file, file.type || 'application/octet-stream')
+    return (await res.json()) as MetadataResponse
+  },
+  removeCover: (workId: string) => del<MetadataResponse>(`/works/${workId}/cover`),
+  /** The cover as an object URL, since it is behind the token. The caller revokes it. */
+  async coverUrl(workId: string): Promise<string> {
+    const res = await authed('GET', `/works/${workId}/cover`)
+    return URL.createObjectURL(await res.blob())
+  },
 }

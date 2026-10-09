@@ -178,6 +178,39 @@ impl FileStore {
         self.write_json(&path, manifest).await
     }
 
+    fn cover_path(&self, work_id: &str) -> ApiResult<PathBuf> {
+        Ok(self.work_dir(work_id)?.join("cover.bin"))
+    }
+
+    /// The cover image's bytes. The type is kept in the database; the file is
+    /// just the image.
+    pub async fn write_cover(&self, work_id: &str, bytes: &[u8]) -> ApiResult<()> {
+        let path = self.cover_path(work_id)?;
+        if let Some(parent) = path.parent() {
+            tokio::fs::create_dir_all(parent).await?;
+        }
+        let tmp = path.with_extension("tmp");
+        tokio::fs::write(&tmp, bytes).await?;
+        tokio::fs::rename(&tmp, &path).await?;
+        Ok(())
+    }
+
+    pub async fn read_cover(&self, work_id: &str) -> ApiResult<Option<Vec<u8>>> {
+        match tokio::fs::read(self.cover_path(work_id)?).await {
+            Ok(bytes) => Ok(Some(bytes)),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    pub async fn delete_cover(&self, work_id: &str) -> ApiResult<()> {
+        match tokio::fs::remove_file(self.cover_path(work_id)?).await {
+            Ok(()) => Ok(()),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(e) => Err(e.into()),
+        }
+    }
+
     pub async fn delete_scene(&self, work_id: &str, scene_id: &str) -> ApiResult<()> {
         let path = self.working_scene_path(work_id, scene_id)?;
         match tokio::fs::remove_file(&path).await {

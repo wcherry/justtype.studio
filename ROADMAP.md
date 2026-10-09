@@ -124,12 +124,20 @@ gives it a real editor.
   the contact block, rounded word count and `Surname / TITLE / page` header
   exactly where Shunn puts them.*
 
-The PDF writer is hand-rolled and Courier-only, which sounds like a limitation
-and is really the same decision twice: Courier is a base-14 font, so it never
-needs embedding, and it is monospaced, so line breaking is arithmetic rather
-than font metrics — and it is exactly what standard manuscript format asks for.
-A book-styled PDF would need proportional type, and therefore real metrics; that
-is the one export shape still missing, and DOCX covers it in the meantime.
+Manuscript PDF is hand-rolled and Courier-only: a base-14, monospaced font, so
+no embedding and line breaking is arithmetic — exactly what standard manuscript
+format asks for.
+
+**Export configuration (epic 28)** — shipped. One `ExportOptions` document
+behind POST endpoints (content selection, front and back matter, TOC, the
+writer's own comments as footnotes or endnotes, book metadata and cover,
+typography, EPUB/HTML modes, profiles, preflight and preview, all-formats zip,
+filename templates, history), with the GET forms kept as shorthands. Book-layout
+PDF is a second engine in `export/pdf_book.rs` with the bundled Liberation faces
+embedded as subsets (decision recorded in ARCHITECTURE.md). Not done: PDF
+footnotes at the page foot, tagged PDF, hyphenation beyond an English
+heuristic, `epubcheck` in CI, and iOS screens for the new fields (the API types
+are generated).
 
 Two bugs this surfaced: a template's empty scenes exported as pages of lone `#`
 marks, and the front-matter fields had nowhere to be set from — the work's PATCH

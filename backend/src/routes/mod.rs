@@ -2,11 +2,13 @@ pub mod account;
 pub mod annotations;
 pub mod audit;
 pub mod auth;
+pub mod book_details;
 pub mod changes;
 pub mod collaborators;
 pub mod comments;
 pub mod discovery;
 pub mod export;
+pub mod export_settings;
 pub mod feedback;
 pub mod goals;
 pub mod moderation;
@@ -105,8 +107,26 @@ fn api_router() -> OpenApiRouter<AppState> {
         .routes(routes!(versions::pin))
         .routes(routes!(versions::restore))
         .routes(routes!(versions::content))
-        .routes(routes!(export::export_version))
-        .routes(routes!(export::export_draft))
+        .routes(routes!(export::export_version, export::export_version_with))
+        .routes(routes!(export::export_draft, export::export_draft_with))
+        .routes(routes!(export::preflight_draft))
+        .routes(routes!(export::preflight_version))
+        .routes(routes!(
+            export_settings::list_profiles,
+            export_settings::create_profile
+        ))
+        .routes(routes!(
+            export_settings::update_profile,
+            export_settings::delete_profile
+        ))
+        .routes(routes!(export_settings::last_used))
+        .routes(routes!(export_settings::export_again))
+        .routes(routes!(export_settings::history))
+        .routes(routes!(export_settings::download_again))
+        .routes(routes!(export_settings::bundle_draft))
+        .routes(routes!(export_settings::bundle_version))
+        .routes(routes!(export_settings::preview_draft))
+        .routes(routes!(export_settings::preview_version))
         // Whole files in the request body, so a limit of their own.
         .merge(
             OpenApiRouter::new()
@@ -114,6 +134,19 @@ fn api_router() -> OpenApiRouter<AppState> {
                 .routes(routes!(project::import_document))
                 .layer(axum::extract::DefaultBodyLimit::max(
                     project::MAX_IMPORT_BYTES,
+                )),
+        )
+        .routes(routes!(
+            book_details::get_metadata,
+            book_details::update_metadata
+        ))
+        .routes(routes!(book_details::get_cover, book_details::delete_cover))
+        // A cover is an image in the request body: a limit of its own.
+        .merge(
+            OpenApiRouter::new()
+                .routes(routes!(book_details::put_cover))
+                .layer(axum::extract::DefaultBodyLimit::max(
+                    book_details::MAX_COVER_BYTES + 1024,
                 )),
         )
         .routes(routes!(versions::publish))

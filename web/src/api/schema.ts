@@ -42,6 +42,8 @@ export interface AddMemberRequest {
   name?: string | null
 }
 
+export type Align = 'left' | 'justify'
+
 export interface Anchor {
   from: number
   to: number
@@ -180,6 +182,14 @@ export interface BulkStateResponse {
   changed: number
 }
 
+export interface BundleRequest {
+  // Any subset of `docx`, `pdf`, `epub`, `html`, `txt`.
+  formats: Format[]
+  // Settings shared by every file; the per-format blocks (`pdf`, `epub`,
+  // `html`) apply to their own format only.
+  options?: ExportOptions
+}
+
 export type ChangeKind = 'insert' | 'delete' | 'replace' | 'format'
 
 export interface ChangePasswordRequest {
@@ -193,6 +203,9 @@ export interface Chapter {
   createdAt: string
   id: string
   position: number
+  // `chapter`, `front` or `back`. Front and back matter are not numbered and
+  // are included or left out of an export on their own.
+  role: string
   summary?: string | null
   title: string
   updatedAt: string
@@ -299,11 +312,36 @@ export interface CommentView {
   viewerVote: number
 }
 
+// What to do with the writer's own comments.
+export type CommentsMode = 'off' | 'footnotes' | 'endnotes'
+
 export interface ContentChapter {
   chapterId: string
   position: number
+  // `chapter`, `front` or `back`, as frozen.
+  role: string
   scenes: ContentScene[]
   title: string
+}
+
+export interface ContentOptions {
+  // Append the writer's *About the author* text as back matter.
+  aboutAuthor?: boolean
+  // `None` takes the preset's default: off for manuscript, on for book.
+  backMatter?: boolean | null
+  // Prefix each note with "Comment:".
+  commentLabel?: boolean
+  commentNumbering?: Numbering
+  comments?: CommentsMode
+  frontMatter?: boolean
+  notePlacement?: NotePlacement
+  // `None`: off for footnotes, on for endnotes, where the note is far from
+  // its passage.
+  quotePassage?: boolean | null
+  scope?: Scope
+  // `None` takes the format's own default: on for EPUB, whose navigation
+  // document is required, and off elsewhere.
+  toc?: boolean | null
 }
 
 export interface ContentScene {
@@ -312,6 +350,12 @@ export interface ContentScene {
   sceneId: string
   title: string
   wordCount: number
+}
+
+export interface ContributorBody {
+  name: string
+  // `editor`, `translator`, `illustrator` or `co-author`.
+  role: string
 }
 
 export interface CreateAnnotationRequest {
@@ -501,6 +545,13 @@ export interface EntryView {
   sceneIds: string[]
 }
 
+export interface EpubOptions {
+  // Also a cover page in the spine, not just the cover image.
+  coverPage?: boolean
+  // One XHTML file per chapter (the default) or the whole book in one.
+  splitChapters?: boolean
+}
+
 export interface ErrorBody {
   // `bad_request`, `unauthorized`, `two_factor_required`, `forbidden`,
   // `not_found`, `conflict`, `too_many_requests`, `internal`.
@@ -516,6 +567,21 @@ export interface ErrorBody {
 // clients can type their error handling instead of guessing.
 export interface ErrorEnvelope {
   error: ErrorBody
+}
+
+export interface ExportOptions {
+  content?: ContentOptions
+  epub?: EpubOptions | null
+  // `{title}`, `{short_title}`, `{author}`, `{date}`, `{version}`,
+  // `{format}`. Unset is the title.
+  filenameTemplate?: string | null
+  format?: Format
+  html?: HtmlOptions | null
+  metadata?: MetadataOverrides
+  pdf?: PdfOptions | null
+  // The profile these options came from, for the export history.
+  profile?: string | null
+  style?: StyleOptions
 }
 
 export interface Features {
@@ -536,12 +602,38 @@ export interface ForgotRequest {
   email: string
 }
 
+export type Format = 'docx' | 'pdf' | 'epub' | 'html' | 'txt'
+
 export type Genre = 'literary' | 'fantasy' | 'science_fiction' | 'mystery' | 'thriller' | 'romance' | 'horror' | 'historical' | 'young_adult' | 'other'
+
+export type HeadingStyle = 'plain' | 'smallCaps' | 'centred'
 
 export interface HealthResponse {
   service: string
   status: string
   version: string
+}
+
+export interface HistoryItem {
+  byteSize: number
+  // Whether the file can be made again: it came from a frozen version, and
+  // did not depend on comments, which can change.
+  canDownload: boolean
+  createdAt: string
+  filename: string
+  format: string
+  id: string
+  options: ExportOptions
+  optionsHash: string
+  profile?: string | null
+  versionId?: string | null
+  versionLabel?: string | null
+}
+
+export type HtmlMode = 'styled' | 'clean' | 'package'
+
+export interface HtmlOptions {
+  mode?: HtmlMode
 }
 
 export interface InviteRequest {
@@ -563,7 +655,32 @@ export interface InviteView {
   accepted: boolean
 }
 
+// A thing worth knowing before the file goes out. `code` is stable: the web
+// app keys on it, so a message can be reworded without breaking anything.
+export interface Issue {
+  code: string
+  location?: Location | null
+  // Says what to do next, not just what went wrong.
+  message: string
+  severity: Severity
+}
+
+export interface LastUsed {
+  format: string
+  notes: string[]
+  options: ExportOptions
+  usedAt: string
+}
+
+export interface LastUsedResponse {
+  // The latest of each format, which the dialog opens with.
+  byFormat: LastUsed[]
+  latest?: LastUsed | null
+}
+
 export type LengthBand = 'short' | 'novelette' | 'novella' | 'novel'
+
+export type LineSpacing = 'single' | '1.15' | '1.5' | 'double'
 
 export interface LinkRequest {
   sceneId: string
@@ -572,6 +689,11 @@ export interface LinkRequest {
 export interface LiveTicket {
   // Single use, good for thirty seconds: `GET /api/live?ticket=…`.
   ticket: string
+}
+
+export interface Location {
+  chapterId: string
+  sceneId?: string | null
 }
 
 export interface LoginRequest {
@@ -594,6 +716,37 @@ export interface MergeSceneRequest {
   // The scene to absorb. It must sit in the same chapter.
   with: string
   withBaseHash: string
+}
+
+// Export-time replacements for the work's own metadata. They apply to this
+// export only: a pen name for an EPUB, while the project keeps the writer's.
+export interface MetadataOverrides {
+  author?: string | null
+  description?: string | null
+  identifier?: string | null
+  language?: string | null
+  published?: string | null
+  publisher?: string | null
+  subtitle?: string | null
+  title?: string | null
+}
+
+export interface MetadataResponse {
+  contributors: ContributorBody[]
+  coverBytes?: number | null
+  coverHeight?: number | null
+  // Set when the cover is smaller than e-readers like.
+  coverWarning?: string | null
+  coverWidth?: number | null
+  description?: string | null
+  hasCover: boolean
+  identifier?: string | null
+  keywords: string[]
+  language?: string | null
+  published?: string | null
+  publisher?: string | null
+  textDirection?: string | null
+  updatedAt?: string | null
 }
 
 export interface NoteCounts {
@@ -619,6 +772,8 @@ export interface NoteFate {
   status: NoteStatus
 }
 
+export type NotePlacement = 'chapter' | 'book'
+
 // What became of the text a note was attached to.
 export type NoteStatus = 'untouched' | 'edited' | 'gone' | 'unanchored'
 
@@ -637,12 +792,17 @@ export interface NotebookEntry {
 
 export type NotebookKind = 'character' | 'place' | 'thing' | 'group' | 'note'
 
+export type Numbering = 'continuous' | 'chapter'
+
 export type Op = 'equal' | 'insert' | 'delete'
 
 export interface OutlineChapter {
   createdAt: string
   id: string
   position: number
+  // `chapter`, `front` or `back`. Front and back matter are not numbered and
+  // are included or left out of an export on their own.
+  role: string
   summary?: string | null
   title: string
   updatedAt: string
@@ -683,11 +843,36 @@ export interface OutlineResponse {
   chapters: OutlineChapter[]
 }
 
+export type PageSize = 'letter' | 'a4' | 'trade5x8' | 'trade5_5x8_5' | 'trade6x9'
+
+// Page setup for PDF. Book-layout PDF reads these; manuscript PDF is fixed.
+export interface PdfOptions {
+  chaptersOnRight?: boolean
+  landscape?: boolean
+  // Inches; `None` is 1.
+  marginIn?: number | null
+  // Page numbers on the pages of the book (not on chapter openings).
+  pageNumbers?: boolean | null
+  pageSize?: PageSize | null
+  romanFrontMatter?: boolean
+  startPage?: number | null
+}
+
 export interface Percentiles {
   max: number
   p50: number
   p95: number
   p99: number
+}
+
+export interface PreflightReport {
+  // The name the download will have, so the dialog can show it as the
+  // template is typed.
+  filename: string
+  issues: Issue[]
+  // False when any issue is an error. Warnings never block.
+  ok: boolean
+  summary: Summary
 }
 
 export interface Profile {
@@ -705,6 +890,24 @@ export interface Profile {
   standing: Standing
   // Whether the person asking follows this author. Always false signed out.
   viewerFollows: boolean
+}
+
+export interface ProfileView {
+  builtin: boolean
+  description?: string | null
+  // `builtin:…` for the ones that ship with the app.
+  id: string
+  name: string
+  // What had to change to make a saved profile work today: a font that was
+  // withdrawn, a setting that was renamed.
+  notes: string[]
+  options: ExportOptions
+  updatedAt?: string | null
+}
+
+export interface ProfilesResponse {
+  builtin: ProfileView[]
+  custom: ProfileView[]
 }
 
 export interface ProgressRequest {
@@ -992,6 +1195,11 @@ export interface RevisionWithContent {
   content: DocNode
 }
 
+export interface SaveProfileRequest {
+  name: string
+  options: ExportOptions
+}
+
 export interface SaveResult {
   revisionId?: string | null
   scene: Scene
@@ -1073,6 +1281,21 @@ export interface SceneWithContent {
   content: DocNode
 }
 
+// Which chapters and scenes go in.
+// 
+// A flat object rather than a tagged union, so every client can model it
+// without one: `kind` says whether the ids count.
+export interface Scope {
+  // A chapter id selects the chapter and every scene in it.
+  chapterIds?: string[]
+  kind?: ScopeKind
+  // A scene id on its own selects just that scene (under its chapter's
+  // title).
+  sceneIds?: string[]
+}
+
+export type ScopeKind = 'all' | 'selected'
+
 export interface Session {
   createdAt: string
   id: string
@@ -1103,6 +1326,8 @@ export interface SessionView {
   // The session this request came from.
   current: boolean
 }
+
+export type Severity = 'error' | 'warning' | 'info'
 
 export interface ShareLink {
   expiresAt: string
@@ -1190,6 +1415,37 @@ export interface StatusReport {
   version: string
   // The last minute and the last fifteen.
   writePath: WindowSummary[]
+}
+
+// Typography. A preset plus overrides on top of it; `None` means the preset's
+// own value. The manuscript preset ignores every override: fixing them is the
+// point of the format.
+export interface StyleOptions {
+  align?: Align | null
+  dropCaps?: boolean | null
+  // A key from [`FONTS`].
+  font?: string | null
+  headingStyle?: HeadingStyle | null
+  hyphenate?: boolean | null
+  lineSpacing?: LineSpacing | null
+  // First-line indent, in ems.
+  paragraphIndentEm?: number | null
+  // Space between paragraphs, in ems.
+  paragraphSpacingEm?: number | null
+  preset?: StylePreset
+  // `⁂`, `* * *`, `#`, an empty string for a blank line, or custom text.
+  sceneBreak?: string | null
+  sizePt?: number | null
+}
+
+export type StylePreset = 'manuscript' | 'book'
+
+// What is going out, in numbers.
+export interface Summary {
+  chapters: number
+  comments: number
+  scenes: number
+  words: number
 }
 
 export interface SummaryView {
@@ -1328,6 +1584,9 @@ export interface UpdateAnnotationRequest {
 }
 
 export interface UpdateChapterRequest {
+  // `chapter`, `front` (preface, foreword) or `back` (acknowledgments,
+  // afterword, appendix). Front and back matter are not numbered.
+  role?: string | null
   summary?: string | null
   title?: string | null
 }
@@ -1362,7 +1621,27 @@ export interface UpdateGoalsRequest {
   weeklyWordGoal?: number | null
 }
 
+// Each field is sent only when it changes; an empty string (or list) clears
+// it, which is what a writer emptying the field in the UI means.
+export interface UpdateMetadataRequest {
+  contributors?: ContributorBody[] | null
+  description?: string | null
+  // An ISBN or any other identifier. Optional; never required.
+  identifier?: string | null
+  keywords?: string[] | null
+  // A BCP 47 tag: `en`, `fr-CA`, `he`.
+  language?: string | null
+  // `YYYY`, `YYYY-MM` or `YYYY-MM-DD`.
+  published?: string | null
+  publisher?: string | null
+  // `ltr` or `rtl`. Empty follows the language.
+  textDirection?: string | null
+}
+
 export interface UpdateProfileRequest {
+  // A paragraph about the writer, offered as back matter in any book's
+  // export. An empty string clears it.
+  aboutAuthor?: string | null
   // An empty string clears it.
   bio?: string | null
   displayName?: string | null
@@ -1432,6 +1711,8 @@ export interface UpdateWorkRequest {
 }
 
 export interface User {
+  // A paragraph about the writer, reusable as back matter in any book.
+  aboutAuthor?: string | null
   bio?: string | null
   createdAt: string
   // The writer's daily target in words, when they have set one.
@@ -1526,6 +1807,8 @@ export interface VersionDetail {
 export interface VersionEntry {
   chapterId: string
   chapterPosition: number
+  // The chapter's role when the snapshot was taken.
+  chapterRole: string
   chapterTitle: string
   contentHash: string
   id: string

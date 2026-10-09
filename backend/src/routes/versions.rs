@@ -122,6 +122,8 @@ pub struct ContentChapter {
     pub chapter_id: String,
     pub title: String,
     pub position: i32,
+    /// `chapter`, `front` or `back`, as frozen.
+    pub role: String,
     pub scenes: Vec<ContentScene>,
 }
 
@@ -282,6 +284,7 @@ pub async fn create(
                 scene_position: scene.position,
                 content_hash: scene.content_hash.clone(),
                 word_count: scene.word_count,
+                chapter_role: chapter.chapter.role.clone(),
             });
             manifest_scenes.push(json!({
                 "sceneId": scene.id,
@@ -512,6 +515,7 @@ pub(crate) async fn assemble_content(
                 chapter_id: entry.chapter_id.clone(),
                 title: entry.chapter_title.clone(),
                 position: entry.chapter_position,
+                role: entry.chapter_role.clone(),
                 scenes: vec![scene],
             }),
         }
@@ -1403,6 +1407,7 @@ pub async fn restore(
                             position: entry.chapter_position,
                             created_at: now.clone(),
                             updated_at: now.clone(),
+                            role: entry.chapter_role.clone(),
                         })
                         .execute(conn)?;
                 }

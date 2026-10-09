@@ -11,6 +11,7 @@
 //! PDF needs proportional type, which needs real font metrics — see the
 //! roadmap. `Style::Book` is accepted and laid out as a manuscript rather than
 //! refused, because a writer asking for a PDF wants a PDF.
+use super::options::ExportOptions;
 use super::{Block, Manuscript, Span};
 
 const POINTS_PER_INCH: f32 = 72.0;
@@ -75,9 +76,15 @@ fn flatten(spans: &[Span]) -> Vec<(char, bool)> {
     spans
         .iter()
         .flat_map(|span| {
-            span.text
-                .chars()
-                .map(move |ch| (ch, span.italic || span.bold))
+            // A note reference is a bracketed number: Courier has no
+            // superscript, and the notes it points to are listed at the end
+            // of the chapter.
+            let text = match span.note {
+                Some(n) => format!("[{n}]"),
+                None => span.text.clone(),
+            };
+            let italic = span.italic || span.bold;
+            text.chars().map(move |ch| (ch, italic)).collect::<Vec<_>>()
         })
         .collect()
 }
@@ -157,15 +164,19 @@ fn lay_out(manuscript: &Manuscript) -> Vec<Vec<Line>> {
     // Page one: contact block, word count, then the title a third of the way
     // down — the shape an editor's eye is used to skimming.
     let contact = &manuscript.contact;
-    for value in [
-        contact
-            .legal_name
-            .clone()
-            .or_else(|| Some(manuscript.byline.clone())),
-        contact.address.clone(),
-        contact.phone.clone(),
-        contact.email.clone(),
-    ]
+    for value in if manuscript.omit_front_matter {
+        Vec::new()
+    } else {
+        vec![
+            contact
+                .legal_name
+                .clone()
+                .or_else(|| Some(manuscript.byline.clone())),
+            contact.address.clone(),
+            contact.phone.clone(),
+            contact.email.clone(),
+        ]
+    }
     .into_iter()
     .flatten()
     {
@@ -174,22 +185,24 @@ fn lay_out(manuscript: &Manuscript) -> Vec<Vec<Line>> {
         }
     }
 
-    let count = format!("about {} words", manuscript.rounded_word_count());
-    let pad = width.saturating_sub(count.chars().count());
-    lines.push(Line::plain(&format!("{:pad$}{count}", "", pad = pad)));
+    if !manuscript.omit_front_matter {
+        let count = format!("about {} words", manuscript.rounded_word_count());
+        let pad = width.saturating_sub(count.chars().count());
+        lines.push(Line::plain(&format!("{:pad$}{count}", "", pad = pad)));
 
-    while lines.len() < lines_per_page() / 3 {
+        while lines.len() < lines_per_page() / 3 {
+            lines.push(Line::default());
+        }
+
+        lines.push(Line::centred(&manuscript.title));
+        if let Some(subtitle) = &manuscript.subtitle {
+            lines.push(Line::centred(subtitle));
+        }
+        lines.push(Line::default());
+        lines.push(Line::centred(&format!("by {}", manuscript.byline)));
+        lines.push(Line::default());
         lines.push(Line::default());
     }
-
-    lines.push(Line::centred(&manuscript.title));
-    if let Some(subtitle) = &manuscript.subtitle {
-        lines.push(Line::centred(subtitle));
-    }
-    lines.push(Line::default());
-    lines.push(Line::centred(&format!("by {}", manuscript.byline)));
-    lines.push(Line::default());
-    lines.push(Line::default());
 
     let mut pages: Vec<Vec<Line>> = Vec::new();
     let push_page = |lines: &mut Vec<Line>, pages: &mut Vec<Vec<Line>>| {
@@ -198,6 +211,37 @@ fn lay_out(manuscript: &Manuscript) -> Vec<Vec<Line>> {
             pages.push(std::mem::replace(lines, rest));
         }
         pages.push(std::mem::take(lines));
+    };
+
+    // A contents page: titles only, since page numbers would need a second
+    // pass over the layout.
+    if manuscript.toc {
+        push_page(&mut lines, &mut pages);
+        lines.push(Line::centred("Contents"));
+        lines.push(Line::default());
+        for chapter in &manuscript.chapters {
+            lines.push(Line::plain(&format!("     {}", chapter.title)));
+        }
+    }
+
+    let notes_of = |notes: &[&super::Note], lines: &mut Vec<Line>| {
+        if notes.is_empty() {
+            return;
+        }
+        lines.push(Line::default());
+        lines.push(Line::centred("Notes"));
+        lines.push(Line::default());
+        for note in notes {
+            let text = format!("[{}] {}", note.number, note.plain(manuscript.note_label));
+            lines.extend(wrap(
+                &[Span {
+                    text,
+                    ..Default::default()
+                }],
+                0,
+                width,
+            ));
+        }
     };
 
     for chapter in &manuscript.chapters {
@@ -232,6 +276,15 @@ fn lay_out(manuscript: &Manuscript) -> Vec<Vec<Line>> {
                 }
             }
         }
+        if manuscript.note_layout != super::NoteLayout::EndnotesBook {
+            let notes: Vec<&super::Note> = chapter.notes.iter().collect();
+            notes_of(&notes, &mut lines);
+        }
+    }
+    if manuscript.note_layout == super::NoteLayout::EndnotesBook {
+        push_page(&mut lines, &mut pages);
+        let notes = manuscript.all_notes();
+        notes_of(&notes, &mut lines);
     }
     push_page(&mut lines, &mut pages);
     pages.retain(|page| !page.is_empty());
@@ -311,8 +364,26 @@ fn content_stream(page: &[Line], header: Option<&str>) -> Vec<u8> {
     out
 }
 
-pub fn write(manuscript: &Manuscript) -> Vec<u8> {
-    let pages = lay_out(manuscript);
+pub fn write(manuscript: &Manuscript, options: &ExportOptions) -> Vec<u8> {
+    write_limited(manuscript, options, None)
+}
+
+/// The first `max_pages` pages, for a preview that need not lay out the whole
+/// book on the reader's connection.
+pub fn write_limited(
+    manuscript: &Manuscript,
+    options: &ExportOptions,
+    max_pages: Option<usize>,
+) -> Vec<u8> {
+    // A book layout is a different engine: proportional type, embedded fonts.
+    // The manuscript layout below is Courier, fixed by the format.
+    if options.style_kind() == super::Style::Book {
+        return super::pdf_book::write(manuscript, options, max_pages);
+    }
+    let mut pages = lay_out(manuscript);
+    if let Some(limit) = max_pages {
+        pages.truncate(limit.max(1));
+    }
     let page_count = pages.len().max(1);
 
     // Object numbering: 1 catalog, 2 page tree, 3 and 4 the fonts, then a page
@@ -458,5 +529,65 @@ mod tests {
     #[test]
     fn pdf_strings_escape_structural_characters() {
         assert_eq!(pdf_string("a(b)c\\d"), b"(a\\(b\\)c\\\\d)".to_vec());
+    }
+}
+
+#[cfg(test)]
+mod note_tests {
+    use super::*;
+    use crate::export::{ChapterContent, Note, NoteLayout, SceneContent};
+
+    fn text_of(pdf: &[u8]) -> String {
+        String::from_utf8_lossy(pdf).to_string()
+    }
+
+    fn book() -> Manuscript {
+        Manuscript {
+            title: "T".into(),
+            byline: "A".into(),
+            surname: "A".into(),
+            short_title: "T".into(),
+            chapters: vec![ChapterContent {
+                title: "One".into(),
+                scenes: vec![SceneContent {
+                    blocks: vec![Block::Paragraph(vec![
+                        Span {
+                            text: "Hello".into(),
+                            ..Default::default()
+                        },
+                        Span {
+                            note: Some(1),
+                            ..Default::default()
+                        },
+                    ])],
+                    ..Default::default()
+                }],
+                notes: vec![Note {
+                    number: 1,
+                    text: "the note".into(),
+                    quote: None,
+                }],
+                ..Default::default()
+            }],
+            note_layout: NoteLayout::EndnotesChapter,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn notes_are_bracketed_marks_with_a_list_after_the_chapter() {
+        let pdf = text_of(&write(&book(), &ExportOptions::default()));
+        assert!(pdf.contains("Hello[1]"));
+        assert!(pdf.contains("[1] the note"));
+        assert!(pdf.contains("Notes"));
+    }
+
+    #[test]
+    fn front_matter_can_be_left_out() {
+        let mut m = book();
+        m.omit_front_matter = true;
+        let pdf = text_of(&write(&m, &ExportOptions::default()));
+        assert!(!pdf.contains("by A"));
+        assert!(pdf.contains("One"));
     }
 }

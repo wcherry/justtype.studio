@@ -21,6 +21,12 @@ users ──┬─< works ──┬─< chapters ──< scenes ──┬─< sc
 | `templates` | Structural skeletons | `owner_id IS NULL` means built-in |
 | `works` | A novel, novella, short story or serial | `word_count` recomputed on every scene write |
 | `chapters` | Ordered divisions of a work | `position` is dense and zero-based |
+| `chapters.role` | `chapter`, `front` or `back` | Front and back matter are not numbered and have their own include toggles; frozen in `version_entries.chapter_role` |
+| `work_metadata` | Language, direction, description, publisher, date, identifier, keywords, contributors, cover type and size | One row per work, created on first save; the cover image is `cover.bin` in the work's folder |
+| `export_profiles` | A user's saved export settings | Presentation only: no selection, no metadata overrides |
+| `export_last_options` | The options last used, per work per format | Opens the dialog; "Export again" repeats the newest |
+| `export_history` | What was exported, when, and a hash of the bytes | Draft exports keep the record only; version exports can be made again |
+| `users.about_author` | A paragraph reusable as back matter | Private |
 | `scenes` | The unit of writing | `content_hash` detects real changes; body is on disk |
 | `scene_revisions` | Autosave history | One row per checkpoint; body is on disk |
 | `tracked_changes` | Proposed edits | `pending → accepted / rejected` |

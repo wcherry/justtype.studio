@@ -50,6 +50,56 @@ row!(User, users, {
     /// When they agreed that text they ask to summarise may be sent to the
     /// model provider. Unset, no summary is ever asked for on their behalf.
     summaries_allowed_at: Option<String>,
+    /// A paragraph about the writer, reusable as back matter in any book.
+    about_author: Option<String>,
+});
+
+#[derive(Debug, Clone, Queryable, Selectable, Serialize, Deserialize, utoipa::ToSchema)]
+#[diesel(table_name = work_metadata)]
+#[diesel(check_for_backend(diesel::sqlite::Sqlite))]
+#[serde(rename_all = "camelCase")]
+pub struct WorkMetadata {
+    pub work_id: String,
+    /// BCP 47.
+    pub language: Option<String>,
+    pub text_direction: Option<String>,
+    pub description: Option<String>,
+    pub publisher: Option<String>,
+    pub published: Option<String>,
+    pub identifier: Option<String>,
+    /// JSON array of strings.
+    pub keywords: Option<String>,
+    /// JSON array of `{name, role}`.
+    pub contributors: Option<String>,
+    pub cover_mime: Option<String>,
+    pub cover_bytes: Option<i32>,
+    pub cover_width: Option<i32>,
+    pub cover_height: Option<i32>,
+    pub updated_at: String,
+}
+
+row!(ExportProfile, export_profiles, {
+    id: String,
+    user_id: String,
+    name: String,
+    options: String,
+    created_at: String,
+    updated_at: String,
+});
+
+row!(ExportHistoryRow, export_history, {
+    id: String,
+    work_id: String,
+    user_id: String,
+    version_id: Option<String>,
+    format: String,
+    profile_name: Option<String>,
+    options_hash: String,
+    options: String,
+    filename: String,
+    byte_size: i32,
+    content_hash: String,
+    created_at: String,
 });
 
 row!(RefreshToken, refresh_tokens, {
@@ -149,6 +199,9 @@ row!(Chapter, chapters, {
     position: i32,
     created_at: String,
     updated_at: String,
+    /// `chapter`, `front` or `back`. Front and back matter are not numbered and
+    /// are included or left out of an export on their own.
+    role: String,
 });
 
 row!(Scene, scenes, {
@@ -277,6 +330,8 @@ row!(VersionEntry, version_entries, {
     scene_position: i32,
     content_hash: String,
     word_count: i32,
+    /// The chapter's role when the snapshot was taken.
+    chapter_role: String,
 });
 
 row!(Publication, publications, {
@@ -494,6 +549,18 @@ new_row!(NewUser, users, {
     weekly_word_goal: Option<i32>, summaries_allowed_at: Option<String>,
 });
 
+new_row!(NewExportProfile, export_profiles, {
+    id: String, user_id: String, name: String, options: String,
+    created_at: String, updated_at: String,
+});
+
+new_row!(NewExportHistory, export_history, {
+    id: String, work_id: String, user_id: String, version_id: Option<String>,
+    format: String, profile_name: Option<String>, options_hash: String,
+    options: String, filename: String, byte_size: i32, content_hash: String,
+    created_at: String,
+});
+
 new_row!(NewWritingDay, writing_days, {
     id: String, user_id: String, day: String, net_words: i32, saves: i32,
     created_at: String, updated_at: String,
@@ -570,7 +637,7 @@ new_row!(NewWork, works, {
 
 new_row!(NewChapter, chapters, {
     id: String, work_id: String, title: String, summary: Option<String>,
-    position: i32, created_at: String, updated_at: String,
+    position: i32, created_at: String, updated_at: String, role: String,
 });
 
 new_row!(NewScene, scenes, {
@@ -618,6 +685,7 @@ new_row!(NewVersionEntry, version_entries, {
     id: String, version_id: String, chapter_id: String, chapter_title: String,
     chapter_position: i32, scene_id: String, scene_title: String,
     scene_position: i32, content_hash: String, word_count: i32,
+    chapter_role: String,
 });
 
 new_row!(NewPublication, publications, {

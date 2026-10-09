@@ -309,6 +309,7 @@ pub async fn create(
                         position: chapter_index as i32,
                         created_at: now.clone(),
                         updated_at: now.clone(),
+                        role: "chapter".into(),
                     })
                     .execute(conn)?;
 
@@ -553,8 +554,19 @@ pub async fn outline(
 /// falls — "Chapter 3", "Scene 2" — as a version freezes them.
 pub(crate) fn with_placeholder_names(mut outline: OutlineResponse) -> OutlineResponse {
     use crate::domain::naming::{chapter_name, scene_name};
-    for (c, chapter) in outline.chapters.iter_mut().enumerate() {
-        chapter.chapter.title = chapter_name(&chapter.chapter.title, c + 1);
+    // Front and back matter are not numbered, and do not take a number from
+    // the chapters around them: "Chapter 4" is the fourth chapter.
+    let mut numbered = 0;
+    for chapter in outline.chapters.iter_mut() {
+        chapter.chapter.title = match chapter.chapter.role.as_str() {
+            "front" if chapter.chapter.title.trim().is_empty() => "Front matter".to_string(),
+            "back" if chapter.chapter.title.trim().is_empty() => "Back matter".to_string(),
+            "front" | "back" => chapter.chapter.title.clone(),
+            _ => {
+                numbered += 1;
+                chapter_name(&chapter.chapter.title, numbered)
+            }
+        };
         for (s, scene) in chapter.scenes.iter_mut().enumerate() {
             scene.title = scene_name(&scene.title, s + 1);
         }
@@ -620,6 +632,10 @@ pub struct UpdateChapterRequest {
     pub title: Option<String>,
     #[serde(default)]
     pub summary: Option<String>,
+    /// `chapter`, `front` (preface, foreword) or `back` (acknowledgments,
+    /// afterword, appendix). Front and back matter are not numbered.
+    #[serde(default)]
+    pub role: Option<String>,
 }
 
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
@@ -657,6 +673,7 @@ pub async fn create_chapter(
             position: support::next_chapter_position(conn, &work_id)?,
             created_at: now.clone(),
             updated_at: now,
+            role: "chapter".into(),
         };
         diesel::insert_into(chapters::table)
             .values(&row)
@@ -708,6 +725,16 @@ pub async fn update_chapter(
         if let Some(summary) = &body.summary {
             diesel::update(chapters::table.find(&chapter_id))
                 .set(chapters::summary.eq(summary))
+                .execute(conn)?;
+        }
+        if let Some(role) = &body.role {
+            if !matches!(role.as_str(), "chapter" | "front" | "back") {
+                return Err(ApiError::BadRequest(
+                    "role must be `chapter`, `front` or `back`".into(),
+                ));
+            }
+            diesel::update(chapters::table.find(&chapter_id))
+                .set(chapters::role.eq(role))
                 .execute(conn)?;
         }
         diesel::update(chapters::table.find(&chapter_id))

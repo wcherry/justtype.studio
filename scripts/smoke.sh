@@ -1011,7 +1011,8 @@ s='$1';k=base64.b32decode(s+'='*(-len(s)%8));c=int(time.time()//30)+${2:-0}
 h=hmac.new(k,struct.pack('>q',c),hashlib.sha1).digest();o=h[-1]&15
 print('%06d'%((struct.unpack('>I',h[o:o+4])[0]&0x7fffffff)%1000000))"; }
 SECRET=$(curl -s -X POST "$API/me/two-factor/setup" -H "$KAUTH" | field secret)
-CODES=$(curl -s -X POST "$API/me/two-factor/enable" -H "$KAUTH" -H 'content-type: application/json' -d "{\"code\":\"$(totp $SECRET)\"}")
+FIRST=$(totp $SECRET)
+CODES=$(curl -s -X POST "$API/me/two-factor/enable" -H "$KAUTH" -H 'content-type: application/json' -d "{\"code\":\"$FIRST\"}")
 RECOVERY=$(echo "$CODES" | field codes.0)
 RECOVERY2=$(echo "$CODES" | field codes.1)
 echo "  on, with $(echo "$CODES" | python3 -c 'import sys,json;print(len(json.load(sys.stdin)["codes"]))') recovery codes"
@@ -1019,7 +1020,9 @@ login() { curl -s -X POST "$API/auth/login" -H 'content-type: application/json' 
 login '' | python3 -c "
 import sys,json;e=json.load(sys.stdin)['error'];assert e['code']=='two_factor_required', e
 print('  the right password alone now asks for a code')"
-REPLAY=$(login ",\"code\":\"$(totp $SECRET)\"" | python3 -c "import sys,json;print(json.load(sys.stdin).get('error',{}).get('code','ok'))")
+# The very code that switched it on, not a fresh one: the clock may have
+# moved on to the next 30 seconds since.
+REPLAY=$(login ",\"code\":\"$FIRST\"" | python3 -c "import sys,json;print(json.load(sys.stdin).get('error',{}).get('code','ok'))")
 [ "$REPLAY" = "unauthorized" ] && echo "  the code that switched it on cannot be used again" || { echo "  EXPECTED a refused replay, got $REPLAY"; exit 1; }
 login ",\"code\":\"$(totp $SECRET 1)\"" | field accessToken >/dev/null && echo "  the next code signs in"
 login ",\"code\":\"$RECOVERY\"" | field accessToken >/dev/null && echo "  so does a recovery code"
@@ -1158,6 +1161,163 @@ NOTZIP=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$API/works/import?name=
 # A style the server does not know has to be refused, not quietly ignored.
 bad=$(curl -s -o /dev/null -w '%{http_code}' "$API/versions/$V2/export?format=docx&style=fancy" -H "$AUTH")
 [ "$bad" = "400" ] && echo "  unknown style rejected with 400" || { echo "  EXPECTED 400, got $bad"; exit 1; }
+
+step "Export options"
+CH0=$(curl -s "$API/works/$WID/outline" -H "$AUTH" | field chapters.0.id)
+CH1=$(curl -s "$API/works/$WID/outline" -H "$AUTH" | field chapters.1.id)
+export_post() { # file body
+  curl -s -o "$1" -w '%{http_code}' -X POST "$API/works/$WID/export" -H "$AUTH" -H 'content-type: application/json' -d "$2"
+}
+[ "$(export_post "$TMP/o1.docx" '{}')" = "200" ] && echo "  an empty options body is today's export" || { echo "  empty body refused"; exit 1; }
+[ "$(export_post "$TMP/o2.txt" '{"format":"pdf","epub":{}}')" = "400" ] \
+  && echo "  settings for another format are refused, not ignored" || { echo "  EXPECTED 400"; exit 1; }
+[ "$(export_post "$TMP/o3.txt" '{"fromat":"pdf"}')" = "422" ] && grep -q "fromat" "$TMP/o3.txt" \
+  && echo "  a misspelt setting is refused, naming it" || { echo "  EXPECTED 422 naming the field"; exit 1; }
+# A partial export: one chapter.
+code=$(export_post "$TMP/part.txt" "{\"format\":\"txt\",\"content\":{\"scope\":{\"kind\":\"selected\",\"chapterIds\":[\"$CH1\"],\"sceneIds\":[]},\"toc\":true}}")
+[ "$code" = "200" ] && grep -q "Contents" "$TMP/part.txt" && echo "  one chapter exports on its own, with a contents list" || { echo "  partial export failed ($code)"; exit 1; }
+code=$(export_post "$TMP/none.txt" '{"format":"txt","content":{"scope":{"kind":"selected","chapterIds":[],"sceneIds":[]}}}')
+[ "$code" = "400" ] && echo "  selecting nothing is refused, and says why" || { echo "  EXPECTED 400, got $code"; exit 1; }
+# Preflight sees the same thing without building a file.
+curl -s -X POST "$API/works/$WID/export/preflight" -H "$AUTH" -H 'content-type: application/json' \
+  -d '{"format":"epub"}' | python3 -c "
+import sys,json;d=json.load(sys.stdin)
+codes=[i['code'] for i in d['issues']]
+assert d['ok'] and d['summary']['chapters']>0 and 'no_cover' in codes, d
+assert d['filename'].endswith('.epub'), d['filename']
+print('  preflight:', d['summary']['chapters'], 'chapters,', d['summary']['words'], 'words;', ', '.join(codes))"
+curl -s -X POST "$API/works/$WID/export/preflight" -H "$AUTH" -H 'content-type: application/json' \
+  -d '{"format":"txt","content":{"scope":{"kind":"selected","chapterIds":[],"sceneIds":[]}}}' | python3 -c "
+import sys,json;d=json.load(sys.stdin)
+assert not d['ok'] and d['issues'][0]['severity']=='error', d
+print('  and an empty selection is an error there too')"
+
+# The writer's own comment, as a footnote — and as nothing by default.
+curl -s -X POST "$API/works/$WID/annotations" -H "$AUTH" -H 'content-type: application/json' \
+  -d "{\"sceneId\":\"$SCENE\",\"kind\":\"comment\",\"from\":1,\"to\":18,\"quote\":\"The field went on\",\"note\":\"Show, do not tell\"}" >/dev/null
+code=$(export_post "$TMP/notes.docx" '{"format":"docx","style":{"preset":"book"},"content":{"comments":"footnotes"}}')
+[ "$code" = "200" ] || { echo "  footnote export: HTTP $code"; exit 1; }
+python3 - "$TMP/notes.docx" "$TMP/o1.docx" <<'PY'
+import sys, zipfile
+z = zipfile.ZipFile(sys.argv[1])
+assert 'Show, do not tell' in z.read('word/footnotes.xml').decode(), 'the comment is a Word footnote'
+assert 'footnoteReference' in z.read('word/document.xml').decode()
+plain = zipfile.ZipFile(sys.argv[2])
+assert 'word/footnotes.xml' not in plain.namelist(), 'comments are off by default'
+print('  a comment exports as a real Word footnote, and not at all unless asked')
+PY
+code=$(export_post "$TMP/notes.html" '{"format":"html","content":{"comments":"footnotes"}}')
+grep -q 'id="fnrefc' "$TMP/notes.html" && grep -q "Show, do not tell" "$TMP/notes.html" \
+  && echo "  and in HTML, with links to the note and back" || { echo "  HTML footnotes missing ($code)"; exit 1; }
+code=$(export_post "$TMP/pdfnotes.pdf" '{"format":"pdf","content":{"comments":"footnotes"}}')
+[ "$code" = "200" ] && LC_ALL=C grep -aq "Show, do not tell" "$TMP/pdfnotes.pdf" && echo "  and in PDF, as notes at the end of the chapter" || { echo "  PDF notes missing"; exit 1; }
+# Details and a cover.
+[ "$(code -X PATCH "$API/works/$WID/metadata" -H "$AUTH" -H 'content-type: application/json' -d '{"language":"english"}')" = "400" ] \
+  && echo "  a language that is not a tag is refused" || { echo "  EXPECTED 400"; exit 1; }
+curl -s -X PATCH "$API/works/$WID/metadata" -H "$AUTH" -H 'content-type: application/json' \
+  -d '{"language":"fr","description":"Un roman.","publisher":"Press","published":"2026-03-01","keywords":["mer"],"contributors":[{"name":"E. Ditor","role":"editor"}]}' | python3 -c "
+import sys,json;d=json.load(sys.stdin)
+assert d['language']=='fr' and d['keywords']==['mer'] and d['contributors'][0]['role']=='editor' and not d['hasCover'], d
+print('  language, description, publisher, date, keywords and contributors save together')"
+python3 - "$TMP/cover.png" <<'PY'
+import struct, sys, zlib
+w, h = 1600, 2560
+raw = b''.join(b'\x00' + b'\x30\x60\x90' * w for _ in range(h))
+def chunk(t, d): c = struct.pack('>I', len(d)) + t + d; return c + struct.pack('>I', zlib.crc32(t + d))
+open(sys.argv[1], 'wb').write(b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 2, 0, 0, 0)) + chunk(b'IDAT', zlib.compress(raw, 1)) + chunk(b'IEND', b''))
+PY
+[ "$(code -X PUT "$API/works/$WID/cover" -H "$AUTH" --data-binary 'not an image at all')" = "400" ] \
+  && echo "  something that is not an image is refused as a cover" || { echo "  EXPECTED 400"; exit 1; }
+curl -s -X PUT "$API/works/$WID/cover" -H "$AUTH" --data-binary @"$TMP/cover.png" | python3 -c "
+import sys,json;d=json.load(sys.stdin)
+assert d['hasCover'] and d['coverWidth']==1600 and d['coverHeight']==2560 and d['coverWarning'] is None, d
+print('  a 1600×2560 cover is stored and measured')"
+curl -s "$API/works/$WID/cover" -H "$AUTH" -o "$TMP/cover.back" && cmp -s "$TMP/cover.png" "$TMP/cover.back" \
+  && echo "  and comes back byte for byte" || { echo "  cover differs"; exit 1; }
+code=$(export_post "$TMP/book.epub" '{"format":"epub"}')
+python3 - "$TMP/book.epub" <<'PY'
+import sys, zipfile
+z = zipfile.ZipFile(sys.argv[1])
+names = z.namelist()
+assert names[0] == 'mimetype' and z.getinfo('mimetype').compress_type == 0
+opf = z.read('OEBPS/content.opf').decode()
+assert '<dc:language>fr</dc:language>' in opf and 'Un roman.' in opf and 'cover-image' in opf and 'edt' in opf, opf
+assert 'OEBPS/cover.png' in names and any(n.startswith('OEBPS/chapter') for n in names)
+for item in __import__('re').findall(r'href="([^"]+)"', opf):
+    assert 'OEBPS/' + item in names, item
+print('  the EPUB says French, carries the description, the editor and the cover, and every manifest entry exists')
+PY
+code=$(export_post "$TMP/site.zip" '{"format":"html","html":{"mode":"package"}}')
+python3 - "$TMP/site.zip" <<'PY'
+import sys, zipfile
+z = zipfile.ZipFile(sys.argv[1]); n = z.namelist()
+assert 'index.html' in n and 'style.css' in n and 'chapter-1.html' in n and 'cover.png' in n, n
+assert '<html lang="fr">' in z.read('index.html').decode()
+print('  a web package: index, a page per chapter, stylesheet and cover')
+PY
+code=$(export_post "$TMP/clean.html" '{"format":"html","html":{"mode":"clean"}}')
+! grep -q 'class=' "$TMP/clean.html" && grep -q '<article lang="fr">' "$TMP/clean.html" && echo "  clean HTML has no classes or styles" || { echo "  clean HTML is not clean"; exit 1; }
+
+# Roles.
+[ "$(code -X PATCH "$API/chapters/$CH1" -H "$AUTH" -H 'content-type: application/json' -d '{"role":"sideways"}')" = "400" ] \
+  && echo "  an unknown chapter role is refused" || { echo "  EXPECTED 400"; exit 1; }
+curl -s -X PATCH "$API/chapters/$CH1" -H "$AUTH" -H 'content-type: application/json' -d '{"role":"back","title":"Acknowledgments"}' | field role | sed 's/^/  chapter role: /'
+export_post "$TMP/ms.txt" '{"format":"txt"}' >/dev/null
+export_post "$TMP/book.txt" '{"format":"txt","style":{"preset":"book"}}' >/dev/null
+! grep -q "Acknowledgments" "$TMP/ms.txt" && grep -q "Acknowledgments" "$TMP/book.txt" \
+  && echo "  back matter is left out of a manuscript and kept in a book" || { echo "  back matter in the wrong place"; exit 1; }
+curl -s "$API/works/$WID/outline" -H "$AUTH" | python3 -c "
+import sys,json;d=json.load(sys.stdin);t=[c['title'] for c in d['chapters']]
+assert 'Acknowledgments' in t and not any(x=='Chapter 2' for x in t) , t
+print('  and it does not take a number: the chapters after it are renumbered', t[:4])"
+curl -s -X PATCH "$API/chapters/$CH1" -H "$AUTH" -H 'content-type: application/json' -d '{"role":"chapter","title":""}' >/dev/null
+
+# Profiles, last used, history, all formats.
+curl -s "$API/export/profiles" -H "$AUTH" | python3 -c "
+import sys,json;d=json.load(sys.stdin);assert len(d['builtin'])==6 and d['custom']==[], d
+print('  six built-in profiles:', ', '.join(p['name'] for p in d['builtin']))"
+PROFILE=$(curl -s -X POST "$API/export/profiles" -H "$AUTH" -H 'content-type: application/json' \
+  -d "{\"name\":\"For my editor\",\"options\":{\"format\":\"docx\",\"style\":{\"preset\":\"book\"},\"content\":{\"comments\":\"footnotes\",\"scope\":{\"kind\":\"selected\",\"chapterIds\":[\"$CH0\"],\"sceneIds\":[]}},\"metadata\":{\"title\":\"Not saved\"}}}")
+PID_P=$(echo "$PROFILE" | field id)
+echo "$PROFILE" | python3 -c "
+import sys,json;d=json.load(sys.stdin);o=d['options']
+assert o['content']['scope']['kind']=='all' and o['metadata']['title'] is None and o['content']['comments']=='footnotes', o
+print('  a saved profile keeps the presentation and leaves the selection and overrides behind')"
+[ "$(code -X DELETE "$API/export/profiles/builtin:epub" -H "$AUTH")" = "400" ] \
+  && echo "  built-in profiles cannot be deleted" || { echo "  EXPECTED 400"; exit 1; }
+curl -s "$API/works/$WID/export/last" -H "$AUTH" | python3 -c "
+import sys,json;d=json.load(sys.stdin);assert d['latest'] and len(d['byFormat'])>=3, d
+print('  last-used options remembered for', ', '.join(x['format'] for x in d['byFormat']))"
+[ "$(code -X POST "$API/works/$WID/export/again" -H "$AUTH")" = "200" ] && echo "  Export again repeats the last one" || { echo "  export again failed"; exit 1; }
+curl -s -X POST "$API/works/$WID/export/bundle" -H "$AUTH" -H 'content-type: application/json' \
+  -d '{"formats":["txt","html","epub"],"options":{"filenameTemplate":"{short_title}-{version}-{format}","style":{"preset":"book"}}}' -o "$TMP/all.zip"
+python3 - "$TMP/all.zip" <<'PY'
+import sys, zipfile, json
+z = zipfile.ZipFile(sys.argv[1]); n = z.namelist()
+m = json.loads(z.read('manifest.json'))
+assert len(m['files']) == 3 and all(f['name'] in n for f in m['files']), (n, m)
+assert any(f['format'] == 'epub' and any(w['code'] == 'chapter_empty' or w['code'] == 'no_cover' for w in f['warnings']) or f['format'] == 'epub' for f in m['files'])
+assert all('-draft-' in f['name'] for f in m['files']), [f['name'] for f in m['files']]
+print('  all formats at once:', ', '.join(f['name'] for f in m['files']))
+PY
+curl -s "$API/works/$WID/export/history" -H "$AUTH" | python3 -c "
+import sys,json;d=json.load(sys.stdin);assert len(d)>=8 and all(not h['canDownload'] for h in d if h['versionId'] is None), len(d)
+print('  history lists', len(d), 'exports; draft exports keep the record, not the bytes')"
+VEXP="$API/versions/$V2/export"
+curl -s -X POST "$VEXP" -H "$AUTH" -H 'content-type: application/json' -d '{"format":"docx","style":{"preset":"book"}}' -o "$TMP/v1.docx"
+HIST=$(curl -s "$API/works/$WID/export/history" -H "$AUTH" | python3 -c "
+import sys,json;print(next(h['id'] for h in json.load(sys.stdin) if h['versionId'] and h['canDownload']))")
+curl -s "$API/works/$WID/export/history/$HIST/download" -H "$AUTH" -o "$TMP/v2.docx" -D "$TMP/v2.headers"
+cmp -s "$TMP/v1.docx" "$TMP/v2.docx" && grep -qi 'x-export-identical: true' "$TMP/v2.headers" \
+  && echo "  a version export, downloaded again from the history, is byte for byte the same file" || { echo "  the re-download differs"; exit 1; }
+DRAFTH=$(curl -s "$API/works/$WID/export/history" -H "$AUTH" | python3 -c "
+import sys,json;print(next(h['id'] for h in json.load(sys.stdin) if not h['versionId']))")
+[ "$(code "$API/works/$WID/export/history/$DRAFTH/download" -H "$AUTH")" = "400" ] \
+  && echo "  a draft export cannot be downloaded again, and says why" || { echo "  EXPECTED 400"; exit 1; }
+curl -s -X POST "$API/works/$WID/export/preview" -H "$AUTH" -H 'content-type: application/json' -d '{"format":"epub","style":{"preset":"book","font":"garamond"}}' \
+  | grep -q "font-family:Garamond" && echo "  preview renders the chosen typeface" || { echo "  preview ignores the style"; exit 1; }
+curl -s -X DELETE "$API/export/profiles/$PID_P" -H "$AUTH" -o /dev/null -w '  profile deleted: HTTP %{http_code}\n'
+curl -s -X DELETE "$API/works/$WID/cover" -H "$AUTH" | field hasCover | sed 's/^/  cover removed, hasCover: /'
 
 step "Reading a chapter at a time"
 curl -s "$API/publications/$PID/content?chapter=0" -H "$AUTH" | python3 -c "

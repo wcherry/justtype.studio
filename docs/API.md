@@ -69,10 +69,44 @@ chapter nine.
 | `POST` | `/works/{id}/import?name=&chapterId=` | a `.md`/`.txt` document in the body → a new scene |
 
 `format` is `docx`, `epub`, `pdf`, `html` or `txt`. `style` is `manuscript` (the
-default) or `book`, and applies to DOCX only — EPUB has no pages, and the PDF
-writer is Courier-only, which is what standard manuscript format asks for
-anyway. The response carries a `Content-Disposition` filename derived from the
-title.
+default) or `book`. These GET forms are shorthands that build default
+`ExportOptions`; they stay for the iOS app and the smoke test. The response
+carries a `Content-Disposition` filename and an `x-export-warnings` count.
+
+### Export options
+
+Everything configurable is one `ExportOptions` document, sent as the JSON body
+of the POST forms. Every field has a default, and an empty body is the default
+export. Unknown fields, and settings for another format (`pdf` options with
+`format: epub`), are refused naming the field.
+
+| Method | Path | Notes |
+|---|---|---|
+| `POST` | `/works/{id}/export`, `/versions/{id}/export` | the file; records last-used options and a history row |
+| `POST` | `…/export/preflight` | `{summary, issues[], ok, filename}` without building the file; errors block, warnings never do |
+| `POST` | `…/export/preview[?pages=]` | a web page (first pages for PDF) to look at; recorded nowhere |
+| `POST` | `…/export/bundle` | `{formats[], options}` → one zip of every format plus `manifest.json` with per-file warnings |
+| `GET` | `/works/{id}/export/last` | `{latest, byFormat[]}` |
+| `POST` | `/works/{id}/export/again` | repeats the latest |
+| `GET` | `/works/{id}/export/history` | newest first |
+| `GET` | `/works/{id}/export/history/{id}/download` | a version export made again; `x-export-identical` says whether it matches the original bytes |
+| `GET/POST` | `/export/profiles` | six built-in profiles plus the caller's own |
+| `PATCH/DELETE` | `/export/profiles/{id}` | built-ins are read-only |
+| `GET/PATCH` | `/works/{id}/metadata` | language, description, publisher, date, identifier, keywords, contributors |
+| `PUT/GET/DELETE` | `/works/{id}/cover` | a JPEG or PNG in the body (8 MB; checked by its bytes) |
+
+`ExportOptions` = `format`, `content` (`scope` {`kind` all/selected,
+`chapterIds`, `sceneIds`}, `frontMatter`, `backMatter`, `toc`, `aboutAuthor`,
+`comments` off/footnotes/endnotes, `notePlacement`, `commentNumbering`,
+`quotePassage`, `commentLabel`), `style` (`preset` manuscript/book plus
+typography overrides, which the manuscript preset ignores), `metadata`
+(overrides for this file only), per-format `pdf`, `epub`, `html`,
+`filenameTemplate` and `profile`. Only the caller's own comments are ever
+exported. PDF footnotes are set as notes at the end of each chapter; Word has
+real footnotes and endnotes.
+
+Chapters take a `role` on `PATCH /chapters/{id}`; `PATCH /me/profile` takes
+`aboutAuthor`. The project zip round-trips roles, details and the cover.
 
 A version is the export to send: a file you send an agent has to be a thing that
 stays the same. The working draft exports too, as it reads now. Scenes with no text are skipped, so

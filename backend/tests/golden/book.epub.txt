@@ -1,0 +1,116 @@
+== mimetype
+application/epub+zip
+== META-INF/container.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <rootfiles>
+    <rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+== OEBPS/style.css
+body { margin: 0 1em; line-height: 1.5; }
+h1 { text-align: center; margin: 2em 0 1.5em; font-weight: normal; }
+p { margin: 0; text-indent: 1.5em; text-align: justify; }
+p.first, h1 + p, blockquote + p, hr + p { text-indent: 0; }
+hr.scene { border: none; text-align: center; margin: 1.5em 0; }
+hr.scene::after { content: "⁂"; }
+blockquote { margin: 1.5em 2em; font-style: italic; }
+.title-page { text-align: center; margin-top: 20%; }
+.title-page h1 { font-size: 2em; }
+.subtitle { text-indent: 0; font-style: italic; }
+.byline { text-indent: 0; margin-top: 2em; }
+.copyright, .dedication { text-indent: 0; margin-top: 3em; font-size: 0.9em; }
+.epigraph { text-align: left; }
+.epigraph .source { text-indent: 0; text-align: right; font-style: normal; }
+.cover { text-align: center; }
+.cover img { max-width: 100%; height: auto; }
+== OEBPS/title.xhtml
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="en" xml:lang="en">
+<head><title>The Long Road</title><link rel="stylesheet" type="text/css" href="style.css"/></head>
+<body epub:type="titlepage">
+<div class="title-page">
+<h1>The Long Road</h1>
+<p class="subtitle">A Novel</p>
+<p class="byline">Ada Quill</p>
+<p class="copyright">© 2026 Ada Quill</p>
+<p class="dedication">For Sam</p>
+<blockquote class="epigraph"><p>Whatever comes.</p><p class="source">— Anon</p></blockquote>
+</div>
+</body>
+</html>
+== OEBPS/chapter1.xhtml
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="en" xml:lang="en">
+<head><title>Chapter 1</title><link rel="stylesheet" type="text/css" href="style.css"/></head>
+<body epub:type="chapter">
+<h1>Chapter 1</h1>
+<p class="first">She said <em>nothing</em> at all &amp; left.</p>
+<h3>Aside</h3>
+<blockquote><p>A quoted line.</p></blockquote>
+<hr class="scene"/>
+<p class="first">Later.<br/>Much later.</p>
+<hr class="scene"/>
+<p class="first">End.</p>
+
+</body>
+</html>
+== OEBPS/chapter2.xhtml
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="en" xml:lang="en">
+<head><title>Chapter 2</title><link rel="stylesheet" type="text/css" href="style.css"/></head>
+<body epub:type="chapter">
+<h1>Chapter 2</h1>
+<p class="first">Another day.</p>
+
+</body>
+</html>
+== OEBPS/nav.xhtml
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="en" xml:lang="en">
+<head><title>Contents</title></head>
+<body>
+  <nav epub:type="toc" id="toc" hidden="hidden">
+    <h1>Contents</h1>
+    <ol>
+      <li><a href="chapter1.xhtml">Chapter 1</a></li>
+      <li><a href="chapter2.xhtml">Chapter 2</a></li>
+    </ol>
+  </nav>
+  <nav epub:type="landmarks" hidden="hidden">
+    <h2>Guide</h2>
+    <ol>
+      <li><a epub:type="bodymatter" href="chapter1.xhtml">Start of the book</a></li>
+    </ol>
+  </nav>
+</body>
+</html>
+== OEBPS/content.opf
+<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="book-id" xml:lang="en">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+<!-- varies -->
+<dc:title>The Long Road</dc:title>
+<dc:creator>Ada Quill</dc:creator>
+<dc:language>en</dc:language>
+    <meta property="schema:accessMode">textual</meta>
+<meta property="schema:accessModeSufficient">textual</meta>
+<meta property="schema:accessibilityFeature">tableOfContents</meta>
+<meta property="schema:accessibilityFeature">readingOrder</meta>
+<meta property="schema:accessibilityHazard">none</meta>
+<meta property="schema:accessibilitySummary">The text has a table of contents and a linear reading order. It has no images that carry meaning beyond the cover.</meta>
+<!-- varies -->
+  </metadata>
+  <manifest>
+    <item id="css" href="style.css" media-type="text/css"/>
+    <item id="title" href="title.xhtml" media-type="application/xhtml+xml"/>
+    <item id="chapter1" href="chapter1.xhtml" media-type="application/xhtml+xml"/>
+    <item id="chapter2" href="chapter2.xhtml" media-type="application/xhtml+xml"/>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+  </manifest>
+  <spine>
+    <itemref idref="title"/>
+    <itemref idref="chapter1"/>
+    <itemref idref="chapter2"/>
+  </spine>
+</package>

@@ -21,6 +21,7 @@ diesel::table! {
         terms_accepted_at -> Nullable<Text>,
         weekly_word_goal -> Nullable<Integer>,
         summaries_allowed_at -> Nullable<Text>,
+        about_author -> Nullable<Text>,
     }
 }
 
@@ -84,6 +85,7 @@ diesel::table! {
         position -> Integer,
         created_at -> Text,
         updated_at -> Text,
+        role -> Text,
     }
 }
 
@@ -215,6 +217,7 @@ diesel::table! {
         scene_position -> Integer,
         content_hash -> Text,
         word_count -> Integer,
+        chapter_role -> Text,
     }
 }
 
@@ -509,6 +512,66 @@ diesel::table! {
     }
 }
 
+diesel::table! {
+    work_metadata (work_id) {
+        work_id -> Text,
+        language -> Nullable<Text>,
+        text_direction -> Nullable<Text>,
+        description -> Nullable<Text>,
+        publisher -> Nullable<Text>,
+        published -> Nullable<Text>,
+        identifier -> Nullable<Text>,
+        keywords -> Nullable<Text>,
+        contributors -> Nullable<Text>,
+        cover_mime -> Nullable<Text>,
+        cover_bytes -> Nullable<Integer>,
+        cover_width -> Nullable<Integer>,
+        cover_height -> Nullable<Integer>,
+        updated_at -> Text,
+    }
+}
+
+diesel::table! {
+    export_profiles (id) {
+        id -> Text,
+        user_id -> Text,
+        name -> Text,
+        options -> Text,
+        created_at -> Text,
+        updated_at -> Text,
+    }
+}
+
+diesel::table! {
+    export_last_options (work_id, format) {
+        work_id -> Text,
+        format -> Text,
+        options -> Text,
+        used_at -> Text,
+    }
+}
+
+diesel::table! {
+    export_history (id) {
+        id -> Text,
+        work_id -> Text,
+        user_id -> Text,
+        version_id -> Nullable<Text>,
+        format -> Text,
+        profile_name -> Nullable<Text>,
+        options_hash -> Text,
+        options -> Text,
+        filename -> Text,
+        byte_size -> Integer,
+        content_hash -> Text,
+        created_at -> Text,
+    }
+}
+
+diesel::joinable!(export_last_options -> works (work_id));
+diesel::joinable!(export_history -> works (work_id));
+diesel::joinable!(export_profiles -> users (user_id));
+diesel::joinable!(work_metadata -> works (work_id));
 diesel::joinable!(refresh_tokens -> users (user_id));
 diesel::joinable!(sessions -> users (user_id));
 diesel::joinable!(work_collaborators -> works (work_id));
@@ -576,4 +639,8 @@ diesel::allow_tables_to_appear_in_same_query!(
     recovery_codes,
     audit_events,
     summaries,
+    work_metadata,
+    export_profiles,
+    export_last_options,
+    export_history,
 );
