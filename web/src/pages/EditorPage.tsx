@@ -26,6 +26,7 @@ import { Menu } from '../components/Menu'
 import type { MenuItem } from '../components/Menu'
 import { AboutDialog } from '../components/AboutDialog'
 import { ExportDialog } from '../components/ExportDialog'
+import { ImportDialog } from '../components/ImportDialog'
 import { GoalsPanel } from '../components/GoalsPanel'
 import { MarksPanel } from '../components/MarksPanel'
 import { SelectionMenu, useSelectionMenu } from '../components/SelectionMenu'
@@ -153,6 +154,7 @@ export function EditorPage() {
     setPanel('tasks')
   }
   const [about, setAbout] = useState(false)
+  const [importing, setImporting] = useState(false)
   const [view, setView] = useState<'write' | 'corkboard'>('write')
   /** What the writer has selected, in the same positions a proposal records. */
   const [selection, setSelection] = useState<{ from: number; to: number; quote: string } | null>(null)
@@ -653,6 +655,9 @@ export function EditorPage() {
           onSelect: () => toggleTodoTab('comments'),
         },
         panelItem('marks', 'Highlights & bookmarks'),
+        ...(can.canShape
+          ? [{ key: 'import', label: 'Import a document…', divider: true, onSelect: () => setImporting(true) }]
+          : []),
         ...(can.isOwner
           ? [
               panelItem('front', 'Front matter', { divider: true }),
@@ -1140,10 +1145,16 @@ export function EditorPage() {
         </SidePanel>
       )}
 
-      {panel === 'export' && can.isOwner && (
-        <SidePanel title="Export" onClose={closePanel}>
-          <ExportDialog workId={workId} onClose={closePanel} />
-        </SidePanel>
+      {panel === 'export' && can.isOwner && <ExportDialog workId={workId} onClose={closePanel} />}
+
+      {importing && (
+        <ImportDialog
+          into={{ workId }}
+          onClose={() => setImporting(false)}
+          onScene={(created) => {
+            void loadOutline().then(() => openScene(created))
+          }}
+        />
       )}
 
       {panel === 'goals' && (

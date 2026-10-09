@@ -64,17 +64,33 @@ chapter nine.
 | Method | Path | Notes |
 |---|---|---|
 | `GET` | `/versions/{id}/export?format=&style=` | the version as a file |
+| `GET` | `/works/{id}/export?format=&style=` | the working draft as a file, or `format=project` for the whole book as a zip (owner) |
+| `POST` | `/works/import?name=` | a project zip, or a `.md`/`.txt` document, in the body → a new book |
+| `POST` | `/works/{id}/import?name=&chapterId=` | a `.md`/`.txt` document in the body → a new scene |
 
-`format` is `docx`, `epub`, `pdf` or `txt`. `style` is `manuscript` (the
+`format` is `docx`, `epub`, `pdf`, `html` or `txt`. `style` is `manuscript` (the
 default) or `book`, and applies to DOCX only — EPUB has no pages, and the PDF
 writer is Courier-only, which is what standard manuscript format asks for
 anyway. The response carries a `Content-Disposition` filename derived from the
 title.
 
-Exports come from a frozen version, never the working copy: a file you send an
-agent has to be a thing that stays the same. Scenes with no text are skipped, so
+A version is the export to send: a file you send an agent has to be a thing that
+stays the same. The working draft exports too, as it reads now. Scenes with no text are skipped, so
 a template's empty beats do not print as pages of lone `#` marks, and a chapter
 that is nothing but scaffolding is skipped with them.
+
+### Projects
+
+`format=project` is the book as a zip: `project.json`, `README.txt`, and one
+Markdown file per scene under `manuscript/NN-chapter/NN-scene.md`. `project.json`
+(`format: "justtype-project"`, `formatVersion: 1`) is the source of truth — the
+details of the book, its chapters and scenes with every setting and each scene's
+exact document, and the notebook with its links — so importing it makes the same
+book. A zip with only Markdown files imports too: a chapter per folder, a scene
+per file. Imports always make new rows with new ids, start as a draft, and leave
+behind what is not part of the writing: versions, readers, comments, to-dos and
+collaborators. Import bodies are limited to 64 MB, and a zip to 20,000 files and
+256 MB once unpacked.
 
 Front matter — `penName`, `shortTitle`, `dedication`, `epigraph`,
 `epigraphSource`, `copyrightLine` — is set on the work; contact details for a

@@ -14,6 +14,7 @@ pub mod notebook;
 pub mod openapi;
 pub mod privacy;
 pub mod profiles;
+pub mod project;
 pub mod publications;
 pub mod readers;
 pub mod scenes;
@@ -106,6 +107,15 @@ fn api_router() -> OpenApiRouter<AppState> {
         .routes(routes!(versions::content))
         .routes(routes!(export::export_version))
         .routes(routes!(export::export_draft))
+        // Whole files in the request body, so a limit of their own.
+        .merge(
+            OpenApiRouter::new()
+                .routes(routes!(project::import_work))
+                .routes(routes!(project::import_document))
+                .layer(axum::extract::DefaultBodyLimit::max(
+                    project::MAX_IMPORT_BYTES,
+                )),
+        )
         .routes(routes!(versions::publish))
         .routes(routes!(versions::finalize))
         .routes(routes!(publications::create))

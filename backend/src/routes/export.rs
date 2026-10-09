@@ -23,7 +23,8 @@ use super::versions::{self, VersionDetail};
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ExportQuery {
-    /// `docx`, `epub`, `pdf`, `html` or `txt`.
+    /// `docx`, `epub`, `pdf`, `html` or `txt` — and, for the working draft only,
+    /// `project`: the whole book as a zip.
     pub format: String,
     /// `manuscript` (Shunn) or `book`. Ignored for EPUB, which has no pages,
     /// and for PDF, which is manuscript-only — see `export::pdf`.
@@ -43,7 +44,7 @@ fn style_from(value: Option<&str>) -> ApiResult<Style> {
 
 /// Everything after the last path separator, minus anything a filesystem or a
 /// `Content-Disposition` header would rather not see.
-fn safe_filename(title: &str, extension: &str) -> String {
+pub(super) fn safe_filename(title: &str, extension: &str) -> String {
     let mut stem = String::new();
     for ch in title.chars() {
         if ch.is_alphanumeric() {
@@ -229,7 +230,11 @@ pub async fn export_draft(
     user: AuthUser,
     Path(work_id): Path<String>,
     Query(query): Query<ExportQuery>,
-) -> ApiResult<impl IntoResponse> {
+) -> ApiResult<axum::response::Response> {
+    // The whole book, for another instance or for keeping.
+    if query.format == "project" {
+        return super::project::export_project(&state, user, work_id).await;
+    }
     let style = style_from(query.style.as_deref())?;
 
     let (work, author, outline) = blocking(&state.pool, move |conn| {
@@ -252,12 +257,13 @@ pub async fn export_draft(
     .await?;
 
     let manuscript = assemble_draft(&state, work, author, outline).await?;
-    render(
+    Ok(render(
         manuscript,
         &query.format,
         style,
         "there is nothing to export: nothing has been written yet",
-    )
+    )?
+    .into_response())
 }
 
 /// Writes a manuscript in the format asked for, as a download.
