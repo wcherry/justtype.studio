@@ -1011,7 +1011,8 @@ s='$1';k=base64.b32decode(s+'='*(-len(s)%8));c=int(time.time()//30)+${2:-0}
 h=hmac.new(k,struct.pack('>q',c),hashlib.sha1).digest();o=h[-1]&15
 print('%06d'%((struct.unpack('>I',h[o:o+4])[0]&0x7fffffff)%1000000))"; }
 SECRET=$(curl -s -X POST "$API/me/two-factor/setup" -H "$KAUTH" | field secret)
-CODES=$(curl -s -X POST "$API/me/two-factor/enable" -H "$KAUTH" -H 'content-type: application/json' -d "{\"code\":\"$(totp $SECRET)\"}")
+FIRST=$(totp $SECRET)
+CODES=$(curl -s -X POST "$API/me/two-factor/enable" -H "$KAUTH" -H 'content-type: application/json' -d "{\"code\":\"$FIRST\"}")
 RECOVERY=$(echo "$CODES" | field codes.0)
 RECOVERY2=$(echo "$CODES" | field codes.1)
 echo "  on, with $(echo "$CODES" | python3 -c 'import sys,json;print(len(json.load(sys.stdin)["codes"]))') recovery codes"
@@ -1019,7 +1020,9 @@ login() { curl -s -X POST "$API/auth/login" -H 'content-type: application/json' 
 login '' | python3 -c "
 import sys,json;e=json.load(sys.stdin)['error'];assert e['code']=='two_factor_required', e
 print('  the right password alone now asks for a code')"
-REPLAY=$(login ",\"code\":\"$(totp $SECRET)\"" | python3 -c "import sys,json;print(json.load(sys.stdin).get('error',{}).get('code','ok'))")
+# The very code that switched it on, not a fresh one: the clock may have
+# moved on to the next 30 seconds since.
+REPLAY=$(login ",\"code\":\"$FIRST\"" | python3 -c "import sys,json;print(json.load(sys.stdin).get('error',{}).get('code','ok'))")
 [ "$REPLAY" = "unauthorized" ] && echo "  the code that switched it on cannot be used again" || { echo "  EXPECTED a refused replay, got $REPLAY"; exit 1; }
 login ",\"code\":\"$(totp $SECRET 1)\"" | field accessToken >/dev/null && echo "  the next code signs in"
 login ",\"code\":\"$RECOVERY\"" | field accessToken >/dev/null && echo "  so does a recovery code"
@@ -1207,7 +1210,7 @@ code=$(export_post "$TMP/notes.html" '{"format":"html","content":{"comments":"fo
 grep -q 'id="fnrefc' "$TMP/notes.html" && grep -q "Show, do not tell" "$TMP/notes.html" \
   && echo "  and in HTML, with links to the note and back" || { echo "  HTML footnotes missing ($code)"; exit 1; }
 code=$(export_post "$TMP/pdfnotes.pdf" '{"format":"pdf","content":{"comments":"footnotes"}}')
-[ "$code" = "200" ] && grep -aq "Show, do not tell" "$TMP/pdfnotes.pdf" && echo "  and in PDF, as notes at the end of the chapter" || { echo "  PDF notes missing"; exit 1; }
+[ "$code" = "200" ] && LC_ALL=C grep -aq "Show, do not tell" "$TMP/pdfnotes.pdf" && echo "  and in PDF, as notes at the end of the chapter" || { echo "  PDF notes missing"; exit 1; }
 # Details and a cover.
 [ "$(code -X PATCH "$API/works/$WID/metadata" -H "$AUTH" -H 'content-type: application/json' -d '{"language":"english"}')" = "400" ] \
   && echo "  a language that is not a tag is refused" || { echo "  EXPECTED 400"; exit 1; }
