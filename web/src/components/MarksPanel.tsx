@@ -102,6 +102,11 @@ export function MarksPanel({
                 )}
                 <div className="marks__actions">
                   <span className="field__hint">{mark.kind === 'bookmark' ? 'Bookmark' : mark.kind === 'comment' ? 'Comment' : 'Highlight'}</span>
+                  {mark.kind === 'comment' && (
+                    <button type="button" className="linklike" onClick={() => onOpen(mark.id)}>
+                      Go there
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="linklike"

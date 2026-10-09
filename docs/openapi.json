@@ -10013,6 +10013,75 @@
         ]
       }
     },
+    "/api/works/import": {
+      "post": {
+        "operationId": "import_work",
+        "parameters": [
+          {
+            "description": "The file's name, which says what it is and, for a document, what to call\nit.",
+            "in": "query",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "For a document: the chapter to put it in. Default the last one.",
+            "in": "query",
+            "name": "chapterId",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "items": {
+                  "format": "int32",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "type": "array"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutlineResponse"
+                }
+              }
+            },
+            "description": "The new book"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "A zip becomes a book, a document becomes a book of one scene.",
+        "tags": [
+          "works"
+        ]
+      }
+    },
     "/api/works/{work_id}": {
       "delete": {
         "operationId": "delete_work",
@@ -10574,6 +10643,119 @@
         },
         "tags": [
           "collaboration"
+        ]
+      }
+    },
+    "/api/works/{work_id}/export": {
+      "get": {
+        "operationId": "export_draft",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {}
+            },
+            "description": "The working draft as a file"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "works"
+        ]
+      }
+    },
+    "/api/works/{work_id}/import": {
+      "post": {
+        "operationId": "import_document",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The file's name, which says what it is and, for a document, what to call\nit.",
+            "in": "query",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "For a document: the chapter to put it in. Default the last one.",
+            "in": "query",
+            "name": "chapterId",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "items": {
+                  "format": "int32",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "type": "array"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Scene"
+                }
+              }
+            },
+            "description": "The new scene"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "A document becomes a new scene in a book that already exists.",
+        "tags": [
+          "works"
         ]
       }
     },

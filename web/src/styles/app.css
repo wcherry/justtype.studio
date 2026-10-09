@@ -1387,9 +1387,20 @@ body.writing-page .room-outline .outline { display: block; border: none; max-hei
 
 .goals-panel { display: flex; flex-direction: column; gap: 12px; }
 .goals-panel label { display: flex; flex-direction: column; gap: 4px; margin: 0; }
-.about { display: flex; flex-direction: column; gap: 8px; }
-.about h3 { margin: 0; }
+dialog.about, dialog.dialog {
+  max-width: 360px; padding: 20px 24px; color: var(--ink); background: var(--surface);
+  border: 1px solid var(--line); border-radius: var(--radius); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+dialog.about::backdrop, dialog.dialog::backdrop { background: rgba(0, 0, 0, 0.35); }
+dialog.about h2, dialog.dialog h2 { margin: 0 0 8px; }
+dialog.about form { margin-top: 16px; text-align: right; }
 .outline__rename {
   flex: 1; min-width: 0; font: inherit; font-size: 14px; padding: 4px 6px; margin: 2px 4px;
   border: 1px solid var(--accent); border-radius: var(--radius); background: var(--surface); color: var(--ink);
 }
+dialog.about .about__version { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--ink-soft); }
+dialog.dialog { width: min(420px, calc(100vw - 32px)); max-width: none; }
+dialog.dialog label { display: flex; flex-direction: column; gap: 4px; margin: 12px 0; }
+dialog.dialog select, dialog.dialog input[type='file'] { width: 100%; }
+.dialog__actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.library__actions { display: flex; gap: 8px; }

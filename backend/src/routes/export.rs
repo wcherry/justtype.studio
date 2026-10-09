@@ -1,8 +1,8 @@
-//! Downloading a version as a file someone else can open.
+//! Downloading the book as a file someone else can open.
 //!
-//! Exports run from a frozen snapshot, never the working copy: a file you send
-//! an agent has to be a thing that stays the same, and the version is already
-//! exactly that.
+//! A version is the export to send: a file you send an agent has to be a thing
+//! that stays the same, and a version is already exactly that. The working
+//! draft can be exported too, as it reads at this moment.
 use axum::extract::{Path, Query, State};
 use axum::http::{header, HeaderMap, HeaderValue, StatusCode};
 use axum::response::IntoResponse;
@@ -23,7 +23,8 @@ use super::versions::{self, VersionDetail};
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ExportQuery {
-    /// `docx`, `epub`, `pdf`, `html` or `txt`.
+    /// `docx`, `epub`, `pdf`, `html` or `txt` — and, for the working draft only,
+    /// `project`: the whole book as a zip.
     pub format: String,
     /// `manuscript` (Shunn) or `book`. Ignored for EPUB, which has no pages,
     /// and for PDF, which is manuscript-only — see `export::pdf`.
@@ -43,7 +44,7 @@ fn style_from(value: Option<&str>) -> ApiResult<Style> {
 
 /// Everything after the last path separator, minus anything a filesystem or a
 /// `Content-Disposition` header would rather not see.
-fn safe_filename(title: &str, extension: &str) -> String {
+pub(super) fn safe_filename(title: &str, extension: &str) -> String {
     let mut stem = String::new();
     for ch in title.chars() {
         if ch.is_alphanumeric() {
@@ -68,13 +69,61 @@ async fn assemble(
     author: User,
 ) -> ApiResult<Manuscript> {
     let content = versions::assemble_content(state, detail).await?;
+    Ok(manuscript_of(
+        content.chapters,
+        content.version.word_count,
+        work,
+        author,
+    ))
+}
 
+/// The working draft as it stands now, read scene by scene off disk.
+async fn assemble_draft(
+    state: &AppState,
+    work: Work,
+    author: User,
+    outline: Vec<(String, Vec<crate::db::models::Scene>)>,
+) -> ApiResult<Manuscript> {
+    let mut chapters = Vec::new();
+    let mut words = 0;
+    for (index, (title, scenes)) in outline.into_iter().enumerate() {
+        let mut content_scenes = Vec::new();
+        for scene in scenes {
+            words += scene.word_count;
+            let content = state
+                .store
+                .read_working_scene(&work.id, &scene.id)
+                .await
+                .unwrap_or_else(|_| crate::domain::doc::empty_doc());
+            content_scenes.push(versions::ContentScene {
+                scene_id: scene.id,
+                title: scene.title,
+                position: scene.position,
+                word_count: scene.word_count,
+                content,
+            });
+        }
+        chapters.push(versions::ContentChapter {
+            chapter_id: String::new(),
+            title,
+            position: index as i32,
+            scenes: content_scenes,
+        });
+    }
+    Ok(manuscript_of(chapters, words, work, author))
+}
+
+fn manuscript_of(
+    chapters: Vec<versions::ContentChapter>,
+    word_count: i32,
+    work: Work,
+    author: User,
+) -> Manuscript {
     // Scenes with no text are outline scaffolding — a template's empty beats.
     // Carrying them through would print a page of lone scene-break marks, and a
     // chapter that is nothing but scaffolding would get a title page with
     // nothing under it.
-    let chapters: Vec<ChapterContent> = content
-        .chapters
+    let chapters: Vec<ChapterContent> = chapters
         .into_iter()
         .map(|chapter| ChapterContent {
             title: chapter.title,
@@ -104,7 +153,7 @@ async fn assemble(
         .unwrap_or(&byline)
         .to_string();
 
-    Ok(Manuscript {
+    Manuscript {
         short_title: work
             .short_title
             .clone()
@@ -123,9 +172,9 @@ async fn assemble(
         dedication: work.dedication,
         epigraph: work.epigraph,
         epigraph_source: work.epigraph_source,
-        word_count: content.version.word_count,
+        word_count,
         chapters,
-    })
+    }
 }
 
 #[utoipa::path(
@@ -158,13 +207,77 @@ pub async fn export_version(
     .await?;
 
     let manuscript = assemble(&state, detail, work, author).await?;
+    render(
+        manuscript,
+        &query.format,
+        style,
+        "there is nothing to export: this version has no text in it",
+    )
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/works/{work_id}/export",
+    tag = "works",
+    params(("work_id" = String, Path)),
+    responses(
+        (status = 200, description = "The working draft as a file", content_type = "application/octet-stream"),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
+pub async fn export_draft(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(work_id): Path<String>,
+    Query(query): Query<ExportQuery>,
+) -> ApiResult<axum::response::Response> {
+    // The whole book, for another instance or for keeping.
+    if query.format == "project" {
+        return super::project::export_project(&state, user, work_id).await;
+    }
+    let style = style_from(query.style.as_deref())?;
+
+    let (work, author, outline) = blocking(&state.pool, move |conn| {
+        let work = support::work_for_owner(conn, &work_id, &user)?;
+        let author: User = users::table
+            .find(&work.owner_id)
+            .select(User::as_select())
+            .first(conn)?;
+        // Named as a version would name them, so an untitled chapter or scene
+        // exports as "Chapter 2", not as nothing.
+        let outline =
+            super::works::with_placeholder_names(super::works::load_outline(conn, &work.id)?);
+        let outline = outline
+            .chapters
+            .into_iter()
+            .map(|chapter| (chapter.chapter.title, chapter.scenes))
+            .collect::<Vec<_>>();
+        Ok((work, author, outline))
+    })
+    .await?;
+
+    let manuscript = assemble_draft(&state, work, author, outline).await?;
+    Ok(render(
+        manuscript,
+        &query.format,
+        style,
+        "there is nothing to export: nothing has been written yet",
+    )?
+    .into_response())
+}
+
+/// Writes a manuscript in the format asked for, as a download.
+fn render(
+    manuscript: Manuscript,
+    format: &str,
+    style: Style,
+    empty: &str,
+) -> ApiResult<impl IntoResponse> {
     if manuscript.is_empty() {
-        return Err(ApiError::BadRequest(
-            "there is nothing to export: this version has no text in it".into(),
-        ));
+        return Err(ApiError::BadRequest(empty.into()));
     }
 
-    let (bytes, mime, extension) = match query.format.as_str() {
+    let (bytes, mime, extension) = match format {
         "docx" => (
             export::docx::write(&manuscript, style)?,
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",

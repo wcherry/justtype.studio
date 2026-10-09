@@ -166,6 +166,35 @@ export function downloadExport(versionId: string, format: string, style: string)
   return download(`/versions/${versionId}/export`, format, style)
 }
 
+/** The working draft as it stands now, as a file. For a copy that stays put, export a version. */
+export function downloadDraftExport(workId: string, format: string, style: string): Promise<void> {
+  return download(`/works/${workId}/export`, format, style)
+}
+
+/**
+ * Sends a file as the body of a request, as it is — a project zip or a
+ * Markdown document — rather than wrapped in JSON.
+ */
+async function upload<T>(path: string, file: File): Promise<T> {
+  const send = () => {
+    const headers: Record<string, string> = { 'content-type': 'application/octet-stream' }
+    const access = tokens.access()
+    if (access) headers.authorization = `Bearer ${access}`
+    return fetch(`${BASE}${path}`, { method: 'POST', headers, body: file })
+  }
+  let res = await send()
+  if (res.status === 401 && (await tryRefresh())) res = await send()
+  if (!res.ok) {
+    const payload = await res.json().catch(() => null)
+    throw new ApiError(
+      res.status,
+      payload?.error?.code ?? 'unknown',
+      payload?.error?.message ?? res.statusText,
+    )
+  }
+  return (await res.json()) as T
+}
+
 /** Every note on a publication, as a document the author can work from. */
 /** Everything held about the caller, as one zip. */
 export async function downloadAccountExport(): Promise<void> {
@@ -274,6 +303,16 @@ export const api = {
 
   works: {
     list: () => get<Work[]>('/works'),
+    /** A project zip becomes a book; a Markdown or text document, a book of one scene. */
+    import: (file: File) => upload<Outline>(`/works/import?name=${encodeURIComponent(file.name)}`, file),
+    /** A Markdown or text document becomes a new scene, in `chapterId` or the last chapter. */
+    importDocument: (workId: string, file: File, chapterId?: string) =>
+      upload<Scene>(
+        `/works/${workId}/import?name=${encodeURIComponent(file.name)}${
+          chapterId ? `&chapterId=${chapterId}` : ''
+        }`,
+        file,
+      ),
     get: (workId: string) => get<Work>(`/works/${workId}`),
     outline: (workId: string) => get<Outline>(`/works/${workId}/outline`),
     create: (input: {

@@ -18,3 +18,4 @@ ios/JustType/Info.plist
 ios/Signing.xcconfig
 *.xcworkspace
 *.tsbuildinfo
+web/version.txt

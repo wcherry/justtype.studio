@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
 import type { Genre, Template, Work, WorkKind } from '../api/types'
 import { GENRES } from '../components/labels'
+import { ImportDialog } from '../components/ImportDialog'
 import { useAuth } from '../state/auth'
 
 const KINDS: { value: WorkKind; label: string }[] = [
@@ -16,6 +17,7 @@ export function LibraryPage() {
   const [works, setWorks] = useState<Work[]>([])
   const [templates, setTemplates] = useState<Template[]>([])
   const [creating, setCreating] = useState(false)
+  const [importing, setImporting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -33,10 +35,20 @@ export function LibraryPage() {
     <main className="library">
       <header className="library__header">
         <h1>Your desk</h1>
-        <button type="button" onClick={() => setCreating((c) => !c)}>
-          {creating ? 'Cancel' : 'Start something new'}
-        </button>
+        <div className="library__actions">
+          <button type="button" onClick={() => setImporting(true)}>Import…</button>
+          <button type="button" onClick={() => setCreating((c) => !c)}>
+            {creating ? 'Cancel' : 'Start something new'}
+          </button>
+        </div>
       </header>
+
+      {importing && (
+        <ImportDialog
+          onClose={() => setImporting(false)}
+          onBook={(book) => navigate(`/works/${book.id}`)}
+        />
+      )}
 
       {error && <p className="error">{error}</p>}
 

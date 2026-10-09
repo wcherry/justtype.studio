@@ -1102,12 +1102,59 @@ import sys,json;assert any(r['action']=='collaborator_added' for r in json.load(
 print('  and the audit trail outlives the accounts it mentions')"
 
 step "Exporting the published version"
-for fmt in txt docx epub pdf; do
+for fmt in txt docx epub pdf html; do
   out="$TMP/export.$fmt"
   code=$(curl -s -o "$out" -w '%{http_code}' "$API/versions/$V2/export?format=$fmt&style=manuscript" -H "$AUTH")
   [ "$code" = "200" ] || { echo "  $fmt: HTTP $code"; exit 1; }
   printf '  %-5s %7s bytes  %s\n' "$fmt" "$(wc -c < "$out" | tr -d ' ')" "$(python3 "$ROOT/scripts/check_export.py" "$out")"
 done
+# The working draft goes out too, as it reads now — through the same writers.
+for fmt in html epub pdf; do
+  out="$TMP/draft.$fmt"
+  code=$(curl -s -o "$out" -w '%{http_code}' "$API/works/$WID/export?format=$fmt" -H "$AUTH")
+  [ "$code" = "200" ] || { echo "  draft $fmt: HTTP $code"; exit 1; }
+  printf '  draft %-5s %7s bytes  %s\n' "$fmt" "$(wc -c < "$out" | tr -d ' ')" "$(python3 "$ROOT/scripts/check_export.py" "$out")"
+done
+# The whole book as a zip, and back in as a book of its own.
+curl -s -o "$TMP/project.zip" "$API/works/$WID/export?format=project" -H "$AUTH"
+IMPORTED=$(curl -s -X POST "$API/works/import?name=copy.zip" -H "$AUTH" -H 'content-type: application/octet-stream' --data-binary @"$TMP/project.zip")
+IMPORTED_ID=$(echo "$IMPORTED" | field id)
+curl -s -o "$TMP/project2.zip" "$API/works/$IMPORTED_ID/export?format=project" -H "$AUTH"
+python3 - "$TMP/project.zip" "$TMP/project2.zip" <<'PY'
+import sys, json, zipfile
+def load(path):
+    z = zipfile.ZipFile(path)
+    names = z.namelist()
+    assert 'project.json' in names and 'README.txt' in names, names
+    md = [n for n in names if n.endswith('.md')]
+    return json.loads(z.read('project.json')), md
+a, md_a = load(sys.argv[1])
+b, md_b = load(sys.argv[2])
+assert a['format'] == 'justtype-project' and a['formatVersion'] == 1
+assert md_a, 'a scene went out as a Markdown file'
+assert md_a == md_b, (md_a, md_b)
+shape = lambda p: [(c['title'], [(s['title'], s['status'], s['content']) for s in c['scenes']]) for c in p['chapters']]
+assert shape(a) == shape(b), 'the imported book is not the one that was exported'
+keep = ('title', 'subtitle', 'penName', 'dedication', 'epigraph', 'copyrightLine', 'targetWords', 'targetDate')
+assert {k: a['work'].get(k) for k in keep} == {k: b['work'].get(k) for k in keep}, 'front matter differs'
+assert [(e['kind'], e['name'], e.get('fields')) for e in a['notebook']] == [(e['kind'], e['name'], e.get('fields')) for e in b['notebook']]
+print(f"  {len(md_a)} scenes as Markdown; a project zip imports as a book that exports the same")
+PY
+# One document: as a book of its own, and as a new scene in a book.
+printf '# A page\n\nSome *italic* words.\n' > "$TMP/page.md"
+ONE=$(curl -s -X POST "$API/works/import?name=A%20page.md" -H "$AUTH" -H 'content-type: application/octet-stream' --data-binary @"$TMP/page.md")
+echo "$ONE" | python3 -c "
+import sys,json;d=json.load(sys.stdin)
+assert d['title']=='A page' and len(d['chapters'])==1 and len(d['chapters'][0]['scenes'])==1, d['title']
+print('  a Markdown file imports as a book of one scene')"
+NEWSCENE=$(curl -s -X POST "$API/works/$WID/import?name=Another%20scene.txt" -H "$AUTH" -H 'content-type: application/octet-stream' --data-binary 'Plain words.')
+echo "$NEWSCENE" | python3 -c "
+import sys,json;d=json.load(sys.stdin);assert d['title']=='Another scene' and d['wordCount']==2, d
+print('  a text file imports as a new scene in this book')"
+ZIPINTO=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$API/works/$WID/import?name=p.zip" -H "$AUTH" --data-binary @"$TMP/project.zip")
+[ "$ZIPINTO" = "400" ] && echo "  a project is refused as a scene, and told where to go" || { echo "  EXPECTED 400, got $ZIPINTO"; exit 1; }
+NOTZIP=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$API/works/import?name=x.exe" -H "$AUTH" --data-binary 'MZ')
+[ "$NOTZIP" = "400" ] && echo "  an unknown file type is refused" || { echo "  EXPECTED 400, got $NOTZIP"; exit 1; }
 # A style the server does not know has to be refused, not quietly ignored.
 bad=$(curl -s -o /dev/null -w '%{http_code}' "$API/versions/$V2/export?format=docx&style=fancy" -H "$AUTH")
 [ "$bad" = "400" ] && echo "  unknown style rejected with 400" || { echo "  EXPECTED 400, got $bad"; exit 1; }
