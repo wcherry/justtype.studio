@@ -277,6 +277,25 @@ fn swift_ident(name: &str) -> String {
     }
 }
 
+/// An enum case for a raw value that may not be an identifier: "1.15"
+/// becomes `_1_15`.
+fn swift_case(variant: &str) -> String {
+    let mut name: String = variant
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    if !name.starts_with(|c: char| c.is_ascii_alphabetic() || c == '_') {
+        name.insert(0, '_');
+    }
+    swift_ident(&name)
+}
+
 fn swift_type(owner: &str, field: &str, schema: &Value) -> Result<String, String> {
     let (schema, nullable) = split_nullable(schema);
     let base = if let Some(target) = ref_name(&schema) {
@@ -332,7 +351,7 @@ pub fn swift(all: &Schemas) -> Result<String, String> {
                 "    public enum {name}: String, Codable, CaseIterable, Hashable, Sendable {{"
             );
             for variant in &variants {
-                let _ = writeln!(out, "        case {} = \"{variant}\"", swift_ident(variant));
+                let _ = writeln!(out, "        case {} = \"{variant}\"", swift_case(variant));
             }
             out.push_str("    }\n");
             continue;

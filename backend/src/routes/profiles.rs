@@ -270,7 +270,11 @@ pub async fn update_profile(
         )));
     }
 
-    let about_author = body.about_author.as_deref().map(str::trim).map(str::to_string);
+    let about_author = body
+        .about_author
+        .as_deref()
+        .map(str::trim)
+        .map(str::to_string);
     if about_author
         .as_deref()
         .is_some_and(|a| a.chars().count() > ABOUT_LIMIT)

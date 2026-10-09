@@ -97,7 +97,8 @@ pub struct Font {
 }
 
 fn u16_at(d: &[u8], at: usize) -> u16 {
-    d.get(at..at + 2).map_or(0, |b| u16::from_be_bytes([b[0], b[1]]))
+    d.get(at..at + 2)
+        .map_or(0, |b| u16::from_be_bytes([b[0], b[1]]))
 }
 fn i16_at(d: &[u8], at: usize) -> i16 {
     u16_at(d, at) as i16
@@ -113,8 +114,16 @@ impl Font {
         let mut tables = HashMap::new();
         for i in 0..count {
             let at = 12 + i * 16;
-            let tag: [u8; 4] = data[at..at + 4].try_into().expect("a table tag is four bytes");
-            tables.insert(tag, (u32_at(data, at + 8) as usize, u32_at(data, at + 12) as usize));
+            let tag: [u8; 4] = data[at..at + 4]
+                .try_into()
+                .expect("a table tag is four bytes");
+            tables.insert(
+                tag,
+                (
+                    u32_at(data, at + 8) as usize,
+                    u32_at(data, at + 12) as usize,
+                ),
+            );
         }
         let table = |tag: &[u8; 4]| tables.get(tag).copied().unwrap_or((0, 0));
 
@@ -139,7 +148,11 @@ impl Font {
             ],
             // Fixed 16.16, at post+4.
             italic_angle: u32_at(data, post + 4) as i32 as f32 / 65536.0,
-            cap_height: if os2_len >= 90 { i16_at(data, os2 + 88) } else { 0 },
+            cap_height: if os2_len >= 90 {
+                i16_at(data, os2 + 88)
+            } else {
+                0
+            },
             num_glyphs: u16_at(data, maxp + 4),
             num_h_metrics: u16_at(data, hhea + 34),
             tables,
@@ -172,7 +185,7 @@ impl Font {
                 (0, _) => 1,
                 _ => 0,
             };
-            if rank > 0 && best.map_or(true, |(r, _)| rank > r) {
+            if rank > 0 && best.is_none_or(|(r, _)| rank > r) {
                 best = Some((rank, offset));
             }
         }
@@ -187,7 +200,10 @@ impl Font {
                 let delta = start + segs * 2;
                 let range = delta + segs * 2;
                 for s in 0..segs {
-                    let (e, b) = (u16_at(sub, end + s * 2) as u32, u16_at(sub, start + s * 2) as u32);
+                    let (e, b) = (
+                        u16_at(sub, end + s * 2) as u32,
+                        u16_at(sub, start + s * 2) as u32,
+                    );
                     let d = u16_at(sub, delta + s * 2);
                     let ro = u16_at(sub, range + s * 2) as usize;
                     for c in b..=e {
@@ -263,10 +279,6 @@ impl Font {
         self.kern.get(&(left, right)).copied().unwrap_or(0)
     }
 
-    pub fn num_glyphs(&self) -> u16 {
-        self.num_glyphs
-    }
-
     /// The font cut down to the given glyphs (and whatever they are built
     /// from). Glyph numbers are kept, so text already encoded against the whole
     /// face still addresses the right outlines; the glyphs not wanted are
@@ -278,9 +290,15 @@ impl Font {
         let range = |gid: u16| -> (usize, usize) {
             let g = gid as usize;
             if long {
-                (u32_at(loca, g * 4) as usize, u32_at(loca, g * 4 + 4) as usize)
+                (
+                    u32_at(loca, g * 4) as usize,
+                    u32_at(loca, g * 4 + 4) as usize,
+                )
             } else {
-                (u16_at(loca, g * 2) as usize * 2, u16_at(loca, g * 2 + 2) as usize * 2)
+                (
+                    u16_at(loca, g * 2) as usize * 2,
+                    u16_at(loca, g * 2 + 2) as usize * 2,
+                )
             }
         };
 
@@ -328,7 +346,7 @@ impl Font {
                 let (s, e) = range(gid);
                 if let Some(g) = glyf.get(s..e) {
                     new_glyf.extend_from_slice(g);
-                    while new_glyf.len() % 4 != 0 {
+                    while !new_glyf.len().is_multiple_of(4) {
                         new_glyf.push(0);
                     }
                 }
@@ -421,7 +439,10 @@ pub fn font(family: Family, face: Face) -> &'static Font {
         let mut map = HashMap::new();
         for family in [Family::Serif, Family::Sans] {
             for face in Face::ALL {
-                map.insert((family, face), Font::parse(bytes_of(family, face), family, face));
+                map.insert(
+                    (family, face),
+                    Font::parse(bytes_of(family, face), family, face),
+                );
             }
         }
         map
@@ -439,7 +460,7 @@ mod tests {
             for face in Face::ALL {
                 let f = font(family, face);
                 assert_eq!(f.units_per_em, 2048);
-                assert!(f.num_glyphs() > 500);
+                assert!(f.num_glyphs > 500);
                 assert!(f.glyph('A').is_some() && f.glyph('é').is_some() && f.glyph('“').is_some());
                 assert!(f.glyph('—').is_some() && f.glyph('…').is_some());
                 // A space has width, and a capital is wider than an i.
@@ -477,7 +498,11 @@ mod tests {
         let f = font(Family::Serif, Face::Regular);
         let wanted: BTreeSet<u16> = "Hello, world".chars().filter_map(|c| f.glyph(c)).collect();
         let subset = f.subset(&wanted);
-        assert!(subset.len() < bytes_of(Family::Serif, Face::Regular).len() / 4, "{}", subset.len());
+        assert!(
+            subset.len() < bytes_of(Family::Serif, Face::Regular).len() / 4,
+            "{}",
+            subset.len()
+        );
         assert_eq!(&subset[..4], &[0, 1, 0, 0], "a TrueType file");
         // The whole-file checksum rule: with the adjustment in place the sum is fixed.
         assert_eq!(checksum(&subset), 0xB1B0_AFBA);
@@ -490,7 +515,7 @@ mod tests {
                 maxp = Some(u32_at(&subset, at + 8) as usize);
             }
         }
-        assert_eq!(u16_at(&subset, maxp.unwrap() + 4), f.num_glyphs());
+        assert_eq!(u16_at(&subset, maxp.unwrap() + 4), f.num_glyphs);
     }
 
     #[test]

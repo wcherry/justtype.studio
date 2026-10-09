@@ -57,7 +57,11 @@ fn jpeg(bytes: &[u8]) -> Result<PdfImage, String> {
             let color_space = match bytes[i + 9] {
                 1 => "/DeviceGray",
                 3 => "/DeviceRGB",
-                n => return Err(format!("a JPEG with {n} colour channels (CMYK) is not supported")),
+                n => {
+                    return Err(format!(
+                        "a JPEG with {n} colour channels (CMYK) is not supported"
+                    ))
+                }
             };
             return Ok(PdfImage {
                 width,
@@ -75,7 +79,10 @@ fn jpeg(bytes: &[u8]) -> Result<PdfImage, String> {
     Err("that JPEG has no frame header".into())
 }
 
-fn chunks(bytes: &[u8]) -> Result<Vec<(&[u8], &[u8])>, String> {
+/// A PNG chunk: its type and its data.
+type Chunk<'a> = (&'a [u8], &'a [u8]);
+
+fn chunks(bytes: &[u8]) -> Result<Vec<Chunk<'_>>, String> {
     if !bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
         return Err("not a PNG".into());
     }
@@ -205,7 +212,12 @@ fn png(bytes: &[u8]) -> Result<PdfImage, String> {
     Ok(PdfImage {
         width,
         height,
-        color_space: if colour_channels == 1 { "/DeviceGray" } else { "/DeviceRGB" }.into(),
+        color_space: if colour_channels == 1 {
+            "/DeviceGray"
+        } else {
+            "/DeviceRGB"
+        }
+        .into(),
         bits: 8,
         filter: "FlateDecode",
         decode_parms: None,
@@ -221,9 +233,17 @@ fn unfilter(raw: &[u8], stride: usize, bpp: usize, height: usize) -> Result<Vec<
         let filter = raw[y * (stride + 1)];
         let line = &raw[y * (stride + 1) + 1..(y + 1) * (stride + 1)];
         for x in 0..stride {
-            let left = if x >= bpp { out[y * stride + x - bpp] } else { 0 };
+            let left = if x >= bpp {
+                out[y * stride + x - bpp]
+            } else {
+                0
+            };
             let up = if y > 0 { out[(y - 1) * stride + x] } else { 0 };
-            let up_left = if y > 0 && x >= bpp { out[(y - 1) * stride + x - bpp] } else { 0 };
+            let up_left = if y > 0 && x >= bpp {
+                out[(y - 1) * stride + x - bpp]
+            } else {
+                0
+            };
             let predicted = match filter {
                 0 => 0,
                 1 => left,
@@ -259,7 +279,11 @@ mod tests {
         for n in 0..256u32 {
             let mut c = n;
             for _ in 0..8 {
-                c = if c & 1 == 1 { 0xEDB8_8320 ^ (c >> 1) } else { c >> 1 };
+                c = if c & 1 == 1 {
+                    0xEDB8_8320 ^ (c >> 1)
+                } else {
+                    c >> 1
+                };
             }
             table[n as usize] = c;
         }
@@ -294,16 +318,29 @@ mod tests {
     }
 
     fn cover(mime: &str, bytes: Vec<u8>) -> Cover {
-        Cover { bytes, mime: mime.into() }
+        Cover {
+            bytes,
+            mime: mime.into(),
+        }
     }
 
     #[test]
     fn an_rgb_png_goes_in_as_it_is_with_a_predictor() {
-        let png = png_of(2, 2, 8, 2, &[vec![255, 0, 0, 0, 255, 0], vec![0, 0, 255, 9, 9, 9]]);
+        let png = png_of(
+            2,
+            2,
+            8,
+            2,
+            &[vec![255, 0, 0, 0, 255, 0], vec![0, 0, 255, 9, 9, 9]],
+        );
         let image = load(&cover("image/png", png)).unwrap();
         assert_eq!((image.width, image.height, image.bits), (2, 2, 8));
         assert_eq!(image.color_space, "/DeviceRGB");
-        assert!(image.decode_parms.as_ref().unwrap().contains("/Predictor 15"));
+        assert!(image
+            .decode_parms
+            .as_ref()
+            .unwrap()
+            .contains("/Predictor 15"));
         assert!(image.alpha.is_none());
     }
 
@@ -328,7 +365,9 @@ mod tests {
         let png = png_of(1, 1, 16, 2, &[vec![0xAB, 0xCD, 0x12, 0x34, 0xFF, 0x00]]);
         let image = load(&cover("image/png", png)).unwrap();
         let mut out = Vec::new();
-        ZlibDecoder::new(&image.data[..]).read_to_end(&mut out).unwrap();
+        ZlibDecoder::new(&image.data[..])
+            .read_to_end(&mut out)
+            .unwrap();
         assert_eq!(out, [0xAB, 0x12, 0xFF]);
     }
 
@@ -351,7 +390,9 @@ mod tests {
         assert!(load(&cover("image/png", b"nope".to_vec())).is_err());
         let mut interlaced = png_of(1, 1, 8, 2, &[vec![0, 0, 0]]);
         interlaced[28] = 1; // the interlace byte of IHDR
-        assert!(load(&cover("image/png", interlaced)).unwrap_err().contains("interlaced"));
+        assert!(load(&cover("image/png", interlaced))
+            .unwrap_err()
+            .contains("interlaced"));
     }
 
     #[test]

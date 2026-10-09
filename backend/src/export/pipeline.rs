@@ -7,10 +7,8 @@
 use serde::Serialize;
 use serde_json::Value;
 
-use super::options::{CommentsMode, ExportOptions, Format, NotePlacement, Numbering, Scope};
-use super::{
-    positioned_blocks, Block, ChapterContent, Note, NoteLayout, Role, SceneContent, Span,
-};
+use super::options::{CommentsMode, ExportOptions, Format, NotePlacement, Numbering};
+use super::{positioned_blocks, Block, ChapterContent, Note, NoteLayout, Role, SceneContent, Span};
 
 /// One scene as stored: its document, not yet flattened.
 #[derive(Debug, Clone)]
@@ -229,7 +227,7 @@ pub fn anchor(blocks: &[(Block, u32)], comment: &SourceComment, use_positions: b
                     // Without usable positions, the first one wins.
                     (index * 1_000_000 + at) as i64
                 };
-                if best.map_or(true, |(d, ..)| distance < d) {
+                if best.is_none_or(|(d, ..)| distance < d) {
                     best = Some((distance, index, at + needle.len()));
                 }
             }
@@ -250,8 +248,7 @@ pub fn anchor(blocks: &[(Block, u32)], comment: &SourceComment, use_positions: b
         .quote
         .lines()
         .map(str::trim)
-        .filter(|l| !l.is_empty())
-        .last()
+        .rfind(|l| !l.is_empty())
     {
         let last: Vec<char> = last.chars().collect();
         if last != quote {
@@ -422,7 +419,10 @@ pub fn build(
         for (scene, block, offset, comment, placed) in placements {
             let number = counter;
             counter += 1;
-            marks.entry((scene, block)).or_default().push((offset, number));
+            marks
+                .entry((scene, block))
+                .or_default()
+                .push((offset, number));
             notes.push(Note {
                 number,
                 text: comment.note.trim().to_string(),
@@ -485,6 +485,7 @@ pub fn build(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::export::options::Scope;
     use serde_json::json;
 
     fn doc(paragraphs: &[&str]) -> Value {
@@ -513,7 +514,11 @@ mod tests {
     fn selection_follows_the_outline_whatever_order_the_boxes_were_ticked() {
         let all = vec![
             chapter("1", Role::Chapter, vec![("a", doc(&["x"]))]),
-            chapter("2", Role::Chapter, vec![("b", doc(&["y"])), ("c", doc(&["z"]))]),
+            chapter(
+                "2",
+                Role::Chapter,
+                vec![("b", doc(&["y"])), ("c", doc(&["z"]))],
+            ),
             chapter("3", Role::Chapter, vec![("d", doc(&["w"]))]),
         ];
         let mut options = ExportOptions::default();
@@ -558,7 +563,11 @@ mod tests {
     fn empty_scenes_and_chapters_are_dropped_and_reported() {
         let all = vec![
             chapter("1", Role::Chapter, vec![("a", doc(&["Hello there."]))]),
-            chapter("2", Role::Chapter, vec![("b", json!({"type":"doc","content":[]}))]),
+            chapter(
+                "2",
+                Role::Chapter,
+                vec![("b", json!({"type":"doc","content":[]}))],
+            ),
         ];
         let built = build(all, &[], &ExportOptions::default(), true);
         assert_eq!(built.chapters.len(), 1);
@@ -622,7 +631,10 @@ mod tests {
         let all = vec![chapter("1", Role::Chapter, vec![("a", d)])];
         let c = [comment("a", 7, 10, "big", "n")];
         let built = build(all, &c, &notes_options(CommentsMode::Footnotes), true);
-        assert_eq!(text_with_marks(&built.chapters[0]), "Inserted. Hello big[1] world.");
+        assert_eq!(
+            text_with_marks(&built.chapters[0]),
+            "Inserted. Hello big[1] world."
+        );
         assert!(!built.issues.iter().any(|i| i.code == "comment_unplaced"));
     }
 
@@ -632,7 +644,10 @@ mod tests {
         let all = vec![chapter("1", Role::Chapter, vec![("a", d)])];
         let c = [comment("a", 999, 1002, "Three", "n")];
         let built = build(all, &c, &notes_options(CommentsMode::Footnotes), false);
-        assert_eq!(text_with_marks(&built.chapters[0]), "One two. Three[1] four.");
+        assert_eq!(
+            text_with_marks(&built.chapters[0]),
+            "One two. Three[1] four."
+        );
     }
 
     #[test]
@@ -643,10 +658,20 @@ mod tests {
         let built = build(all, &c, &notes_options(CommentsMode::Footnotes), true);
         assert_eq!(text_with_marks(&built.chapters[0]), "First.|Second.[1]");
         // The passage is quoted in full, since it is not beside its text.
-        assert_eq!(built.chapters[0].notes[0].quote.as_deref(), Some("vanished words"));
-        let issue = built.issues.iter().find(|i| i.code == "comment_unplaced").unwrap();
+        assert_eq!(
+            built.chapters[0].notes[0].quote.as_deref(),
+            Some("vanished words")
+        );
+        let issue = built
+            .issues
+            .iter()
+            .find(|i| i.code == "comment_unplaced")
+            .unwrap();
         assert_eq!(issue.severity, Severity::Warning);
-        assert_eq!(issue.location.as_ref().unwrap().scene_id.as_deref(), Some("a"));
+        assert_eq!(
+            issue.location.as_ref().unwrap().scene_id.as_deref(),
+            Some("a")
+        );
     }
 
     #[test]
@@ -658,7 +683,10 @@ mod tests {
             comment("a", 7, 10, "big", "second"),
         ];
         let built = build(all, &c, &notes_options(CommentsMode::Footnotes), true);
-        assert_eq!(text_with_marks(&built.chapters[0]), "Hello big[1][2] world.");
+        assert_eq!(
+            text_with_marks(&built.chapters[0]),
+            "Hello big[1][2] world."
+        );
         assert_eq!(built.chapters[0].notes[1].text, "second");
     }
 
@@ -691,7 +719,10 @@ mod tests {
         let ch = |id: &str, scene: &str| {
             chapter(id, Role::Chapter, vec![(scene, doc(&["Alpha beta."]))])
         };
-        let c = [comment("a", 1, 6, "Alpha", "x"), comment("b", 1, 6, "Alpha", "y")];
+        let c = [
+            comment("a", 1, 6, "Alpha", "x"),
+            comment("b", 1, 6, "Alpha", "y"),
+        ];
         let mut o = notes_options(CommentsMode::Footnotes);
         let built = build(vec![ch("1", "a"), ch("2", "b")], &c, &o, true);
         assert_eq!(built.chapters[1].notes[0].number, 2);
@@ -713,18 +744,29 @@ mod tests {
 
     #[test]
     fn pdf_footnotes_fall_back_to_chapter_endnotes_and_say_so() {
-        let all = vec![chapter("1", Role::Chapter, vec![("a", doc(&["Hello big world."]))])];
+        let all = vec![chapter(
+            "1",
+            Role::Chapter,
+            vec![("a", doc(&["Hello big world."]))],
+        )];
         let c = [comment("a", 7, 10, "big", "n")];
         let mut o = notes_options(CommentsMode::Footnotes);
         o.format = Format::Pdf;
         let built = build(all, &c, &o, true);
         assert_eq!(built.note_layout, NoteLayout::EndnotesChapter);
-        assert!(built.issues.iter().any(|i| i.code == "pdf_footnotes_as_endnotes"));
+        assert!(built
+            .issues
+            .iter()
+            .any(|i| i.code == "pdf_footnotes_as_endnotes"));
     }
 
     #[test]
     fn endnotes_quote_the_passage_by_default() {
-        let all = vec![chapter("1", Role::Chapter, vec![("a", doc(&["Hello big world."]))])];
+        let all = vec![chapter(
+            "1",
+            Role::Chapter,
+            vec![("a", doc(&["Hello big world."]))],
+        )];
         let c = [comment("a", 7, 10, "big", "n")];
         let mut o = notes_options(CommentsMode::Endnotes);
         o.content.note_placement = NotePlacement::Book;

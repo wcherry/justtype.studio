@@ -79,6 +79,7 @@ pub struct Scope {
 }
 
 impl Scope {
+    #[cfg(test)]
     pub fn selected(chapter_ids: Vec<String>, scene_ids: Vec<String>) -> Self {
         Self {
             kind: ScopeKind::Selected,
@@ -324,7 +325,8 @@ impl StyleOptions {
                 .map(|(_, name)| name.to_string())
                 .unwrap_or_else(|| "Georgia".to_string())
         };
-        let resolved = ResolvedStyle {
+
+        ResolvedStyle {
             preset,
             font,
             size_pt: pick(fixed, self.size_pt, 12.0),
@@ -337,7 +339,11 @@ impl StyleOptions {
                     LineSpacing::OnePointOneFive
                 },
             ),
-            align: pick(fixed, self.align, if fixed { Align::Left } else { Align::Justify }),
+            align: pick(
+                fixed,
+                self.align,
+                if fixed { Align::Left } else { Align::Justify },
+            ),
             paragraph_indent_em: pick(fixed, self.paragraph_indent_em, 1.5),
             paragraph_spacing_em: pick(fixed, self.paragraph_spacing_em, 0.0),
             heading_style: pick(fixed, self.heading_style, HeadingStyle::Plain),
@@ -348,9 +354,13 @@ impl StyleOptions {
             },
             drop_caps: pick(fixed, self.drop_caps, false),
             hyphenate: pick(fixed, self.hyphenate, false),
-            customised: !fixed && *self != StyleOptions { preset: self.preset, ..Default::default() },
-        };
-        resolved
+            customised: !fixed
+                && *self
+                    != StyleOptions {
+                        preset: self.preset,
+                        ..Default::default()
+                    },
+        }
     }
 
     fn validate(&self) -> Result<(), String> {
@@ -494,7 +504,14 @@ pub struct ExportOptions {
 }
 
 /// The placeholders a filename template may use.
-pub const FILENAME_FIELDS: &[&str] = &["title", "short_title", "author", "date", "version", "format"];
+pub const FILENAME_FIELDS: &[&str] = &[
+    "title",
+    "short_title",
+    "author",
+    "date",
+    "version",
+    "format",
+];
 
 /// The placeholders in a template, or the first unknown one.
 pub fn template_fields(template: &str) -> Result<Vec<String>, String> {
@@ -586,7 +603,9 @@ impl ExportOptions {
             ("html", parsed.html.is_some(), Format::Html),
         ] {
             if present && parsed.format != wanted {
-                notes.push(format!("The `{field}` settings do not apply to this format and were dropped."));
+                notes.push(format!(
+                    "The `{field}` settings do not apply to this format and were dropped."
+                ));
                 match field {
                     "pdf" => parsed.pdf = None,
                     "epub" => parsed.epub = None,

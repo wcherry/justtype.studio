@@ -235,14 +235,25 @@ pub fn write(project: &mut Project) -> std::io::Result<Vec<u8>> {
     if let (Some(cover), Some(meta)) = (&project.cover, project.work.metadata.as_mut()) {
         meta.cover_file = Some(format!(
             "cover.{}",
-            if cover.mime == "image/png" { "png" } else { "jpg" }
+            if cover.mime == "image/png" {
+                "png"
+            } else {
+                "jpg"
+            }
         ));
     }
 
     zip.start_file("project.json", deflated)?;
     zip.write_all(&serde_json::to_vec_pretty(&*project).map_err(std::io::Error::other)?)?;
     if let Some(cover) = &project.cover {
-        let name = format!("cover.{}", if cover.mime == "image/png" { "png" } else { "jpg" });
+        let name = format!(
+            "cover.{}",
+            if cover.mime == "image/png" {
+                "png"
+            } else {
+                "jpg"
+            }
+        );
         zip.start_file(&name, deflated)?;
         zip.write_all(&cover.bytes)?;
     }
@@ -607,7 +618,10 @@ mod tests {
     fn an_older_project_without_roles_still_reads() {
         let bytes = write(&mut project()).unwrap();
         let back = read(&bytes).unwrap();
-        assert!(back.chapters.iter().all(|c| c.role.is_none() || c.role.as_deref() == Some("chapter")));
+        assert!(back
+            .chapters
+            .iter()
+            .all(|c| c.role.is_none() || c.role.as_deref() == Some("chapter")));
         assert!(back.cover.is_none());
     }
 }

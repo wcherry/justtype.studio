@@ -235,7 +235,10 @@ pub async fn list_profiles(
     let rows = blocking(&state.pool, move |conn| {
         Ok(export_profiles::table
             .filter(export_profiles::user_id.eq(&user.id))
-            .order((export_profiles::name.asc(), export_profiles::created_at.asc()))
+            .order((
+                export_profiles::name.asc(),
+                export_profiles::created_at.asc(),
+            ))
             .select(ExportProfile::as_select())
             .load(conn)?)
     })
@@ -436,10 +439,7 @@ fn load_last(
             export_last_options::used_at,
         ))
         .load(conn)?;
-    let mut all: Vec<LastUsed> = rows
-        .into_iter()
-        .map(|(f, o, u)| last_of(f, o, u))
-        .collect();
+    let mut all: Vec<LastUsed> = rows.into_iter().map(|(f, o, u)| last_of(f, o, u)).collect();
     let latest = all.first().map(|l| LastUsed {
         format: l.format.clone(),
         options: l.options.clone(),
@@ -676,15 +676,23 @@ fn options_for(base: &ExportOptions, format: Format) -> ExportOptions {
     let mut options = base.clone();
     options.format = format;
     options.pdf = (format == Format::Pdf).then(|| base.pdf.clone()).flatten();
-    options.epub = (format == Format::Epub).then(|| base.epub.clone()).flatten();
-    options.html = (format == Format::Html).then(|| base.html.clone()).flatten();
+    options.epub = (format == Format::Epub)
+        .then(|| base.epub.clone())
+        .flatten();
+    options.html = (format == Format::Html)
+        .then(|| base.html.clone())
+        .flatten();
     options
 }
 
-fn bundle(
-    resolved: &Resolved,
-    request: &BundleRequest,
-) -> ApiResult<(Vec<u8>, Vec<(ExportOptions, super::export::BuiltFile)>, String)> {
+/// The zip, each file in it with the options it was built from, and its name.
+type Bundle = (
+    Vec<u8>,
+    Vec<(ExportOptions, super::export::BuiltFile)>,
+    String,
+);
+
+fn bundle(resolved: &Resolved, request: &BundleRequest) -> ApiResult<Bundle> {
     if request.formats.is_empty() {
         return Err(ApiError::BadRequest(
             "choose at least one format to export".into(),
@@ -722,7 +730,10 @@ fn bundle(
         let mut name = file.filename.clone();
         let mut n = 2;
         while names.contains(&name) {
-            let (stem, ext) = file.filename.rsplit_once('.').unwrap_or((&file.filename, ""));
+            let (stem, ext) = file
+                .filename
+                .rsplit_once('.')
+                .unwrap_or((&file.filename, ""));
             name = format!("{stem}-{n}.{ext}");
             n += 1;
         }
@@ -752,7 +763,12 @@ fn bundle(
 
     let title = built
         .first()
-        .map(|(_, f)| f.filename.rsplit_once('.').map(|(s, _)| s.to_string()).unwrap_or_default())
+        .map(|(_, f)| {
+            f.filename
+                .rsplit_once('.')
+                .map(|(s, _)| s.to_string())
+                .unwrap_or_default()
+        })
         .unwrap_or_default();
     Ok((bytes, built, format!("{title}-all-formats")))
 }
@@ -768,7 +784,10 @@ async fn bundle_response(
         remember(state, user, resolved, options, file).await?;
     }
     let mut headers = HeaderMap::new();
-    headers.insert(header::CONTENT_TYPE, HeaderValue::from_static("application/zip"));
+    headers.insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("application/zip"),
+    );
     headers.insert(
         header::CONTENT_DISPOSITION,
         HeaderValue::from_str(&format!(
@@ -950,7 +969,9 @@ mod tests {
         let base = ExportOptions {
             pdf: Some(Default::default()),
             epub: Some(EpubOptions::default()),
-            html: Some(HtmlOptions { mode: HtmlMode::Clean }),
+            html: Some(HtmlOptions {
+                mode: HtmlMode::Clean,
+            }),
             ..Default::default()
         };
         let docx = options_for(&base, Format::Docx);
@@ -980,6 +1001,8 @@ mod tests {
         let (options, notes) = ExportOptions::repaired(raw);
         assert_eq!(options.style.font, None);
         assert_eq!(options.style.preset, StylePreset::Book);
-        assert!(notes.iter().any(|n| n.contains("papyrus") || n.contains("content")));
+        assert!(notes
+            .iter()
+            .any(|n| n.contains("papyrus") || n.contains("content")));
     }
 }

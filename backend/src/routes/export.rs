@@ -175,7 +175,11 @@ pub(super) async fn resolve_version(
 }
 
 /// Stage 0, for the working draft: read it scene by scene.
-pub(super) async fn resolve_draft(state: &AppState, user: AuthUser, work_id: String) -> ApiResult<Resolved> {
+pub(super) async fn resolve_draft(
+    state: &AppState,
+    user: AuthUser,
+    work_id: String,
+) -> ApiResult<Resolved> {
     let (work, author, outline, meta, comments) = blocking(&state.pool, move |conn| {
         let work = support::work_for_owner(conn, &work_id, &user)?;
         let author: User = users::table
@@ -693,7 +697,10 @@ pub async fn export_feedback(
         mime,
         extension,
     } = assemble::render(&manuscript, &options).map_err(|e| {
-        ApiError::internal(format!("export failed at the {} stage: {}", e.stage, e.message))
+        ApiError::internal(format!(
+            "export failed at the {} stage: {}",
+            e.stage, e.message
+        ))
     })?;
 
     let filename = safe_filename(&manuscript.title, extension);
@@ -750,9 +757,13 @@ mod tests {
         run(&mut conn, format!(
             "INSERT INTO works (id, owner_id, title, kind, status, word_count, created_at, updated_at) \
              VALUES ('w1', 'u1', 'T', 'novel', 'draft', 0, '{now}', '{now}');"));
-        run(&mut conn, format!(
-            "INSERT INTO chapters (id, work_id, title, position, created_at, updated_at) \
-             VALUES ('c1', 'w1', 'One', 0, '{now}', '{now}');"));
+        run(
+            &mut conn,
+            format!(
+                "INSERT INTO chapters (id, work_id, title, position, created_at, updated_at) \
+             VALUES ('c1', 'w1', 'One', 0, '{now}', '{now}');"
+            ),
+        );
         run(&mut conn, format!(
             "INSERT INTO scenes (id, work_id, chapter_id, title, status, position, word_count, content_hash, created_at, updated_at) \
              VALUES ('s1', 'w1', 'c1', 'S', 'drafting', 0, 0, 'h', '{now}', '{now}');"));
@@ -778,10 +789,17 @@ mod tests {
             session_id: "x".into(),
         };
         let (_, mine) = load_extras(&mut conn, &work, &owner).unwrap();
-        assert_eq!(mine.len(), 1, "only the exporter's own comments, and only comments");
+        assert_eq!(
+            mine.len(),
+            1,
+            "only the exporter's own comments, and only comments"
+        );
         assert_eq!(mine[0].note, "mine");
 
-        let other = AuthUser { id: "u2".into(), ..owner };
+        let other = AuthUser {
+            id: "u2".into(),
+            ..owner
+        };
         let (_, theirs) = load_extras(&mut conn, &work, &other).unwrap();
         assert_eq!(theirs.len(), 1);
         assert_eq!(theirs[0].note, "theirs");

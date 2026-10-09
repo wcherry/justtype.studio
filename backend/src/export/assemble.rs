@@ -10,7 +10,7 @@ use crate::db::models::{User, Version, Work, WorkMetadata};
 
 use super::options::{ExportOptions, Format, HtmlMode, StylePreset};
 use super::pipeline::{self, Issue, Severity, SourceChapter, SourceComment, Summary};
-use super::{Contact, Contributor, Cover, Manuscript, Role, SceneContent, Span, Style};
+use super::{Contact, Contributor, Cover, Manuscript, Role, Style};
 
 /// Everything loaded for an export, before any option is applied.
 pub struct Resolved {
@@ -199,7 +199,10 @@ pub fn prepare(resolved: &Resolved, options: &ExportOptions) -> Prepared {
             .version
             .as_ref()
             .map(|v| format!("{}Z", v.created_at.chars().take(19).collect::<String>())),
-        frozen_id: resolved.version.as_ref().map(|v| format!("{}:{}", v.id, options_fingerprint(options))),
+        frozen_id: resolved
+            .version
+            .as_ref()
+            .map(|v| format!("{}:{}", v.id, options_fingerprint(options))),
     };
 
     Prepared {
@@ -302,14 +305,18 @@ pub fn preflight(resolved: &Resolved, options: &ExportOptions) -> PreflightRepor
         issues.push(Issue {
             severity: Severity::Info,
             code: "language_assumed".into(),
-            message: "No language is set, so the file says English. Set it under Book → Front matter \
+            message:
+                "No language is set, so the file says English. Set it under Book → Front matter \
                       if the book is in another language."
-                .into(),
+                    .into(),
             location: None,
         });
     }
 
-    if options.format == Format::Pdf && options.style.preset == StylePreset::Book && !manuscript.is_empty() {
+    if options.format == Format::Pdf
+        && options.style.preset == StylePreset::Book
+        && !manuscript.is_empty()
+    {
         for (code, message) in super::pdf_book::warnings(manuscript, options) {
             issues.push(Issue {
                 severity: Severity::Warning,
@@ -406,25 +413,6 @@ impl pipeline::SourceScene {
     pub fn has_text(&self) -> bool {
         !super::blocks_from_doc(&self.doc).is_empty()
     }
-}
-
-/// Used by tests and by the empty-selection message.
-pub fn scene_words(scene: &SceneContent) -> usize {
-    scene
-        .blocks
-        .iter()
-        .map(|b| match b {
-            super::Block::Paragraph(spans) | super::Block::Quote(spans) => spans
-                .iter()
-                .map(|s: &Span| s.text.split_whitespace().count())
-                .sum(),
-            super::Block::Heading { spans, .. } => spans
-                .iter()
-                .map(|s: &Span| s.text.split_whitespace().count())
-                .sum(),
-            super::Block::SceneBreak => 0,
-        })
-        .sum()
 }
 
 /// A short, stable hash of the options that shape the file, for deriving

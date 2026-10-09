@@ -48,6 +48,8 @@ pub enum Block {
 
 #[derive(Debug, Clone, Default)]
 pub struct SceneContent {
+    /// Not printed; kept to tell scenes apart, which the tests do.
+    #[allow(dead_code)]
     pub id: String,
     /// Carried but not printed: scene titles are the writer's scaffolding, not
     /// the reader's. Kept because an outline export would want them.
@@ -577,15 +579,26 @@ mod golden {
                         SceneContent {
                             title: "Scene 1".into(),
                             blocks: vec![
-                                Block::Paragraph(vec![plain("She said "), italic("nothing"), plain(" at all & left.")]),
-                                Block::Heading { level: 3, spans: vec![plain("Aside")] },
+                                Block::Paragraph(vec![
+                                    plain("She said "),
+                                    italic("nothing"),
+                                    plain(" at all & left."),
+                                ]),
+                                Block::Heading {
+                                    level: 3,
+                                    spans: vec![plain("Aside")],
+                                },
                                 Block::Quote(vec![plain("A quoted line.")]),
                             ],
                             ..Default::default()
                         },
                         SceneContent {
                             title: "Scene 2".into(),
-                            blocks: vec![Block::Paragraph(vec![plain("Later.\nMuch later.")]), Block::SceneBreak, Block::Paragraph(vec![plain("End.")])],
+                            blocks: vec![
+                                Block::Paragraph(vec![plain("Later.\nMuch later.")]),
+                                Block::SceneBreak,
+                                Block::Paragraph(vec![plain("End.")]),
+                            ],
                             ..Default::default()
                         },
                     ],
@@ -658,12 +671,21 @@ mod golden {
     #[test]
     fn default_options_reproduce_the_original_output() {
         let m = fixture();
-        check("manuscript.docx", &docx::write(&m, &opt(Style::Manuscript)).unwrap());
+        check(
+            "manuscript.docx",
+            &docx::write(&m, &opt(Style::Manuscript)).unwrap(),
+        );
         check("book.docx", &docx::write(&m, &opt(Style::Book)).unwrap());
-        check("manuscript.txt", text::write(&m, &opt(Style::Manuscript)).as_bytes());
+        check(
+            "manuscript.txt",
+            text::write(&m, &opt(Style::Manuscript)).as_bytes(),
+        );
         check("book.txt", text::write(&m, &opt(Style::Book)).as_bytes());
         check("book.html", html::write(&m, &opt(Style::Book)).as_bytes());
         check("book.pdf", &pdf::write(&m, &opt(Style::Manuscript)));
-        check("book.epub.txt", &normalise_epub(&epub::write(&m, &opt(Style::Book)).unwrap()));
+        check(
+            "book.epub.txt",
+            &normalise_epub(&epub::write(&m, &opt(Style::Book)).unwrap()),
+        );
     }
 }

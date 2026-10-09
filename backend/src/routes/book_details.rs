@@ -159,9 +159,7 @@ pub fn valid_language(tag: &str) -> bool {
     };
     (2..=3).contains(&primary.len())
         && primary.chars().all(|c| c.is_ascii_alphabetic())
-        && parts.all(|p| {
-            (1..=8).contains(&p.len()) && p.chars().all(|c| c.is_ascii_alphanumeric())
-        })
+        && parts.all(|p| (1..=8).contains(&p.len()) && p.chars().all(|c| c.is_ascii_alphanumeric()))
 }
 
 fn valid_date(date: &str) -> bool {
@@ -418,7 +416,9 @@ pub async fn put_cover(
     body: Bytes,
 ) -> ApiResult<Json<MetadataResponse>> {
     if body.is_empty() {
-        return Err(ApiError::BadRequest("send the image as the request body".into()));
+        return Err(ApiError::BadRequest(
+            "send the image as the request body".into(),
+        ));
     }
     if body.len() > MAX_COVER_BYTES {
         return Err(ApiError::BadRequest(format!(
@@ -428,8 +428,7 @@ pub async fn put_cover(
     }
     let Some((mime, width, height)) = sniff_image(&body) else {
         return Err(ApiError::BadRequest(
-            "that is not a JPEG or PNG image. Save the cover as one of those and try again."
-                .into(),
+            "that is not a JPEG or PNG image. Save the cover as one of those and try again.".into(),
         ));
     };
     if width < 200 || height < 200 || width > 12_000 || height > 12_000 {
@@ -517,7 +516,10 @@ pub async fn get_cover(
         HeaderValue::from_str(&mime).map_err(|e| ApiError::internal(e.to_string()))?,
     );
     // Private to the owner, and the same URL serves a replacement.
-    headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("private, no-cache"));
+    headers.insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("private, no-cache"),
+    );
     Ok((StatusCode::OK, headers, bytes))
 }
 
@@ -589,10 +591,19 @@ mod tests {
 
     #[test]
     fn images_are_recognised_by_their_bytes_and_measured() {
-        assert_eq!(sniff_image(&png(1600, 2560)), Some(("image/png", 1600, 2560)));
-        assert_eq!(sniff_image(&jpeg(800, 1200)), Some(("image/jpeg", 800, 1200)));
+        assert_eq!(
+            sniff_image(&png(1600, 2560)),
+            Some(("image/png", 1600, 2560))
+        );
+        assert_eq!(
+            sniff_image(&jpeg(800, 1200)),
+            Some(("image/jpeg", 800, 1200))
+        );
         assert_eq!(sniff_image(b"GIF89a....................."), None);
-        assert_eq!(sniff_image(b"<svg xmlns='http://www.w3.org/2000/svg'/>"), None);
+        assert_eq!(
+            sniff_image(b"<svg xmlns='http://www.w3.org/2000/svg'/>"),
+            None
+        );
         assert_eq!(sniff_image(&[]), None);
     }
 

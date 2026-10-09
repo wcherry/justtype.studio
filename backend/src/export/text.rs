@@ -127,7 +127,12 @@ mod tests {
     use crate::export::{ChapterContent, Note, SceneContent};
 
     fn sample() -> Manuscript {
-        let para = |t: &str| Block::Paragraph(vec![Span { text: t.into(), ..Default::default() }]);
+        let para = |t: &str| {
+            Block::Paragraph(vec![Span {
+                text: t.into(),
+                ..Default::default()
+            }])
+        };
         Manuscript {
             title: "T".into(),
             byline: "A B".into(),
@@ -136,18 +141,34 @@ mod tests {
                     title: "One".into(),
                     scenes: vec![SceneContent {
                         blocks: vec![Block::Paragraph(vec![
-                            Span { text: "Hello".into(), ..Default::default() },
-                            Span { note: Some(1), ..Default::default() },
-                            Span { text: " world.".into(), ..Default::default() },
+                            Span {
+                                text: "Hello".into(),
+                                ..Default::default()
+                            },
+                            Span {
+                                note: Some(1),
+                                ..Default::default()
+                            },
+                            Span {
+                                text: " world.".into(),
+                                ..Default::default()
+                            },
                         ])],
                         ..Default::default()
                     }],
-                    notes: vec![Note { number: 1, text: "fix this".into(), quote: Some("Hello".into()) }],
+                    notes: vec![Note {
+                        number: 1,
+                        text: "fix this".into(),
+                        quote: Some("Hello".into()),
+                    }],
                     ..Default::default()
                 },
                 ChapterContent {
                     title: "Two".into(),
-                    scenes: vec![SceneContent { blocks: vec![para("x")], ..Default::default() }],
+                    scenes: vec![SceneContent {
+                        blocks: vec![para("x")],
+                        ..Default::default()
+                    }],
                     ..Default::default()
                 },
             ],
@@ -189,7 +210,10 @@ mod tests {
     fn the_scene_break_glyph_follows_the_book_style_only() {
         let mut m = sample();
         m.chapters[0].scenes.push(SceneContent {
-            blocks: vec![Block::Paragraph(vec![Span { text: "more".into(), ..Default::default() }])],
+            blocks: vec![Block::Paragraph(vec![Span {
+                text: "more".into(),
+                ..Default::default()
+            }])],
             ..Default::default()
         });
         let mut options = ExportOptions::shorthand(Format::Txt, Style::Book);

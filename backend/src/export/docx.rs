@@ -91,9 +91,15 @@ fn write_with(ctx: &Ctx) -> std::io::Result<Vec<u8>> {
     let notes = ctx.has_notes();
     let settings = notes || hyphenate;
 
-    part("[Content_Types].xml", &content_types(ctx, details, settings))?;
+    part(
+        "[Content_Types].xml",
+        &content_types(ctx, details, settings),
+    )?;
     part("_rels/.rels", &root_rels(details))?;
-    part("word/_rels/document.xml.rels", &document_rels(ctx, settings))?;
+    part(
+        "word/_rels/document.xml.rels",
+        &document_rels(ctx, settings),
+    )?;
     part("word/styles.xml", &styles(ctx))?;
     part("word/header1.xml", &header(manuscript, style))?;
     part("word/document.xml", &document(ctx))?;
@@ -281,10 +287,7 @@ fn paragraph(properties: &str, body: &str) -> String {
 }
 
 fn centred(ctx: &Ctx, text: &str) -> String {
-    paragraph(
-        r#"<w:jc w:val="center"/>"#,
-        &runs(ctx, &plain(text), 0),
-    )
+    paragraph(r#"<w:jc w:val="center"/>"#, &runs(ctx, &plain(text), 0))
 }
 
 fn blank() -> String {
@@ -445,7 +448,11 @@ fn body(ctx: &Ctx) -> String {
         format!(
             r#"<w:spacing w:after="{after}" w:line="{}" w:lineRule="auto"/><w:ind w:firstLine="{twips}"/><w:jc w:val="{}"/>"#,
             r.line_spacing.twips(),
-            if r.align == Align::Justify { "both" } else { "left" }
+            if r.align == Align::Justify {
+                "both"
+            } else {
+                "left"
+            }
         )
     } else {
         format!(r#"<w:ind w:firstLine="{}"/>"#, INCH / 2)
@@ -468,12 +475,16 @@ fn body(ctx: &Ctx) -> String {
             let mut props = String::from(r#"<w:jc w:val="center"/>"#);
             let _ = &mut props;
             let runs_xml = if r.customised && r.heading_style == HeadingStyle::SmallCaps {
-                runs(ctx, &plain(&chapter.title), index).replace("<w:r>", "<w:r><w:rPr><w:smallCaps/></w:rPr>")
+                runs(ctx, &plain(&chapter.title), index)
+                    .replace("<w:r>", "<w:r><w:rPr><w:smallCaps/></w:rPr>")
             } else {
                 runs(ctx, &plain(&chapter.title), index)
             };
             let runs_xml = if r.customised && r.heading_style == HeadingStyle::SmallCaps {
-                runs_xml.replace("<w:rPr><w:smallCaps/></w:rPr><w:rPr>", "<w:rPr><w:smallCaps/>")
+                runs_xml.replace(
+                    "<w:rPr><w:smallCaps/></w:rPr><w:rPr>",
+                    "<w:rPr><w:smallCaps/>",
+                )
             } else {
                 runs_xml
             };
@@ -579,9 +590,21 @@ fn document(ctx: &Ctx) -> String {
 
 fn notes_part(ctx: &Ctx, endnotes: bool) -> String {
     let (root, item, mark, text_style, separators) = if endnotes {
-        ("w:endnotes", "w:endnote", "w:endnoteRef", "EndnoteText", "endnote")
+        (
+            "w:endnotes",
+            "w:endnote",
+            "w:endnoteRef",
+            "EndnoteText",
+            "endnote",
+        )
     } else {
-        ("w:footnotes", "w:footnote", "w:footnoteRef", "FootnoteText", "footnote")
+        (
+            "w:footnotes",
+            "w:footnote",
+            "w:footnoteRef",
+            "FootnoteText",
+            "footnote",
+        )
     };
     let _ = separators;
     let separator = |kind: &str, id: i32, inner: &str| {
@@ -640,9 +663,13 @@ fn settings_xml(ctx: &Ctx, hyphenate: bool) -> String {
     }
     if ctx.has_notes() {
         if ctx.endnotes() {
-            body.push_str(r#"<w:endnotePr><w:endnote w:id="-1"/><w:endnote w:id="0"/></w:endnotePr>"#);
+            body.push_str(
+                r#"<w:endnotePr><w:endnote w:id="-1"/><w:endnote w:id="0"/></w:endnotePr>"#,
+            );
         } else {
-            body.push_str(r#"<w:footnotePr><w:footnote w:id="-1"/><w:footnote w:id="0"/></w:footnotePr>"#);
+            body.push_str(
+                r#"<w:footnotePr><w:footnote w:id="-1"/><w:footnote w:id="0"/></w:footnotePr>"#,
+            );
         }
     }
     format!(
@@ -691,7 +718,9 @@ fn content_types(ctx: &Ctx, details: bool, settings: bool) -> String {
     if details {
         extra.push_str("\n  <Override PartName=\"/docProps/core.xml\" ContentType=\"application/vnd.openxmlformats-package.core-properties+xml\"/>");
     }
-    CONTENT_TYPES.replace("</Types>", &format!("{extra}\n</Types>")).replace("\n\n</Types>", "\n</Types>")
+    CONTENT_TYPES
+        .replace("</Types>", &format!("{extra}\n</Types>"))
+        .replace("\n\n</Types>", "\n</Types>")
 }
 
 fn root_rels(details: bool) -> String {
@@ -757,13 +786,26 @@ mod tests {
                     title: format!("Chapter {n}"),
                     scenes: vec![SceneContent {
                         blocks: vec![Block::Paragraph(vec![
-                            Span { text: "Some text".into(), ..Default::default() },
-                            Span { note: Some(1), ..Default::default() },
-                            Span { text: " more.".into(), ..Default::default() },
+                            Span {
+                                text: "Some text".into(),
+                                ..Default::default()
+                            },
+                            Span {
+                                note: Some(1),
+                                ..Default::default()
+                            },
+                            Span {
+                                text: " more.".into(),
+                                ..Default::default()
+                            },
                         ])],
                         ..Default::default()
                     }],
-                    notes: vec![Note { number: 1, text: "a note".into(), quote: Some("Some text".into()) }],
+                    notes: vec![Note {
+                        number: 1,
+                        text: "a note".into(),
+                        quote: Some("Some text".into()),
+                    }],
                     ..Default::default()
                 })
                 .collect(),
@@ -786,7 +828,10 @@ mod tests {
     fn opts(style: StylePreset) -> ExportOptions {
         ExportOptions {
             format: Format::Docx,
-            style: StyleOptions { preset: style, ..Default::default() },
+            style: StyleOptions {
+                preset: style,
+                ..Default::default()
+            },
             ..Default::default()
         }
     }
@@ -876,7 +921,10 @@ mod tests {
         m.note_layout = NoteLayout::None;
         m.chapters[0].notes.clear();
         m.chapters[0].scenes.push(SceneContent {
-            blocks: vec![Block::Paragraph(vec![Span { text: "x".into(), ..Default::default() }])],
+            blocks: vec![Block::Paragraph(vec![Span {
+                text: "x".into(),
+                ..Default::default()
+            }])],
             ..Default::default()
         });
         let p = parts(write(&m, &o).unwrap());

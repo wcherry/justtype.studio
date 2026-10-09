@@ -1,8 +1,8 @@
 pub mod account;
 pub mod annotations;
 pub mod audit;
-pub mod book_details;
 pub mod auth;
+pub mod book_details;
 pub mod changes;
 pub mod collaborators;
 pub mod comments;
@@ -111,8 +111,14 @@ fn api_router() -> OpenApiRouter<AppState> {
         .routes(routes!(export::export_draft, export::export_draft_with))
         .routes(routes!(export::preflight_draft))
         .routes(routes!(export::preflight_version))
-        .routes(routes!(export_settings::list_profiles, export_settings::create_profile))
-        .routes(routes!(export_settings::update_profile, export_settings::delete_profile))
+        .routes(routes!(
+            export_settings::list_profiles,
+            export_settings::create_profile
+        ))
+        .routes(routes!(
+            export_settings::update_profile,
+            export_settings::delete_profile
+        ))
         .routes(routes!(export_settings::last_used))
         .routes(routes!(export_settings::export_again))
         .routes(routes!(export_settings::history))
@@ -130,7 +136,10 @@ fn api_router() -> OpenApiRouter<AppState> {
                     project::MAX_IMPORT_BYTES,
                 )),
         )
-        .routes(routes!(book_details::get_metadata, book_details::update_metadata))
+        .routes(routes!(
+            book_details::get_metadata,
+            book_details::update_metadata
+        ))
         .routes(routes!(book_details::get_cover, book_details::delete_cover))
         // A cover is an image in the request body: a limit of its own.
         .merge(

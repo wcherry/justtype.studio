@@ -152,7 +152,9 @@ pub async fn export_project(
                 contributors: m
                     .contributors
                     .as_deref()
-                    .and_then(|s| serde_json::from_str::<Vec<super::book_details::ContributorBody>>(s).ok())
+                    .and_then(|s| {
+                        serde_json::from_str::<Vec<super::book_details::ContributorBody>>(s).ok()
+                    })
                     .unwrap_or_default()
                     .into_iter()
                     .map(|c| project::ProjectContributor {
@@ -470,14 +472,15 @@ async fn create_from(
 
             if let Some(meta) = &w.metadata {
                 use crate::db::schema::work_metadata;
-                let language = clean(meta.language.clone())
-                    .filter(|l| super::book_details::valid_language(l));
+                let language =
+                    clean(meta.language.clone()).filter(|l| super::book_details::valid_language(l));
                 diesel::insert_into(work_metadata::table)
                     .values((
                         work_metadata::work_id.eq(&db_work_id),
                         work_metadata::language.eq(language),
-                        work_metadata::text_direction.eq(clean(meta.text_direction.clone())
-                            .filter(|d| d == "ltr" || d == "rtl")),
+                        work_metadata::text_direction
+                            .eq(clean(meta.text_direction.clone())
+                                .filter(|d| d == "ltr" || d == "rtl")),
                         work_metadata::description.eq(clean(meta.description.clone())),
                         work_metadata::publisher.eq(clean(meta.publisher.clone())),
                         work_metadata::published.eq(clean(meta.published.clone())),

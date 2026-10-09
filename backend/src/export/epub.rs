@@ -59,8 +59,8 @@ pub fn write(manuscript: &Manuscript, options: &ExportOptions) -> std::io::Resul
     let m = manuscript;
     let epub = options.epub();
     let split = epub.split_chapters;
-    let book_notes = m.note_layout == NoteLayout::EndnotesBook
-        && m.chapters.iter().any(|c| !c.notes.is_empty());
+    let book_notes =
+        m.note_layout == NoteLayout::EndnotesBook && m.chapters.iter().any(|c| !c.notes.is_empty());
 
     let chapter_href = |index: usize| -> String {
         if split {
@@ -114,11 +114,7 @@ pub fn write(manuscript: &Manuscript, options: &ExportOptions) -> std::io::Resul
     }
 
     if !m.omit_front_matter {
-        parts.push(Part::page(
-            "OEBPS/title.xhtml",
-            "title",
-            title_page(m),
-        ));
+        parts.push(Part::page("OEBPS/title.xhtml", "title", title_page(m)));
     }
 
     if split {
@@ -163,7 +159,9 @@ pub fn write(manuscript: &Manuscript, options: &ExportOptions) -> std::io::Resul
             epub: true,
             classed: true,
         };
-        let scopes: Vec<String> = (0..m.chapters.len()).map(|i| format!("c{}", i + 1)).collect();
+        let scopes: Vec<String> = (0..m.chapters.len())
+            .map(|i| format!("c{}", i + 1))
+            .collect();
         let all: Vec<(&str, &super::Note)> = m
             .chapters
             .iter()
@@ -173,7 +171,11 @@ pub fn write(manuscript: &Manuscript, options: &ExportOptions) -> std::io::Resul
             .collect();
         let body = markup.section(&all, m.note_label, |scope| {
             let index = scope.trim_start_matches('c').parse::<usize>().unwrap_or(1) - 1;
-            chapter_href(index).split('#').next().unwrap_or("").to_string()
+            chapter_href(index)
+                .split('#')
+                .next()
+                .unwrap_or("")
+                .to_string()
         });
         parts.push(Part::page(
             "OEBPS/notes.xhtml",
@@ -246,10 +248,6 @@ fn verify(parts: &[Part], nav: &[NavEntry]) -> std::io::Result<()> {
         }
     }
     Ok(())
-}
-
-pub(super) fn spans_to_html(spans: &[Span]) -> String {
-    spans_html(spans, None)
 }
 
 /// Runs as markup; a note reference becomes a superscript link when the page
@@ -343,7 +341,11 @@ fn chapter_markup(
         let refs: Vec<(&str, &super::Note)> =
             chapter.notes.iter().map(|n| (scope.as_str(), n)).collect();
         // Back-links stay on the page (or in the file) the mark is on.
-        let here = chapter_href(index).split('#').next().unwrap_or("").to_string();
+        let here = chapter_href(index)
+            .split('#')
+            .next()
+            .unwrap_or("")
+            .to_string();
         body.push_str(&markup.section(&refs, m.note_label, |_| {
             if section {
                 String::new()
@@ -436,7 +438,8 @@ fn navigation(m: &Manuscript, entries: &[NavEntry], parts: &[Part]) -> String {
 
     let mut landmarks = String::new();
     if parts.iter().any(|p| p.path.ends_with("cover.xhtml")) {
-        landmarks.push_str("      <li><a epub:type=\"cover\" href=\"cover.xhtml\">Cover</a></li>\n");
+        landmarks
+            .push_str("      <li><a epub:type=\"cover\" href=\"cover.xhtml\">Cover</a></li>\n");
     }
     if let Some(first) = entries.first() {
         landmarks.push_str(&format!(
@@ -639,7 +642,12 @@ mod tests {
     use std::io::Read;
 
     fn book() -> Manuscript {
-        let para = |t: &str| Block::Paragraph(vec![Span { text: t.into(), ..Default::default() }]);
+        let para = |t: &str| {
+            Block::Paragraph(vec![Span {
+                text: t.into(),
+                ..Default::default()
+            }])
+        };
         Manuscript {
             title: "Fish & Chips".into(),
             byline: "A. Writer".into(),
@@ -647,7 +655,10 @@ mod tests {
                 .map(|n| ChapterContent {
                     id: format!("c{n}"),
                     title: format!("Chapter {n}"),
-                    scenes: vec![SceneContent { blocks: vec![para("Text.")], ..Default::default() }],
+                    scenes: vec![SceneContent {
+                        blocks: vec![para("Text.")],
+                        ..Default::default()
+                    }],
                     ..Default::default()
                 })
                 .collect(),
@@ -670,7 +681,10 @@ mod tests {
             let mut f = zip.by_index(i).unwrap();
             let mut body = Vec::new();
             f.read_to_end(&mut body).unwrap();
-            out.insert(f.name().to_string(), String::from_utf8_lossy(&body).to_string());
+            out.insert(
+                f.name().to_string(),
+                String::from_utf8_lossy(&body).to_string(),
+            );
         }
         out
     }
@@ -698,10 +712,15 @@ mod tests {
     #[test]
     fn a_single_file_book_navigates_by_anchor() {
         let mut o = options();
-        o.epub = Some(EpubOptions { split_chapters: false, cover_page: true });
+        o.epub = Some(EpubOptions {
+            split_chapters: false,
+            cover_page: true,
+        });
         let f = files(write(&book(), &o).unwrap());
         assert!(!f.contains_key("OEBPS/chapter1.xhtml"));
-        assert!(f["OEBPS/content.xhtml"].contains("<section epub:type=\"chapter\" id=\"chapter-2\">"));
+        assert!(
+            f["OEBPS/content.xhtml"].contains("<section epub:type=\"chapter\" id=\"chapter-2\">")
+        );
         assert!(f["OEBPS/nav.xhtml"].contains("href=\"content.xhtml#chapter-2\""));
     }
 
@@ -715,7 +734,10 @@ mod tests {
         m.published = Some("2026-03-01".into());
         m.identifier = Some("urn:isbn:9780000000002".into());
         m.keywords = vec!["fish".into()];
-        m.contributors = vec![Contributor { name: "E. Ditor".into(), role: "editor".into() }];
+        m.contributors = vec![Contributor {
+            name: "E. Ditor".into(),
+            role: "editor".into(),
+        }];
         let f = files(write(&m, &options()).unwrap());
         let opf = &f["OEBPS/content.opf"];
         assert!(opf.contains("<dc:language>he</dc:language>"));
@@ -730,7 +752,10 @@ mod tests {
     #[test]
     fn a_cover_is_an_image_a_page_and_a_property() {
         let mut m = book();
-        m.cover = Some(Cover { bytes: vec![0xff, 0xd8, 0xff], mime: "image/jpeg".into() });
+        m.cover = Some(Cover {
+            bytes: vec![0xff, 0xd8, 0xff],
+            mime: "image/jpeg".into(),
+        });
         let f = files(write(&m, &options()).unwrap());
         let opf = &f["OEBPS/content.opf"];
         assert!(f.contains_key("OEBPS/cover.jpg"));
@@ -745,10 +770,20 @@ mod tests {
         let mut m = book();
         m.note_layout = NoteLayout::Footnotes;
         m.chapters[0].scenes[0].blocks = vec![Block::Paragraph(vec![
-            Span { text: "Hi".into(), ..Default::default() },
-            Span { note: Some(1), ..Default::default() },
+            Span {
+                text: "Hi".into(),
+                ..Default::default()
+            },
+            Span {
+                note: Some(1),
+                ..Default::default()
+            },
         ])];
-        m.chapters[0].notes = vec![Note { number: 1, text: "n".into(), quote: None }];
+        m.chapters[0].notes = vec![Note {
+            number: 1,
+            text: "n".into(),
+            quote: None,
+        }];
         let f = files(write(&m, &options()).unwrap());
         let page = &f["OEBPS/chapter1.xhtml"];
         assert!(page.contains("epub:type=\"noteref\" id=\"rc1-1\" href=\"#nc1-1\""));
@@ -760,7 +795,11 @@ mod tests {
     fn book_endnotes_are_a_page_in_the_spine_and_the_nav() {
         let mut m = book();
         m.note_layout = NoteLayout::EndnotesBook;
-        m.chapters[1].notes = vec![Note { number: 1, text: "n".into(), quote: Some("q".into()) }];
+        m.chapters[1].notes = vec![Note {
+            number: 1,
+            text: "n".into(),
+            quote: Some("q".into()),
+        }];
         let f = files(write(&m, &options()).unwrap());
         assert!(f.contains_key("OEBPS/notes.xhtml"));
         assert!(f["OEBPS/nav.xhtml"].contains("href=\"notes.xhtml\""));
@@ -792,8 +831,14 @@ mod tests {
     #[test]
     fn the_self_check_catches_a_dangling_navigation_target() {
         let parts = vec![Part::page("OEBPS/a.xhtml", "a", String::new())];
-        let nav = vec![NavEntry { href: "missing.xhtml".into(), title: "x".into() }];
-        assert!(verify(&parts, &nav).unwrap_err().to_string().contains("missing.xhtml"));
+        let nav = vec![NavEntry {
+            href: "missing.xhtml".into(),
+            title: "x".into(),
+        }];
+        assert!(verify(&parts, &nav)
+            .unwrap_err()
+            .to_string()
+            .contains("missing.xhtml"));
         assert!(verify(&[], &[]).is_err());
     }
 }

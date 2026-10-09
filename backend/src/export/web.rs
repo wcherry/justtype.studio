@@ -4,7 +4,9 @@ use super::options::{font_stack, Align, HeadingStyle, ResolvedStyle};
 use super::{xml_escape, ChapterContent, Note, Role, Style};
 
 fn css_string(text: &str) -> String {
-    text.replace('\\', "\\\\").replace('"', "\\\"").replace('\n', " ")
+    text.replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('\n', " ")
 }
 
 /// Rules that apply the writer's typography on top of a base stylesheet.

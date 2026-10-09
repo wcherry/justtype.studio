@@ -168,14 +168,14 @@ fn lay_out(manuscript: &Manuscript) -> Vec<Vec<Line>> {
         Vec::new()
     } else {
         vec![
-        contact
-            .legal_name
-            .clone()
-            .or_else(|| Some(manuscript.byline.clone())),
-        contact.address.clone(),
-        contact.phone.clone(),
-        contact.email.clone(),
-    ]
+            contact
+                .legal_name
+                .clone()
+                .or_else(|| Some(manuscript.byline.clone())),
+            contact.address.clone(),
+            contact.phone.clone(),
+            contact.email.clone(),
+        ]
     }
     .into_iter()
     .flatten()
@@ -551,12 +551,22 @@ mod note_tests {
                 title: "One".into(),
                 scenes: vec![SceneContent {
                     blocks: vec![Block::Paragraph(vec![
-                        Span { text: "Hello".into(), ..Default::default() },
-                        Span { note: Some(1), ..Default::default() },
+                        Span {
+                            text: "Hello".into(),
+                            ..Default::default()
+                        },
+                        Span {
+                            note: Some(1),
+                            ..Default::default()
+                        },
                     ])],
                     ..Default::default()
                 }],
-                notes: vec![Note { number: 1, text: "the note".into(), quote: None }],
+                notes: vec![Note {
+                    number: 1,
+                    text: "the note".into(),
+                    quote: None,
+                }],
                 ..Default::default()
             }],
             note_layout: NoteLayout::EndnotesChapter,

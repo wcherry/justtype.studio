@@ -1736,8 +1736,8 @@ public enum API {
 
     public enum LineSpacing: String, Codable, CaseIterable, Hashable, Sendable {
         case single = "single"
-        case 1.15 = "1.15"
-        case 1.5 = "1.5"
+        case _1_15 = "1.15"
+        case _1_5 = "1.5"
         case double = "double"
     }
 

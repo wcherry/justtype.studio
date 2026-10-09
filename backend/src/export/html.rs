@@ -177,7 +177,9 @@ fn book_notes(m: &Manuscript, flavor: Flavor, page_of_chapter: impl Fn(usize) ->
         epub: false,
         classed: flavor.classed(),
     };
-    let scopes: Vec<String> = (0..m.chapters.len()).map(|i| format!("c{}", i + 1)).collect();
+    let scopes: Vec<String> = (0..m.chapters.len())
+        .map(|i| format!("c{}", i + 1))
+        .collect();
     let all: Vec<(&str, &super::Note)> = m
         .chapters
         .iter()
@@ -231,11 +233,7 @@ fn title_block(m: &Manuscript, flavor: Flavor) -> String {
             xml_escape(epigraph)
         ));
         if let Some(source) = &m.epigraph_source {
-            body.push_str(&format!(
-                "<p{}>— {}</p>",
-                tag("source"),
-                xml_escape(source)
-            ));
+            body.push_str(&format!("<p{}>— {}</p>", tag("source"), xml_escape(source)));
         }
         body.push_str("</blockquote>\n");
     }
@@ -405,7 +403,9 @@ pub fn write_package(manuscript: &Manuscript, options: &ExportOptions) -> std::i
 
         let notes_page = (m.note_layout == NoteLayout::EndnotesBook).then_some("notes.html");
         let mut body = pager.clone();
-        body.push_str(&chapter_section(m, index, chapter, flavor, notes_page, false));
+        body.push_str(&chapter_section(
+            m, index, chapter, flavor, notes_page, false,
+        ));
         body.push_str(&pager);
         part(
             &chapter_file(index),
@@ -526,13 +526,24 @@ mod tests {
         let mut m = manuscript("Hi");
         m.note_layout = NoteLayout::Footnotes;
         m.chapters[0].scenes[0].blocks = vec![Block::Paragraph(vec![
-            Span { text: "Hi".into(), ..Span::default() },
-            Span { note: Some(1), ..Span::default() },
+            Span {
+                text: "Hi".into(),
+                ..Span::default()
+            },
+            Span {
+                note: Some(1),
+                ..Span::default()
+            },
         ])];
-        m.chapters[0].notes = vec![Note { number: 1, text: "a & b".into(), quote: None }];
+        m.chapters[0].notes = vec![Note {
+            number: 1,
+            text: "a & b".into(),
+            quote: None,
+        }];
         let html = write(&m, &ExportOptions::default());
         assert!(html.contains("<sup><a id=\"fnrefc1-1\" href=\"#fnc1-1\">1</a></sup>"));
-        assert!(html.contains("<p id=\"fnc1-1\"><sup>1</sup> a &amp; b <a href=\"#fnrefc1-1\">↩</a></p>"));
+        assert!(html
+            .contains("<p id=\"fnc1-1\"><sup>1</sup> a &amp; b <a href=\"#fnrefc1-1\">↩</a></p>"));
         assert!(html.contains("section.footnotes"));
     }
 
@@ -549,14 +560,23 @@ mod tests {
     fn a_package_has_pages_styles_cover_and_links() {
         let mut m = manuscript("x");
         m.chapters.push(m.chapters[0].clone());
-        m.cover = Some(Cover { bytes: vec![1, 2, 3], mime: "image/png".into() });
+        m.cover = Some(Cover {
+            bytes: vec![1, 2, 3],
+            mime: "image/png".into(),
+        });
         let bytes = write_package(&m, &with_mode(HtmlMode::Package)).unwrap();
         let mut archive = zip::ZipArchive::new(Cursor::new(bytes)).unwrap();
         let mut names: Vec<String> = archive.file_names().map(String::from).collect();
         names.sort();
         assert_eq!(
             names,
-            ["chapter-1.html", "chapter-2.html", "cover.png", "index.html", "style.css"]
+            [
+                "chapter-1.html",
+                "chapter-2.html",
+                "cover.png",
+                "index.html",
+                "style.css"
+            ]
         );
         let mut first = String::new();
         std::io::Read::read_to_string(&mut archive.by_name("chapter-1.html").unwrap(), &mut first)
@@ -575,7 +595,11 @@ mod tests {
     fn book_endnotes_get_their_own_page_in_a_package() {
         let mut m = manuscript("x");
         m.note_layout = NoteLayout::EndnotesBook;
-        m.chapters[0].notes = vec![Note { number: 1, text: "n".into(), quote: Some("x".into()) }];
+        m.chapters[0].notes = vec![Note {
+            number: 1,
+            text: "n".into(),
+            quote: Some("x".into()),
+        }];
         let bytes = write_package(&m, &with_mode(HtmlMode::Package)).unwrap();
         let mut archive = zip::ZipArchive::new(Cursor::new(bytes)).unwrap();
         let mut notes = String::new();

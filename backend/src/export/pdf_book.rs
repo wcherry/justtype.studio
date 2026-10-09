@@ -22,7 +22,7 @@ use flate2::Compression;
 use super::font::{font, Face, Family, Font};
 use super::image::{self, PdfImage};
 use super::options::{Align, ExportOptions, HeadingStyle, PageSize, ResolvedStyle};
-use super::{Block, Manuscript, NoteLayout, Role, Span};
+use super::{Block, Manuscript, NoteLayout, Span};
 
 // ── Shaping ─────────────────────────────────────────────────────────────────
 
@@ -51,7 +51,11 @@ struct Part {
 impl Part {
     fn width(&self, size: f32) -> f32 {
         let f = font(self.family, self.face);
-        let units: i32 = self.glyphs.iter().map(|g| g.advance as i32 + g.kern as i32).sum();
+        let units: i32 = self
+            .glyphs
+            .iter()
+            .map(|g| g.advance as i32 + g.kern as i32)
+            .sum();
         units as f32 * size * self.scale / f.units_per_em as f32
     }
 }
@@ -65,10 +69,7 @@ fn shape(text: &str, family: Family, face: Face) -> Vec<Glyph> {
             '\u{200B}' | '\u{00AD}' | '\r' | '\t' => continue,
             c => c,
         };
-        let gid = f
-            .glyph(ch)
-            .or_else(|| f.glyph('?'))
-            .unwrap_or(0);
+        let gid = f.glyph(ch).or_else(|| f.glyph('?')).unwrap_or(0);
         let kern = out.last().map_or(0, |prev| f.kerning(prev.gid, gid));
         out.push(Glyph {
             gid,
@@ -211,7 +212,13 @@ pub fn hyphen_points(word: &str) -> Vec<usize> {
     }
     // A final silent "e" is not a syllable of its own.
     if let Some(&(s, e)) = nuclei.last() {
-        if e == n && e - s == 1 && lower[n - 1] == 'e' && nuclei.len() > 1 && n >= 2 && !is_vowel(lower[n - 2], false) {
+        if e == n
+            && e - s == 1
+            && lower[n - 1] == 'e'
+            && nuclei.len() > 1
+            && n >= 2
+            && !is_vowel(lower[n - 2], false)
+        {
             nuclei.pop();
         }
     }
@@ -325,37 +332,41 @@ fn wrap(atoms: Vec<Atom>, w: &Wrap) -> Vec<Line> {
         hyphen.iter().map(|g| g.advance as f32).sum::<f32>() * w.size / f.units_per_em as f32
     };
 
-    let room = |first: bool| -> f32 {
-        w.measure - if first { w.first_indent } else { w.indent }
-    };
-    let finish = |current: &mut Vec<Atom>, lines: &mut Vec<Line>, first: &mut bool, forced: bool| {
-        while matches!(current.last(), Some(Atom::Space)) {
-            current.pop();
-        }
-        let indent = if *first { w.first_indent } else { w.indent };
-        let spaces = current.iter().filter(|a| matches!(a, Atom::Space)).count();
-        let natural = natural_width(current, w.size, w.family);
-        let avail = w.measure - indent;
-        // A justified line stretches its spaces to the measure — all but the
-        // last line of a paragraph, which keeps its natural width.
-        let stretch = if w.place == Place::Justified && !forced && spaces > 0 && natural < avail {
-            (avail - natural) / spaces as f32
-        } else {
-            0.0
+    let room = |first: bool| -> f32 { w.measure - if first { w.first_indent } else { w.indent } };
+    let finish =
+        |current: &mut Vec<Atom>, lines: &mut Vec<Line>, first: &mut bool, forced: bool| {
+            while matches!(current.last(), Some(Atom::Space)) {
+                current.pop();
+            }
+            let indent = if *first { w.first_indent } else { w.indent };
+            let spaces = current.iter().filter(|a| matches!(a, Atom::Space)).count();
+            let natural = natural_width(current, w.size, w.family);
+            let avail = w.measure - indent;
+            // A justified line stretches its spaces to the measure — all but the
+            // last line of a paragraph, which keeps its natural width.
+            let stretch = if w.place == Place::Justified && !forced && spaces > 0 && natural < avail
+            {
+                (avail - natural) / spaces as f32
+            } else {
+                0.0
+            };
+            lines.push(Line {
+                atoms: std::mem::take(current),
+                size: w.size,
+                leading: w.leading,
+                indent,
+                measure: w.measure,
+                place: if w.place == Place::Justified && stretch == 0.0 {
+                    Place::Left
+                } else {
+                    w.place
+                },
+                stretch,
+                family: w.family,
+                kind: w.kind,
+            });
+            *first = false;
         };
-        lines.push(Line {
-            atoms: std::mem::take(current),
-            size: w.size,
-            leading: w.leading,
-            indent,
-            measure: w.measure,
-            place: if w.place == Place::Justified && stretch == 0.0 { Place::Left } else { w.place },
-            stretch,
-            family: w.family,
-            kind: w.kind,
-        });
-        *first = false;
-    };
 
     let mut queue: std::collections::VecDeque<Atom> = atoms.into();
     while let Some(atom) = queue.pop_front() {
@@ -383,7 +394,11 @@ fn wrap(atoms: Vec<Atom>, w: &Wrap) -> Vec<Line> {
                     let text = parts[0].text.clone();
                     // Punctuation hugging the word stays with its half.
                     let core_start = text.chars().take_while(|c| !c.is_alphabetic()).count();
-                    let core: String = text.chars().skip(core_start).take_while(|c| c.is_alphabetic()).collect();
+                    let core: String = text
+                        .chars()
+                        .skip(core_start)
+                        .take_while(|c| c.is_alphabetic())
+                        .collect();
                     let core_len = core.chars().count();
                     let points = hyphen_points(&core);
                     let left_room = room(first) - width;
@@ -398,7 +413,11 @@ fn wrap(atoms: Vec<Atom>, w: &Wrap) -> Vec<Line> {
                             current.push(Atom::Word(vec![head_part]));
                             finish(&mut current, &mut lines, &mut first, false);
                             width = 0.0;
-                            queue.push_front(Atom::Word(vec![part(&tail, parts[0].family, parts[0].face)]));
+                            queue.push_front(Atom::Word(vec![part(
+                                &tail,
+                                parts[0].family,
+                                parts[0].face,
+                            )]));
                             placed = true;
                             break;
                         }
@@ -419,11 +438,16 @@ fn wrap(atoms: Vec<Atom>, w: &Wrap) -> Vec<Line> {
                 let mut taken: Vec<Part> = Vec::new();
                 let mut used = 0.0;
                 while let Some(mut p) = (!rest.is_empty()).then(|| rest.remove(0)) {
-                    let mut head = Part { glyphs: Vec::new(), text: String::new(), ..p.clone() };
+                    let mut head = Part {
+                        glyphs: Vec::new(),
+                        text: String::new(),
+                        ..p.clone()
+                    };
                     let f = font(p.family, p.face);
                     let mut idx = 0;
                     for g in &p.glyphs {
-                        let adv = (g.advance as f32 + g.kern as f32) * w.size * p.scale / f.units_per_em as f32;
+                        let adv = (g.advance as f32 + g.kern as f32) * w.size * p.scale
+                            / f.units_per_em as f32;
                         if used + adv > room(first) && (idx > 0 || !taken.is_empty()) {
                             break;
                         }
@@ -486,7 +510,13 @@ struct Page {
 
 impl Page {
     fn new(kind: PageKind, chapter: Option<usize>) -> Self {
-        Page { kind, lines: Vec::new(), chapter, starts: None, used: 0.0 }
+        Page {
+            kind,
+            lines: Vec::new(),
+            chapter,
+            starts: None,
+            used: 0.0,
+        }
     }
 }
 
@@ -507,7 +537,9 @@ impl Layout {
     }
 
     fn at_top(&self) -> bool {
-        self.pages.last().map_or(true, |p| p.lines.is_empty() && p.used == 0.0)
+        self.pages
+            .last()
+            .is_none_or(|p| p.lines.is_empty() && p.used == 0.0)
     }
 
     /// White space, which a page top does not keep.
@@ -547,7 +579,11 @@ impl Layout {
                 total
             } else if total < 4 {
                 // Too short to split without a widow or an orphan: move it whole.
-                if self.at_top() { fit.max(1) } else { 0 }
+                if self.at_top() {
+                    fit.max(1)
+                } else {
+                    0
+                }
             } else if fit >= 2 && total - fit >= 2 {
                 fit
             } else if fit >= 2 && total - fit == 1 && fit >= 3 {
@@ -596,7 +632,14 @@ impl Geometry {
         let margin = pdf.margin_in.unwrap_or(1.0).clamp(0.25, 3.0) * 72.0;
         // Facing pages bind on the inside edge, which wants a little more.
         let inside = margin * 1.2;
-        Geometry { width: w, height: h, outside: margin, inside, top: margin, bottom: margin }
+        Geometry {
+            width: w,
+            height: h,
+            outside: margin,
+            inside,
+            top: margin,
+            bottom: margin,
+        }
     }
     fn measure(&self) -> f32 {
         self.width - self.outside - self.inside
@@ -607,7 +650,11 @@ impl Geometry {
     /// Where the text block starts: the inside margin is on the binding side,
     /// which is the left of a right-hand page.
     fn left(&self, physical: usize) -> f32 {
-        if physical % 2 == 1 { self.inside } else { self.outside }
+        if physical % 2 == 1 {
+            self.inside
+        } else {
+            self.outside
+        }
     }
 }
 
@@ -615,8 +662,19 @@ impl Geometry {
 
 fn roman(mut n: u32) -> String {
     const NUMERALS: [(u32, &str); 13] = [
-        (1000, "m"), (900, "cm"), (500, "d"), (400, "cd"), (100, "c"), (90, "xc"),
-        (50, "l"), (40, "xl"), (10, "x"), (9, "ix"), (5, "v"), (4, "iv"), (1, "i"),
+        (1000, "m"),
+        (900, "cm"),
+        (500, "d"),
+        (400, "cd"),
+        (100, "c"),
+        (90, "xc"),
+        (50, "l"),
+        (40, "xl"),
+        (10, "x"),
+        (9, "ix"),
+        (5, "v"),
+        (4, "iv"),
+        (1, "i"),
     ];
     let mut out = String::new();
     for (value, text) in NUMERALS {
@@ -643,7 +701,17 @@ impl Plan<'_> {
         size * self.r.line_spacing.factor()
     }
 
-    fn wrap(&self, atoms: Vec<Atom>, size: f32, first_indent: f32, indent: f32, measure: f32, place: Place, kind: Kind) -> Vec<Line> {
+    #[allow(clippy::too_many_arguments)]
+    fn wrap(
+        &self,
+        atoms: Vec<Atom>,
+        size: f32,
+        first_indent: f32,
+        indent: f32,
+        measure: f32,
+        place: Place,
+        kind: Kind,
+    ) -> Vec<Line> {
         wrap(
             atoms,
             &Wrap {
@@ -661,10 +729,27 @@ impl Plan<'_> {
         )
     }
 
-    fn plain_lines(&self, text: &str, size: f32, bold: bool, italic: bool, place: Place, kind: Kind) -> Vec<Line> {
+    fn plain_lines(
+        &self,
+        text: &str,
+        size: f32,
+        bold: bool,
+        italic: bool,
+        place: Place,
+        kind: Kind,
+    ) -> Vec<Line> {
         let atoms = atoms_of(
-            &[Span { text: text.to_string(), bold, italic, ..Default::default() }],
-            &Ink { family: self.family, italic: false, bold: false },
+            &[Span {
+                text: text.to_string(),
+                bold,
+                italic,
+                ..Default::default()
+            }],
+            &Ink {
+                family: self.family,
+                italic: false,
+                bold: false,
+            },
         );
         self.wrap(atoms, size, 0.0, 0.0, self.geo.measure(), place, kind)
     }
@@ -674,7 +759,10 @@ impl Plan<'_> {
 fn break_mark(plan: &Plan) -> String {
     let f = font(plan.family, Face::Regular);
     let mark = plan.r.scene_break.clone();
-    if mark.chars().all(|c| c.is_whitespace() || f.glyph(c).is_some()) {
+    if mark
+        .chars()
+        .all(|c| c.is_whitespace() || f.glyph(c).is_some())
+    {
         mark
     } else {
         "* * *".to_string()
@@ -686,7 +774,11 @@ fn lay_out(plan: &Plan) -> (Layout, Vec<String>) {
     let geo = &plan.geo;
     let size = plan.r.size_pt;
     let measure = geo.measure();
-    let mut layout = Layout { pages: Vec::new(), capacity: geo.capacity(), chapter_pages: Vec::new() };
+    let mut layout = Layout {
+        pages: Vec::new(),
+        capacity: geo.capacity(),
+        chapter_pages: Vec::new(),
+    };
     let indent_pts = plan.r.paragraph_indent_em * size;
     let para_gap = plan.r.paragraph_spacing_em * size;
 
@@ -697,25 +789,47 @@ fn lay_out(plan: &Plan) -> (Layout, Vec<String>) {
 
     // Front matter: each on a page of its own, a third of the way down.
     if !m.omit_front_matter {
-        let centred = |text: &str, sz: f32, bold: bool, italic: bool| plan.plain_lines(text, sz, bold, italic, Place::Centre, Kind::Head);
+        let centred = |text: &str, sz: f32, bold: bool, italic: bool| {
+            plan.plain_lines(text, sz, bold, italic, Place::Centre, Kind::Head)
+        };
         layout.new_page(PageKind::Front, None);
         layout.page().used = layout.capacity / 3.0;
-        layout.paragraph(centred(&m.title, size * 2.4, true, false), PageKind::Front, None);
+        layout.paragraph(
+            centred(&m.title, size * 2.4, true, false),
+            PageKind::Front,
+            None,
+        );
         if let Some(subtitle) = &m.subtitle {
             layout.gap(size);
-            layout.paragraph(centred(subtitle, size * 1.3, false, true), PageKind::Front, None);
+            layout.paragraph(
+                centred(subtitle, size * 1.3, false, true),
+                PageKind::Front,
+                None,
+            );
         }
         layout.gap(size * 2.0);
-        layout.paragraph(centred(&format!("by {}", m.byline), size * 1.1, false, false), PageKind::Front, None);
+        layout.paragraph(
+            centred(&format!("by {}", m.byline), size * 1.1, false, false),
+            PageKind::Front,
+            None,
+        );
         if let Some(line) = &m.copyright_line {
             layout.new_page(PageKind::Front, None);
             layout.page().used = layout.capacity * 0.7;
-            layout.paragraph(centred(line, size * 0.85, false, false), PageKind::Front, None);
+            layout.paragraph(
+                centred(line, size * 0.85, false, false),
+                PageKind::Front,
+                None,
+            );
         }
         if let Some(dedication) = &m.dedication {
             layout.new_page(PageKind::Front, None);
             layout.page().used = layout.capacity / 3.0;
-            layout.paragraph(centred(dedication, size, false, true), PageKind::Front, None);
+            layout.paragraph(
+                centred(dedication, size, false, true),
+                PageKind::Front,
+                None,
+            );
         }
         if let Some(epigraph) = &m.epigraph {
             layout.new_page(PageKind::Front, None);
@@ -723,7 +837,11 @@ fn lay_out(plan: &Plan) -> (Layout, Vec<String>) {
             layout.paragraph(centred(epigraph, size, false, true), PageKind::Front, None);
             if let Some(source) = &m.epigraph_source {
                 layout.gap(size * 0.5);
-                layout.paragraph(centred(&format!("— {source}"), size * 0.9, false, false), PageKind::Front, None);
+                layout.paragraph(
+                    centred(&format!("— {source}"), size * 0.9, false, false),
+                    PageKind::Front,
+                    None,
+                );
             }
         }
     }
@@ -743,8 +861,16 @@ fn lay_out(plan: &Plan) -> (Layout, Vec<String>) {
     let chapter_family = plan.family;
     let _ = chapter_family;
     let right_hand = plan.pdf.chapters_on_right;
-    let ink = Ink { family: plan.family, italic: false, bold: false };
-    let quote_ink = Ink { family: plan.family, italic: true, bold: false };
+    let ink = Ink {
+        family: plan.family,
+        italic: false,
+        bold: false,
+    };
+    let quote_ink = Ink {
+        family: plan.family,
+        italic: true,
+        bold: false,
+    };
     let note_size = size * 0.88;
 
     for (ci, chapter) in m.chapters.iter().enumerate() {
@@ -767,8 +893,17 @@ fn lay_out(plan: &Plan) -> (Layout, Vec<String>) {
             (HeadingStyle::SmallCaps, _) => chapter.title.to_uppercase(),
             _ => chapter.title.clone(),
         };
-        let title_size = size * if plan.r.heading_style == HeadingStyle::SmallCaps { 1.5 } else { 1.8 };
-        layout.paragraph(plan.plain_lines(&title, title_size, true, false, Place::Centre, Kind::Head), PageKind::Opening, Some(ci));
+        let title_size = size
+            * if plan.r.heading_style == HeadingStyle::SmallCaps {
+                1.5
+            } else {
+                1.8
+            };
+        layout.paragraph(
+            plan.plain_lines(&title, title_size, true, false, Place::Centre, Kind::Head),
+            PageKind::Opening,
+            Some(ci),
+        );
         layout.gap(size * 2.0);
 
         let mut after_break = true;
@@ -777,7 +912,11 @@ fn lay_out(plan: &Plan) -> (Layout, Vec<String>) {
                 layout.gap(plan.leading(size) * 0.5);
                 let glyph = break_mark(plan);
                 if !glyph.is_empty() {
-                    layout.paragraph(plan.plain_lines(&glyph, size, false, false, Place::Centre, Kind::Head), PageKind::Text, Some(ci));
+                    layout.paragraph(
+                        plan.plain_lines(&glyph, size, false, false, Place::Centre, Kind::Head),
+                        PageKind::Text,
+                        Some(ci),
+                    );
                 }
                 layout.gap(plan.leading(size) * 0.5);
                 after_break = true;
@@ -791,7 +930,8 @@ fn lay_out(plan: &Plan) -> (Layout, Vec<String>) {
                         }
                         let first = if after_break { 0.0 } else { indent_pts };
                         layout.gap(para_gap);
-                        let lines = plan.wrap(atoms, size, first, 0.0, measure, plan.place, Kind::Text);
+                        let lines =
+                            plan.wrap(atoms, size, first, 0.0, measure, plan.place, Kind::Text);
                         layout.paragraph(lines, PageKind::Text, Some(ci));
                         after_break = false;
                     }
@@ -799,9 +939,25 @@ fn lay_out(plan: &Plan) -> (Layout, Vec<String>) {
                         let atoms = atoms_of(spans, &quote_ink);
                         layout.gap(plan.leading(size) * 0.4);
                         let inset = size * 2.0;
-                        let lines = plan.wrap(atoms, size, inset, inset, measure - inset, plan.place, Kind::Text);
+                        let lines = plan.wrap(
+                            atoms,
+                            size,
+                            inset,
+                            inset,
+                            measure - inset,
+                            plan.place,
+                            Kind::Text,
+                        );
                         // The block is indented on both sides: narrow the measure, shift the lines.
-                        let lines = lines.into_iter().map(|mut l| { l.indent = inset; l.measure = measure; l.measure -= inset; l }).collect();
+                        let lines = lines
+                            .into_iter()
+                            .map(|mut l| {
+                                l.indent = inset;
+                                l.measure = measure;
+                                l.measure -= inset;
+                                l
+                            })
+                            .collect();
                         layout.paragraph(lines, PageKind::Text, Some(ci));
                         layout.gap(plan.leading(size) * 0.4);
                         after_break = true;
@@ -809,7 +965,18 @@ fn lay_out(plan: &Plan) -> (Layout, Vec<String>) {
                     Block::Heading { spans, .. } => {
                         let text: String = spans.iter().map(|s| s.text.as_str()).collect();
                         layout.gap(plan.leading(size));
-                        layout.paragraph(plan.plain_lines(&text, size * 1.15, true, false, Place::Centre, Kind::Head), PageKind::Text, Some(ci));
+                        layout.paragraph(
+                            plan.plain_lines(
+                                &text,
+                                size * 1.15,
+                                true,
+                                false,
+                                Place::Centre,
+                                Kind::Head,
+                            ),
+                            PageKind::Text,
+                            Some(ci),
+                        );
                         layout.gap(plan.leading(size) * 0.5);
                         after_break = true;
                     }
@@ -817,7 +984,18 @@ fn lay_out(plan: &Plan) -> (Layout, Vec<String>) {
                         layout.gap(plan.leading(size) * 0.5);
                         let glyph = break_mark(plan);
                         if !glyph.is_empty() {
-                            layout.paragraph(plan.plain_lines(&glyph, size, false, false, Place::Centre, Kind::Head), PageKind::Text, Some(ci));
+                            layout.paragraph(
+                                plan.plain_lines(
+                                    &glyph,
+                                    size,
+                                    false,
+                                    false,
+                                    Place::Centre,
+                                    Kind::Head,
+                                ),
+                                PageKind::Text,
+                                Some(ci),
+                            );
                         }
                         layout.gap(plan.leading(size) * 0.5);
                         after_break = true;
@@ -831,11 +1009,29 @@ fn lay_out(plan: &Plan) -> (Layout, Vec<String>) {
         let per_chapter = m.note_layout != NoteLayout::EndnotesBook;
         if per_chapter && !chapter.notes.is_empty() {
             layout.gap(plan.leading(size));
-            layout.paragraph(plan.plain_lines("Notes", size, true, false, Place::Left, Kind::Head), PageKind::Text, Some(ci));
+            layout.paragraph(
+                plan.plain_lines("Notes", size, true, false, Place::Left, Kind::Head),
+                PageKind::Text,
+                Some(ci),
+            );
             for note in &chapter.notes {
                 let text = format!("{}  {}", note.number, note.plain(m.note_label));
-                let atoms = atoms_of(&[Span { text, ..Default::default() }], &ink);
-                let lines = plan.wrap(atoms, note_size, 0.0, size * 1.5, measure, Place::Left, Kind::Note);
+                let atoms = atoms_of(
+                    &[Span {
+                        text,
+                        ..Default::default()
+                    }],
+                    &ink,
+                );
+                let lines = plan.wrap(
+                    atoms,
+                    note_size,
+                    0.0,
+                    size * 1.5,
+                    measure,
+                    Place::Left,
+                    Kind::Note,
+                );
                 layout.gap(note_size * 0.3);
                 layout.paragraph(lines, PageKind::Text, Some(ci));
             }
@@ -845,18 +1041,40 @@ fn lay_out(plan: &Plan) -> (Layout, Vec<String>) {
     if m.note_layout == NoteLayout::EndnotesBook && m.chapters.iter().any(|c| !c.notes.is_empty()) {
         layout.new_page(PageKind::Opening, None);
         layout.page().used = layout.capacity / 6.0;
-        layout.paragraph(plan.plain_lines("Notes", size * 1.8, true, false, Place::Centre, Kind::Head), PageKind::Opening, None);
+        layout.paragraph(
+            plan.plain_lines("Notes", size * 1.8, true, false, Place::Centre, Kind::Head),
+            PageKind::Opening,
+            None,
+        );
         layout.gap(size);
         for chapter in &m.chapters {
             if chapter.notes.is_empty() {
                 continue;
             }
             layout.gap(plan.leading(size) * 0.5);
-            layout.paragraph(plan.plain_lines(&chapter.title, size, true, false, Place::Left, Kind::Head), PageKind::Text, None);
+            layout.paragraph(
+                plan.plain_lines(&chapter.title, size, true, false, Place::Left, Kind::Head),
+                PageKind::Text,
+                None,
+            );
             for note in &chapter.notes {
                 let text = format!("{}  {}", note.number, note.plain(m.note_label));
-                let atoms = atoms_of(&[Span { text, ..Default::default() }], &ink);
-                let lines = plan.wrap(atoms, note_size, 0.0, size * 1.5, measure, Place::Left, Kind::Note);
+                let atoms = atoms_of(
+                    &[Span {
+                        text,
+                        ..Default::default()
+                    }],
+                    &ink,
+                );
+                let lines = plan.wrap(
+                    atoms,
+                    note_size,
+                    0.0,
+                    size * 1.5,
+                    measure,
+                    Place::Left,
+                    Kind::Note,
+                );
                 layout.gap(note_size * 0.3);
                 layout.paragraph(lines, PageKind::Text, None);
             }
@@ -874,7 +1092,11 @@ fn lay_out(plan: &Plan) -> (Layout, Vec<String>) {
 /// What each page is called: roman for the front matter when asked, arabic
 /// after, from the first chapter. The cover is not a page of the book.
 fn page_labels(layout: &Layout, plan: &Plan) -> Vec<String> {
-    let first_body = layout.chapter_pages.first().copied().unwrap_or(layout.pages.len());
+    let first_body = layout
+        .chapter_pages
+        .first()
+        .copied()
+        .unwrap_or(layout.pages.len());
     let start = plan.pdf.start_page.unwrap_or(1).max(1);
     let mut labels = Vec::with_capacity(layout.pages.len());
     let mut front = 0u32;
@@ -910,7 +1132,14 @@ fn fill_contents(layout: &mut Layout, plan: &Plan, first: usize, count: usize, l
         let page = &mut layout.pages[index];
         page.used = 0.0;
         if k == 0 {
-            let heading = plan.plain_lines("Contents", size * 1.8, true, false, Place::Centre, Kind::Head);
+            let heading = plan.plain_lines(
+                "Contents",
+                size * 1.8,
+                true,
+                false,
+                Place::Centre,
+                Kind::Head,
+            );
             for l in heading {
                 page.lines.push((page.used, l.clone()));
                 page.used += l.leading;
@@ -920,7 +1149,10 @@ fn fill_contents(layout: &mut Layout, plan: &Plan, first: usize, count: usize, l
         let slice = (k * per_page)..((k + 1) * per_page).min(m.chapters.len());
         for ci in slice {
             let title = &m.chapters[ci].title;
-            let number = labels.get(layout.chapter_pages[ci]).cloned().unwrap_or_default();
+            let number = labels
+                .get(layout.chapter_pages[ci])
+                .cloned()
+                .unwrap_or_default();
             // Title, a run of dots, and the page number flush right.
             let number_width: f32 = {
                 let g = shape(&number, family, Face::Regular);
@@ -933,7 +1165,9 @@ fn fill_contents(layout: &mut Layout, plan: &Plan, first: usize, count: usize, l
             };
             let mut shown = title.clone();
             let max_title = measure - number_width - size * 2.0;
-            while word_width(&[part(&shown, family, Face::Regular)], size) > max_title && shown.chars().count() > 4 {
+            while word_width(&[part(&shown, family, Face::Regular)], size) > max_title
+                && shown.chars().count() > 4
+            {
                 shown.pop();
                 shown = shown.trim_end().to_string();
                 if !shown.ends_with('…') {
@@ -941,11 +1175,11 @@ fn fill_contents(layout: &mut Layout, plan: &Plan, first: usize, count: usize, l
                     shown.pop();
                 }
             }
-            let used = word_width(&[part(&shown, family, Face::Regular)], size) + number_width + size;
+            let used =
+                word_width(&[part(&shown, family, Face::Regular)], size) + number_width + size;
             let dots = (((measure - used) / dot).floor() as usize).saturating_sub(1);
             let line_text = format!("{shown} {}", ".".repeat(dots));
-            let mut atoms = Vec::new();
-            atoms.push(Atom::Word(vec![part(&line_text, family, Face::Regular)]));
+            let atoms = vec![Atom::Word(vec![part(&line_text, family, Face::Regular)])];
             let line = Line {
                 atoms,
                 size,
@@ -960,10 +1194,13 @@ fn fill_contents(layout: &mut Layout, plan: &Plan, first: usize, count: usize, l
             // The number, set as its own line part by position: stored as a
             // second atom after a flexible space that fills to the margin.
             let mut line = line;
-            let filler = measure - word_width(&[part(&line_text, family, Face::Regular)], size) - number_width;
+            let filler = measure
+                - word_width(&[part(&line_text, family, Face::Regular)], size)
+                - number_width;
             line.atoms.push(Atom::Space);
             line.stretch = filler.max(0.0);
-            line.atoms.push(Atom::Word(vec![part(&number, family, Face::Regular)]));
+            line.atoms
+                .push(Atom::Word(vec![part(&number, family, Face::Regular)]));
             line.place = Place::Justified;
             page.lines.push((page.used, line));
             page.used += plan.leading(size);
@@ -994,11 +1231,15 @@ impl Pdf {
         let (payload, filter) = if compress {
             let mut enc = ZlibEncoder::new(Vec::new(), Compression::default());
             enc.write_all(data).expect("writing to memory");
-            (enc.finish().expect("finishing in memory"), " /Filter /FlateDecode")
+            (
+                enc.finish().expect("finishing in memory"),
+                " /Filter /FlateDecode",
+            )
         } else {
             (data.to_vec(), "")
         };
-        let mut body = format!("<< {dict}{filter} /Length {} >>\nstream\n", payload.len()).into_bytes();
+        let mut body =
+            format!("<< {dict}{filter} /Length {} >>\nstream\n", payload.len()).into_bytes();
         body.extend_from_slice(&payload);
         body.extend_from_slice(b"\nendstream");
         self.add(body)
@@ -1034,9 +1275,20 @@ impl Usage {
 }
 
 /// One line's drawing operators, positioned from the page's left edge.
-fn draw_line(out: &mut String, line: &Line, left: f32, baseline: f32, usage: &mut Usage, fonts: &HashMap<(Family, Face), usize>) {
+fn draw_line(
+    out: &mut String,
+    line: &Line,
+    left: f32,
+    baseline: f32,
+    usage: &mut Usage,
+    fonts: &HashMap<(Family, Face), usize>,
+) {
     let space = space_width(line.family, line.size);
-    let spaces = line.atoms.iter().filter(|a| matches!(a, Atom::Space)).count();
+    let spaces = line
+        .atoms
+        .iter()
+        .filter(|a| matches!(a, Atom::Space))
+        .count();
     let natural = natural_width(&line.atoms, line.size, line.family);
     let stretched = if line.kind == Kind::Contents {
         // One flexible space between the title and the number, whatever the count.
@@ -1070,7 +1322,10 @@ fn draw_line(out: &mut String, line: &Line, left: f32, baseline: f32, usage: &mu
                                 array.push_str(&format!("<{}>", hex_glyphs(&run)));
                                 run.clear();
                             }
-                            array.push_str(&format!("{} ", -(g.kern as f32) * 1000.0 / f.units_per_em as f32));
+                            array.push_str(&format!(
+                                "{} ",
+                                -(g.kern as f32) * 1000.0 / f.units_per_em as f32
+                            ));
                         }
                         run.push(g.gid);
                     }
@@ -1090,10 +1345,16 @@ fn draw_line(out: &mut String, line: &Line, left: f32, baseline: f32, usage: &mu
 
 pub struct Rendered {
     pub bytes: Vec<u8>,
+    /// How many pages it came to, for the tests.
+    #[allow(dead_code)]
     pub pages: usize,
 }
 
-pub fn write(manuscript: &Manuscript, options: &ExportOptions, max_pages: Option<usize>) -> Vec<u8> {
+pub fn write(
+    manuscript: &Manuscript,
+    options: &ExportOptions,
+    max_pages: Option<usize>,
+) -> Vec<u8> {
     render(manuscript, options, max_pages).bytes
 }
 
@@ -1121,7 +1382,9 @@ pub fn render(m: &Manuscript, options: &ExportOptions, max_pages: Option<usize>)
     let size = plan.r.size_pt;
     let show_numbers = pdf_options.page_numbers.unwrap_or(true);
 
-    let mut pdf = Pdf { objects: Vec::new() };
+    let mut pdf = Pdf {
+        objects: Vec::new(),
+    };
     let catalog = pdf.reserve();
     let pages_root = pdf.reserve();
     let info = pdf.reserve();
@@ -1134,7 +1397,9 @@ pub fn render(m: &Manuscript, options: &ExportOptions, max_pages: Option<usize>)
         fonts.insert((plan.family, face), id);
         font_objects.push(((plan.family, face), id));
     }
-    let mut usage = Usage { faces: BTreeMap::new() };
+    let mut usage = Usage {
+        faces: BTreeMap::new(),
+    };
 
     // The cover, when there is one and it is a kind PDF can carry.
     let cover_image: Option<PdfImage> = m.cover.as_ref().and_then(|c| image::load(c).ok());
@@ -1170,7 +1435,8 @@ pub fn render(m: &Manuscript, options: &ExportOptions, max_pages: Option<usize>)
             }
             _ => {
                 for (offset, line) in &page.lines {
-                    let baseline = top - offset - (line.leading - line.size) / 2.0 - line.size * 0.78;
+                    let baseline =
+                        top - offset - (line.leading - line.size) / 2.0 - line.size * 0.78;
                     draw_line(&mut content, line, left, baseline, &mut usage, &fonts);
                 }
                 if let Some(ci) = page.starts {
@@ -1181,35 +1447,73 @@ pub fn render(m: &Manuscript, options: &ExportOptions, max_pages: Option<usize>)
                     let small = size * 0.82;
                     let measure = geo.measure();
                     let head_y = geo.height - geo.top * 0.55;
-                    let verso = physical % 2 == 0;
+                    let verso = physical.is_multiple_of(2);
                     let title = if page.kind == PageKind::Contents {
                         None
                     } else if verso {
                         Some((m.short_title.clone(), Place::Left))
                     } else {
-                        page.chapter.and_then(|c| m.chapters.get(c)).map(|c| (c.title.clone(), Place::Right))
+                        page.chapter
+                            .and_then(|c| m.chapters.get(c))
+                            .map(|c| (c.title.clone(), Place::Right))
                     };
                     if let Some((text, place)) = title {
                         let atoms = atoms_of(
-                            &[Span { text, italic: true, ..Default::default() }],
-                            &Ink { family: plan.family, italic: false, bold: false },
+                            &[Span {
+                                text,
+                                italic: true,
+                                ..Default::default()
+                            }],
+                            &Ink {
+                                family: plan.family,
+                                italic: false,
+                                bold: false,
+                            },
                         );
                         let line = Line {
-                            atoms, size: small, leading: small, indent: 0.0, measure, place,
-                            stretch: 0.0, family: plan.family, kind: Kind::Head,
+                            atoms,
+                            size: small,
+                            leading: small,
+                            indent: 0.0,
+                            measure,
+                            place,
+                            stretch: 0.0,
+                            family: plan.family,
+                            kind: Kind::Head,
                         };
                         draw_line(&mut content, &line, left, head_y, &mut usage, &fonts);
                     }
                     if show_numbers && !labels[index].is_empty() {
                         let atoms = atoms_of(
-                            &[Span { text: labels[index].clone(), ..Default::default() }],
-                            &Ink { family: plan.family, italic: false, bold: false },
+                            &[Span {
+                                text: labels[index].clone(),
+                                ..Default::default()
+                            }],
+                            &Ink {
+                                family: plan.family,
+                                italic: false,
+                                bold: false,
+                            },
                         );
                         let line = Line {
-                            atoms, size: small, leading: small, indent: 0.0, measure, place: Place::Centre,
-                            stretch: 0.0, family: plan.family, kind: Kind::Head,
+                            atoms,
+                            size: small,
+                            leading: small,
+                            indent: 0.0,
+                            measure,
+                            place: Place::Centre,
+                            stretch: 0.0,
+                            family: plan.family,
+                            kind: Kind::Head,
                         };
-                        draw_line(&mut content, &line, left, geo.bottom * 0.5, &mut usage, &fonts);
+                        draw_line(
+                            &mut content,
+                            &line,
+                            left,
+                            geo.bottom * 0.5,
+                            &mut usage,
+                            &fonts,
+                        );
                     }
                 }
             }
@@ -1267,8 +1571,18 @@ pub fn render(m: &Manuscript, options: &ExportOptions, max_pages: Option<usize>)
 
     // The fonts, subset to the glyphs the pages drew.
     for ((family, face), id) in &font_objects {
-        let used = usage.faces.get(&(*family, *face)).cloned().unwrap_or_default();
-        write_font(&mut pdf, *id, font(*family, *face), &used, &tag_for(*family, *face));
+        let used = usage
+            .faces
+            .get(&(*family, *face))
+            .cloned()
+            .unwrap_or_default();
+        write_font(
+            &mut pdf,
+            *id,
+            font(*family, *face),
+            &used,
+            &tag_for(*family, *face),
+        );
     }
 
     // Bookmarks, one per chapter.
@@ -1317,7 +1631,9 @@ pub fn render(m: &Manuscript, options: &ExportOptions, max_pages: Option<usize>)
             }
             offset_counted += 1;
             let label = &labels[i];
-            let is_roman = label.chars().all(|c| matches!(c, 'i' | 'v' | 'x' | 'l' | 'c' | 'd' | 'm'));
+            let is_roman = label
+                .chars()
+                .all(|c| matches!(c, 'i' | 'v' | 'x' | 'l' | 'c' | 'd' | 'm'));
             let value: u32 = if is_roman {
                 offset_counted
             } else {
@@ -1338,7 +1654,11 @@ pub fn render(m: &Manuscript, options: &ExportOptions, max_pages: Option<usize>)
     let kids: String = page_ids.iter().map(|id| format!("{id} 0 R ")).collect();
     pdf.set(
         pages_root,
-        format!("<< /Type /Pages /Kids [{kids}] /Count {} >>", page_ids.len()).into_bytes(),
+        format!(
+            "<< /Type /Pages /Kids [{kids}] /Count {} >>",
+            page_ids.len()
+        )
+        .into_bytes(),
     );
     let mut catalog_body = format!(
         "<< /Type /Catalog /Pages {pages_root} 0 R /Lang ({}) /PageLabels << /Nums [{nums}] >>",
@@ -1359,7 +1679,10 @@ pub fn render(m: &Manuscript, options: &ExportOptions, max_pages: Option<usize>)
         info_body.push_str(&format!(" /Subject {}", text_string(d)));
     }
     if !m.keywords.is_empty() {
-        info_body.push_str(&format!(" /Keywords {}", text_string(&m.keywords.join(", "))));
+        info_body.push_str(&format!(
+            " /Keywords {}",
+            text_string(&m.keywords.join(", "))
+        ));
     }
     info_body.push_str(" >>");
     pdf.set(info, info_body.into_bytes());
@@ -1374,7 +1697,9 @@ pub fn render(m: &Manuscript, options: &ExportOptions, max_pages: Option<usize>)
         out.extend_from_slice(b"\nendobj\n");
     }
     let xref = out.len();
-    out.extend_from_slice(format!("xref\n0 {}\n0000000000 65535 f \n", pdf.objects.len() + 1).as_bytes());
+    out.extend_from_slice(
+        format!("xref\n0 {}\n0000000000 65535 f \n", pdf.objects.len() + 1).as_bytes(),
+    );
     for offset in &offsets {
         out.extend_from_slice(format!("{offset:010} 00000 n \n").as_bytes());
     }
@@ -1385,14 +1710,19 @@ pub fn render(m: &Manuscript, options: &ExportOptions, max_pages: Option<usize>)
         )
         .as_bytes(),
     );
-    Rendered { bytes: out, pages: layout.pages.len() }
+    Rendered {
+        bytes: out,
+        pages: layout.pages.len(),
+    }
 }
 
 /// The six-letter prefix a subset font's name carries, so two subsets of one
 /// face are not mistaken for each other.
 fn tag_for(family: Family, face: Face) -> String {
     let n = (family as usize) * 4 + face as usize;
-    let letters: String = (0..6).map(|i| (b'A' + ((n * 7 + i * 3) % 26) as u8) as char).collect();
+    let letters: String = (0..6)
+        .map(|i| (b'A' + ((n * 7 + i * 3) % 26) as u8) as char)
+        .collect();
     letters
 }
 
@@ -1441,7 +1771,12 @@ fn write_font(pdf: &mut Pdf, id: usize, f: &Font, used: &BTreeMap<u16, char>, ta
 
     let widths: String = used
         .keys()
-        .map(|gid| format!("{gid} [{}] ", (f.advance(*gid) as f32 * scale).round() as i32))
+        .map(|gid| {
+            format!(
+                "{gid} [{}] ",
+                (f.advance(*gid) as f32 * scale).round() as i32
+            )
+        })
         .collect();
     let descendant = pdf.add(
         format!(
@@ -1528,10 +1863,7 @@ pub fn warnings(m: &Manuscript, options: &ExportOptions) -> Vec<(&'static str, S
         }
     }
     if options.style.resolve().drop_caps {
-        out.push((
-            "pdf_drop_caps",
-            "Drop caps are not applied in PDF.".into(),
-        ));
+        out.push(("pdf_drop_caps", "Drop caps are not applied in PDF.".into()));
     }
     out
 }
@@ -1540,13 +1872,18 @@ pub fn warnings(m: &Manuscript, options: &ExportOptions) -> Vec<(&'static str, S
 mod tests {
     use super::*;
     use crate::export::options::{Format, PdfOptions, StyleOptions, StylePreset};
+    use crate::export::Role;
     use crate::export::{ChapterContent, Cover, Note, SceneContent};
 
     fn lorem(words: usize) -> String {
         const W: [&str; 12] = [
-            "The", "field", "went", "on", "past", "where", "the", "light", "gave", "out,", "and", "she",
+            "The", "field", "went", "on", "past", "where", "the", "light", "gave", "out,", "and",
+            "she",
         ];
-        (0..words).map(|i| W[i % W.len()]).collect::<Vec<_>>().join(" ")
+        (0..words)
+            .map(|i| W[i % W.len()])
+            .collect::<Vec<_>>()
+            .join(" ")
     }
 
     fn book(chapters: usize, words: usize) -> Manuscript {
@@ -1565,12 +1902,21 @@ mod tests {
                     scenes: vec![
                         SceneContent {
                             blocks: (0..8)
-                                .map(|_| Block::Paragraph(vec![Span { text: lorem(words), ..Default::default() }]))
+                                .map(|_| {
+                                    Block::Paragraph(vec![Span {
+                                        text: lorem(words),
+                                        ..Default::default()
+                                    }])
+                                })
                                 .collect(),
                             ..Default::default()
                         },
                         SceneContent {
-                            blocks: vec![Block::Paragraph(vec![Span { text: lorem(words / 2), italic: true, ..Default::default() }])],
+                            blocks: vec![Block::Paragraph(vec![Span {
+                                text: lorem(words / 2),
+                                italic: true,
+                                ..Default::default()
+                            }])],
                             ..Default::default()
                         },
                     ],
@@ -1584,7 +1930,10 @@ mod tests {
     fn options() -> ExportOptions {
         ExportOptions {
             format: Format::Pdf,
-            style: StyleOptions { preset: StylePreset::Book, ..Default::default() },
+            style: StyleOptions {
+                preset: StylePreset::Book,
+                ..Default::default()
+            },
             ..Default::default()
         }
     }
@@ -1595,7 +1944,11 @@ mod tests {
             m,
             family: Family::for_font(&r.font),
             geo: Geometry::from(o),
-            place: if r.align == Align::Justify { Place::Justified } else { Place::Left },
+            place: if r.align == Align::Justify {
+                Place::Justified
+            } else {
+                Place::Left
+            },
             hyphenate: r.hyphenate,
             pdf: o.pdf.clone().unwrap_or_default(),
             r,
@@ -1627,8 +1980,7 @@ mod tests {
         let measure = plan.geo.measure();
         for page in &layout.pages {
             for (_, line) in &page.lines {
-                let width = natural_width(&line.atoms, line.size, line.family)
-                    + if line.kind == Kind::Contents { 0.0 } else { 0.0 };
+                let width = natural_width(&line.atoms, line.size, line.family);
                 assert!(
                     width + line.indent <= measure + 0.5,
                     "a line of {width} + {} runs past {measure}",
@@ -1647,10 +1999,23 @@ mod tests {
         let measure = plan.geo.measure();
         let mut justified = 0;
         for page in &layout.pages {
-            for (_, line) in page.lines.iter().filter(|(_, l)| l.kind == Kind::Text && l.place == Place::Justified) {
-                let spaces = line.atoms.iter().filter(|a| matches!(a, Atom::Space)).count();
-                let w = natural_width(&line.atoms, line.size, line.family) + line.stretch * spaces as f32;
-                assert!((w + line.indent - measure).abs() < 0.5, "{w} + {} vs {measure}", line.indent);
+            for (_, line) in page
+                .lines
+                .iter()
+                .filter(|(_, l)| l.kind == Kind::Text && l.place == Place::Justified)
+            {
+                let spaces = line
+                    .atoms
+                    .iter()
+                    .filter(|a| matches!(a, Atom::Space))
+                    .count();
+                let w = natural_width(&line.atoms, line.size, line.family)
+                    + line.stretch * spaces as f32;
+                assert!(
+                    (w + line.indent - measure).abs() < 0.5,
+                    "{w} + {} vs {measure}",
+                    line.indent
+                );
                 justified += 1;
             }
         }
@@ -1661,12 +2026,18 @@ mod tests {
     fn chapters_open_on_new_pages_and_on_the_right_when_asked() {
         let m = book(3, 60);
         let mut o = options();
-        o.pdf = Some(PdfOptions { chapters_on_right: true, ..Default::default() });
+        o.pdf = Some(PdfOptions {
+            chapters_on_right: true,
+            ..Default::default()
+        });
         let plan = plan_of(&m, &o);
         let (layout, _) = lay_out(&plan);
         assert_eq!(layout.chapter_pages.len(), 3);
         for &p in &layout.chapter_pages {
-            let counted = layout.pages[..=p].iter().filter(|x| x.kind != PageKind::Cover).count();
+            let counted = layout.pages[..=p]
+                .iter()
+                .filter(|x| x.kind != PageKind::Cover)
+                .count();
             assert_eq!(counted % 2, 1, "chapter opens on a left-hand page");
             assert_eq!(layout.pages[p].kind, PageKind::Opening);
         }
@@ -1689,7 +2060,10 @@ mod tests {
                     // A paragraph's first line is indented; its rest is not.
                     let a_is_first = a.indent > 0.0;
                     let b_is_first = b.indent > 0.0;
-                    assert!(!(a_is_first && !b_is_first), "an orphan was left at the foot of a page");
+                    assert!(
+                        !a_is_first || b_is_first,
+                        "an orphan was left at the foot of a page"
+                    );
                 }
             }
         }
@@ -1700,10 +2074,17 @@ mod tests {
         let mut m = book(3, 90);
         m.toc = true;
         let mut o = options();
-        o.pdf = Some(PdfOptions { roman_front_matter: true, ..Default::default() });
+        o.pdf = Some(PdfOptions {
+            roman_front_matter: true,
+            ..Default::default()
+        });
         let plan = plan_of(&m, &o);
         let (layout, labels) = lay_out(&plan);
-        let toc = layout.pages.iter().find(|p| p.kind == PageKind::Contents).unwrap();
+        let toc = layout
+            .pages
+            .iter()
+            .find(|p| p.kind == PageKind::Contents)
+            .unwrap();
         let entries: Vec<String> = toc
             .lines
             .iter()
@@ -1711,11 +2092,11 @@ mod tests {
             .map(|(_, l)| {
                 l.atoms
                     .iter()
-                    .filter_map(|a| match a {
+                    .rev()
+                    .find_map(|a| match a {
                         Atom::Word(p) => Some(p.iter().map(|x| x.text.clone()).collect::<String>()),
                         _ => None,
                     })
-                    .last()
                     .unwrap()
             })
             .collect();
@@ -1732,10 +2113,18 @@ mod tests {
     fn page_size_margins_and_landscape_change_the_page() {
         let m = book(1, 40);
         let mut o = options();
-        o.pdf = Some(PdfOptions { page_size: Some(PageSize::Trade6x9), margin_in: Some(0.75), ..Default::default() });
+        o.pdf = Some(PdfOptions {
+            page_size: Some(PageSize::Trade6x9),
+            margin_in: Some(0.75),
+            ..Default::default()
+        });
         let text = String::from_utf8_lossy(&render(&m, &o, None).bytes).to_string();
         assert!(text.contains("/MediaBox [0 0 432.00 648.00]"));
-        o.pdf = Some(PdfOptions { page_size: Some(PageSize::A4), landscape: true, ..Default::default() });
+        o.pdf = Some(PdfOptions {
+            page_size: Some(PageSize::A4),
+            landscape: true,
+            ..Default::default()
+        });
         let text = String::from_utf8_lossy(&render(&m, &o, None).bytes).to_string();
         assert!(text.contains("/MediaBox [0 0 842.00 595.00]"));
     }
@@ -1755,7 +2144,10 @@ mod tests {
         png.extend_from_slice(b"IDAT");
         png.extend_from_slice(&idat);
         png.extend_from_slice(&[0, 0, 0, 0]);
-        m.cover = Some(Cover { bytes: png, mime: "image/png".into() });
+        m.cover = Some(Cover {
+            bytes: png,
+            mime: "image/png".into(),
+        });
         let o = options();
         let plan = plan_of(&m, &o);
         let (layout, labels) = lay_out(&plan);
@@ -1771,14 +2163,28 @@ mod tests {
         let mut m = book(1, 30);
         m.note_layout = NoteLayout::EndnotesChapter;
         m.chapters[0].scenes[0].blocks[0] = Block::Paragraph(vec![
-            Span { text: "Hello".into(), ..Default::default() },
-            Span { note: Some(1), ..Default::default() },
+            Span {
+                text: "Hello".into(),
+                ..Default::default()
+            },
+            Span {
+                note: Some(1),
+                ..Default::default()
+            },
         ]);
-        m.chapters[0].notes = vec![Note { number: 1, text: "the note".into(), quote: None }];
+        m.chapters[0].notes = vec![Note {
+            number: 1,
+            text: "the note".into(),
+            quote: None,
+        }];
         let o = options();
         let plan = plan_of(&m, &o);
         let (layout, _) = lay_out(&plan);
-        let all: Vec<&Line> = layout.pages.iter().flat_map(|p| p.lines.iter().map(|(_, l)| l)).collect();
+        let all: Vec<&Line> = layout
+            .pages
+            .iter()
+            .flat_map(|p| p.lines.iter().map(|(_, l)| l))
+            .collect();
         assert!(all.iter().any(|l| l.kind == Kind::Note));
     }
 
@@ -1799,7 +2205,13 @@ mod tests {
         assert!(hyphen_points("walked").is_empty());
         assert!(hyphen_points("it's-here").is_empty());
         // Whatever it finds leaves enough on each side.
-        for w in ["information", "extraordinary", "conversation", "beautifully", "Wednesday"] {
+        for w in [
+            "information",
+            "extraordinary",
+            "conversation",
+            "beautifully",
+            "Wednesday",
+        ] {
             for p in hyphen_points(w) {
                 assert!(p >= 2 && w.len() - p >= 3, "{w} at {p}");
             }
@@ -1816,7 +2228,10 @@ mod tests {
         let measure = plan.geo.measure();
         for page in &layout.pages {
             for (_, line) in &page.lines {
-                assert!(natural_width(&line.atoms, line.size, line.family) + line.indent <= measure + 0.5);
+                assert!(
+                    natural_width(&line.atoms, line.size, line.family) + line.indent
+                        <= measure + 0.5
+                );
             }
         }
     }
@@ -1824,7 +2239,10 @@ mod tests {
     #[test]
     fn a_missing_glyph_is_reported_before_export() {
         let mut m = book(1, 10);
-        m.chapters[0].scenes[0].blocks[0] = Block::Paragraph(vec![Span { text: "漢字 text".into(), ..Default::default() }]);
+        m.chapters[0].scenes[0].blocks[0] = Block::Paragraph(vec![Span {
+            text: "漢字 text".into(),
+            ..Default::default()
+        }]);
         let w = warnings(&m, &options());
         assert!(w.iter().any(|(code, _)| *code == "pdf_missing_glyphs"));
     }
@@ -1851,16 +2269,40 @@ mod tests {
         m.copyright_line = Some("© 2026 Ada Quill".into());
         m.note_layout = NoteLayout::EndnotesChapter;
         m.chapters[0].scenes[0].blocks[0] = Block::Paragraph(vec![
-            Span { text: "The field went on".into(), ..Default::default() },
-            Span { note: Some(1), ..Default::default() },
-            Span { text: " past where the light gave out, with “quotes”, — dashes and an AVATAR of Wave.".into(), ..Default::default() },
+            Span {
+                text: "The field went on".into(),
+                ..Default::default()
+            },
+            Span {
+                note: Some(1),
+                ..Default::default()
+            },
+            Span {
+                text:
+                    " past where the light gave out, with “quotes”, — dashes and an AVATAR of Wave."
+                        .into(),
+                ..Default::default()
+            },
         ]);
-        m.chapters[0].notes = vec![Note { number: 1, text: "Show, do not tell.".into(), quote: Some("The field went on".into()) }];
+        m.chapters[0].notes = vec![Note {
+            number: 1,
+            text: "Show, do not tell.".into(),
+            quote: Some("The field went on".into()),
+        }];
         if let Ok(png) = std::fs::read(format!("{dir}/cover.png")) {
-            m.cover = Some(Cover { bytes: png, mime: "image/png".into() });
+            m.cover = Some(Cover {
+                bytes: png,
+                mime: "image/png".into(),
+            });
         }
         let mut o = options();
-        o.pdf = Some(PdfOptions { roman_front_matter: true, chapters_on_right: true, page_size: Some(PageSize::Trade6x9), margin_in: Some(0.75), ..Default::default() });
+        o.pdf = Some(PdfOptions {
+            roman_front_matter: true,
+            chapters_on_right: true,
+            page_size: Some(PageSize::Trade6x9),
+            margin_in: Some(0.75),
+            ..Default::default()
+        });
         o.style.hyphenate = Some(true);
         o.style.size_pt = Some(11.0);
         std::fs::write(format!("{dir}/book.pdf"), write(&m, &o, None)).unwrap();
