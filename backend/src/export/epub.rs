@@ -9,9 +9,10 @@ use std::io::{Cursor, Write};
 use zip::write::SimpleFileOptions;
 use zip::{CompressionMethod, ZipWriter};
 
+use super::options::ExportOptions;
 use super::{xml_escape, Block, ChapterContent, Manuscript, Span};
 
-pub fn write(manuscript: &Manuscript) -> std::io::Result<Vec<u8>> {
+pub fn write(manuscript: &Manuscript, _options: &ExportOptions) -> std::io::Result<Vec<u8>> {
     let mut zip = ZipWriter::new(Cursor::new(Vec::new()));
     let stored = SimpleFileOptions::default().compression_method(CompressionMethod::Stored);
     let deflated = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);

@@ -1,6 +1,7 @@
 //! One self-contained HTML page: the whole book, styles inline, nothing to
 //! fetch. For reading in a browser, pasting into a blog, or printing.
 use super::epub::spans_to_html;
+use super::options::ExportOptions;
 use super::{xml_escape, Block, Manuscript};
 
 const STYLE: &str =
@@ -11,7 +12,7 @@ section.chapter{margin-top:4em}p{margin:0;text-indent:1.5em}p.first{text-indent:
 hr.scene{border:0;text-align:center;margin:1.5em 0}hr.scene::after{content:\"* * *\"}\
 blockquote{margin:1em 2em;font-style:italic}";
 
-pub fn write(manuscript: &Manuscript) -> String {
+pub fn write(manuscript: &Manuscript, _options: &ExportOptions) -> String {
     let mut body = format!(
         "<header class=\"title-page\">\n<h1>{}</h1>\n",
         xml_escape(&manuscript.title)
@@ -91,6 +92,10 @@ pub fn write(manuscript: &Manuscript) -> String {
     )
 }
 
+pub fn write_package(_manuscript: &Manuscript, _options: &ExportOptions) -> std::io::Result<Vec<u8>> {
+    Err(std::io::Error::other("not yet"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -113,15 +118,17 @@ mod tests {
             chapters: vec![ChapterContent {
                 title: "One".into(),
                 scenes: vec![SceneContent {
-                    title: String::new(),
                     blocks: vec![Block::Paragraph(vec![Span {
                         text: "<hi>".into(),
                         ..Span::default()
                     }])],
+                    ..Default::default()
                 }],
+                ..Default::default()
             }],
+            ..Default::default()
         };
-        let html = write(&manuscript);
+        let html = write(&manuscript, &ExportOptions::default());
         assert!(html.contains("<title>Fish &amp; Chips</title>"));
         assert!(html.contains("&lt;hi&gt;"));
         assert!(html.contains("<h2>One</h2>"));

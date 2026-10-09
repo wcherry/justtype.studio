@@ -376,6 +376,7 @@ async fn create_from(
                         position: c as i32,
                         created_at: now.clone(),
                         updated_at: now.clone(),
+                        role: "chapter".into(),
                     })
                     .execute(conn)?;
 
@@ -504,6 +505,7 @@ pub async fn import_document(
                                 position: 0,
                                 created_at: now.clone(),
                                 updated_at: now,
+                                role: "chapter".into(),
                             })
                             .execute(conn)?;
                         id

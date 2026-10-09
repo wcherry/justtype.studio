@@ -105,8 +105,10 @@ fn api_router() -> OpenApiRouter<AppState> {
         .routes(routes!(versions::pin))
         .routes(routes!(versions::restore))
         .routes(routes!(versions::content))
-        .routes(routes!(export::export_version))
-        .routes(routes!(export::export_draft))
+        .routes(routes!(export::export_version, export::export_version_with))
+        .routes(routes!(export::export_draft, export::export_draft_with))
+        .routes(routes!(export::preflight_draft))
+        .routes(routes!(export::preflight_version))
         // Whole files in the request body, so a limit of their own.
         .merge(
             OpenApiRouter::new()

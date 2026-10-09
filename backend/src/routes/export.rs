@@ -3,18 +3,26 @@
 //! A version is the export to send: a file you send an agent has to be a thing
 //! that stays the same, and a version is already exactly that. The working
 //! draft can be exported too, as it reads at this moment.
+//!
+//! The settings arrive as [`ExportOptions`]. The `GET ?format=&style=` forms
+//! stay as shorthands that build the default options, so the iOS app and the
+//! smoke test keep working.
 use axum::extract::{Path, Query, State};
 use axum::http::{header, HeaderMap, HeaderValue, StatusCode};
 use axum::response::IntoResponse;
+use axum::Json;
 use diesel::prelude::*;
 use serde::Deserialize;
 
 use crate::auth::AuthUser;
 use crate::db::blocking;
-use crate::db::models::{User, Work};
-use crate::db::schema::users;
+use crate::db::models::{User, Work, WorkMetadata};
+use crate::db::schema::{annotations, users, work_metadata};
 use crate::error::{ApiError, ApiResult, ErrorEnvelope};
-use crate::export::{self, ChapterContent, Contact, Manuscript, SceneContent, Style};
+use crate::export::assemble::{self, PreflightReport, Rendered, Resolved};
+use crate::export::options::{ExportOptions, Format};
+use crate::export::pipeline::{SourceChapter, SourceComment, SourceScene};
+use crate::export::{self, ChapterContent, Contact, Cover, Manuscript, Role, SceneContent, Style};
 use crate::state::AppState;
 
 use super::support;
@@ -42,6 +50,26 @@ fn style_from(value: Option<&str>) -> ApiResult<Style> {
     }
 }
 
+fn shorthand(query: &ExportQuery) -> ApiResult<ExportOptions> {
+    let style = style_from(query.style.as_deref())?;
+    let format = Format::parse(&query.format).ok_or_else(|| {
+        ApiError::BadRequest(format!(
+            "format must be one of docx, epub, pdf, html, txt — got `{}`",
+            query.format
+        ))
+    })?;
+    Ok(ExportOptions::shorthand(format, style))
+}
+
+fn shorthand_for(query: &ExportQuery) -> ApiResult<ExportOptions> {
+    shorthand(query)
+}
+
+fn checked(options: ExportOptions) -> ApiResult<ExportOptions> {
+    options.validate().map_err(ApiError::BadRequest)?;
+    Ok(options)
+}
+
 /// Everything after the last path separator, minus anything a filesystem or a
 /// `Content-Disposition` header would rather not see.
 pub(super) fn safe_filename(title: &str, extension: &str) -> String {
@@ -61,120 +89,199 @@ pub(super) fn safe_filename(title: &str, extension: &str) -> String {
     format!("{stem}.{extension}")
 }
 
-/// Pulls the frozen text off disk and builds the model every writer shares.
-async fn assemble(
-    state: &AppState,
-    detail: VersionDetail,
-    work: Work,
-    author: User,
-) -> ApiResult<Manuscript> {
-    let content = versions::assemble_content(state, detail).await?;
-    Ok(manuscript_of(
-        content.chapters,
-        content.version.word_count,
-        work,
-        author,
-    ))
+/// The work's own details beyond the byline, and the writer's own comments.
+/// Comments are private to whoever wrote them, so the query is by the person
+/// exporting and nobody else.
+fn load_extras(
+    conn: &mut crate::db::Conn,
+    work: &Work,
+    user: &AuthUser,
+) -> ApiResult<(Option<WorkMetadata>, Vec<SourceComment>)> {
+    let meta = work_metadata::table
+        .find(&work.id)
+        .select(WorkMetadata::as_select())
+        .first(conn)
+        .optional()?;
+    let rows: Vec<crate::db::models::Annotation> = annotations::table
+        .filter(annotations::user_id.eq(&user.id))
+        .filter(annotations::work_id.eq(&work.id))
+        .filter(annotations::publication_id.is_null())
+        .filter(annotations::kind.eq("comment"))
+        .order(annotations::created_at.asc())
+        .select(crate::db::models::Annotation::as_select())
+        .load(conn)?;
+    let comments = rows
+        .into_iter()
+        .filter_map(|a| {
+            Some(SourceComment {
+                scene_id: a.scene_id,
+                from: a.from_pos,
+                to: a.to_pos,
+                quote: a.quote,
+                note: a.note?,
+            })
+        })
+        .collect();
+    Ok((meta, comments))
 }
 
-/// The working draft as it stands now, read scene by scene off disk.
-async fn assemble_draft(
+async fn load_cover(
     state: &AppState,
-    work: Work,
-    author: User,
-    outline: Vec<(String, Vec<crate::db::models::Scene>)>,
-) -> ApiResult<Manuscript> {
+    work_id: &str,
+    meta: &Option<WorkMetadata>,
+) -> ApiResult<Option<Cover>> {
+    let Some(mime) = meta.as_ref().and_then(|m| m.cover_mime.clone()) else {
+        return Ok(None);
+    };
+    Ok(state
+        .store
+        .read_cover(work_id)
+        .await?
+        .map(|bytes| Cover { bytes, mime }))
+}
+
+/// Stage 0, for a frozen version: pull the text off disk.
+async fn resolve_version(
+    state: &AppState,
+    user: AuthUser,
+    version_id: String,
+) -> ApiResult<Resolved> {
+    let (detail, work, author, meta, comments) = blocking(&state.pool, move |conn| {
+        let (version, work) = support::version_for_owner(conn, &version_id, &user)?;
+        let author: User = users::table
+            .find(&work.owner_id)
+            .select(User::as_select())
+            .first(conn)?;
+        let detail = versions::load_detail(conn, &version.id)?;
+        let (meta, comments) = load_extras(conn, &work, &user)?;
+        Ok((detail, work, author, meta, comments))
+    })
+    .await?;
+    let cover = load_cover(state, &work.id, &meta).await?;
+    let content = versions::assemble_content(state, detail).await?;
+    let chapters = content
+        .chapters
+        .into_iter()
+        .map(|chapter| SourceChapter {
+            id: chapter.chapter_id,
+            title: chapter.title,
+            role: Role::parse(&chapter.role),
+            scenes: chapter
+                .scenes
+                .into_iter()
+                .map(|scene| SourceScene {
+                    id: scene.scene_id,
+                    title: scene.title,
+                    doc: scene.content,
+                })
+                .collect(),
+        })
+        .collect();
+    Ok(Resolved {
+        work,
+        author,
+        meta,
+        cover,
+        chapters,
+        word_count: content.version.word_count,
+        comments,
+        use_positions: false,
+        is_draft: false,
+    })
+}
+
+/// Stage 0, for the working draft: read it scene by scene.
+async fn resolve_draft(state: &AppState, user: AuthUser, work_id: String) -> ApiResult<Resolved> {
+    let (work, author, outline, meta, comments) = blocking(&state.pool, move |conn| {
+        let work = support::work_for_owner(conn, &work_id, &user)?;
+        let author: User = users::table
+            .find(&work.owner_id)
+            .select(User::as_select())
+            .first(conn)?;
+        // Named as a version would name them, so an untitled chapter or scene
+        // exports as "Chapter 2", not as nothing.
+        let outline =
+            super::works::with_placeholder_names(super::works::load_outline(conn, &work.id)?);
+        let (meta, comments) = load_extras(conn, &work, &user)?;
+        Ok((work, author, outline, meta, comments))
+    })
+    .await?;
+    let cover = load_cover(state, &work.id, &meta).await?;
+
     let mut chapters = Vec::new();
     let mut words = 0;
-    for (index, (title, scenes)) in outline.into_iter().enumerate() {
-        let mut content_scenes = Vec::new();
-        for scene in scenes {
+    for chapter in outline.chapters {
+        let mut scenes = Vec::new();
+        for scene in chapter.scenes {
             words += scene.word_count;
-            let content = state
+            let doc = state
                 .store
                 .read_working_scene(&work.id, &scene.id)
                 .await
                 .unwrap_or_else(|_| crate::domain::doc::empty_doc());
-            content_scenes.push(versions::ContentScene {
-                scene_id: scene.id,
+            scenes.push(SourceScene {
+                id: scene.id,
                 title: scene.title,
-                position: scene.position,
-                word_count: scene.word_count,
-                content,
+                doc,
             });
         }
-        chapters.push(versions::ContentChapter {
-            chapter_id: String::new(),
-            title,
-            position: index as i32,
-            scenes: content_scenes,
+        chapters.push(SourceChapter {
+            id: chapter.chapter.id,
+            title: chapter.chapter.title,
+            role: Role::parse(&chapter.chapter.role),
+            scenes,
         });
     }
-    Ok(manuscript_of(chapters, words, work, author))
+    Ok(Resolved {
+        work,
+        author,
+        meta,
+        cover,
+        chapters,
+        word_count: words,
+        comments,
+        use_positions: true,
+        is_draft: true,
+    })
 }
 
-fn manuscript_of(
-    chapters: Vec<versions::ContentChapter>,
-    word_count: i32,
-    work: Work,
-    author: User,
-) -> Manuscript {
-    // Scenes with no text are outline scaffolding — a template's empty beats.
-    // Carrying them through would print a page of lone scene-break marks, and a
-    // chapter that is nothing but scaffolding would get a title page with
-    // nothing under it.
-    let chapters: Vec<ChapterContent> = chapters
-        .into_iter()
-        .map(|chapter| ChapterContent {
-            title: chapter.title,
-            scenes: chapter
-                .scenes
-                .into_iter()
-                .map(|scene| SceneContent {
-                    title: scene.title,
-                    blocks: export::blocks_from_doc(&scene.content),
-                })
-                .filter(|scene| !scene.blocks.is_empty())
-                .collect(),
-        })
-        .filter(|chapter| !chapter.scenes.is_empty())
-        .collect();
-
-    let byline = work
-        .pen_name
-        .clone()
-        .unwrap_or_else(|| author.display_name.clone());
-    // The header wants a surname. The last whitespace-separated word is a guess,
-    // and a wrong one for plenty of names — but it is the writer's own byline,
-    // and they can override it by setting a short title.
-    let surname = byline
-        .split_whitespace()
-        .last()
-        .unwrap_or(&byline)
-        .to_string();
-
-    Manuscript {
-        short_title: work
-            .short_title
-            .clone()
-            .unwrap_or_else(|| work.title.clone()),
-        title: work.title,
-        subtitle: work.subtitle,
-        byline,
-        surname,
-        contact: Contact {
-            legal_name: author.legal_name,
-            address: author.mailing_address,
-            phone: author.phone,
-            email: Some(author.email),
-        },
-        copyright_line: work.copyright_line,
-        dedication: work.dedication,
-        epigraph: work.epigraph,
-        epigraph_source: work.epigraph_source,
-        word_count,
-        chapters,
+/// Stages 1–4 for one request, as a download.
+fn deliver(resolved: &Resolved, options: &ExportOptions) -> ApiResult<axum::response::Response> {
+    let report = assemble::preflight(resolved, options);
+    if let Some(error) = report
+        .issues
+        .iter()
+        .find(|i| i.severity == export::pipeline::Severity::Error)
+    {
+        return Err(ApiError::BadRequest(error.message.clone()));
     }
+    let prepared = assemble::prepare(resolved, options);
+    let Rendered {
+        bytes,
+        mime,
+        extension,
+    } = assemble::render(&prepared.manuscript, options).map_err(|e| {
+        ApiError::internal(format!("export failed at the {} stage: {}", e.stage, e.message))
+    })?;
+
+    let filename = safe_filename(&prepared.manuscript.title, extension);
+    let mut headers = HeaderMap::new();
+    headers.insert(header::CONTENT_TYPE, HeaderValue::from_static(mime));
+    headers.insert(
+        header::CONTENT_DISPOSITION,
+        HeaderValue::from_str(&format!("attachment; filename=\"{filename}\""))
+            .map_err(|e| ApiError::internal(e.to_string()))?,
+    );
+    let warnings = report
+        .issues
+        .iter()
+        .filter(|i| i.severity == export::pipeline::Severity::Warning)
+        .count();
+    headers.insert(
+        "x-export-warnings",
+        HeaderValue::from_str(&warnings.to_string()).expect("digits are a valid header value"),
+    );
+    Ok((StatusCode::OK, headers, bytes).into_response())
 }
 
 #[utoipa::path(
@@ -192,27 +299,32 @@ pub async fn export_version(
     user: AuthUser,
     Path(version_id): Path<String>,
     Query(query): Query<ExportQuery>,
-) -> ApiResult<impl IntoResponse> {
-    let style = style_from(query.style.as_deref())?;
+) -> ApiResult<axum::response::Response> {
+    let options = checked(shorthand(&query)?)?;
+    let resolved = resolve_version(&state, user, version_id).await?;
+    deliver(&resolved, &options)
+}
 
-    let (detail, work, author) = blocking(&state.pool, move |conn| {
-        let (version, work) = support::version_for_owner(conn, &version_id, &user)?;
-        let author: User = users::table
-            .find(&work.owner_id)
-            .select(User::as_select())
-            .first(conn)?;
-        let detail = versions::load_detail(conn, &version.id)?;
-        Ok((detail, work, author))
-    })
-    .await?;
-
-    let manuscript = assemble(&state, detail, work, author).await?;
-    render(
-        manuscript,
-        &query.format,
-        style,
-        "there is nothing to export: this version has no text in it",
+#[utoipa::path(
+    post,
+    path = "/api/versions/{version_id}/export",
+    tag = "versions",
+    params(("version_id" = String, Path)),
+    request_body = ExportOptions,
+    responses(
+        (status = 200, description = "The manuscript as a file", content_type = "application/octet-stream"),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
     )
+)]
+pub async fn export_version_with(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(version_id): Path<String>,
+    Json(options): Json<ExportOptions>,
+) -> ApiResult<axum::response::Response> {
+    let options = checked(options)?;
+    let resolved = resolve_version(&state, user, version_id).await?;
+    deliver(&resolved, &options)
 }
 
 #[utoipa::path(
@@ -235,87 +347,75 @@ pub async fn export_draft(
     if query.format == "project" {
         return super::project::export_project(&state, user, work_id).await;
     }
-    let style = style_from(query.style.as_deref())?;
-
-    let (work, author, outline) = blocking(&state.pool, move |conn| {
-        let work = support::work_for_owner(conn, &work_id, &user)?;
-        let author: User = users::table
-            .find(&work.owner_id)
-            .select(User::as_select())
-            .first(conn)?;
-        // Named as a version would name them, so an untitled chapter or scene
-        // exports as "Chapter 2", not as nothing.
-        let outline =
-            super::works::with_placeholder_names(super::works::load_outline(conn, &work.id)?);
-        let outline = outline
-            .chapters
-            .into_iter()
-            .map(|chapter| (chapter.chapter.title, chapter.scenes))
-            .collect::<Vec<_>>();
-        Ok((work, author, outline))
-    })
-    .await?;
-
-    let manuscript = assemble_draft(&state, work, author, outline).await?;
-    Ok(render(
-        manuscript,
-        &query.format,
-        style,
-        "there is nothing to export: nothing has been written yet",
-    )?
-    .into_response())
+    let options = checked(shorthand(&query)?)?;
+    let resolved = resolve_draft(&state, user, work_id).await?;
+    deliver(&resolved, &options)
 }
 
-/// Writes a manuscript in the format asked for, as a download.
-fn render(
-    manuscript: Manuscript,
-    format: &str,
-    style: Style,
-    empty: &str,
-) -> ApiResult<impl IntoResponse> {
-    if manuscript.is_empty() {
-        return Err(ApiError::BadRequest(empty.into()));
-    }
+#[utoipa::path(
+    post,
+    path = "/api/works/{work_id}/export",
+    tag = "works",
+    params(("work_id" = String, Path)),
+    request_body = ExportOptions,
+    responses(
+        (status = 200, description = "The working draft as a file", content_type = "application/octet-stream"),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
+pub async fn export_draft_with(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(work_id): Path<String>,
+    Json(options): Json<ExportOptions>,
+) -> ApiResult<axum::response::Response> {
+    let options = checked(options)?;
+    let resolved = resolve_draft(&state, user, work_id).await?;
+    deliver(&resolved, &options)
+}
 
-    let (bytes, mime, extension) = match format {
-        "docx" => (
-            export::docx::write(&manuscript, style)?,
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            "docx",
-        ),
-        "epub" => (
-            export::epub::write(&manuscript)?,
-            "application/epub+zip",
-            "epub",
-        ),
-        "pdf" => (export::pdf::write(&manuscript), "application/pdf", "pdf"),
-        "html" => (
-            export::html::write(&manuscript).into_bytes(),
-            "text/html; charset=utf-8",
-            "html",
-        ),
-        "txt" => (
-            export::text::write(&manuscript, style).into_bytes(),
-            "text/plain; charset=utf-8",
-            "txt",
-        ),
-        other => {
-            return Err(ApiError::BadRequest(format!(
-                "format must be one of docx, epub, pdf, html, txt — got `{other}`"
-            )))
-        }
-    };
+#[utoipa::path(
+    post,
+    path = "/api/works/{work_id}/export/preflight",
+    tag = "works",
+    params(("work_id" = String, Path)),
+    request_body = ExportOptions,
+    responses(
+        (status = 200, description = "What would go out, and what is wrong with it", body = PreflightReport),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
+pub async fn preflight_draft(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(work_id): Path<String>,
+    Json(options): Json<ExportOptions>,
+) -> ApiResult<Json<PreflightReport>> {
+    let options = checked(options)?;
+    let resolved = resolve_draft(&state, user, work_id).await?;
+    Ok(Json(assemble::preflight(&resolved, &options)))
+}
 
-    let filename = safe_filename(&manuscript.title, extension);
-    let mut headers = HeaderMap::new();
-    headers.insert(header::CONTENT_TYPE, HeaderValue::from_static(mime));
-    headers.insert(
-        header::CONTENT_DISPOSITION,
-        HeaderValue::from_str(&format!("attachment; filename=\"{filename}\""))
-            .map_err(|e| ApiError::internal(e.to_string()))?,
-    );
-
-    Ok((StatusCode::OK, headers, bytes))
+#[utoipa::path(
+    post,
+    path = "/api/versions/{version_id}/export/preflight",
+    tag = "versions",
+    params(("version_id" = String, Path)),
+    request_body = ExportOptions,
+    responses(
+        (status = 200, description = "What would go out, and what is wrong with it", body = PreflightReport),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
+pub async fn preflight_version(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(version_id): Path<String>,
+    Json(options): Json<ExportOptions>,
+) -> ApiResult<Json<PreflightReport>> {
+    let options = checked(options)?;
+    let resolved = resolve_version(&state, user, version_id).await?;
+    Ok(Json(assemble::preflight(&resolved, &options)))
 }
 
 /// The whole review as one document the author can work from.
@@ -347,7 +447,10 @@ async fn assemble_feedback(
         .chapters
         .into_iter()
         .map(|chapter| ChapterContent {
+            id: chapter.chapter_id,
             title: chapter.title,
+            role: Role::parse(&chapter.role),
+            notes: Vec::new(),
             scenes: chapter
                 .scenes
                 .into_iter()
@@ -398,6 +501,7 @@ async fn assemble_feedback(
                         );
                     }
                     SceneContent {
+                        id: scene.scene_id,
                         title: scene.title,
                         blocks,
                     }
@@ -433,6 +537,8 @@ async fn assemble_feedback(
         epigraph_source: None,
         word_count: 0,
         chapters,
+        language: "en".into(),
+        ..Default::default()
     })
 }
 
@@ -454,7 +560,7 @@ pub async fn export_feedback(
     Path(publication_id): Path<String>,
     Query(query): Query<ExportQuery>,
 ) -> ApiResult<impl IntoResponse> {
-    let style = style_from(query.style.as_deref())?;
+    let options = checked(shorthand_for(&query)?)?;
 
     let (publication, detail, work, author, comments, reactions) =
         blocking(&state.pool, move |conn| {
@@ -517,24 +623,19 @@ pub async fn export_feedback(
         ));
     }
 
-    let (bytes, mime, extension) = match query.format.as_str() {
-        "docx" => (
-            export::docx::write(&manuscript, style)?,
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            "docx",
-        ),
-        "pdf" => (export::pdf::write(&manuscript), "application/pdf", "pdf"),
-        "txt" => (
-            export::text::write(&manuscript, style).into_bytes(),
-            "text/plain; charset=utf-8",
-            "txt",
-        ),
-        other => {
-            return Err(ApiError::BadRequest(format!(
-                "format must be one of docx, pdf, txt — got `{other}`"
-            )))
-        }
-    };
+    if !matches!(options.format, Format::Docx | Format::Pdf | Format::Txt) {
+        return Err(ApiError::BadRequest(format!(
+            "format must be one of docx, pdf, txt — got `{}`",
+            query.format
+        )));
+    }
+    let Rendered {
+        bytes,
+        mime,
+        extension,
+    } = assemble::render(&manuscript, &options).map_err(|e| {
+        ApiError::internal(format!("export failed at the {} stage: {}", e.stage, e.message))
+    })?;
 
     let filename = safe_filename(&manuscript.title, extension);
     let mut headers = HeaderMap::new();

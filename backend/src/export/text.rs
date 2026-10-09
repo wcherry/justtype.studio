@@ -3,9 +3,11 @@
 //! Not on the roadmap, but it costs almost nothing and it is the only format a
 //! human can diff, grep or paste into a submission form — and the one the tests
 //! can assert against without unzipping anything.
+use super::options::ExportOptions;
 use super::{Block, Manuscript, Style};
 
-pub fn write(manuscript: &Manuscript, style: Style) -> String {
+pub fn write(manuscript: &Manuscript, options: &ExportOptions) -> String {
+    let style = options.style_kind();
     let mut out = String::new();
 
     if style == Style::Manuscript {

@@ -14,12 +14,17 @@ use std::io::{Cursor, Write};
 use zip::write::SimpleFileOptions;
 use zip::{CompressionMethod, ZipWriter};
 
+use super::options::ExportOptions;
 use super::{xml_escape, Block, Manuscript, Span, Style};
 
 /// Twips — twentieths of a point — are the unit Word measures in.
 const INCH: i32 = 1440;
 
-pub fn write(manuscript: &Manuscript, style: Style) -> std::io::Result<Vec<u8>> {
+pub fn write(manuscript: &Manuscript, options: &ExportOptions) -> std::io::Result<Vec<u8>> {
+    write_with(manuscript, options.style_kind())
+}
+
+fn write_with(manuscript: &Manuscript, style: Style) -> std::io::Result<Vec<u8>> {
     let mut zip = ZipWriter::new(Cursor::new(Vec::new()));
     let options = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
 

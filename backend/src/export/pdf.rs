@@ -11,6 +11,7 @@
 //! PDF needs proportional type, which needs real font metrics — see the
 //! roadmap. `Style::Book` is accepted and laid out as a manuscript rather than
 //! refused, because a writer asking for a PDF wants a PDF.
+use super::options::ExportOptions;
 use super::{Block, Manuscript, Span};
 
 const POINTS_PER_INCH: f32 = 72.0;
@@ -311,7 +312,7 @@ fn content_stream(page: &[Line], header: Option<&str>) -> Vec<u8> {
     out
 }
 
-pub fn write(manuscript: &Manuscript) -> Vec<u8> {
+pub fn write(manuscript: &Manuscript, _options: &ExportOptions) -> Vec<u8> {
     let pages = lay_out(manuscript);
     let page_count = pages.len().max(1);
 
