@@ -105,6 +105,7 @@ fn api_router() -> OpenApiRouter<AppState> {
         .routes(routes!(versions::restore))
         .routes(routes!(versions::content))
         .routes(routes!(export::export_version))
+        .routes(routes!(export::export_draft))
         .routes(routes!(versions::publish))
         .routes(routes!(versions::finalize))
         .routes(routes!(publications::create))

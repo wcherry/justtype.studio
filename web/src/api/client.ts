@@ -166,6 +166,11 @@ export function downloadExport(versionId: string, format: string, style: string)
   return download(`/versions/${versionId}/export`, format, style)
 }
 
+/** The working draft as it stands now, as a file. For a copy that stays put, export a version. */
+export function downloadDraftExport(workId: string, format: string, style: string): Promise<void> {
+  return download(`/works/${workId}/export`, format, style)
+}
+
 /** Every note on a publication, as a document the author can work from. */
 /** Everything held about the caller, as one zip. */
 export async function downloadAccountExport(): Promise<void> {

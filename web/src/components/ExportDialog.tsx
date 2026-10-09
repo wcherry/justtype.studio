@@ -1,9 +1,11 @@
 import { useState } from 'react'
-import { downloadExport } from '../api/client'
+import { downloadDraftExport, downloadExport } from '../api/client'
 import type { Version } from '../api/types'
 
 interface Props {
-  version: Version
+  /** A frozen version to export; or, without one, the current draft of `workId`. */
+  version?: Version
+  workId?: string
   onClose: () => void
 }
 
@@ -19,10 +21,11 @@ const FORMATS: { value: Format; label: string; note: string }[] = [
 ]
 
 /**
- * Exports come from a frozen version, never the working copy — a file you send
- * someone has to be a thing that stays the same.
+ * Exports of a version come from a frozen copy — a file you send someone has to
+ * be a thing that stays the same. The current draft can be exported too, as it
+ * reads at this moment, for when you want the book out now.
  */
-export function ExportDialog({ version, onClose }: Props) {
+export function ExportDialog({ version, workId, onClose }: Props) {
   const [format, setFormat] = useState<Format>('docx')
   const [style, setStyle] = useState<Style>('manuscript')
   const [busy, setBusy] = useState(false)
@@ -34,7 +37,7 @@ export function ExportDialog({ version, onClose }: Props) {
 
   return (
     <div className="export">
-      <h4>Export {version.label}</h4>
+      <h4>{version ? `Export ${version.label}` : 'Export the current draft'}</h4>
 
       <div className="export__formats">
         {FORMATS.map((option) => (
@@ -79,7 +82,8 @@ export function ExportDialog({ version, onClose }: Props) {
             setBusy(true)
             setError(null)
             try {
-              await downloadExport(version.id, format, style)
+              if (version) await downloadExport(version.id, format, style)
+              else if (workId) await downloadDraftExport(workId, format, style)
             } catch (e) {
               setError(e instanceof Error ? e.message : 'Could not build that file')
             } finally {

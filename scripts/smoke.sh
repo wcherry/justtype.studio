@@ -1102,11 +1102,18 @@ import sys,json;assert any(r['action']=='collaborator_added' for r in json.load(
 print('  and the audit trail outlives the accounts it mentions')"
 
 step "Exporting the published version"
-for fmt in txt docx epub pdf; do
+for fmt in txt docx epub pdf html; do
   out="$TMP/export.$fmt"
   code=$(curl -s -o "$out" -w '%{http_code}' "$API/versions/$V2/export?format=$fmt&style=manuscript" -H "$AUTH")
   [ "$code" = "200" ] || { echo "  $fmt: HTTP $code"; exit 1; }
   printf '  %-5s %7s bytes  %s\n' "$fmt" "$(wc -c < "$out" | tr -d ' ')" "$(python3 "$ROOT/scripts/check_export.py" "$out")"
+done
+# The working draft goes out too, as it reads now — through the same writers.
+for fmt in html epub pdf; do
+  out="$TMP/draft.$fmt"
+  code=$(curl -s -o "$out" -w '%{http_code}' "$API/works/$WID/export?format=$fmt" -H "$AUTH")
+  [ "$code" = "200" ] || { echo "  draft $fmt: HTTP $code"; exit 1; }
+  printf '  draft %-5s %7s bytes  %s\n' "$fmt" "$(wc -c < "$out" | tr -d ' ')" "$(python3 "$ROOT/scripts/check_export.py" "$out")"
 done
 # A style the server does not know has to be refused, not quietly ignored.
 bad=$(curl -s -o /dev/null -w '%{http_code}' "$API/versions/$V2/export?format=docx&style=fancy" -H "$AUTH")

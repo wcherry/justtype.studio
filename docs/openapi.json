@@ -10577,6 +10577,42 @@
         ]
       }
     },
+    "/api/works/{work_id}/export": {
+      "get": {
+        "operationId": "export_draft",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {}
+            },
+            "description": "The working draft as a file"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "works"
+        ]
+      }
+    },
     "/api/works/{work_id}/notebook": {
       "get": {
         "operationId": "list",

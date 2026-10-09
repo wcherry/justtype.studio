@@ -25,6 +25,7 @@ import { Icon } from '../components/Icon'
 import { Menu } from '../components/Menu'
 import type { MenuItem } from '../components/Menu'
 import { AboutDialog } from '../components/AboutDialog'
+import { ExportDialog } from '../components/ExportDialog'
 import { GoalsPanel } from '../components/GoalsPanel'
 import { MarksPanel } from '../components/MarksPanel'
 import { SelectionMenu, useSelectionMenu } from '../components/SelectionMenu'
@@ -80,6 +81,7 @@ type Panel =
   | 'summary'
   | 'marks'
   | 'goals'
+  | 'export'
 
 /** The panels used most while writing get a button of their own as well. */
 const TOOLBAR_PANELS: { panel: Panel; icon: IconName; label: string }[] = [
@@ -652,7 +654,11 @@ export function EditorPage() {
         },
         panelItem('marks', 'Highlights & bookmarks'),
         ...(can.isOwner
-          ? [panelItem('front', 'Front matter', { divider: true }), panelItem('versions', 'Versions')]
+          ? [
+              panelItem('front', 'Front matter', { divider: true }),
+              panelItem('versions', 'Versions'),
+              panelItem('export', 'Export…'),
+            ]
           : []),
       ],
     },
@@ -1131,6 +1137,12 @@ export function EditorPage() {
             onRemove={(id) => void marks.remove(id)}
             onRename={(id, note) => marks.update(id, { note })}
           />
+        </SidePanel>
+      )}
+
+      {panel === 'export' && can.isOwner && (
+        <SidePanel title="Export" onClose={closePanel}>
+          <ExportDialog workId={workId} onClose={closePanel} />
         </SidePanel>
       )}
 
