@@ -153,6 +153,11 @@ impl Mailer {
                     .open(path)
                     .await?;
                 file.write_all(line.as_bytes()).await?;
+                // Tokio hands the write to a background thread; without this
+                // the request can answer before the line is in the file, and
+                // whoever reads the outbox next (a test, the smoke script)
+                // finds the message missing.
+                file.flush().await?;
                 Ok(())
             }
             Mailer::Smtp { transport, from } => {
