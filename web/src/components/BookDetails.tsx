@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { ApiError, bookDetails } from '../api/client'
 import type { ContributorBody, MetadataResponse } from '../api/types'
+import { uiLanguage } from '../languages'
+import { LanguageInput } from './LanguageInput'
 
 interface Props {
   workId: string
@@ -36,7 +38,9 @@ export function BookDetails({ workId }: Props) {
   const show = (d: MetadataResponse) => {
     setDetails(d)
     setDraft({
-      language: d.language ?? '',
+      // A book with no language yet is offered the writer's own; it is saved
+      // with the rest of the form.
+      language: d.language ?? uiLanguage(),
       textDirection: d.textDirection ?? '',
       description: d.description ?? '',
       publisher: d.publisher ?? '',
@@ -150,8 +154,11 @@ export function BookDetails({ workId }: Props) {
 
       <label>
         Language
-        <input value={draft.language} placeholder="en" onChange={(e) => field('language', e.target.value)} />
-        <span className="field__hint">A code such as en, fr, pt-BR or he. It sets hyphenation and the reading voice.</span>
+        <LanguageInput value={draft.language} placeholder="en" onChange={(v) => field('language', v)} />
+        <span className="field__hint">
+          {details && !details.language && 'Not saved yet: this is your browser\'s language. '}
+          Type a name or a code such as fr, pt-BR or he. It sets hyphenation and the reading voice.
+        </span>
       </label>
       <label>
         Reads

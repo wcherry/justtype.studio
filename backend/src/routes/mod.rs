@@ -122,6 +122,7 @@ fn api_router() -> OpenApiRouter<AppState> {
             export_settings::list_profiles,
             export_settings::create_profile
         ))
+        .routes(routes!(export_settings::import_profile))
         .routes(routes!(
             export_settings::update_profile,
             export_settings::delete_profile

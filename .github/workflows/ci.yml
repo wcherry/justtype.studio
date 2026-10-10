@@ -20,6 +20,34 @@ jobs:
       # Fails if the checked-in client types no longer match the handlers.
       - run: cargo xtask codegen --check
 
+  # epubcheck is Java, so it runs here against generated fixtures (split,
+  # single file, RTL, with a cover, notes) and stays out of the runtime image.
+  epubcheck:
+    runs-on: ubuntu-latest
+    env:
+      EPUBCHECK_VERSION: "5.1.0"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - run: EPUB_FIXTURES="$RUNNER_TEMP/epubs" cargo test -p justtype-backend epub_fixtures -- --ignored
+      - run: |
+          curl -sSL -o "$RUNNER_TEMP/epubcheck.zip" \
+            "https://github.com/w3c/epubcheck/releases/download/v${EPUBCHECK_VERSION}/epubcheck-${EPUBCHECK_VERSION}.zip"
+          unzip -q "$RUNNER_TEMP/epubcheck.zip" -d "$RUNNER_TEMP"
+      - run: |
+          status=0
+          for f in "$RUNNER_TEMP"/epubs/*.epub; do
+            echo "::group::$(basename "$f")"
+            java -jar "$RUNNER_TEMP/epubcheck-${EPUBCHECK_VERSION}/epubcheck.jar" "$f" || status=1
+            echo "::endgroup::"
+          done
+          exit $status
+
   smoke:
     runs-on: ubuntu-latest
     steps:

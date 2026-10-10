@@ -2011,6 +2011,23 @@
         ],
         "type": "string"
       },
+      "FolioPosition": {
+        "description": "Where the page number sits.",
+        "enum": [
+          "bottomCentre",
+          "bottomOutside",
+          "topOutside"
+        ],
+        "type": "string"
+      },
+      "FolioStyle": {
+        "description": "How the page number is written.",
+        "enum": [
+          "plain",
+          "dashes"
+        ],
+        "type": "string"
+      },
       "FollowState": {
         "properties": {
           "followers": {
@@ -2169,6 +2186,22 @@
             ]
           }
         },
+        "type": "object"
+      },
+      "ImportProfileRequest": {
+        "description": "A profile from a `.json` file someone saved, perhaps from an older version\nor another instance. Unlike saving from the dialog, the options are taken\nleniently: what no longer exists falls back to its default and is listed\nin `notes`, rather than refusing the whole file.",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "options": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "name",
+          "options"
+        ],
         "type": "object"
       },
       "InviteRequest": {
@@ -2824,17 +2857,42 @@
             "default": false,
             "type": "boolean"
           },
+          "insideMarginIn": {
+            "default": null,
+            "description": "The inside (binding) edge, mirrored on facing pages. `None` is a little\nmore than the margin, for the gutter.",
+            "format": "float",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
           "landscape": {
             "default": false,
             "type": "boolean"
           },
           "marginIn": {
             "default": null,
-            "description": "Inches; `None` is 1.",
+            "description": "Inches; `None` is 1. The top, bottom and outside edges.",
             "format": "float",
             "type": [
               "number",
               "null"
+            ]
+          },
+          "pageNumberPosition": {
+            "default": "bottomCentre",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/FolioPosition"
+              }
+            ]
+          },
+          "pageNumberStyle": {
+            "default": "plain",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/FolioStyle"
+              }
             ]
           },
           "pageNumbers": {
@@ -7506,6 +7564,46 @@
               }
             },
             "description": "Saved"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "export"
+        ]
+      }
+    },
+    "/api/export/profiles/import": {
+      "post": {
+        "operationId": "import_profile",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportProfileRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileView"
+                }
+              }
+            },
+            "description": "Saved, with what had to change in `notes`"
           },
           "4": {
             "content": {

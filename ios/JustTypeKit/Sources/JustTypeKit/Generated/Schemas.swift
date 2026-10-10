@@ -1558,6 +1558,19 @@ public enum API {
         case needs_readers = "needs_readers"
     }
 
+    /// Where the page number sits.
+    public enum FolioPosition: String, Codable, CaseIterable, Hashable, Sendable {
+        case bottomCentre = "bottomCentre"
+        case bottomOutside = "bottomOutside"
+        case topOutside = "topOutside"
+    }
+
+    /// How the page number is written.
+    public enum FolioStyle: String, Codable, CaseIterable, Hashable, Sendable {
+        case plain = "plain"
+        case dashes = "dashes"
+    }
+
     public struct FollowState: Codable, Hashable, Sendable {
         public var followers: Int
         public var following: Bool
@@ -1679,6 +1692,23 @@ public enum API {
             mode: HtmlMode? = nil
         ) {
             self.mode = mode
+        }
+    }
+
+    /// A profile from a `.json` file someone saved, perhaps from an older version
+    /// or another instance. Unlike saving from the dialog, the options are taken
+    /// leniently: what no longer exists falls back to its default and is listed
+    /// in `notes`, rather than refusing the whole file.
+    public struct ImportProfileRequest: Codable, Hashable, Sendable {
+        public var name: String
+        public var options: JSONValue
+
+        public init(
+            name: String,
+            options: JSONValue
+        ) {
+            self.name = name
+            self.options = options
         }
     }
 
@@ -2230,9 +2260,14 @@ public enum API {
     /// Page setup for PDF. Book-layout PDF reads these; manuscript PDF is fixed.
     public struct PdfOptions: Codable, Hashable, Sendable {
         public var chaptersOnRight: Bool?
+        /// The inside (binding) edge, mirrored on facing pages. `None` is a little
+        /// more than the margin, for the gutter.
+        public var insideMarginIn: Double?
         public var landscape: Bool?
-        /// Inches; `None` is 1.
+        /// Inches; `None` is 1. The top, bottom and outside edges.
         public var marginIn: Double?
+        public var pageNumberPosition: FolioPosition?
+        public var pageNumberStyle: FolioStyle?
         /// Page numbers on the pages of the book (not on chapter openings).
         public var pageNumbers: Bool?
         public var pageSize: PageSize?
@@ -2241,16 +2276,22 @@ public enum API {
 
         public init(
             chaptersOnRight: Bool? = nil,
+            insideMarginIn: Double? = nil,
             landscape: Bool? = nil,
             marginIn: Double? = nil,
+            pageNumberPosition: FolioPosition? = nil,
+            pageNumberStyle: FolioStyle? = nil,
             pageNumbers: Bool? = nil,
             pageSize: PageSize? = nil,
             romanFrontMatter: Bool? = nil,
             startPage: Int? = nil
         ) {
             self.chaptersOnRight = chaptersOnRight
+            self.insideMarginIn = insideMarginIn
             self.landscape = landscape
             self.marginIn = marginIn
+            self.pageNumberPosition = pageNumberPosition
+            self.pageNumberStyle = pageNumberStyle
             self.pageNumbers = pageNumbers
             self.pageSize = pageSize
             self.romanFrontMatter = romanFrontMatter

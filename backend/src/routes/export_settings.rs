@@ -266,6 +266,15 @@ pub async fn create_profile(
 ) -> ApiResult<Json<ProfileView>> {
     let name = clean_name(&body.name)?;
     let options = checked(body.options)?.as_profile();
+    Ok(Json(insert_profile(&state, user, name, options).await?))
+}
+
+async fn insert_profile(
+    state: &AppState,
+    user: AuthUser,
+    name: String,
+    options: ExportOptions,
+) -> ApiResult<ProfileView> {
     let json = serde_json::to_string(&options)?;
     let row = blocking(&state.pool, move |conn| {
         let held: i64 = export_profiles::table
@@ -295,7 +304,47 @@ pub async fn create_profile(
             .first(conn)?)
     })
     .await?;
-    Ok(Json(view_of(row)))
+    Ok(view_of(row))
+}
+
+/// A profile from a `.json` file someone saved, perhaps from an older version
+/// or another instance. Unlike saving from the dialog, the options are taken
+/// leniently: what no longer exists falls back to its default and is listed
+/// in `notes`, rather than refusing the whole file.
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportProfileRequest {
+    pub name: String,
+    #[schema(value_type = Object)]
+    pub options: serde_json::Value,
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/export/profiles/import",
+    tag = "export",
+    request_body = ImportProfileRequest,
+    responses(
+        (status = 200, description = "Saved, with what had to change in `notes`", body = ProfileView),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
+pub async fn import_profile(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Json(body): Json<ImportProfileRequest>,
+) -> ApiResult<Json<ProfileView>> {
+    let name = clean_name(&body.name)?;
+    if !body.options.is_object() {
+        return Err(ApiError::BadRequest(
+            "that file is not an export profile: its `options` should be an object".into(),
+        ));
+    }
+    let (options, notes) = ExportOptions::repaired(body.options);
+    let options = checked(options)?.as_profile();
+    let mut view = insert_profile(&state, user, name, options).await?;
+    view.notes = notes;
+    Ok(Json(view))
 }
 
 #[utoipa::path(

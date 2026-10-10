@@ -420,16 +420,44 @@ impl PageSize {
     }
 }
 
+/// Where the page number sits.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum FolioPosition {
+    #[default]
+    BottomCentre,
+    /// At the foot, on the outside edge: left on a left-hand page.
+    BottomOutside,
+    /// In the head line, on the outside edge; the running head is centred.
+    TopOutside,
+}
+
+/// How the page number is written.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum FolioStyle {
+    /// `12`
+    #[default]
+    Plain,
+    /// `– 12 –`
+    Dashes,
+}
+
 /// Page setup for PDF. Book-layout PDF reads these; manuscript PDF is fixed.
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase", default, deny_unknown_fields)]
 pub struct PdfOptions {
     pub page_size: Option<PageSize>,
-    /// Inches; `None` is 1.
+    /// Inches; `None` is 1. The top, bottom and outside edges.
     pub margin_in: Option<f32>,
+    /// The inside (binding) edge, mirrored on facing pages. `None` is a little
+    /// more than the margin, for the gutter.
+    pub inside_margin_in: Option<f32>,
     pub landscape: bool,
     /// Page numbers on the pages of the book (not on chapter openings).
     pub page_numbers: Option<bool>,
+    pub page_number_position: FolioPosition,
+    pub page_number_style: FolioStyle,
     pub start_page: Option<u32>,
     pub roman_front_matter: bool,
     pub chapters_on_right: bool,
@@ -676,9 +704,14 @@ impl ExportOptions {
             return Err("content.scope selects too many items".into());
         }
         if let Some(pdf) = &self.pdf {
-            if let Some(margin) = pdf.margin_in {
-                if !(0.25..=3.0).contains(&margin) {
-                    return Err("pdf.marginIn must be between 0.25 and 3".into());
+            for (name, value) in [
+                ("marginIn", pdf.margin_in),
+                ("insideMarginIn", pdf.inside_margin_in),
+            ] {
+                if let Some(margin) = value {
+                    if !(0.25..=3.0).contains(&margin) {
+                        return Err(format!("pdf.{name} must be between 0.25 and 3"));
+                    }
                 }
             }
         }

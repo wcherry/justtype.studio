@@ -42,3 +42,5 @@ sha1 = "0.10"
 lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "tokio1", "tokio1-rustls-tls", "builder", "hostname"] }
 reqwest = { version = "0.13.5", default-features = false, features = ["json", "rustls"] }
 pulldown-cmark = { version = "0.13", default-features = false }
+# Liang patterns from TeX, embedded, for the book-layout PDF's hyphenation.
+hyphenation = { version = "0.8", features = ["embed_all"] }
