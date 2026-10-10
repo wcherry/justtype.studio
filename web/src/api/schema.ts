@@ -2049,7 +2049,8 @@ export interface UpdateSceneRequest {
 }
 
 export interface UpdateSettingsRequest {
-  // Turning text into a project also splits scenes at a blank paragraph.
+  // A blank paragraph (double Enter) is a scene break, while writing a book
+  // and when turning text into a project.
   doubleEnterSplitsScenes?: boolean | null
 }
 
@@ -2097,8 +2098,9 @@ export interface User {
   // The writer's daily target in words, when they have set one.
   dailyWordGoal?: number | null
   displayName: string
-  // Turning text into a project splits scenes at a blank paragraph (double
-  // Enter) as well as at a `--` line.
+  // A blank paragraph (double Enter) is a scene break: in the web book
+  // editor it moves on to the next scene, and turning text into a project
+  // splits there as well as at a `--` line.
   doubleEnterSplitsScenes: boolean
   email: string
   // When the address was proved. Invitations addressed to it reach this

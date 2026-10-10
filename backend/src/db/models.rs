@@ -72,8 +72,9 @@ row!(User, users, {
     /// A site administrator: curates the daily prompts. Set from the command
     /// line only; no request body can change it.
     is_admin: bool,
-    /// Turning text into a project splits scenes at a blank paragraph (double
-    /// Enter) as well as at a `--` line.
+    /// A blank paragraph (double Enter) is a scene break: in the web book
+    /// editor it moves on to the next scene, and turning text into a project
+    /// splits there as well as at a `--` line.
     double_enter_splits_scenes: bool,
 });
 
