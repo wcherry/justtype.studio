@@ -18,12 +18,12 @@ pub mod inbox;
 pub mod moderation;
 pub mod notebook;
 pub mod openapi;
+#[cfg(test)]
+mod place_api_tests;
 pub mod privacy;
 pub mod profiles;
 pub mod project;
 pub mod prompts;
-#[cfg(test)]
-mod place_api_tests;
 #[cfg(test)]
 mod prompts_api_tests;
 pub mod publications;

@@ -135,7 +135,13 @@ impl Server {
         )
     }
 
-    pub(super) async fn ok(&self, who: &Writer, method: &str, path: &str, body: Option<Value>) -> Value {
+    pub(super) async fn ok(
+        &self,
+        who: &Writer,
+        method: &str,
+        path: &str,
+        body: Option<Value>,
+    ) -> Value {
         let (status, value) = self.call(Some(who), method, path, body).await;
         assert!(
             (200..300).contains(&status),

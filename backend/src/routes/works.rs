@@ -155,7 +155,11 @@ pub(crate) fn outline_for(
     });
     outline.place = writing_places::table
         .find((&user.id, work_id))
-        .select((writing_places::scene_id, writing_places::sel_from, writing_places::sel_to))
+        .select((
+            writing_places::scene_id,
+            writing_places::sel_from,
+            writing_places::sel_to,
+        ))
         .first::<(String, i32, i32)>(conn)
         .optional()?
         .map(|(scene_id, from, to)| WritingPlace { scene_id, from, to });
