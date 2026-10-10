@@ -828,6 +828,137 @@ mod tests {
         assert!(f["OEBPS/chapter1.xhtml"].contains("&lt;script&gt;"));
     }
 
+    /// Writes the fixtures CI runs `epubcheck` against (it is Java, so it stays
+    /// out of the test run and the runtime image):
+    /// `EPUB_FIXTURES=dir cargo test -- --ignored epub_fixtures`.
+    #[test]
+    #[ignore]
+    fn epub_fixtures() {
+        let dir = std::path::PathBuf::from(std::env::var("EPUB_FIXTURES").unwrap());
+        std::fs::create_dir_all(&dir).unwrap();
+        let span = |text: &str, italic: bool| Span {
+            text: text.into(),
+            italic,
+            ..Default::default()
+        };
+        let full = || {
+            let mut m = book();
+            m.subtitle = Some("A Novel".into());
+            m.dedication = Some("For Sam".into());
+            m.epigraph = Some("Whatever comes, comes.".into());
+            m.epigraph_source = Some("Anon".into());
+            m.copyright_line = Some("© 2026 A. Writer".into());
+            m.description = Some("A book about <fish> & chips.".into());
+            m.publisher = Some("Small Press".into());
+            m.published = Some("2026-03-01".into());
+            m.identifier = Some("urn:isbn:9780000000002".into());
+            m.keywords = vec!["fish".into(), "chips".into()];
+            m.contributors = vec![Contributor {
+                name: "E. Ditor".into(),
+                role: "editor".into(),
+            }];
+            m.chapters.insert(
+                0,
+                ChapterContent {
+                    id: "pre".into(),
+                    title: "Preface".into(),
+                    role: crate::export::Role::Front,
+                    scenes: vec![SceneContent {
+                        blocks: vec![Block::Paragraph(vec![span("Before.", false)])],
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                },
+            );
+            m.chapters.push(ChapterContent {
+                id: "ack".into(),
+                title: "Acknowledgments".into(),
+                role: crate::export::Role::Back,
+                scenes: vec![SceneContent {
+                    blocks: vec![Block::Paragraph(vec![span("Thanks.", false)])],
+                    ..Default::default()
+                }],
+                ..Default::default()
+            });
+            m.chapters[1].scenes[0].blocks = vec![
+                Block::Paragraph(vec![
+                    span("The field went ", false),
+                    span("on", true),
+                    Span {
+                        note: Some(1),
+                        ..Default::default()
+                    },
+                    span(" past <where> the light gave out.", false),
+                ]),
+                Block::SceneBreak,
+                Block::Quote(vec![span("A quoted letter.", false)]),
+            ];
+            m.chapters[1].notes = vec![Note {
+                number: 1,
+                text: "Show, do not tell.".into(),
+                quote: Some("on".into()),
+            }];
+            m
+        };
+        let cover = || Cover {
+            bytes: vec![
+                0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48,
+                0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00,
+                0x00, 0x1f, 0x15, 0xc4, 0x89, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x44, 0x41, 0x54, 0x78,
+                0xda, 0x63, 0x64, 0x60, 0xf8, 0x5f, 0x0f, 0x00, 0x02, 0x87, 0x01, 0x80, 0xeb, 0x47,
+                0xba, 0x92, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
+            ],
+            mime: "image/png".into(),
+        };
+        let single = |mut o: ExportOptions| {
+            o.epub = Some(EpubOptions {
+                split_chapters: false,
+                cover_page: true,
+            });
+            o
+        };
+
+        let mut fixtures: Vec<(&str, Manuscript, ExportOptions)> = Vec::new();
+        fixtures.push(("plain", book(), options()));
+        let mut m = full();
+        m.note_layout = NoteLayout::Footnotes;
+        fixtures.push(("split-footnotes", m, options()));
+        let mut m = full();
+        m.note_layout = NoteLayout::EndnotesBook;
+        fixtures.push(("single-endnotes", m, single(options())));
+        let mut m = full();
+        m.note_layout = NoteLayout::EndnotesChapter;
+        m.cover = Some(cover());
+        fixtures.push(("with-cover", m.clone(), options()));
+        fixtures.push(("with-cover-single", m, single(options())));
+        let mut m = full();
+        m.language = "he".into();
+        m.rtl = true;
+        m.chapters[1].scenes[0].blocks = vec![Block::Paragraph(vec![
+            span("שלום ", false),
+            span("עולם", true),
+            Span {
+                note: Some(1),
+                ..Default::default()
+            },
+        ])];
+        fixtures.push(("rtl", m, options()));
+        let mut m = full();
+        m.toc = false;
+        m.omit_front_matter = true;
+        fixtures.push(("no-toc-no-front-matter", m, options()));
+        let mut o = options();
+        o.style.preset = crate::export::options::StylePreset::Book;
+        o.style.drop_caps = Some(true);
+        o.style.heading_style = Some(crate::export::options::HeadingStyle::SmallCaps);
+        fixtures.push(("book-style", full(), o));
+
+        for (name, m, o) in fixtures {
+            let bytes = write(&m, &o).unwrap();
+            std::fs::write(dir.join(format!("{name}.epub")), bytes).unwrap();
+        }
+    }
+
     #[test]
     fn the_self_check_catches_a_dangling_navigation_target() {
         let parts = vec![Part::page("OEBPS/a.xhtml", "a", String::new())];

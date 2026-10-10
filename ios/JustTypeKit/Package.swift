@@ -23,7 +23,7 @@ let package = Package(
         ),
         .testTarget(
             name: "JustTypeKitTests",
-            dependencies: ["JustTypeKit"],
+            dependencies: ["JustTypeKit", "JustTypeUI"],
             resources: [.copy("Fixtures")]
         ),
     ]

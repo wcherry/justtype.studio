@@ -134,10 +134,12 @@ writer's own comments as footnotes or endnotes, book metadata and cover,
 typography, EPUB/HTML modes, profiles, preflight and preview, all-formats zip,
 filename templates, history), with the GET forms kept as shorthands. Book-layout
 PDF is a second engine in `export/pdf_book.rs` with the bundled Liberation faces
-embedded as subsets (decision recorded in ARCHITECTURE.md). Not done: PDF
-footnotes at the page foot, tagged PDF, hyphenation beyond an English
-heuristic, `epubcheck` in CI, and iOS screens for the new fields (the API types
-are generated).
+embedded as subsets (decision recorded in ARCHITECTURE.md), hyphenated by
+TeX's patterns for the book's language, with a configurable gutter and page
+number position and style. EPUB fixtures pass W3C `epubcheck` in CI. Profiles
+save to and load from `.json` files. iOS shows chapter roles and the publishing
+details read-only. Not done: PDF footnotes at the page foot (they are
+end-of-chapter notes, and the dialog says so) and tagged PDF.
 
 Two bugs this surfaced: a template's empty scenes exported as pages of lone `#`
 marks, and the front-matter fields had nowhere to be set from — the work's PATCH

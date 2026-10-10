@@ -80,6 +80,7 @@ struct WorkView: View {
     private var outlineList: some View {
         List {
             if let outline {
+                let names = Naming.chapters(outline.chapters.map { ($0.title, $0.role) })
                 ForEach(Array(outline.chapters.enumerated()), id: \.element.id) { chapterIndex, chapter in
                     Section {
                         ForEach(Array(chapter.scenes.enumerated()), id: \.element.id) { sceneIndex, scene in
@@ -115,7 +116,17 @@ struct WorkView: View {
                                 .font(.footnote)
                         }
                     } header: {
-                        Text(Naming.chapter(chapter.title, number: chapterIndex + 1))
+                        HStack(spacing: 6) {
+                            Text(names[chapterIndex])
+                            if let badge = Naming.roleBadge(chapter.role) {
+                                Text(badge)
+                                    .font(.caption2)
+                                    .textCase(nil)
+                                    .padding(.horizontal, 6).padding(.vertical, 1)
+                                    .background(.quaternary, in: Capsule())
+                                    .accessibilityLabel("Role: \(badge)")
+                            }
+                        }
                     }
                 }
             } else {
@@ -124,6 +135,11 @@ struct WorkView: View {
         }
         .navigationTitle(outline?.title ?? title)
         .toolbar {
+            NavigationLink {
+                BookDetailsView(workId: workId)
+            } label: {
+                Label("Publishing details", systemImage: "info.circle")
+            }
             NavigationLink {
                 VersionsView(workId: workId)
             } label: {

@@ -113,6 +113,15 @@ font or PDF crate was available to the build, and what is needed is small, so
 `export/pdf_book.rs` breaks lines and paginates, and Liberation Serif/Sans
 (SIL OFL, `backend/assets/fonts`) are compiled in. Manuscript PDF stays on the
 original Courier path. Revisit if tagged PDF or OpenType shaping is needed.
+Hyphenation is the one dependency it takes: the `hyphenation` crate's Liang
+patterns from TeX, embedded (about 3 MB), chosen by the work's language; a
+language without patterns is not hyphenated, and preflight says so.
+
+EPUBs are checked twice. At runtime the writer verifies its own package
+(every manifest item exists, every spine and nav target resolves). In CI the
+`epubcheck` job writes fixtures (`epub_fixtures` in `export/epub.rs`: split,
+single file, RTL, with a cover, foot- and endnotes) and runs W3C epubcheck on
+them; it is Java, so it stays out of the runtime image.
 
 ## Web
 

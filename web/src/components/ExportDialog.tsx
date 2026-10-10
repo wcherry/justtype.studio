@@ -9,6 +9,7 @@ import type {
   Version,
 } from '../api/types'
 import { chapterName, sceneName } from '../naming'
+import { LanguageInput } from './LanguageInput'
 
 interface Props {
   /** A frozen version to export; or, without one, the current draft of `workId`. */
@@ -20,6 +21,13 @@ interface Props {
 }
 
 type Format = ExportFormat | 'project'
+
+/** A profile as a file: just the presentation, with a marker to recognise it by. */
+interface ProfileFile {
+  justtypeExportProfile: 1
+  name: string
+  options: ExportOptions
+}
 
 const FORMATS: { value: Format; label: string; note: string; draftOnly?: boolean }[] = [
   { value: 'docx', label: 'Word (.docx)', note: 'What agents and magazines ask for' },
@@ -124,6 +132,7 @@ function forFormat(o: ExportOptions, format: ExportFormat): ExportOptions {
  */
 export function ExportDialog({ version, workId: workIdProp, onClose, onGoTo }: Props) {
   const ref = useRef<HTMLDialogElement>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
   const workId = version?.workId ?? workIdProp
   const target: ExportTarget | null = version ? { version: version.id } : workId ? { work: workId } : null
 
@@ -456,11 +465,53 @@ export function ExportDialog({ version, workId: workIdProp, onClose, onGoTo }: P
                     onChange={(e) => patch({ pdf: { ...(options.pdf ?? {}), marginIn: Number(e.target.value) } })}
                   />
                 </label>
+                <label>
+                  Inside margin (inches)
+                  <input
+                    type="number" min={0.25} max={3} step={0.05}
+                    value={options.pdf?.insideMarginIn ?? Math.round((options.pdf?.marginIn ?? 1) * 1.2 * 100) / 100}
+                    onChange={(e) => patch({ pdf: { ...(options.pdf ?? {}), insideMarginIn: Number(e.target.value) } })}
+                  />
+                  <span className="field__hint">The binding edge, mirrored on facing pages.</span>
+                </label>
                 <label className="export-check">
                   <input type="checkbox" checked={options.pdf?.pageNumbers ?? true}
                     onChange={(e) => patch({ pdf: { ...(options.pdf ?? {}), pageNumbers: e.target.checked } })} />
                   Page numbers
                 </label>
+                {(options.pdf?.pageNumbers ?? true) && (
+                  <>
+                    <label>
+                      Page numbers at
+                      <select
+                        value={options.pdf?.pageNumberPosition ?? 'bottomCentre'}
+                        onChange={(e) => patch({ pdf: { ...(options.pdf ?? {}), pageNumberPosition: e.target.value as NonNullable<ExportOptions['pdf']>['pageNumberPosition'] } })}
+                      >
+                        <option value="bottomCentre">The foot, centred</option>
+                        <option value="bottomOutside">The foot, outside edge</option>
+                        <option value="topOutside">The head, outside edge</option>
+                      </select>
+                    </label>
+                    <label>
+                      Written as
+                      <select
+                        value={options.pdf?.pageNumberStyle ?? 'plain'}
+                        onChange={(e) => patch({ pdf: { ...(options.pdf ?? {}), pageNumberStyle: e.target.value as NonNullable<ExportOptions['pdf']>['pageNumberStyle'] } })}
+                      >
+                        <option value="plain">12</option>
+                        <option value="dashes">– 12 –</option>
+                      </select>
+                    </label>
+                    <label>
+                      First number
+                      <input
+                        type="number" min={1} step={1}
+                        value={options.pdf?.startPage ?? 1}
+                        onChange={(e) => patch({ pdf: { ...(options.pdf ?? {}), startPage: Math.max(1, Math.round(Number(e.target.value))) } })}
+                      />
+                    </label>
+                  </>
+                )}
                 <label className="export-check">
                   <input type="checkbox" checked={!!options.pdf?.romanFrontMatter}
                     onChange={(e) => patch({ pdf: { ...(options.pdf ?? {}), romanFrontMatter: e.target.checked } })} />
@@ -781,7 +832,7 @@ export function ExportDialog({ version, workId: workIdProp, onClose, onGoTo }: P
               <label>Title<input value={options.metadata?.title ?? ''} onChange={(e) => patchMeta({ title: e.target.value || null })} /></label>
               <label>Subtitle<input value={options.metadata?.subtitle ?? ''} onChange={(e) => patchMeta({ subtitle: e.target.value || null })} /></label>
               <label>Author<input value={options.metadata?.author ?? ''} onChange={(e) => patchMeta({ author: e.target.value || null })} placeholder="Pen name, for this file" /></label>
-              <label>Language<input value={options.metadata?.language ?? ''} onChange={(e) => patchMeta({ language: e.target.value || null })} placeholder="en, fr, pt-BR…" /></label>
+              <label>Language<LanguageInput value={options.metadata?.language ?? ''} onChange={(v) => patchMeta({ language: v || null })} placeholder="As the book says" /></label>
             </div>
             <label>Description<textarea rows={3} value={options.metadata?.description ?? ''} onChange={(e) => patchMeta({ description: e.target.value || null })} /></label>
           </details>
@@ -858,6 +909,57 @@ export function ExportDialog({ version, workId: workIdProp, onClose, onGoTo }: P
           >
             Save as profile…
           </button>
+        )}
+        {!project && (
+          <button
+            type="button"
+            disabled={busy}
+            title="Save these settings as a .json file, to keep or to share"
+            onClick={() => {
+              const name = chosenProfile?.name ?? 'Export settings'
+              const file: ProfileFile = { justtypeExportProfile: 1, name, options: JSON.parse(presentation(sendable)) }
+              const url = URL.createObjectURL(new Blob([JSON.stringify(file, null, 2)], { type: 'application/json' }))
+              const a = document.createElement('a')
+              a.href = url
+              a.download = `${name.replace(/[^\p{L}\p{N} _-]+/gu, '').trim() || 'profile'}.json`
+              a.click()
+              URL.revokeObjectURL(url)
+            }}
+          >
+            Save to a file…
+          </button>
+        )}
+        {!project && workId && (
+          <>
+            <button type="button" disabled={busy} onClick={() => fileRef.current?.click()}>
+              Load from a file…
+            </button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="application/json,.json"
+              hidden
+              onChange={async (e) => {
+                const picked = e.target.files?.[0]
+                e.target.value = ''
+                if (!picked) return
+                setError(null)
+                try {
+                  const file = JSON.parse(await picked.text()) as Partial<ProfileFile>
+                  if (file.justtypeExportProfile !== 1 || typeof file.options !== 'object') {
+                    throw new Error('That file is not a Just Type export profile.')
+                  }
+                  const saved = await exporting.importProfile(file.name?.trim() || picked.name.replace(/\.json$/i, ''), file.options)
+                  setProfiles((p) => ({ ...p, custom: [...p.custom, saved] }))
+                  setProfileId(saved.id)
+                  applyProfile(saved)
+                  if (!saved.notes.length) setNotice(`Loaded “${saved.name}” and saved it to your profiles.`)
+                } catch (err) {
+                  setError(err instanceof SyntaxError ? 'That file is not valid JSON.' : err instanceof Error ? err.message : 'Could not load that profile')
+                }
+              }}
+            />
+          </>
         )}
         {!project && chosenProfile && !chosenProfile.builtin && (
           <button

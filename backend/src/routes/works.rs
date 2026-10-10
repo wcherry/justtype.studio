@@ -70,7 +70,25 @@ pub struct UpdateWorkRequest {
     /// `YYYY-MM-DD` to reach it by. An empty string clears it.
     #[serde(default)]
     pub target_date: Option<String>,
+    /// Anything else sent. Kept only so the publishing details, which live on
+    /// `/metadata`, are refused by name instead of silently dropped.
+    #[serde(flatten)]
+    #[schema(ignore)]
+    pub other: serde_json::Map<String, serde_json::Value>,
 }
+
+/// Fields of `/works/{id}/metadata` that a client might send here by mistake.
+const METADATA_FIELDS: &[&str] = &[
+    "language",
+    "textDirection",
+    "description",
+    "publisher",
+    "published",
+    "identifier",
+    "keywords",
+    "contributors",
+    "cover",
+];
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -381,6 +399,15 @@ pub async fn update(
     Path(work_id): Path<String>,
     Json(body): Json<UpdateWorkRequest>,
 ) -> ApiResult<Json<Work>> {
+    if let Some(field) = METADATA_FIELDS
+        .iter()
+        .find(|f| body.other.contains_key(**f))
+    {
+        return Err(ApiError::BadRequest(format!(
+            "`{field}` is a publishing detail: send it to PATCH /api/works/{{id}}/metadata, \
+             which saves every one of them"
+        )));
+    }
     let work = blocking(&state.pool, move |conn| {
         support::work_for_owner(conn, &work_id, &user)?;
         let now = now_iso();

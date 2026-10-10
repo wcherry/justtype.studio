@@ -617,6 +617,12 @@ export interface Features {
 
 export type FeedSort = 'newest' | 'needs_readers'
 
+// Where the page number sits.
+export type FolioPosition = 'bottomCentre' | 'bottomOutside' | 'topOutside'
+
+// How the page number is written.
+export type FolioStyle = 'plain' | 'dashes'
+
 export interface FollowState {
   followers: number
   following: boolean
@@ -658,6 +664,15 @@ export type HtmlMode = 'styled' | 'clean' | 'package'
 
 export interface HtmlOptions {
   mode?: HtmlMode
+}
+
+// A profile from a `.json` file someone saved, perhaps from an older version
+// or another instance. Unlike saving from the dialog, the options are taken
+// leniently: what no longer exists falls back to its default and is listed
+// in `notes`, rather than refusing the whole file.
+export interface ImportProfileRequest {
+  name: string
+  options: JsonValue
 }
 
 export interface InviteRequest {
@@ -874,9 +889,14 @@ export type PartOfSpeech = 'noun' | 'verb' | 'adjective' | 'adverb'
 // Page setup for PDF. Book-layout PDF reads these; manuscript PDF is fixed.
 export interface PdfOptions {
   chaptersOnRight?: boolean
+  // The inside (binding) edge, mirrored on facing pages. `None` is a little
+  // more than the margin, for the gutter.
+  insideMarginIn?: number | null
   landscape?: boolean
-  // Inches; `None` is 1.
+  // Inches; `None` is 1. The top, bottom and outside edges.
   marginIn?: number | null
+  pageNumberPosition?: FolioPosition
+  pageNumberStyle?: FolioStyle
   // Page numbers on the pages of the book (not on chapter openings).
   pageNumbers?: boolean | null
   pageSize?: PageSize | null

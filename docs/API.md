@@ -91,8 +91,9 @@ export. Unknown fields, and settings for another format (`pdf` options with
 | `GET` | `/works/{id}/export/history` | newest first |
 | `GET` | `/works/{id}/export/history/{id}/download` | a version export made again; `x-export-identical` says whether it matches the original bytes |
 | `GET/POST` | `/export/profiles` | six built-in profiles plus the caller's own |
+| `POST` | `/export/profiles/import` | `{name, options}` from a `.json` file; stale settings are reset and listed in `notes` instead of refused |
 | `PATCH/DELETE` | `/export/profiles/{id}` | built-ins are read-only |
-| `GET/PATCH` | `/works/{id}/metadata` | language, description, publisher, date, identifier, keywords, contributors |
+| `GET/PATCH` | `/works/{id}/metadata` | language, description, publisher, date, identifier, keywords, contributors. Sent to `PATCH /works/{id}` instead, these are refused by name (400) rather than dropped |
 | `PUT/GET/DELETE` | `/works/{id}/cover` | a JPEG or PNG in the body (8 MB; checked by its bytes) |
 
 `ExportOptions` = `format`, `content` (`scope` {`kind` all/selected,
@@ -100,7 +101,11 @@ export. Unknown fields, and settings for another format (`pdf` options with
 `comments` off/footnotes/endnotes, `notePlacement`, `commentNumbering`,
 `quotePassage`, `commentLabel`), `style` (`preset` manuscript/book plus
 typography overrides, which the manuscript preset ignores), `metadata`
-(overrides for this file only), per-format `pdf`, `epub`, `html`,
+(overrides for this file only), per-format `pdf` (`pageSize`, `marginIn`,
+`insideMarginIn` for the gutter, `landscape`, `pageNumbers`,
+`pageNumberPosition` bottomCentre/bottomOutside/topOutside,
+`pageNumberStyle` plain/dashes, `startPage`, `romanFrontMatter`,
+`chaptersOnRight`), `epub`, `html`,
 `filenameTemplate` and `profile`. Only the caller's own comments are ever
 exported. PDF footnotes are set as notes at the end of each chapter; Word has
 real footnotes and endnotes.

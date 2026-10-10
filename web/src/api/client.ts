@@ -844,6 +844,9 @@ export const exporting = {
   updateProfile: (id: string, input: { name?: string; options?: ExportOptions }) =>
     patch<ExportProfile>(`/export/profiles/${id}`, input),
   deleteProfile: (id: string) => del<void>(`/export/profiles/${id}`),
+  /** From a file: the server repairs what has gone stale and lists it in `notes`. */
+  importProfile: (name: string, options: unknown) =>
+    post<ExportProfile>('/export/profiles/import', { name, options }),
 
   last: (workId: string) => get<LastUsedResponse>(`/works/${workId}/export/last`),
   async again(workId: string) {

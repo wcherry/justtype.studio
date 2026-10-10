@@ -1210,6 +1210,36 @@ export_post() { # file body
 # A partial export: one chapter.
 code=$(export_post "$TMP/part.txt" "{\"format\":\"txt\",\"content\":{\"scope\":{\"kind\":\"selected\",\"chapterIds\":[\"$CH1\"],\"sceneIds\":[]},\"toc\":true}}")
 [ "$code" = "200" ] && grep -q "Contents" "$TMP/part.txt" && echo "  one chapter exports on its own, with a contents list" || { echo "  partial export failed ($code)"; exit 1; }
+# And two chapters, in every format: the opening chapter stays out, and each
+# contents list (TXT, the EPUB nav, the HTML TOC) names only the two.
+CH2=$(curl -s "$API/works/$WID/outline" -H "$AUTH" | field chapters.2.id)
+CH2S=$(curl -s "$API/works/$WID/outline" -H "$AUTH" | field chapters.2.scenes.0.id)
+curl -s -X PUT "$API/scenes/$CH2S/content" -H "$AUTH" -H 'content-type: application/json' \
+  -d '{"content":{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"By the third chapter there was a lighthouse."}]}]}}' >/dev/null
+TWO="{\"kind\":\"selected\",\"chapterIds\":[\"$CH1\",\"$CH2\"],\"sceneIds\":[]}"
+for fmt in txt html epub docx; do
+  code=$(export_post "$TMP/two.$fmt" "{\"format\":\"$fmt\",\"content\":{\"scope\":$TWO,\"toc\":true}}")
+  [ "$code" = "200" ] || { echo "  two-chapter $fmt export: HTTP $code"; exit 1; }
+done
+python3 - "$TMP" <<'PY'
+import sys, re, zipfile
+d = sys.argv[1]
+def text_of(fmt):
+    if fmt in ('txt', 'html'):
+        return open(f'{d}/two.{fmt}', encoding='utf-8').read()
+    z = zipfile.ZipFile(f'{d}/two.{fmt}')
+    return ''.join(z.read(n).decode('utf-8', 'replace') for n in z.namelist() if n.endswith(('.xhtml', '.xml')))
+for fmt in ('txt', 'html', 'epub', 'docx'):
+    t = text_of(fmt)
+    assert 'lighthouse' in t, f'{fmt}: the second chapter is missing'
+    assert 'The field went on' not in t, f'{fmt}: the unselected opening chapter got in'
+nav = zipfile.ZipFile(f'{d}/two.epub').read('OEBPS/nav.xhtml').decode()
+toc = nav.split('epub:type="toc"')[1].split('</nav>')[0]
+assert toc.count('<li') == 2, toc
+html = open(f'{d}/two.html', encoding='utf-8').read()
+assert len(re.findall(r'<a href="#chapter-', html)) == 2, re.findall(r'<a href="#[^"]*"', html)
+print('  two chapters export in TXT, HTML, EPUB and DOCX; the contents lists name only those two')
+PY
 code=$(export_post "$TMP/none.txt" '{"format":"txt","content":{"scope":{"kind":"selected","chapterIds":[],"sceneIds":[]}}}')
 [ "$code" = "400" ] && echo "  selecting nothing is refused, and says why" || { echo "  EXPECTED 400, got $code"; exit 1; }
 # Preflight sees the same thing without building a file.
@@ -1253,6 +1283,10 @@ curl -s -X PATCH "$API/works/$WID/metadata" -H "$AUTH" -H 'content-type: applica
 import sys,json;d=json.load(sys.stdin)
 assert d['language']=='fr' and d['keywords']==['mer'] and d['contributors'][0]['role']=='editor' and not d['hasCover'], d
 print('  language, description, publisher, date, keywords and contributors save together')"
+# Sent to the work instead, a detail is refused by name rather than dropped.
+code=$(curl -s -o "$TMP/patchlang.json" -w '%{http_code}' -X PATCH "$API/works/$WID" -H "$AUTH" -H 'content-type: application/json' -d '{"language":"de"}')
+[ "$code" = "400" ] && grep -q "metadata" "$TMP/patchlang.json" \
+  && echo "  a publishing detail sent to PATCH work is refused, pointing at /metadata" || { echo "  EXPECTED 400, got $code"; exit 1; }
 python3 - "$TMP/cover.png" <<'PY'
 import struct, sys, zlib
 w, h = 1600, 2560
@@ -1317,6 +1351,16 @@ echo "$PROFILE" | python3 -c "
 import sys,json;d=json.load(sys.stdin);o=d['options']
 assert o['content']['scope']['kind']=='all' and o['metadata']['title'] is None and o['content']['comments']=='footnotes', o
 print('  a saved profile keeps the presentation and leaves the selection and overrides behind')"
+# A profile from a file saved by an older version: what no longer exists is
+# reset and listed, not a reason to refuse the file.
+curl -s -X POST "$API/export/profiles/import" -H "$AUTH" -H 'content-type: application/json' \
+  -d '{"name":"From a file","options":{"format":"epub","style":{"preset":"book","font":"comic-sans"},"pdf":{"marginIn":1}}}' | python3 -c "
+import sys,json;d=json.load(sys.stdin);o=d['options']
+assert o['format']=='epub' and o['style']['font'] is None and o.get('pdf') is None, d
+assert len(d['notes'])==2 and any('comic-sans' in n for n in d['notes']), d['notes']
+print('  an imported profile with a withdrawn font and stray PDF settings is repaired, and says so')"
+[ "$(code -X POST "$API/export/profiles/import" -H "$AUTH" -H 'content-type: application/json' -d '{"name":"x","options":[1]}')" = "400" ] \
+  && echo "  a file that is not a profile is refused" || { echo "  EXPECTED 400"; exit 1; }
 [ "$(code -X DELETE "$API/export/profiles/builtin:epub" -H "$AUTH")" = "400" ] \
   && echo "  built-in profiles cannot be deleted" || { echo "  EXPECTED 400"; exit 1; }
 curl -s "$API/works/$WID/export/last" -H "$AUTH" | python3 -c "

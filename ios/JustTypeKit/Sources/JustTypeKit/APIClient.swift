@@ -268,6 +268,12 @@ public struct APIClient: Sendable {
         try await send("GET", "works/\(workId)/outline")
     }
 
+    /// Language, description, contributors and the rest of what an export
+    /// says about the book. Read-only here; they are edited on the web.
+    public func metadata(workId: String) async throws -> API.MetadataResponse {
+        try await send("GET", "works/\(workId)/metadata")
+    }
+
     public func scene(id: String) async throws -> API.SceneWithContent {
         try await send("GET", "scenes/\(id)")
     }

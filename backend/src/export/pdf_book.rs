@@ -10,8 +10,9 @@
 //! `pdf.rs`, which this does not touch.
 //!
 //! Known limits, all reported rather than hidden: left-to-right scripts only
-//! and the Latin, Greek and Cyrillic the bundled faces cover; hyphenation is a
-//! heuristic for English; drop caps are not applied; footnotes are set as
+//! and the Latin, Greek and Cyrillic the bundled faces cover; hyphenation
+//! follows TeX's patterns for the book's language, and a language without
+//! them is not hyphenated; drop caps are not applied; footnotes are set as
 //! notes at the end of each chapter.
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::io::Write;
@@ -21,7 +22,9 @@ use flate2::Compression;
 
 use super::font::{font, Face, Family, Font};
 use super::image::{self, PdfImage};
-use super::options::{Align, ExportOptions, HeadingStyle, PageSize, ResolvedStyle};
+use super::options::{
+    Align, ExportOptions, FolioPosition, FolioStyle, HeadingStyle, PageSize, ResolvedStyle,
+};
 use super::{Block, Manuscript, NoteLayout, Span};
 
 // ── Shaping ─────────────────────────────────────────────────────────────────
@@ -170,92 +173,80 @@ fn atoms_of(spans: &[Span], ink: &Ink) -> Vec<Atom> {
 
 // ── Hyphenation ─────────────────────────────────────────────────────────────
 
-fn is_vowel(c: char, first: bool) -> bool {
-    matches!(c, 'a' | 'e' | 'i' | 'o' | 'u') || (c == 'y' && !first)
+/// The TeX patterns for a BCP 47 tag, if there are any. `en` alone is US
+/// English; the Commonwealth variants take the British patterns; German uses
+/// the 1996 orthography unless it is Swiss.
+fn hyphenation_language(tag: &str) -> Option<hyphenation::Language> {
+    use hyphenation::Language;
+    let tag = tag.trim().to_ascii_lowercase().replace('_', "-");
+    if let Some(language) = Language::try_from_code(&tag) {
+        return Some(language);
+    }
+    let mut subtags = tag.split('-');
+    let primary = subtags.next().unwrap_or_default();
+    let region = subtags.next().unwrap_or_default();
+    let code = match (primary, region) {
+        ("en", "gb" | "au" | "nz" | "ie" | "za" | "in") => "en-gb",
+        ("en", _) => "en-us",
+        ("de", "ch" | "li") => "de-ch-1901",
+        ("de", _) => "de-1996",
+        ("el", _) => "el-monoton",
+        ("no", _) => "nb",
+        ("mn", _) => "mn-cyrl",
+        ("sr", "latn") => "sh-latn",
+        ("sr", _) => "sr-cyrl",
+        _ => primary,
+    };
+    Language::try_from_code(code)
 }
 
-const ONSETS: &[&str] = &[
-    "bl", "br", "cl", "cr", "dr", "fl", "fr", "gl", "gr", "pl", "pr", "sl", "sp", "st", "tr", "sc",
-    "sk", "sm", "sn", "sw", "tw", "th", "ch", "sh", "ph", "wh", "gh", "qu", "str", "spr", "scr",
-    "spl", "thr", "chr", "shr",
-];
+/// Whether a book in this language can be hyphenated.
+pub fn can_hyphenate(tag: &str) -> bool {
+    hyphenation_language(tag).is_some()
+}
 
-/// Where an English word may be broken, as character indices into the word.
-///
-/// A heuristic, not a dictionary: vowel groups are the syllable cores, and a
-/// consonant cluster between two of them is split before the longest ending
-/// that can start an English word. It leaves short words, endings such as
-/// "-ed", and anything with digits or unusual letters alone, which is where
-/// guessing goes wrong. The typesetter's alternative, Liang's patterns, is a
-/// few thousand lines of data this does not carry.
-pub fn hyphen_points(word: &str) -> Vec<usize> {
-    let chars: Vec<char> = word.chars().collect();
-    if chars.len() < 7 || !chars.iter().all(|c| c.is_ascii_alphabetic()) {
+/// Each language's dictionary, loaded the first time it is wanted.
+fn dictionary(language: hyphenation::Language) -> Option<std::sync::Arc<hyphenation::Standard>> {
+    use hyphenation::Load;
+    use std::sync::{Arc, Mutex, OnceLock};
+    type Cache = Mutex<HashMap<hyphenation::Language, Option<Arc<hyphenation::Standard>>>>;
+    static CACHE: OnceLock<Cache> = OnceLock::new();
+    let mut cache = CACHE
+        .get_or_init(Default::default)
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
+    cache
+        .entry(language)
+        .or_insert_with(|| {
+            hyphenation::Standard::from_embedded(language)
+                .ok()
+                .map(Arc::new)
+        })
+        .clone()
+}
+
+/// Where a word may be broken, as character indices into the word, by Liang's
+/// patterns for the book's language. Nothing for a language without patterns,
+/// for short words, and for anything that is not all letters.
+pub fn hyphen_points(word: &str, language: &str) -> Vec<usize> {
+    use hyphenation::Hyphenator;
+    if word.chars().count() < 5 || !word.chars().all(char::is_alphabetic) {
         return Vec::new();
     }
-    let lower: Vec<char> = chars.iter().map(|c| c.to_ascii_lowercase()).collect();
-    let n = lower.len();
-
-    // Vowel groups: (start, end exclusive).
-    let mut nuclei: Vec<(usize, usize)> = Vec::new();
-    let mut i = 0;
-    while i < n {
-        if is_vowel(lower[i], i == 0) {
-            let start = i;
-            while i < n && is_vowel(lower[i], false) {
-                i += 1;
-            }
-            nuclei.push((start, i));
-        } else {
-            i += 1;
-        }
+    let Some(dict) = hyphenation_language(language).and_then(dictionary) else {
+        return Vec::new();
+    };
+    // The patterns are lower case. A letter whose lower case is a different
+    // length would shift every index after it, so such a word is left whole.
+    let lower = word.to_lowercase();
+    if lower.chars().count() != word.chars().count() {
+        return Vec::new();
     }
-    // A final silent "e" is not a syllable of its own.
-    if let Some(&(s, e)) = nuclei.last() {
-        if e == n
-            && e - s == 1
-            && lower[n - 1] == 'e'
-            && nuclei.len() > 1
-            && n >= 2
-            && !is_vowel(lower[n - 2], false)
-        {
-            nuclei.pop();
-        }
-    }
-
-    let mut points = Vec::new();
-    for pair in nuclei.windows(2) {
-        let (_, a_end) = pair[0];
-        let (b_start, _) = pair[1];
-        let cluster = &lower[a_end..b_start];
-        let at = match cluster.len() {
-            0 => continue,
-            1 => a_end,
-            len => {
-                // Break before the longest tail that can begin a word, but
-                // always leave one consonant behind.
-                let mut best = a_end + 1;
-                for take in (1..len).rev().take(3) {
-                    let tail: String = cluster[len - take..].iter().collect();
-                    if take == 1 || ONSETS.contains(&tail.as_str()) {
-                        best = a_end + (len - take);
-                        break;
-                    }
-                }
-                best.max(a_end + 1)
-            }
-        };
-        // At least two letters before and three after, and not into "-ed".
-        if at >= 2 && n - at >= 3 {
-            let tail: String = lower[at..].iter().collect();
-            if !matches!(tail.as_str(), "ed" | "es" | "ly" | "er") {
-                points.push(at);
-            }
-        }
-    }
-    points.sort_unstable();
-    points.dedup();
-    points
+    let breaks = dict.hyphenate(&lower).breaks;
+    breaks
+        .into_iter()
+        .map(|byte| lower[..byte].chars().count())
+        .collect()
 }
 
 // ── Lines ───────────────────────────────────────────────────────────────────
@@ -314,8 +305,9 @@ struct Wrap<'a> {
     measure: f32,
     place: Place,
     hyphenate: bool,
+    /// The book's language, for its hyphenation patterns.
+    language: &'a str,
     kind: Kind,
-    _lifetime: std::marker::PhantomData<&'a ()>,
 }
 
 /// Greedy breaking: fit as many words as the measure allows, break at the
@@ -400,7 +392,7 @@ fn wrap(atoms: Vec<Atom>, w: &Wrap) -> Vec<Line> {
                         .take_while(|c| c.is_alphabetic())
                         .collect();
                     let core_len = core.chars().count();
-                    let points = hyphen_points(&core);
+                    let points = hyphen_points(&core, w.language);
                     let left_room = room(first) - width;
                     for &at in points.iter().rev() {
                         let cut = core_start + at;
@@ -631,7 +623,10 @@ impl Geometry {
         }
         let margin = pdf.margin_in.unwrap_or(1.0).clamp(0.25, 3.0) * 72.0;
         // Facing pages bind on the inside edge, which wants a little more.
-        let inside = margin * 1.2;
+        let inside = pdf
+            .inside_margin_in
+            .map(|m| m.clamp(0.25, 3.0) * 72.0)
+            .unwrap_or(margin * 1.2);
         Geometry {
             width: w,
             height: h,
@@ -656,6 +651,30 @@ impl Geometry {
             self.outside
         }
     }
+}
+
+/// The outside edge of a page: the left of a left-hand (even) page.
+fn outside_edge(verso: bool) -> Place {
+    if verso {
+        Place::Left
+    } else {
+        Place::Right
+    }
+}
+
+/// A page number as printed: its text, which side, and whether it goes in the
+/// head line rather than the foot.
+fn folio(pdf: &super::options::PdfOptions, label: &str, verso: bool) -> (String, Place, bool) {
+    let text = match pdf.page_number_style {
+        FolioStyle::Plain => label.to_string(),
+        FolioStyle::Dashes => format!("– {label} –"),
+    };
+    let (place, top) = match pdf.page_number_position {
+        FolioPosition::BottomCentre => (Place::Centre, false),
+        FolioPosition::BottomOutside => (outside_edge(verso), false),
+        FolioPosition::TopOutside => (outside_edge(verso), true),
+    };
+    (text, place, top)
 }
 
 // ── The document ────────────────────────────────────────────────────────────
@@ -722,9 +741,9 @@ impl Plan<'_> {
                 indent,
                 measure,
                 place,
-                hyphenate: self.hyphenate && self.m.lang().starts_with("en"),
+                hyphenate: self.hyphenate,
+                language: self.m.lang(),
                 kind,
-                _lifetime: std::marker::PhantomData,
             },
         )
     }
@@ -1448,14 +1467,23 @@ pub fn render(m: &Manuscript, options: &ExportOptions, max_pages: Option<usize>)
                     let measure = geo.measure();
                     let head_y = geo.height - geo.top * 0.55;
                     let verso = physical.is_multiple_of(2);
+                    let outside = outside_edge(verso);
+                    let position = pdf_options.page_number_position;
+                    // The running head sits on the outside edge, unless the
+                    // page number has taken it.
+                    let head_place = if show_numbers && position == FolioPosition::TopOutside {
+                        Place::Centre
+                    } else {
+                        outside
+                    };
                     let title = if page.kind == PageKind::Contents {
                         None
                     } else if verso {
-                        Some((m.short_title.clone(), Place::Left))
+                        Some((m.short_title.clone(), head_place))
                     } else {
                         page.chapter
                             .and_then(|c| m.chapters.get(c))
-                            .map(|c| (c.title.clone(), Place::Right))
+                            .map(|c| (c.title.clone(), head_place))
                     };
                     if let Some((text, place)) = title {
                         let atoms = atoms_of(
@@ -1484,9 +1512,11 @@ pub fn render(m: &Manuscript, options: &ExportOptions, max_pages: Option<usize>)
                         draw_line(&mut content, &line, left, head_y, &mut usage, &fonts);
                     }
                     if show_numbers && !labels[index].is_empty() {
+                        let (text, place, top) = folio(&pdf_options, &labels[index], verso);
+                        let y = if top { head_y } else { geo.bottom * 0.5 };
                         let atoms = atoms_of(
                             &[Span {
-                                text: labels[index].clone(),
+                                text,
                                 ..Default::default()
                             }],
                             &Ink {
@@ -1501,19 +1531,12 @@ pub fn render(m: &Manuscript, options: &ExportOptions, max_pages: Option<usize>)
                             leading: small,
                             indent: 0.0,
                             measure,
-                            place: Place::Centre,
+                            place,
                             stretch: 0.0,
                             family: plan.family,
                             kind: Kind::Head,
                         };
-                        draw_line(
-                            &mut content,
-                            &line,
-                            left,
-                            geo.bottom * 0.5,
-                            &mut usage,
-                            &fonts,
-                        );
+                        draw_line(&mut content, &line, left, y, &mut usage, &fonts);
                     }
                 }
             }
@@ -1865,6 +1888,16 @@ pub fn warnings(m: &Manuscript, options: &ExportOptions) -> Vec<(&'static str, S
     if options.style.resolve().drop_caps {
         out.push(("pdf_drop_caps", "Drop caps are not applied in PDF.".into()));
     }
+    if options.style.resolve().hyphenate && !can_hyphenate(m.lang()) {
+        out.push((
+            "pdf_no_hyphenation",
+            format!(
+                "There are no hyphenation patterns for the language “{}”, so the PDF is not \
+                 hyphenated. Check the language under Book → Front matter.",
+                m.lang()
+            ),
+        ));
+    }
     out
 }
 
@@ -2130,6 +2163,46 @@ mod tests {
     }
 
     #[test]
+    fn page_numbers_go_where_and_as_asked() {
+        let mut pdf = PdfOptions::default();
+        assert_eq!(folio(&pdf, "7", false), ("7".into(), Place::Centre, false));
+        pdf.page_number_position = FolioPosition::BottomOutside;
+        pdf.page_number_style = FolioStyle::Dashes;
+        assert_eq!(folio(&pdf, "8", true), ("– 8 –".into(), Place::Left, false));
+        assert_eq!(folio(&pdf, "9", false).1, Place::Right);
+        pdf.page_number_position = FolioPosition::TopOutside;
+        assert_eq!(
+            folio(&pdf, "xii", true),
+            ("– xii –".into(), Place::Left, true)
+        );
+
+        // The dashes are in the bundled faces, so they print, not as "?".
+        let m = book(2, 120);
+        let mut o = options();
+        o.pdf = Some(pdf);
+        assert!(warnings(&m, &o).is_empty());
+        assert!(render(&m, &o, None).pages > 2);
+    }
+
+    #[test]
+    fn the_gutter_widens_the_inside_margin_only() {
+        let mut o = options();
+        let plain = Geometry::from(&o);
+        assert!(plain.inside > plain.outside);
+        o.pdf = Some(PdfOptions {
+            margin_in: Some(0.5),
+            inside_margin_in: Some(1.0),
+            ..Default::default()
+        });
+        let g = Geometry::from(&o);
+        assert_eq!((g.outside, g.inside), (36.0, 72.0));
+        assert_eq!(g.left(1), 72.0); // a right-hand page binds on its left
+        assert_eq!(g.left(2), 36.0);
+        o.pdf.as_mut().unwrap().inside_margin_in = Some(9.0);
+        assert!(o.validate().unwrap_err().contains("insideMarginIn"));
+    }
+
+    #[test]
     fn a_cover_is_the_first_page_and_not_numbered() {
         let mut m = book(1, 40);
         let mut png = b"\x89PNG\r\n\x1a\n".to_vec();
@@ -2197,24 +2270,84 @@ mod tests {
         assert!(start.elapsed().as_secs() < 5, "{:?}", start.elapsed());
     }
 
+    /// A 100k-word book, hyphenated, in under ten seconds. That bar is for the
+    /// release build in the Docker image; a debug test build clears it too.
     #[test]
-    fn hyphenation_breaks_where_a_typesetter_would() {
-        assert_eq!(hyphen_points("mountain"), vec![4]); // moun-tain
-        assert_eq!(hyphen_points("children"), vec![4]); // chil-dren
-        assert!(hyphen_points("cat").is_empty());
-        assert!(hyphen_points("walked").is_empty());
-        assert!(hyphen_points("it's-here").is_empty());
-        // Whatever it finds leaves enough on each side.
-        for w in [
-            "information",
+    fn a_novel_lays_out_in_under_ten_seconds() {
+        // Long words, so the hyphenator has work to do on most lines.
+        const W: [&str; 10] = [
+            "Nevertheless",
+            "the",
             "extraordinary",
             "conversation",
-            "beautifully",
-            "Wednesday",
-        ] {
-            for p in hyphen_points(w) {
-                assert!(p >= 2 && w.len() - p >= 3, "{w} at {p}");
+            "continued",
+            "underneath",
+            "a",
+            "remarkably",
+            "unseasonable",
+            "afternoon",
+        ];
+        let mut m = book(40, 1);
+        let paragraph = (0..250)
+            .map(|i| W[i % W.len()])
+            .collect::<Vec<_>>()
+            .join(" ");
+        for chapter in &mut m.chapters {
+            for scene in &mut chapter.scenes {
+                scene.blocks = (0..5)
+                    .map(|_| {
+                        Block::Paragraph(vec![Span {
+                            text: paragraph.clone(),
+                            ..Default::default()
+                        }])
+                    })
+                    .collect();
             }
+        }
+        let words: usize = m
+            .chapters
+            .iter()
+            .flat_map(|c| &c.scenes)
+            .map(|s| s.blocks.len() * 250)
+            .sum();
+        assert!(words >= 100_000, "{words}");
+        let mut o = options();
+        o.style.hyphenate = Some(true);
+        o.content.toc = Some(true);
+        let start = std::time::Instant::now();
+        let out = render(&m, &o, None);
+        let took = start.elapsed();
+        eprintln!("{} pages in {took:?}", out.pages);
+        assert!(took.as_secs_f32() < 10.0, "{took:?}");
+    }
+
+    #[test]
+    fn hyphenation_breaks_where_a_typesetter_would() {
+        assert_eq!(hyphen_points("hyphenation", "en"), vec![2, 6, 7]); // hy-phen-a-tion
+        assert_eq!(hyphen_points("Mountain", "en-US"), vec![4]); // Moun-tain
+        assert!(hyphen_points("cat", "en").is_empty());
+        assert!(hyphen_points("it's-here", "en").is_empty());
+        // Whatever it finds leaves enough on each side.
+        for w in ["information", "extraordinary", "conversation", "Wednesday"] {
+            for p in hyphen_points(w, "en") {
+                assert!(p >= 2 && w.chars().count() - p >= 2, "{w} at {p}");
+            }
+        }
+    }
+
+    #[test]
+    fn hyphenation_follows_the_books_language() {
+        // The same letters break differently by language, and a language
+        // without patterns is left alone rather than broken as English.
+        assert!(!hyphen_points("Geschwindigkeit", "de").is_empty());
+        assert!(!hyphen_points("anticonstitutionnellement", "fr-CA").is_empty());
+        assert!(!hyphen_points("достопримечательность", "ru").is_empty());
+        assert!(can_hyphenate("en-GB") && can_hyphenate("pt-BR") && can_hyphenate("nb"));
+        assert!(!can_hyphenate("ja") && !can_hyphenate("xx"));
+        assert!(hyphen_points("information", "ja").is_empty());
+        // Indices are characters, not bytes, so accented words cut cleanly.
+        for p in hyphen_points("développement", "fr") {
+            assert!(p < "développement".chars().count());
         }
     }
 
