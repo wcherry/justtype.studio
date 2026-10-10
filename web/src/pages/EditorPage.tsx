@@ -15,7 +15,7 @@ import { SummaryPanel } from '../components/SummaryPanel'
 import { AssistantPanel, REWRITES } from '../components/AssistantPanel'
 import type { AssistAsk } from '../components/AssistantPanel'
 import { DictionaryPanel } from '../components/DictionaryPanel'
-import { ThesaurusPanel, matchCase } from '../components/ThesaurusPanel'
+import { ThesaurusPanel } from '../components/ThesaurusPanel'
 import { ConflictBanner } from '../components/ConflictBanner'
 import { Corkboard } from '../components/Corkboard'
 import { BookDetails } from '../components/BookDetails'
@@ -53,8 +53,10 @@ import { useWritingPreferences } from '../editor/preferences'
 import { ProseTypography } from '../editor/typography'
 import { TypewriterScrolling } from '../editor/typewriter'
 import { useAutosave } from '../editor/useAutosave'
-import { Spellcheck, misspellingAt, wordAt } from '../editor/spelling/spellcheck'
+import { Spellcheck, wordAt } from '../editor/spelling/spellcheck'
 import { useSpelling } from '../editor/spelling/useSpelling'
+import { replaceWord as replaceWordIn, useWordMenu } from '../editor/spelling/useWordMenu'
+import type { WordAt } from '../editor/spelling/useWordMenu'
 import { useSessionGoals } from '../editor/useSessionGoals'
 import { cache } from '../offline/cache'
 import { pendingFor, startQueueReplay } from '../offline/queue'
@@ -257,16 +259,7 @@ export function EditorPage() {
     return wordAt(editor.state, from)
   }
   /** Puts a word in place of another, if the other is still where it was. */
-  const replaceWord = (at: { from: number; to: number; text: string }, replacement: string) => {
-    if (!editor) return null
-    const { doc } = editor.state
-    if (at.to > doc.content.size || doc.textBetween(at.from, at.to) !== at.text) {
-      return `“${at.text}” is not where it was. Right-click it again.`
-    }
-    const word = matchCase(replacement, at.text)
-    editor.view.dispatch(editor.state.tr.insertText(word, at.from, at.to))
-    return { from: at.from, to: at.from + word.length, text: word }
-  }
+  const replaceWord = (at: WordAt, replacement: string) => replaceWordIn(editor, at, replacement)
   // Word's shortcut for the thesaurus.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -378,82 +371,13 @@ export function EditorPage() {
   // Right-click (or ⌘-click) on selected text, or on a mark.
   const contextMenu = useSelectionMenu(editor, true, true)
   const [markError, setMarkError] = useState<string | null>(null)
-  /**
-   * For the word the menu was opened on: corrections, if it is misspelled,
-   * and a few words from the thesaurus. `null` while they are being found.
-   */
-  const [menuWords, setMenuWords] = useState<{
-    at: { from: number; to: number; text: string }
-    misspelled: boolean
-    suggestions: string[] | null
-    synonyms: string[] | null
-  } | null>(null)
-  useEffect(() => {
-    const target = contextMenu.target
-    if (!target || !editor) return setMenuWords(null)
-    const selected = target.selection && target.selection.quote.trim()
-    const at = target.word
-      ?? (selected && !/\s/.test(selected) ? { from: target.selection!.from, to: target.selection!.to, text: target.selection!.quote } : null)
-    if (!at) return setMenuWords(null)
-    const misspelled = !!misspellingAt(editor.state, at.from) && preferences.spellcheck
-    let stale = false
-    setMenuWords({ at, misspelled, suggestions: misspelled ? null : [], synonyms: null })
-    if (misspelled) {
-      void spelling.suggest(at.text).then((suggestions) => {
-        if (!stale) setMenuWords((m) => (m && m.at === at ? { ...m, suggestions } : m))
-      })
-    }
-    api.words.thesaurus(at.text).then(
-      (entry) => {
-        const words = entry.senses.slice(0, 3).flatMap((s) => [...s.synonyms, ...s.related])
-        const synonyms = [...new Set(words.filter((w) => !w.includes(' ')))].slice(0, 5)
-        if (!stale) setMenuWords((m) => (m && m.at === at ? { ...m, synonyms } : m))
-      },
-      () => {
-        if (!stale) setMenuWords((m) => (m && m.at === at ? { ...m, synonyms: [] } : m))
-      },
-    )
-    return () => {
-      stale = true
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [contextMenu.target, editor])
-
-  /** The spelling and thesaurus part of the menu, for one word. */
-  const wordActions = (): SelectionAction[] => {
-    if (!menuWords) return []
-    const { at, misspelled, suggestions, synonyms } = menuWords
-    const actions: SelectionAction[] = []
-    const replace = (word: string) => () => {
-      const result = replaceWord(at, word)
-      if (typeof result === 'string') setMarkError(result)
-    }
-    if (misspelled) {
-      if (suggestions === null) {
-        actions.push({ key: 'spell-wait', label: 'Looking for corrections…', disabled: true })
-      } else if (suggestions.length === 0) {
-        actions.push({ key: 'spell-none', label: 'No suggestions', disabled: true })
-      } else if (writable) {
-        suggestions.slice(0, 5).forEach((s) => actions.push({ key: `spell-${s}`, label: s, onSelect: replace(s) }))
-      }
-      actions.push({ key: 'spell-add', label: `Add “${at.text}” to dictionary`, divider: true, onSelect: () => void spelling.add(at.text) })
-      actions.push({ key: 'spell-ignore', label: 'Ignore', onSelect: () => spelling.ignore(at.text) })
-    }
-    if (writable && synonyms && synonyms.length > 0) {
-      synonyms.forEach((s, i) => actions.push({
-        key: `syn-${s}`, label: s, onSelect: replace(s),
-        ...(i === 0 ? { heading: 'Synonyms', divider: actions.length > 0 } : {}),
-      }))
-    }
-    actions.push({
-      key: 'thesaurus',
-      label: 'Thesaurus…',
-      hint: '⇧F7',
-      divider: actions.length > 0,
-      onSelect: () => openThesaurus(at.text, writable ? at : null),
-    })
-    return actions
-  }
+  const wordActions = useWordMenu(editor, contextMenu.target, {
+    spelling,
+    spellcheck: preferences.spellcheck,
+    writable,
+    onError: setMarkError,
+    onThesaurus: (at) => openThesaurus(at.text, writable ? at : null),
+  })
   const selectionActions = (): SelectionAction[] => {
     const target = contextMenu.target
     if (!target || !scene || !editor) return []
