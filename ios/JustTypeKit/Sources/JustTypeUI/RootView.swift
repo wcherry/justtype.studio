@@ -148,7 +148,7 @@ struct AccountView: View {
                     } header: {
                         Text("Writing")
                     } footer: {
-                        Text("When turning an answer into a project, a line that is only -- always starts a new scene; this adds a blank line too. Kept with your account, so the web follows it.")
+                        Text("When turning an answer into a project, a line that is only -- always starts a new scene; this adds a blank line too. Kept with your account: on the web, a double Enter while writing a book also moves on to the next scene.")
                     }
                     Section("Daily Prompts") {
                         Text("Taking part and the daily email are set on the Prompts tab.")

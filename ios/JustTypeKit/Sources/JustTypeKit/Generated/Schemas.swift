@@ -5079,7 +5079,8 @@ public enum API {
     }
 
     public struct UpdateSettingsRequest: Codable, Hashable, Sendable {
-        /// Turning text into a project also splits scenes at a blank paragraph.
+        /// A blank paragraph (double Enter) is a scene break, while writing a book
+        /// and when turning text into a project.
         public var doubleEnterSplitsScenes: Bool?
 
         public init(
@@ -5181,8 +5182,9 @@ public enum API {
         /// The writer's daily target in words, when they have set one.
         public var dailyWordGoal: Int?
         public var displayName: String
-        /// Turning text into a project splits scenes at a blank paragraph (double
-        /// Enter) as well as at a `--` line.
+        /// A blank paragraph (double Enter) is a scene break: in the web book
+        /// editor it moves on to the next scene, and turning text into a project
+        /// splits there as well as at a `--` line.
         public var doubleEnterSplitsScenes: Bool
         public var email: String
         /// When the address was proved. Invitations addressed to it reach this

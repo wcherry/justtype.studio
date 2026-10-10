@@ -3,6 +3,7 @@ import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { ApiError, api, downloadAccountExport, tokens } from '../api/client'
 import type { AuditEvent, SessionView, TwoFactorSetup } from '../api/types'
 import { Tabs } from '../components/Tabs'
+import { useWritingPreferences } from '../editor/preferences'
 import { useAuth } from '../state/auth'
 
 type SettingsTab = 'account' | 'general'
@@ -55,6 +56,7 @@ export function SettingsPage() {
 function WritingSection() {
   const { user, updateUser } = useAuth()
   const { busy, run, status } = useRun()
+  const { preferences, update: setPreference } = useWritingPreferences()
   if (!user) return null
   return (
     <Section title="Writing">
@@ -70,10 +72,21 @@ function WritingSection() {
             })
           }}
         />
-        Treat a blank line (double Enter) as a scene break when turning text into a project
+        Treat a blank line (double Enter) as a scene break
       </label>
       <p className="field__hint">
-        A line that is only <code>--</code> always starts a new scene. This adds a blank line too. It is kept with your account, so the app on your phone follows it.
+        While writing a book, in the writing room too, pressing Enter on an empty line moves on to the next scene, or starts one after the last. In the middle of a scene, it splits the scene there. Turning a Daily Prompts answer into a project splits it at blank lines as well as at lines that are only <code>--</code>. Kept with your account.
+      </p>
+      <label className="settings__row">
+        <input
+          type="checkbox"
+          checked={preferences.spellcheck}
+          onChange={(e) => setPreference('spellcheck', e.target.checked)}
+        />
+        Check spelling as I type
+      </label>
+      <p className="field__hint">
+        Underlines misspelled words in books and Daily Prompts answers; right-click one for corrections. Kept on this device.
       </p>
       {status}
     </Section>

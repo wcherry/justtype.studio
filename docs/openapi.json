@@ -6451,7 +6451,7 @@
       "UpdateSettingsRequest": {
         "properties": {
           "doubleEnterSplitsScenes": {
-            "description": "Turning text into a project also splits scenes at a blank paragraph.",
+            "description": "A blank paragraph (double Enter) is a scene break, while writing a book\nand when turning text into a project.",
             "type": [
               "boolean",
               "null"
@@ -6634,7 +6634,7 @@
             "type": "string"
           },
           "doubleEnterSplitsScenes": {
-            "description": "Turning text into a project splits scenes at a blank paragraph (double\nEnter) as well as at a `--` line.",
+            "description": "A blank paragraph (double Enter) is a scene break: in the web book\neditor it moves on to the next scene, and turning text into a project\nsplits there as well as at a `--` line.",
             "type": "boolean"
           },
           "email": {

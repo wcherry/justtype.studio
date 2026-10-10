@@ -48,6 +48,8 @@ import { Annotations, MAX_MARK_QUOTE, currentRanges, findQuote, refreshAnnotatio
 import type { AnnotationSpec } from '../editor/annotations'
 import { useAnnotations } from '../editor/useAnnotations'
 import { FocusMode } from '../editor/focusMode'
+import { SceneBreakOnBlankLine } from '../editor/sceneBreak'
+import type { SceneBreak } from '../editor/sceneBreak'
 import { useDistractionFree } from '../editor/distractionFree'
 import { useWritingPreferences } from '../editor/preferences'
 import { ProseTypography } from '../editor/typography'
@@ -189,6 +191,7 @@ export function EditorPage() {
       ProseTypography,
       Annotations,
       Spellcheck,
+      SceneBreakOnBlankLine,
     ],
     content: '',
     // The app checks spelling itself; the browser's own checker would mark
@@ -691,6 +694,41 @@ export function EditorPage() {
       setError(e instanceof Error ? e.message : 'Could not merge those scenes')
     }
   }
+
+  /**
+   * A double Enter, with the writer's setting on: on to the next scene in the
+   * chapter, or a new one after this if it is the last. Mid-scene, what
+   * follows the blank line becomes the new scene.
+   */
+  const breakScene = async ({ atBlock, atEnd }: SceneBreak) => {
+    if (!scene || !editor) return
+    await flush(true)
+    try {
+      let target: Scene
+      if (!atEnd) {
+        const fresh = await api.scenes.get(scene.id)
+        target = (await api.scenes.split(scene.id, atBlock, fresh.contentHash)).second
+        await loadOutline()
+      } else if (nextScene) {
+        target = nextScene
+      } else {
+        target = await api.scenes.create(scene.chapterId, '')
+        await loadOutline()
+      }
+      await openScene(target)
+      editor.chain().focus('start').scrollIntoView().run()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not move on to the next scene')
+    }
+  }
+  // Read off the extension when Enter is pressed, so it is kept current with
+  // every render rather than captured once.
+  useEffect(() => {
+    const extension = editor?.extensionManager.extensions.find((e) => e.name === 'sceneBreak')
+    if (!extension) return
+    extension.options.enabled = !!user?.doubleEnterSplitsScenes && writable
+    extension.options.onBreak = (at: SceneBreak) => void breakScene(at)
+  })
 
   const setStatus = async (status: Scene['status']) => {
     if (!scene) return

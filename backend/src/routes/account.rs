@@ -421,7 +421,8 @@ pub async fn reset(
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateSettingsRequest {
-    /// Turning text into a project also splits scenes at a blank paragraph.
+    /// A blank paragraph (double Enter) is a scene break, while writing a book
+    /// and when turning text into a project.
     #[serde(default)]
     pub double_enter_splits_scenes: Option<bool>,
 }
