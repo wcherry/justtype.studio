@@ -1856,6 +1856,8 @@ export interface TextChange {
   value: string
 }
 
+export type Theme = 'system' | 'light' | 'dark' | 'sepia' | 'night'
+
 export interface ThesaurusEntry {
   // The form it was found under: "walked" is found as "walk". When the word
   // is both a word and a form of another ("running"), this is the other,
@@ -2053,6 +2055,7 @@ export interface UpdateSettingsRequest {
   // A blank paragraph (double Enter) is a scene break, while writing a book
   // and when turning text into a project.
   doubleEnterSplitsScenes?: boolean | null
+  theme?: Theme | null
 }
 
 export interface UpdateTaskRequest {
@@ -2122,6 +2125,8 @@ export interface User {
   termsAcceptedAt?: string | null
   // The version of the terms they last agreed to.
   termsVersion?: number | null
+  // How the app looks for them, on every device.
+  theme: Theme
   // When two-factor sign-in was turned on.
   totpEnabledAt?: string | null
   updatedAt: string

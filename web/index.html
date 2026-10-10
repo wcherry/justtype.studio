@@ -4,6 +4,21 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Just Type Studio</title>
+    <!-- Paint in the writer's theme from the first frame, not after the app
+         loads. The same steps as state/theme.ts; keep the two in step. -->
+    <script>
+      (function () {
+        var theme = 'system'
+        try {
+          var saved = localStorage.getItem('justtype.theme')
+          if (['system', 'light', 'dark', 'sepia', 'night'].indexOf(saved) >= 0) theme = saved
+        } catch (e) {}
+        if (theme === 'system') {
+          theme = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+        }
+        document.documentElement.setAttribute('data-theme', theme)
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

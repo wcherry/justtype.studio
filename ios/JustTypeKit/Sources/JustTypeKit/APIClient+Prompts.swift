@@ -168,6 +168,12 @@ public extension APIClient {
         struct Body: Encodable { let doubleEnterSplitsScenes: Bool }
         return try await send("PATCH", "me/settings", body: Body(doubleEnterSplitsScenes: doubleEnterSplitsScenes))
     }
+
+    /// The theme, kept with the account so the web and the phone look alike.
+    func updateSettings(theme: API.Theme) async throws -> API.User {
+        struct Body: Encodable { let theme: API.Theme }
+        return try await send("PATCH", "me/settings", body: Body(theme: theme))
+    }
 }
 
 public extension API.PromptEntryView {

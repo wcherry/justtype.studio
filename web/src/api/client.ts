@@ -16,7 +16,7 @@ import type {
   AssistRequest, AssistView, ThesaurusEntry,
   AdminPrompts, ArchivePage, CritiqueReportView, CritiqueView, EnrollmentView, EntryPage,
   InboxPage, JobsReport, PromptEntryView, PromptView, TodayResponse, ToWorkPreview, UnreadCount,
-  UpdateEnrollmentRequest, WritingPlace,
+  UpdateEnrollmentRequest, UpdateSettingsRequest, WritingPlace,
 } from './types'
 
 const BASE = '/api'
@@ -640,7 +640,7 @@ export const api = {
     revokeSession: (sessionId: string) => del<{ ok: boolean }>(`/me/sessions/${sessionId}`),
     signOutOthers: () => post<{ ok: boolean }>('/me/sessions/sign-out-others'),
     /** Settings every device reads from the account. */
-    updateSettings: (input: { doubleEnterSplitsScenes?: boolean }) => patch<User>('/me/settings', input),
+    updateSettings: (input: UpdateSettingsRequest) => patch<User>('/me/settings', input),
   },
 
   /** What this server can do. */

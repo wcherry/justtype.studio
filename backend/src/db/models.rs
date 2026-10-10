@@ -76,6 +76,9 @@ row!(User, users, {
     /// editor it moves on to the next scene, and turning text into a project
     /// splits there as well as at a `--` line.
     double_enter_splits_scenes: bool,
+    /// How the app looks for them, on every device.
+    #[schema(value_type = crate::domain::enums::Theme)]
+    theme: String,
 });
 
 #[derive(Debug, Clone, Queryable, Selectable, Serialize, Deserialize, utoipa::ToSchema)]

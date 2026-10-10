@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { ApiError, api, downloadAccountExport, tokens } from '../api/client'
-import type { AuditEvent, SessionView, TwoFactorSetup } from '../api/types'
+import type { AuditEvent, SessionView, Theme, TwoFactorSetup } from '../api/types'
 import { Tabs } from '../components/Tabs'
 import { useWritingPreferences } from '../editor/preferences'
 import { useAuth } from '../state/auth'
+import { THEMES, applyTheme, useTheme } from '../state/theme'
 
 type SettingsTab = 'account' | 'general'
 const TABS: { key: SettingsTab; label: string }[] = [
@@ -15,8 +16,8 @@ const TABS: { key: SettingsTab; label: string }[] = [
 /**
  * Two tabs, each with its own address so a link can go straight to one:
  * the account (its address, password, second factor, where it is signed in,
- * the data held about it) and the settings (what the models may see, how
- * writing behaves, Daily Prompts).
+ * the data held about it) and the settings (how the app looks, what the
+ * models may see, how writing behaves, Daily Prompts).
  */
 export function SettingsPage() {
   const { tab } = useParams()
@@ -38,6 +39,7 @@ export function SettingsPage() {
           </>
         ) : (
           <>
+            <AppearanceSection />
             <SummariesSection />
             <AssistantSection />
             <WritingSection />
@@ -50,6 +52,76 @@ export function SettingsPage() {
         )}
       </Tabs>
     </main>
+  )
+}
+
+/**
+ * The theme. Picking one shows it at once and saves it to the account, so
+ * every device the writer signs in on looks the same.
+ */
+function AppearanceSection() {
+  const { user, updateUser } = useAuth()
+  const { busy, run, status } = useRun()
+  const theme = useTheme()
+  if (!user) return null
+  const choose = (next: Theme) => {
+    if (next === theme) return
+    const before = theme
+    applyTheme(next)
+    void run(async () => {
+      try {
+        updateUser(await api.account.updateSettings({ theme: next }))
+      } catch (e) {
+        // Not saved: go back to what the account still says, rather than
+        // look right here and wrong everywhere else.
+        applyTheme(before)
+        throw e
+      }
+    })
+  }
+  return (
+    <Section title="Appearance">
+      <div className="theme-grid" role="radiogroup" aria-label="Theme">
+        {THEMES.map((t) => (
+          <button
+            key={t.value}
+            type="button"
+            role="radio"
+            aria-checked={theme === t.value}
+            className={theme === t.value ? 'theme-option is-selected' : 'theme-option'}
+            disabled={busy}
+            onClick={() => choose(t.value)}
+          >
+            <span className="theme-option__preview" aria-hidden="true">
+              {t.value === 'system' ? (
+                <>
+                  <ThemePage theme="light" />
+                  <ThemePage theme="dark" />
+                </>
+              ) : (
+                <ThemePage theme={t.value} />
+              )}
+            </span>
+            <span className="theme-option__label">{t.label}</span>
+            <span className="theme-option__hint">{t.hint}</span>
+          </button>
+        ))}
+      </div>
+      <p className="field__hint">Kept with your account, so it is the same on every device you sign in on.</p>
+      {status}
+    </Section>
+  )
+}
+
+/** A thumbnail of a page in `theme`, drawn with that theme's own tokens. */
+function ThemePage({ theme }: { theme: Exclude<Theme, 'system'> }) {
+  return (
+    <span className="theme-page" data-theme={theme}>
+      <span className="theme-page__line theme-page__line--title" />
+      <span className="theme-page__line" />
+      <span className="theme-page__line theme-page__line--short" />
+      <span className="theme-page__accent" />
+    </span>
   )
 }
 

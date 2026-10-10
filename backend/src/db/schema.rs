@@ -25,6 +25,7 @@ diesel::table! {
         assistant_allowed_at -> Nullable<Text>,
         is_admin -> Bool,
         double_enter_splits_scenes -> Bool,
+        theme -> Text,
     }
 }
 

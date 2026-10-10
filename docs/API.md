@@ -572,6 +572,7 @@ their own book in `readerCount`, and notes on it are not reading for others.
 | `GET` | `/me/sessions` | every signed-in device, `current` marking this one |
 | `DELETE` | `/me/sessions/{id}` | sign one out |
 | `POST` | `/me/sessions/sign-out-others` | |
+| `PATCH` | `/me/settings` | `doubleEnterSplitsScenes`, `theme` (`system`, `light`, `dark`, `sepia`, `night`); each left out stays as it is; returns the user |
 
 **Invitations wait for a proved address.** A reader invitation and a seat on a
 book are both addressed to an email, so until an account has proved its

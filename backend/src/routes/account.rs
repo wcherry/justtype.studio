@@ -10,7 +10,7 @@ use crate::auth::{self, AuthUser};
 use crate::db::models::*;
 use crate::db::schema::{email_tokens, recovery_codes, refresh_tokens, sessions, users};
 use crate::db::{blocking, Conn};
-use crate::domain::enums::AuditAction;
+use crate::domain::enums::{AuditAction, Theme};
 use crate::domain::{new_id, now_iso};
 use crate::error::{ApiError, ApiResult, ErrorEnvelope};
 use crate::limit::Action;
@@ -425,6 +425,10 @@ pub struct UpdateSettingsRequest {
     /// and when turning text into a project.
     #[serde(default)]
     pub double_enter_splits_scenes: Option<bool>,
+    /// How the app looks, on every device the writer signs in on.
+    #[serde(default)]
+    #[schema(value_type = Option<crate::domain::enums::Theme>)]
+    pub theme: Option<String>,
 }
 
 /// The writer's own settings, the ones every device reads from the account
@@ -444,7 +448,20 @@ pub async fn update_settings(
     user: AuthUser,
     Json(body): Json<UpdateSettingsRequest>,
 ) -> ApiResult<Json<User>> {
+    if let Some(theme) = body.theme.as_deref() {
+        if !Theme::accepts(theme) {
+            return Err(ApiError::BadRequest(format!(
+                "theme must be one of {}",
+                Theme::options()
+            )));
+        }
+    }
     let updated = blocking(&state.pool, move |conn| {
+        if let Some(theme) = &body.theme {
+            diesel::update(users::table.find(&user.id))
+                .set(users::theme.eq(theme))
+                .execute(conn)?;
+        }
         if let Some(on) = body.double_enter_splits_scenes {
             diesel::update(users::table.find(&user.id))
                 .set(users::double_enter_splits_scenes.eq(on))

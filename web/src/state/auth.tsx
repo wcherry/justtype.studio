@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { ApiError, api, tokens } from '../api/client'
 import type { User } from '../api/types'
 import { cache } from '../offline/cache'
+import { applyTheme } from './theme'
 
 /** Last known profile, so the app opens offline instead of bouncing to sign-in. */
 const USER_KEY = 'justtype.user'
@@ -51,6 +52,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // rather than the sign-in page, then confirm it against the server.
   const [user, setUser] = useState<User | null>(() => (tokens.refresh() ? cachedUser() : null))
   const [loading, setLoading] = useState(true)
+
+  // The account's theme wins over this device's copy as soon as it is known,
+  // and is copied here for the next first paint.
+  useEffect(() => {
+    if (user?.theme) applyTheme(user.theme)
+  }, [user?.theme])
 
   useEffect(() => {
     let cancelled = false

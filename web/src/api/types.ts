@@ -173,10 +173,12 @@ export type {
   PromptEntryView,
   PromptView,
   ScenePreview,
+  Theme,
   TodayResponse,
   ToWorkPreview,
   UnreadCount,
   UpdateEnrollmentRequest,
+  UpdateSettingsRequest,
   WritingPlace,
 } from './schema'
 
