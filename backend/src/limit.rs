@@ -34,6 +34,8 @@ pub enum Action {
     AuthRequests,
     /// Summaries asked for, per writer: each one is a paid call to a model.
     Summaries,
+    /// Requests to the writing assistant, per writer: a paid call each.
+    Assistant,
 }
 
 impl Action {
@@ -47,6 +49,7 @@ impl Action {
             Action::Requests => "requests",
             Action::AuthRequests => "sign-in requests",
             Action::Summaries => "summaries",
+            Action::Assistant => "assistant requests",
         }
     }
 }

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import type { SpellingLanguage } from './spelling/protocol'
 
 /**
  * How the page looks and behaves while writing.
@@ -19,6 +20,15 @@ export interface WritingPreferences {
   roomZoom: number
   /** How much of the screen's width the writing room's page takes, in percent. */
   roomWidth: number
+  /** Underline misspelled words as they are typed. */
+  spellcheck: boolean
+  spellingLanguage: SpellingLanguage
+}
+
+/** British spelling for the places that use it; American otherwise. */
+function defaultSpelling(): SpellingLanguage {
+  const british = ['en-GB', 'en-AU', 'en-NZ', 'en-IE', 'en-ZA', 'en-IN']
+  return typeof navigator !== 'undefined' && british.some((l) => navigator.language.startsWith(l)) ? 'en-GB' : 'en-US'
 }
 
 export const DEFAULT_PREFERENCES: WritingPreferences = {
@@ -30,6 +40,8 @@ export const DEFAULT_PREFERENCES: WritingPreferences = {
   family: 'serif',
   roomZoom: 100,
   roomWidth: 40,
+  spellcheck: true,
+  spellingLanguage: defaultSpelling(),
 }
 
 const KEY = 'justtype.writingPreferences'

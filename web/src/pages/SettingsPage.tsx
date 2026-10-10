@@ -17,6 +17,7 @@ export function SettingsPage() {
       <TwoFactorSection />
       <SessionsSection />
       <SummariesSection />
+      <AssistantSection />
       <DataSection />
     </main>
   )
@@ -325,6 +326,40 @@ function SummariesSection() {
   )
 }
 
+function AssistantSection() {
+  const { user, updateUser } = useAuth()
+  const [available, setAvailable] = useState(false)
+  const { busy, run, status } = useRun()
+  useEffect(() => {
+    api.features().then((f) => setAvailable(f.assistant)).catch(() => undefined)
+  }, [])
+  if (!available || !user) return null
+  const on = !!user.assistantAllowedAt
+  return (
+    <Section title="Writing assistant">
+      <p className="field__hint">
+        The writing assistant — continue from the cursor, rewrite or proofread a passage, ask
+        about it — is Claude, a model Anthropic runs. When it is on, what you hand it is sent to
+        Anthropic when you ask, and only then. What it writes goes into your manuscript only if
+        you put it there. Spelling and the thesaurus never send your words anywhere.
+      </p>
+      <div className="settings__row">
+        <span>{on ? `On since ${new Date(user.assistantAllowedAt!).toLocaleDateString()}` : 'Off'}</span>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => run(async () => {
+            updateUser(on ? await api.assistant.withdraw() : await api.assistant.allow())
+          })}
+        >
+          {on ? 'Turn off' : 'Turn on'}
+        </button>
+      </div>
+      {status}
+    </Section>
+  )
+}
+
 const ACTION_LABEL: Record<string, string> = {
   password_reset: 'Password reset by email',
   password_changed: 'Password changed',
@@ -348,6 +383,8 @@ const ACTION_LABEL: Record<string, string> = {
   terms_accepted: 'Terms agreed',
   summaries_allowed: 'Summaries turned on',
   summaries_withdrawn: 'Summaries turned off',
+  assistant_allowed: 'Writing assistant turned on',
+  assistant_withdrawn: 'Writing assistant turned off',
   share_link_made: 'Share link made',
   share_links_revoked: 'Share links withdrawn',
 }

@@ -183,6 +183,7 @@ pub async fn register(
         terms_accepted_at: Some(now.clone()),
         weekly_word_goal: None,
         summaries_allowed_at: None,
+        assistant_allowed_at: None,
     };
 
     let inner_state = state.clone();

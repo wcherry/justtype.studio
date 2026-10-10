@@ -51,6 +51,7 @@ RUN rm -rf backend/src backend/migrations
 
 COPY backend/src backend/src
 COPY backend/migrations backend/migrations
+COPY backend/assets backend/assets
 COPY backend/diesel.toml backend/terms.md backend/
 
 # What /api/health and /api/status report. Optional: an unstamped build

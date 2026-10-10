@@ -320,6 +320,40 @@ curl -s -X DELETE "$API/me/summaries" -H "$AUTH" >/dev/null
 [ "$(curl -s -o /dev/null -w '%{http_code}' -X POST "$API/works/$WID/summary" -H "$AUTH")" = "403" ] \
   && echo "  turned off, they stop" || { echo "  EXPECTED 403"; exit 1; }
 
+step "The writing assistant"
+BEFORE=$(wc -l < "$TMP/stub.jsonl" | tr -d ' ')
+J='content-type: application/json'
+PROOF='{"task":"proofread","before":"She said: ","selection":"I did not recieve teh letter.","after":" Then she left."}'
+[ "$(curl -s -o /dev/null -w '%{http_code}' -X POST "$API/scenes/$SCENE/assist" -H "$AUTH" -H "$J" -d "$PROOF")" = "403" ] \
+  && echo "  off until turned on, separately from summaries" || { echo "  EXPECTED 403"; exit 1; }
+[ "$(wc -l < "$TMP/stub.jsonl" | tr -d ' ')" = "$BEFORE" ] && echo "  and nothing was sent anywhere" || { echo "  TEXT LEFT WITHOUT CONSENT"; exit 1; }
+curl -s -X POST "$API/me/assistant" -H "$AUTH" | python3 -c "import sys,json;assert json.load(sys.stdin)['assistantAllowedAt']"
+curl -s -X POST "$API/scenes/$SCENE/assist" -H "$AUTH" -H "$J" -d "$PROOF" | python3 -c "
+import sys,json;d=json.load(sys.stdin);assert d['text']=='I did not receive the letter.', d
+print('  proofread:', d['text'])"
+python3 - "$TMP/stub.jsonl" <<'PY'
+import json, sys
+b = [json.loads(l) for l in open(sys.argv[1])][-1]["body"]
+c = b["messages"][0]["content"]
+assert "<passage>\nI did not recieve teh letter.\n</passage>" in c and "[the passage]" in c, c
+assert b["output_config"]["effort"] == "low" and "thinking" not in b, b
+print("  the passage in <passage> tags, the scene around it as <manuscript>, at low effort")
+PY
+[ "$(curl -s -o /dev/null -w '%{http_code}' -X POST "$API/scenes/$SCENE/assist" -H "$AUTH" -H "$J" -d '{"task":"rewrite","selection":"x"}')" = "400" ] \
+  && echo "  a rewrite has to say how" || { echo "  EXPECTED 400"; exit 1; }
+curl -s -X DELETE "$API/me/assistant" -H "$AUTH" >/dev/null
+[ "$(curl -s -o /dev/null -w '%{http_code}' -X POST "$API/scenes/$SCENE/assist" -H "$AUTH" -H "$J" -d "$PROOF")" = "403" ] \
+  && echo "  turned off, it stops" || { echo "  EXPECTED 403"; exit 1; }
+
+step "Thesaurus and dictionary"
+curl -s "$API/thesaurus/walked" -H "$AUTH" | python3 -c "
+import sys,json;d=json.load(sys.stdin);assert d['base']=='walk' and d['senses'], d
+print(f\"  'walked' is found as '{d['base']}', {len(d['senses'])} senses\")"
+[ "$(curl -s -o /dev/null -w '%{http_code}' "$API/thesaurus/qzxvbn" -H "$AUTH")" = "404" ] && echo "  nonsense finds nothing" || { echo "  EXPECTED 404"; exit 1; }
+curl -s -X PUT "$API/me/dictionary/Ysolde" -H "$AUTH" | python3 -c "import sys,json;assert json.load(sys.stdin)==['Ysolde'];print('  a name added to the dictionary')"
+[ "$(curl -s -o /dev/null -w '%{http_code}' -X PUT "$API/me/dictionary/two%20words" -H "$AUTH")" = "400" ] && echo "  one word at a time" || { echo "  EXPECTED 400"; exit 1; }
+curl -s -X DELETE "$API/me/dictionary/Ysolde" -H "$AUTH" | python3 -c "import sys,json;assert json.load(sys.stdin)==[];print('  and taken out again')"
+
 step "Snapshotting, revising, snapshotting again"
 V1=$(curl -s -X POST "$API/works/$WID/versions" -H "$AUTH" -H 'content-type: application/json' -d '{"label":"First pass"}' | field id)
 curl -s -X PUT "$API/scenes/$SCENE/content" -H "$AUTH" -H 'content-type: application/json' \

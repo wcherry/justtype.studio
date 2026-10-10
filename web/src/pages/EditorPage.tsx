@@ -12,6 +12,10 @@ import { ChangesPanel } from '../components/ChangesPanel'
 import { CollaboratorsPanel } from '../components/CollaboratorsPanel'
 import { FindPanel } from '../components/FindPanel'
 import { SummaryPanel } from '../components/SummaryPanel'
+import { AssistantPanel, REWRITES } from '../components/AssistantPanel'
+import type { AssistAsk } from '../components/AssistantPanel'
+import { DictionaryPanel } from '../components/DictionaryPanel'
+import { ThesaurusPanel, matchCase } from '../components/ThesaurusPanel'
 import { ConflictBanner } from '../components/ConflictBanner'
 import { Corkboard } from '../components/Corkboard'
 import { BookDetails } from '../components/BookDetails'
@@ -49,6 +53,8 @@ import { useWritingPreferences } from '../editor/preferences'
 import { ProseTypography } from '../editor/typography'
 import { TypewriterScrolling } from '../editor/typewriter'
 import { useAutosave } from '../editor/useAutosave'
+import { Spellcheck, misspellingAt, wordAt } from '../editor/spelling/spellcheck'
+import { useSpelling } from '../editor/spelling/useSpelling'
 import { useSessionGoals } from '../editor/useSessionGoals'
 import { cache } from '../offline/cache'
 import { pendingFor, startQueueReplay } from '../offline/queue'
@@ -86,6 +92,9 @@ type Panel =
   | 'goals'
   | 'export'
   | 'exports'
+  | 'thesaurus'
+  | 'assistant'
+  | 'dictionary'
 
 /** The panels used most while writing get a button of their own as well. */
 const TOOLBAR_PANELS: { panel: Panel; icon: IconName; label: string }[] = [
@@ -177,8 +186,12 @@ export function EditorPage() {
       TypewriterScrolling,
       ProseTypography,
       Annotations,
+      Spellcheck,
     ],
     content: '',
+    // The app checks spelling itself; the browser's own checker would mark
+    // the same words twice, differently, with its own menu.
+    editorProps: { attributes: { spellcheck: 'false' } },
   })
 
   // Both read their options off the extension rather than from React state, so
@@ -200,11 +213,77 @@ export function EditorPage() {
     '--prose-size': `${(preferences.fontSize * preferences.roomZoom) / 100}px`,
     '--measure': `${preferences.roomWidth}%`,
   } as React.CSSProperties
-  // Summaries exist only where the server has been set up to write them.
+  // Summaries and the assistant exist only where the server has been set up
+  // to write them.
   const [summariesOn, setSummariesOn] = useState(false)
+  const [assistantOn, setAssistantOn] = useState(false)
   useEffect(() => {
-    api.features().then((f) => setSummariesOn(f.summaries)).catch(() => setSummariesOn(false))
+    api.features().then((f) => {
+      setSummariesOn(f.summaries)
+      setAssistantOn(f.assistant)
+    }).catch(() => {
+      setSummariesOn(false)
+      setAssistantOn(false)
+    })
   }, [])
+
+  const spelling = useSpelling(editor, {
+    enabled: preferences.spellcheck,
+    language: preferences.spellingLanguage,
+    workId,
+  })
+  // A name added in the notebook is a word the checker should know.
+  const lastPanel = useRef<Panel>('none')
+  const { reloadNames } = spelling
+  useEffect(() => {
+    if (lastPanel.current === 'notebook' && panel !== 'notebook') reloadNames()
+    lastPanel.current = panel
+  }, [panel, reloadNames])
+
+  /** The word the thesaurus was opened on, and where it is in the text. */
+  const [thesaurus, setThesaurus] = useState<{ word: string; at: { from: number; to: number; text: string } | null }>({ word: '', at: null })
+  const openThesaurus = (word: string, at: { from: number; to: number; text: string } | null) => {
+    setThesaurus({ word, at })
+    setPanel('thesaurus')
+  }
+  /** The word at the caret, or the selected one: what ⇧F7 looks up. */
+  const wordHere = () => {
+    if (!editor) return null
+    const { from, to, empty } = editor.state.selection
+    if (!empty) {
+      const text = editor.state.doc.textBetween(from, to, ' ').trim()
+      return text && !/\s/.test(text) ? { from, to, text } : null
+    }
+    return wordAt(editor.state, from)
+  }
+  /** Puts a word in place of another, if the other is still where it was. */
+  const replaceWord = (at: { from: number; to: number; text: string }, replacement: string) => {
+    if (!editor) return null
+    const { doc } = editor.state
+    if (at.to > doc.content.size || doc.textBetween(at.from, at.to) !== at.text) {
+      return `“${at.text}” is not where it was. Right-click it again.`
+    }
+    const word = matchCase(replacement, at.text)
+    editor.view.dispatch(editor.state.tr.insertText(word, at.from, at.to))
+    return { from: at.from, to: at.from + word.length, text: word }
+  }
+  // Word's shortcut for the thesaurus.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'F7' || !event.shiftKey || !editor) return
+      event.preventDefault()
+      const here = wordHere()
+      openThesaurus(here?.text ?? '', writable ? here : null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  })
+
+  const [assistAsk, setAssistAsk] = useState<AssistAsk | null>(null)
+  const askAssistant = (task: AssistAsk['task'], instruction?: string) => {
+    setAssistAsk({ task, instruction, nonce: Date.now() })
+    setPanel('assistant')
+  }
   const can = permissions(outline?.access)
   const { user } = useAuth()
 
@@ -297,12 +376,90 @@ export function EditorPage() {
   }
 
   // Right-click (or ⌘-click) on selected text, or on a mark.
-  const contextMenu = useSelectionMenu(editor)
+  const contextMenu = useSelectionMenu(editor, true, true)
   const [markError, setMarkError] = useState<string | null>(null)
+  /**
+   * For the word the menu was opened on: corrections, if it is misspelled,
+   * and a few words from the thesaurus. `null` while they are being found.
+   */
+  const [menuWords, setMenuWords] = useState<{
+    at: { from: number; to: number; text: string }
+    misspelled: boolean
+    suggestions: string[] | null
+    synonyms: string[] | null
+  } | null>(null)
+  useEffect(() => {
+    const target = contextMenu.target
+    if (!target || !editor) return setMenuWords(null)
+    const selected = target.selection && target.selection.quote.trim()
+    const at = target.word
+      ?? (selected && !/\s/.test(selected) ? { from: target.selection!.from, to: target.selection!.to, text: target.selection!.quote } : null)
+    if (!at) return setMenuWords(null)
+    const misspelled = !!misspellingAt(editor.state, at.from) && preferences.spellcheck
+    let stale = false
+    setMenuWords({ at, misspelled, suggestions: misspelled ? null : [], synonyms: null })
+    if (misspelled) {
+      void spelling.suggest(at.text).then((suggestions) => {
+        if (!stale) setMenuWords((m) => (m && m.at === at ? { ...m, suggestions } : m))
+      })
+    }
+    api.words.thesaurus(at.text).then(
+      (entry) => {
+        const words = entry.senses.slice(0, 3).flatMap((s) => [...s.synonyms, ...s.related])
+        const synonyms = [...new Set(words.filter((w) => !w.includes(' ')))].slice(0, 5)
+        if (!stale) setMenuWords((m) => (m && m.at === at ? { ...m, synonyms } : m))
+      },
+      () => {
+        if (!stale) setMenuWords((m) => (m && m.at === at ? { ...m, synonyms: [] } : m))
+      },
+    )
+    return () => {
+      stale = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contextMenu.target, editor])
+
+  /** The spelling and thesaurus part of the menu, for one word. */
+  const wordActions = (): SelectionAction[] => {
+    if (!menuWords) return []
+    const { at, misspelled, suggestions, synonyms } = menuWords
+    const actions: SelectionAction[] = []
+    const replace = (word: string) => () => {
+      const result = replaceWord(at, word)
+      if (typeof result === 'string') setMarkError(result)
+    }
+    if (misspelled) {
+      if (suggestions === null) {
+        actions.push({ key: 'spell-wait', label: 'Looking for corrections…', disabled: true })
+      } else if (suggestions.length === 0) {
+        actions.push({ key: 'spell-none', label: 'No suggestions', disabled: true })
+      } else if (writable) {
+        suggestions.slice(0, 5).forEach((s) => actions.push({ key: `spell-${s}`, label: s, onSelect: replace(s) }))
+      }
+      actions.push({ key: 'spell-add', label: `Add “${at.text}” to dictionary`, divider: true, onSelect: () => void spelling.add(at.text) })
+      actions.push({ key: 'spell-ignore', label: 'Ignore', onSelect: () => spelling.ignore(at.text) })
+    }
+    if (writable && synonyms && synonyms.length > 0) {
+      synonyms.forEach((s, i) => actions.push({
+        key: `syn-${s}`, label: s, onSelect: replace(s),
+        ...(i === 0 ? { heading: 'Synonyms', divider: actions.length > 0 } : {}),
+      }))
+    }
+    actions.push({
+      key: 'thesaurus',
+      label: 'Thesaurus…',
+      hint: '⇧F7',
+      divider: actions.length > 0,
+      onSelect: () => openThesaurus(at.text, writable ? at : null),
+    })
+    return actions
+  }
   const selectionActions = (): SelectionAction[] => {
     const target = contextMenu.target
     if (!target || !scene || !editor) return []
-    const actions: SelectionAction[] = []
+    const actions: SelectionAction[] = wordActions()
+    // A word right-clicked with nothing selected: spelling and words only.
+    if (target.word && !target.selection && !target.annotationId) return actions
     const mark = target.annotationId ? marks.list.find((m) => m.id === target.annotationId) : null
     const range = target.selection && tighten(editor.state.doc, target.selection)
     const markAs = async (kind: 'highlight' | 'bookmark') => {
@@ -320,7 +477,7 @@ export function EditorPage() {
       }
     }
     if (range) {
-      actions.push({ key: 'highlight', label: 'Highlight', onSelect: () => void markAs('highlight') })
+      actions.push({ key: 'highlight', label: 'Highlight', divider: actions.length > 0, onSelect: () => void markAs('highlight') })
       actions.push({ key: 'bookmark', label: 'Bookmark', onSelect: () => void markAs('bookmark') })
       if (can.canSuggest(scene.chapterId)) {
         actions.push({
@@ -352,6 +509,40 @@ export function EditorPage() {
         hint: '⌘C',
         onSelect: () => void navigator.clipboard?.writeText(target.selection!.quote),
       })
+      if (assistantOn && writable) {
+        const select = () => editor.chain().setTextSelection(range).run()
+        actions.push({
+          key: 'assist-proofread', label: 'Proofread', heading: 'Writing assistant', divider: true,
+          onSelect: () => {
+            select()
+            askAssistant('proofread')
+          },
+        })
+        actions.push({
+          key: 'assist-rewrite',
+          label: 'Rewrite…',
+          compose: {
+            placeholder: `How? “${REWRITES[0].label.toLowerCase()}”, “more tension”, “in her voice”…`,
+            submit: 'Rewrite',
+            onSubmit: (how) => {
+              select()
+              askAssistant('rewrite', how)
+            },
+          },
+        })
+        actions.push({
+          key: 'assist-ask',
+          label: 'Ask about this…',
+          compose: {
+            placeholder: 'Does this drag? Is it clear who is speaking?',
+            submit: 'Ask',
+            onSubmit: (question) => {
+              select()
+              askAssistant('ask', question)
+            },
+          },
+        })
+      }
     }
     if (mark) {
       actions.push({
@@ -715,6 +906,35 @@ export function EditorPage() {
       ],
     },
     {
+      key: 'tools',
+      label: 'Tools',
+      items: [
+        {
+          key: 'spellcheck', label: 'Check spelling as you type', checked: preferences.spellcheck,
+          onSelect: () => setPreference('spellcheck', !preferences.spellcheck),
+        },
+        {
+          key: 'language',
+          label: 'Spelling',
+          disabled: !preferences.spellcheck,
+          items: [
+            { key: 'en-US', label: 'American English', checked: preferences.spellingLanguage === 'en-US', onSelect: () => setPreference('spellingLanguage', 'en-US') },
+            { key: 'en-GB', label: 'British English', checked: preferences.spellingLanguage === 'en-GB', onSelect: () => setPreference('spellingLanguage', 'en-GB') },
+          ],
+        },
+        panelItem('dictionary', 'Your dictionary…'),
+        {
+          key: 'thesaurus', label: 'Thesaurus…', hint: '⇧F7', divider: true, checked: panel === 'thesaurus',
+          onSelect: () => {
+            if (panel === 'thesaurus') return closePanel()
+            const here = wordHere()
+            openThesaurus(here?.text ?? '', writable ? here : null)
+          },
+        },
+        ...(assistantOn ? [panelItem('assistant', 'Writing assistant…', { divider: true })] : []),
+      ],
+    },
+    {
       key: 'progress',
       label: 'Progress',
       items: [
@@ -923,6 +1143,14 @@ export function EditorPage() {
               onClick={() => toggle(which)}
             />
           ))}
+          {assistantOn && (
+            <ToolButton
+              icon="assistant"
+              label="Writing assistant: continue, rewrite, proofread or ask"
+              pressed={panel === 'assistant'}
+              onClick={() => toggle('assistant')}
+            />
+          )}
           <ToolButton icon="room" label="Writing room: nothing but the words (⌘⇧F)" onClick={page.enter} />
           <ToolButton
             icon="info"
@@ -1146,6 +1374,33 @@ export function EditorPage() {
               if (scene) void api.scenes.get(scene.id).then((s) => setScene((c) => (c ? { ...c, summary: s.summary } : c)))
             }}
           />
+        </SidePanel>
+      )}
+
+      {panel === 'thesaurus' && (
+        <SidePanel title="Thesaurus" onClose={closePanel}>
+          <ThesaurusPanel
+            word={thesaurus.word}
+            onUse={thesaurus.at ? (word) => {
+              const result = replaceWord(thesaurus.at!, word)
+              if (typeof result === 'string') return result
+              // Choosing again replaces the word just put in.
+              if (result) setThesaurus((t) => ({ ...t, at: result }))
+              return null
+            } : undefined}
+          />
+        </SidePanel>
+      )}
+
+      {panel === 'assistant' && assistantOn && (
+        <SidePanel title="Writing assistant" onClose={closePanel}>
+          <AssistantPanel editor={editor} scene={scene} writable={writable} ask={assistAsk} />
+        </SidePanel>
+      )}
+
+      {panel === 'dictionary' && (
+        <SidePanel title="Your dictionary" onClose={closePanel}>
+          <DictionaryPanel words={spelling.words} onAdd={spelling.add} onRemove={spelling.remove} error={spelling.error} />
         </SidePanel>
       )}
 

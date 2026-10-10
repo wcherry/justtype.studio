@@ -14,6 +14,7 @@ mod ops;
 mod routes;
 mod state;
 mod storage;
+mod thesaurus;
 mod web;
 
 /// The version this build reports: the release stamped in by the image build

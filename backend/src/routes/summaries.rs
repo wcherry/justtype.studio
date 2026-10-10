@@ -40,6 +40,8 @@ pub struct Features {
     pub summaries: bool,
     /// Who writes them, for the consent screen.
     pub summary_provider: Option<String>,
+    /// Whether this server has the writing assistant.
+    pub assistant: bool,
 }
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
@@ -66,6 +68,7 @@ pub async fn features(State(state): State<AppState>) -> Json<Features> {
     Json(Features {
         summaries: on,
         summary_provider: on.then(|| "Anthropic".to_string()),
+        assistant: on,
     })
 }
 

@@ -13,6 +13,7 @@ import type {
   SketchField, SketchTemplate, SummaryView, Features, Annotation, AnnotationKind,
   ExportOptions, ExportFormat, PreflightReport, ExportProfile, ExportProfiles, LastUsedResponse,
   ExportHistoryItem, MetadataResponse, UpdateMetadataRequest,
+  AssistRequest, AssistView, ThesaurusEntry,
 } from './types'
 
 const BASE = '/api'
@@ -648,6 +649,30 @@ export const api = {
     scene: (sceneId: string) => post<SummaryView>(`/scenes/${sceneId}/summary`),
     chapter: (chapterId: string) => post<SummaryView>(`/chapters/${chapterId}/summary`),
     work: (workId: string) => post<SummaryView>(`/works/${workId}/summary`),
+  },
+
+  /**
+   * The writing assistant, also Claude, and off until the writer turns it on
+   * — separately from summaries — because it sends what they hand it to
+   * Anthropic.
+   */
+  assistant: {
+    allow: () => post<User>('/me/assistant'),
+    withdraw: () => del<User>('/me/assistant'),
+    assist: (sceneId: string, input: AssistRequest) =>
+      post<AssistView>(`/scenes/${sceneId}/assist`, input),
+  },
+
+  /**
+   * The thesaurus, served by this app's own server, and the words the writer
+   * has told the spellchecker are right. Spelling itself is checked in the
+   * browser; neither sends a word anywhere else.
+   */
+  words: {
+    thesaurus: (word: string) => get<ThesaurusEntry>(`/thesaurus/${encodeURIComponent(word)}`),
+    dictionary: () => get<string[]>('/me/dictionary'),
+    addToDictionary: (word: string) => put<string[]>(`/me/dictionary/${encodeURIComponent(word)}`, {}),
+    removeFromDictionary: (word: string) => del<string[]>(`/me/dictionary/${encodeURIComponent(word)}`),
   },
 
   /**

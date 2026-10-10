@@ -1,5 +1,6 @@
 pub mod account;
 pub mod annotations;
+pub mod assistant;
 pub mod audit;
 pub mod auth;
 pub mod book_details;
@@ -28,6 +29,7 @@ pub mod support;
 pub mod tasks;
 pub mod templates;
 pub mod versions;
+pub mod words;
 pub mod works;
 
 use axum::Router;
@@ -52,6 +54,11 @@ fn api_router() -> OpenApiRouter<AppState> {
         .routes(routes!(summaries::scene))
         .routes(routes!(summaries::chapter))
         .routes(routes!(summaries::work))
+        .routes(routes!(assistant::allow, assistant::withdraw))
+        .routes(routes!(assistant::assist))
+        .routes(routes!(words::lookup))
+        .routes(routes!(words::list))
+        .routes(routes!(words::add, words::remove))
         .routes(routes!(annotations::list_draft, annotations::create_draft))
         .routes(routes!(
             annotations::list_publication,

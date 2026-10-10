@@ -10,6 +10,7 @@ const PATHS = {
   leave: 'M9 4v5H4M15 4v5h5M15 20v-5h5M9 20v-5H4',
   undo: 'M9 14L4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11',
   redo: 'M15 14l5-5-5-5M20 9H9.5a5.5 5.5 0 0 0 0 11H13',
+  assistant: 'M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9zM18.5 15.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z',
 } as const
 
 export type IconName = keyof typeof PATHS

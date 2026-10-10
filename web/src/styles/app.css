@@ -1036,7 +1036,7 @@ body.writing-page .room-outline .outline { display: block; border: none; max-hei
 .diff__text--after { background: var(--add-soft); padding: 4px 6px; border-radius: 4px; }
 .diff__text { font-family: var(--serif); font-size: 14px; line-height: 1.6; margin: 0; }
 .diff__text--meta { color: var(--ink-faint); font-family: var(--sans); font-size: 12px; }
-.diff__insert { background: var(--add-soft); color: var(--add); }
+.diff__insert { background: var(--add-soft); color: var(--add); text-decoration: none; }
 .diff__delete { background: var(--del-soft); color: var(--del); text-decoration: line-through; }
 
 /* --- review ------------------------------------------------------------- */
@@ -1464,3 +1464,60 @@ dialog.dialog--export .export-check input[type='checkbox'], dialog.dialog--expor
   width: auto; flex: none; margin: 3px 0 0;
 }
 dialog.dialog--export fieldset { min-width: 0; }
+
+/* --- spelling, thesaurus, assistant -------------------------------------- */
+
+:root { --spell: #c0392b; }
+@media (prefers-color-scheme: dark) {
+  :root { --spell: #e0786b; }
+}
+/* A wavy line under the word, drawn by the app's own checker. */
+.prose .spell-error {
+  text-decoration: underline wavy var(--spell);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  text-decoration-skip-ink: none;
+}
+.menu__item:disabled { color: var(--ink-faint); cursor: default; }
+.menu__item.has-divider, .menu__heading.has-divider { border-top: 1px solid var(--line); margin-top: 4px; padding-top: 8px; }
+.selection-menu .menu__heading { padding-left: 28px; }
+
+.thesaurus { display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
+.thesaurus__search { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.thesaurus__search input { width: 100%; }
+.thesaurus__senses { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.thesaurus__sense { border-top: 1px solid var(--line); padding-top: 10px; }
+.thesaurus__gloss { margin: 0 0 6px; color: var(--ink-soft); }
+.thesaurus__pos { font-style: italic; color: var(--ink-faint); margin-right: 4px; }
+.thesaurus__group { display: grid; grid-template-columns: 64px 1fr; gap: 6px; align-items: baseline; margin-top: 4px; }
+.thesaurus__label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-faint); }
+.thesaurus__words { display: flex; flex-wrap: wrap; gap: 4px; }
+.thesaurus__word {
+  padding: 2px 8px; border-radius: 99px; font-size: 13px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+}
+.thesaurus__word:hover, .thesaurus__word:focus-visible { border-color: var(--accent); color: var(--accent); }
+.thesaurus__credit { font-size: 11px; color: var(--ink-faint); margin-top: 8px; }
+
+.assistant { display: flex; flex-direction: column; gap: 14px; font-size: 14px; }
+.assistant__section { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.assistant__section h4 {
+  margin: 0; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--ink-faint); font-weight: 500;
+}
+.assistant__row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.assistant__presets { display: flex; flex-wrap: wrap; gap: 4px; }
+.assistant__preset { padding: 3px 9px; border-radius: 99px; font-size: 13px; }
+.assistant__form { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; width: 100%; }
+.assistant__form textarea { width: 100%; resize: vertical; font: inherit; }
+.assistant__result { border-top: 1px solid var(--line); padding-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+.assistant__text { margin: 0; font-family: var(--serif); font-size: 15px; line-height: 1.6; white-space: pre-wrap; }
+
+.dictionary { display: flex; flex-direction: column; gap: 10px; font-size: 14px; }
+.dictionary__add { display: flex; gap: 6px; }
+.dictionary__add input { flex: 1; min-width: 0; }
+.dictionary__list { list-style: none; margin: 0; padding: 0; }
+.dictionary__list li {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 5px 0; border-top: 1px solid var(--line);
+}

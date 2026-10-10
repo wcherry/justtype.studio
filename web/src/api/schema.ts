@@ -88,7 +88,29 @@ export interface AnswerView {
   reader: AuthorCard
 }
 
-export type AuditAction = 'password_reset' | 'password_changed' | 'two_factor_enabled' | 'two_factor_disabled' | 'session_revoked' | 'sessions_revoked' | 'account_exported' | 'account_deleted' | 'work_deleted' | 'publication_created' | 'publication_changed' | 'publication_withdrawn' | 'collaborator_added' | 'collaborator_changed' | 'collaborator_removed' | 'reader_invited' | 'reader_uninvited' | 'reader_blocked' | 'reader_unblocked' | 'terms_accepted' | 'share_link_made' | 'share_links_revoked' | 'summaries_allowed' | 'summaries_withdrawn'
+export interface AssistRequest {
+  // The scene's text after the selection. Only the start of it is sent on.
+  after?: string
+  // The scene's text before the selection, or before the cursor. Only the
+  // end of it is sent on.
+  before?: string
+  // What the writer wants: how to rewrite, or what to ask.
+  instruction?: string
+  // The selected passage. Needed to rewrite or proofread; optional to ask.
+  selection?: string
+  task: AssistTask
+}
+
+// What the writer asked the assistant to do.
+export type AssistTask = 'continue' | 'rewrite' | 'proofread' | 'ask'
+
+export interface AssistView {
+  model: string
+  task: string
+  text: string
+}
+
+export type AuditAction = 'password_reset' | 'password_changed' | 'two_factor_enabled' | 'two_factor_disabled' | 'session_revoked' | 'sessions_revoked' | 'account_exported' | 'account_deleted' | 'work_deleted' | 'publication_created' | 'publication_changed' | 'publication_withdrawn' | 'collaborator_added' | 'collaborator_changed' | 'collaborator_removed' | 'reader_invited' | 'reader_uninvited' | 'reader_blocked' | 'reader_unblocked' | 'terms_accepted' | 'share_link_made' | 'share_links_revoked' | 'summaries_allowed' | 'summaries_withdrawn' | 'assistant_allowed' | 'assistant_withdrawn'
 
 export interface AuditEvent {
   action: AuditAction
@@ -585,6 +607,8 @@ export interface ExportOptions {
 }
 
 export interface Features {
+  // Whether this server has the writing assistant.
+  assistant: boolean
   // Whether this server can write summaries at all.
   summaries: boolean
   // Who writes them, for the consent screen.
@@ -844,6 +868,8 @@ export interface OutlineResponse {
 }
 
 export type PageSize = 'letter' | 'a4' | 'trade5x8' | 'trade5_5x8_5' | 'trade6x9'
+
+export type PartOfSpeech = 'noun' | 'verb' | 'adjective' | 'adverb'
 
 // Page setup for PDF. Book-layout PDF reads these; manuscript PDF is fixed.
 export interface PdfOptions {
@@ -1296,6 +1322,18 @@ export interface Scope {
 
 export type ScopeKind = 'all' | 'selected'
 
+// One meaning of the word, and the words for it.
+export interface Sense {
+  antonyms: string[]
+  // What this sense means, briefly, to tell it from the others.
+  gloss: string
+  partOfSpeech: PartOfSpeech
+  // Near it: similar words, and more particular ones ("walk" → "march").
+  related: string[]
+  // Words with this same meaning.
+  synonyms: string[]
+}
+
 export interface Session {
   createdAt: string
   id: string
@@ -1534,6 +1572,17 @@ export interface TextChange {
   value: string
 }
 
+export interface ThesaurusEntry {
+  // The form it was found under: "walked" is found as "walk". When the word
+  // is both a word and a form of another ("running"), this is the other,
+  // and its senses come first.
+  base: string
+  // Most common meaning first.
+  senses: Sense[]
+  // The word as asked for.
+  word: string
+}
+
 export interface TocChapter {
   chapterId: string
   // In reading order.
@@ -1713,6 +1762,9 @@ export interface UpdateWorkRequest {
 export interface User {
   // A paragraph about the writer, reusable as back matter in any book.
   aboutAuthor?: string | null
+  // When they agreed that text they hand the writing assistant may be sent
+  // to the model provider. Separate from summaries: a different use.
+  assistantAllowedAt?: string | null
   bio?: string | null
   createdAt: string
   // The writer's daily target in words, when they have set one.

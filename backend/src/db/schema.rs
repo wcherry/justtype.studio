@@ -22,6 +22,7 @@ diesel::table! {
         weekly_word_goal -> Nullable<Integer>,
         summaries_allowed_at -> Nullable<Text>,
         about_author -> Nullable<Text>,
+        assistant_allowed_at -> Nullable<Text>,
     }
 }
 
@@ -568,6 +569,14 @@ diesel::table! {
     }
 }
 
+diesel::table! {
+    dictionary_words (user_id, word) {
+        user_id -> Text,
+        word -> Text,
+        created_at -> Text,
+    }
+}
+
 diesel::joinable!(export_last_options -> works (work_id));
 diesel::joinable!(export_history -> works (work_id));
 diesel::joinable!(export_profiles -> users (user_id));
@@ -643,4 +652,5 @@ diesel::allow_tables_to_appear_in_same_query!(
     export_profiles,
     export_last_options,
     export_history,
+    dictionary_words,
 );

@@ -32,6 +32,8 @@ use utoipa::OpenApi;
         (name = "live", description = "Tickets for the live channel"),
         (name = "annotations", description = "Your own highlights and bookmarks, seen by nobody else"),
         (name = "summaries", description = "Summaries written by Claude, with the writer's consent"),
+        (name = "assistant", description = "The writing assistant, Claude, with the writer's consent"),
+        (name = "words", description = "The thesaurus, and your own words for the spellchecker"),
         (name = "account", description = "Proving an address, getting back in, a second factor, sessions"),
         (name = "trust", description = "Your data, the audit log, the terms"),
         (name = "collaboration", description = "Co-authors, their roles, and what they did"),
