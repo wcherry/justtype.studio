@@ -16,10 +16,10 @@ use crate::db::schema::*;
 use crate::state::AppState;
 
 pub(super) struct Server {
-    base: String,
+    pub(super) base: String,
     state: AppState,
-    root: std::path::PathBuf,
-    http: reqwest::Client,
+    pub(super) root: std::path::PathBuf,
+    pub(super) http: reqwest::Client,
 }
 
 pub(super) struct Writer {
@@ -79,7 +79,7 @@ impl Server {
         }
     }
 
-    fn conn(&self) -> crate::db::Conn {
+    pub(super) fn conn(&self) -> crate::db::Conn {
         self.state.pool.get().unwrap()
     }
 
@@ -111,7 +111,7 @@ impl Server {
         Writer { id, token }
     }
 
-    async fn call(
+    pub(super) async fn call(
         &self,
         who: Option<&Writer>,
         method: &str,

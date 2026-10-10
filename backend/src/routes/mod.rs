@@ -37,6 +37,8 @@ pub mod support;
 pub mod tasks;
 pub mod templates;
 pub mod versions;
+#[cfg(test)]
+mod welcome_api_tests;
 pub mod words;
 pub mod works;
 

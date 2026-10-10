@@ -1,5 +1,5 @@
-//! Mail going out: proving an address, resetting a password, the daily
-//! prompt.
+//! Mail going out: proving an address, the welcome once it is proved,
+//! resetting a password, the daily prompt.
 //!
 //! Mail sent as part of a request (a reset link) goes straight out. Mail a
 //! scheduled job decides to send is put in `mail_queue` inside the same
