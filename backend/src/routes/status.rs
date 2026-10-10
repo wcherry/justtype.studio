@@ -146,6 +146,7 @@ pub async fn status(State(state): State<AppState>) -> (StatusCode, Json<StatusRe
         match &state.mailer {
             crate::mail::Mailer::Outbox(_) => "writing to the outbox file; nothing is sent",
             crate::mail::Mailer::Smtp { .. } => "sending through SMTP",
+            crate::mail::Mailer::Resend { .. } => "sending through Resend",
         },
     ));
 

@@ -203,7 +203,8 @@ Settings:
   `POST /api/test/clock {now}`, which moves the server's clock and runs a tick.
   Never set it on a server people use.
 
-Going live with the email needs `JUSTTYPE_MAIL=smtp` and a sending domain;
+Going live with the email needs `JUSTTYPE_MAIL=smtp` (or `resend`, with
+`JUSTTYPE_RESEND_API_KEY`) and a sending domain verified with the provider;
 until then it goes to the outbox file like the rest of the mail.
 
 ## Site administrators
