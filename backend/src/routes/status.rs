@@ -126,6 +126,20 @@ pub async fn status(State(state): State<AppState>) -> (StatusCode, Json<StatusRe
         Some(dir) => backup_check(dir),
     });
 
+    // Only whether a job is late: what ran and what failed is for admins, at
+    // /api/admin/jobs.
+    let started = crate::clock::now()
+        - chrono::Duration::from_std(state.started_at.elapsed()).unwrap_or_default();
+    let jobs = blocking(&state.pool, move |conn| {
+        crate::jobs::health(conn, crate::clock::now(), started)
+    })
+    .await;
+    checks.push(match jobs {
+        Ok(h) if h.ok => check("jobs", true, "the scheduled jobs are on time"),
+        Ok(_) => check("jobs", false, "a scheduled job is late"),
+        Err(e) => check("jobs", false, &e.to_string()),
+    });
+
     checks.push(check(
         "mail",
         true,

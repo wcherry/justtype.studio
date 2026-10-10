@@ -1,4 +1,6 @@
+import { Extension, textInputRule } from '@tiptap/core'
 import Typography from '@tiptap/extension-typography'
+import type { TypographyOptions } from '@tiptap/extension-typography'
 
 /**
  * Typographic input rules, narrowed to the ones prose wants.
@@ -12,7 +14,7 @@ import Typography from '@tiptap/extension-typography'
  * What stays is the punctuation a typesetter would fix anyway: curly quotes,
  * an em dash for `--`, an ellipsis for `...`.
  */
-export const ProseTypography = Typography.configure({
+const PROSE_RULES: Partial<TypographyOptions> = {
   oneHalf: false,
   oneQuarter: false,
   threeQuarters: false,
@@ -29,4 +31,21 @@ export const ProseTypography = Typography.configure({
   servicemark: false,
   // Left on: emDash, ellipsis, openDoubleQuote, closeDoubleQuote,
   // openSingleQuote, closeSingleQuote, leftArrow, rightArrow.
+}
+
+export const ProseTypography = Typography.configure(PROSE_RULES)
+
+/**
+ * For a Daily Prompts answer, where a line that is only `--` separates
+ * scenes when it becomes a project: `--` still becomes an em dash after a
+ * word ("she paused -- then"), but not at the start of a line, where it
+ * would swallow the separator before the writer had finished typing it.
+ */
+const DashAfterAWord = Extension.create({
+  name: 'dashAfterAWord',
+  addInputRules() {
+    return [textInputRule({ find: /(?<=\S ?)--$/, replace: '—' })]
+  },
 })
+
+export const AnswerTypography = [Typography.configure({ ...PROSE_RULES, emDash: false }), DashAfterAWord]

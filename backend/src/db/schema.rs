@@ -23,6 +23,8 @@ diesel::table! {
         summaries_allowed_at -> Nullable<Text>,
         about_author -> Nullable<Text>,
         assistant_allowed_at -> Nullable<Text>,
+        is_admin -> Bool,
+        double_enter_splits_scenes -> Bool,
     }
 }
 
@@ -610,6 +612,145 @@ diesel::joinable!(revision_tasks -> works (work_id));
 diesel::joinable!(comment_reports -> comments (comment_id));
 diesel::joinable!(comment_votes -> users (user_id));
 
+diesel::table! {
+    job_runs (job, key) {
+        job -> Text,
+        key -> Text,
+        started_at -> Text,
+        finished_at -> Nullable<Text>,
+        error -> Nullable<Text>,
+        attempts -> Integer,
+    }
+}
+
+diesel::table! {
+    mail_queue (id) {
+        id -> Text,
+        to_address -> Text,
+        subject -> Text,
+        body -> Text,
+        html -> Nullable<Text>,
+        headers -> Nullable<Text>,
+        created_at -> Text,
+        attempts -> Integer,
+        next_attempt_at -> Text,
+        give_up_at -> Text,
+        sent_at -> Nullable<Text>,
+        failed_at -> Nullable<Text>,
+        last_error -> Nullable<Text>,
+    }
+}
+
+diesel::table! {
+    daily_prompts (id) {
+        id -> Text,
+        day -> Nullable<Text>,
+        position -> Nullable<Integer>,
+        body -> Text,
+        source -> Text,
+        created_by -> Nullable<Text>,
+        created_at -> Text,
+        updated_at -> Text,
+    }
+}
+
+diesel::table! {
+    prompt_enrollments (user_id) {
+        user_id -> Text,
+        enrolled_at -> Text,
+        left_at -> Nullable<Text>,
+        email_enabled -> Bool,
+        email_local_time -> Text,
+        email_timezone -> Text,
+        unsubscribe_token -> Text,
+        updated_at -> Text,
+    }
+}
+
+diesel::table! {
+    prompt_entries (id) {
+        id -> Text,
+        prompt_id -> Text,
+        author_id -> Text,
+        body -> Text,
+        content_hash -> Text,
+        word_count -> Integer,
+        state -> Text,
+        submitted_at -> Nullable<Text>,
+        edited_at -> Nullable<Text>,
+        converted_work_id -> Nullable<Text>,
+        created_at -> Text,
+        updated_at -> Text,
+    }
+}
+
+diesel::table! {
+    prompt_critiques (id) {
+        id -> Text,
+        entry_id -> Text,
+        parent_id -> Nullable<Text>,
+        author_id -> Text,
+        body -> Text,
+        edited_at -> Nullable<Text>,
+        deleted_at -> Nullable<Text>,
+        created_at -> Text,
+        updated_at -> Text,
+    }
+}
+
+diesel::table! {
+    prompt_critique_reports (id) {
+        id -> Text,
+        critique_id -> Text,
+        reporter_id -> Text,
+        reason -> Text,
+        detail -> Nullable<Text>,
+        created_at -> Text,
+    }
+}
+
+diesel::table! {
+    inbox_items (id) {
+        id -> Text,
+        user_id -> Text,
+        kind -> Text,
+        subject_type -> Text,
+        subject_id -> Text,
+        context_type -> Nullable<Text>,
+        context_id -> Nullable<Text>,
+        actor_id -> Nullable<Text>,
+        detail -> Nullable<Text>,
+        created_at -> Text,
+        read_at -> Nullable<Text>,
+    }
+}
+
+diesel::table! {
+    inbox_digests (user_id, day) {
+        user_id -> Text,
+        day -> Text,
+        summary_json -> Text,
+        created_at -> Text,
+        read_at -> Nullable<Text>,
+    }
+}
+
+diesel::table! {
+    prompt_email_sends (user_id, day) {
+        user_id -> Text,
+        day -> Text,
+        sent_at -> Text,
+    }
+}
+
+diesel::joinable!(prompt_entries -> daily_prompts (prompt_id));
+diesel::joinable!(prompt_entries -> users (author_id));
+diesel::joinable!(prompt_critiques -> prompt_entries (entry_id));
+diesel::joinable!(prompt_critiques -> users (author_id));
+diesel::joinable!(prompt_critique_reports -> prompt_critiques (critique_id));
+diesel::joinable!(prompt_enrollments -> users (user_id));
+diesel::joinable!(prompt_email_sends -> users (user_id));
+
 diesel::allow_tables_to_appear_in_same_query!(
     annotations,
     chapters,
@@ -653,4 +794,14 @@ diesel::allow_tables_to_appear_in_same_query!(
     export_last_options,
     export_history,
     dictionary_words,
+    job_runs,
+    mail_queue,
+    daily_prompts,
+    prompt_enrollments,
+    prompt_entries,
+    prompt_critiques,
+    prompt_critique_reports,
+    inbox_items,
+    inbox_digests,
+    prompt_email_sends,
 );

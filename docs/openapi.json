@@ -96,6 +96,71 @@
         ],
         "type": "object"
       },
+      "AdminDay": {
+        "properties": {
+          "day": {
+            "type": "string"
+          },
+          "entries": {
+            "description": "Answers started, drafts included: a prompt with any cannot be deleted.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "opened": {
+            "type": "boolean"
+          },
+          "prompt": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DailyPrompt"
+              }
+            ]
+          }
+        },
+        "required": [
+          "day",
+          "entries",
+          "opened"
+        ],
+        "type": "object"
+      },
+      "AdminPrompts": {
+        "properties": {
+          "days": {
+            "description": "Tomorrow and the two weeks after it, then today and the two weeks before.",
+            "items": {
+              "$ref": "#/components/schemas/AdminDay"
+            },
+            "type": "array"
+          },
+          "queue": {
+            "description": "The queue, in the order it will be used.",
+            "items": {
+              "$ref": "#/components/schemas/DailyPrompt"
+            },
+            "type": "array"
+          },
+          "today": {
+            "type": "string"
+          },
+          "warning": {
+            "description": "Set when fewer than seven are queued.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "today",
+          "queue",
+          "days"
+        ],
+        "type": "object"
+      },
       "Align": {
         "enum": [
           "left",
@@ -234,6 +299,27 @@
           }
         ]
       },
+      "ArchivePage": {
+        "properties": {
+          "nextBefore": {
+            "description": "Pass as `before` for the page after this one; unset at the first day.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "prompts": {
+            "items": {
+              "$ref": "#/components/schemas/PromptView"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "prompts"
+        ],
+        "type": "object"
+      },
       "AssistRequest": {
         "properties": {
           "after": {
@@ -317,7 +403,10 @@
           "summaries_allowed",
           "summaries_withdrawn",
           "assistant_allowed",
-          "assistant_withdrawn"
+          "assistant_withdrawn",
+          "admin_granted",
+          "admin_revoked",
+          "prompt_edited"
         ],
         "type": "string"
       },
@@ -1573,6 +1662,155 @@
         ],
         "type": "object"
       },
+      "CritiqueReportView": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PromptCritiqueReport"
+          },
+          {
+            "properties": {
+              "critique": {
+                "$ref": "#/components/schemas/CritiqueView"
+              },
+              "reporter": {
+                "$ref": "#/components/schemas/AuthorCard"
+              }
+            },
+            "required": [
+              "reporter",
+              "critique"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "CritiqueRequest": {
+        "properties": {
+          "body": {
+            "type": "string"
+          },
+          "parentId": {
+            "description": "The critique this replies to.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "body"
+        ],
+        "type": "object"
+      },
+      "CritiqueView": {
+        "properties": {
+          "author": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AuthorCard",
+                "description": "Unset on a removed critique kept for its replies."
+              }
+            ]
+          },
+          "body": {
+            "description": "Empty when removed.",
+            "type": "string"
+          },
+          "canRemove": {
+            "description": "The caller may delete it: their own, or any on their own answer.",
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "editedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "entryId": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "mine": {
+            "type": "boolean"
+          },
+          "parentId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "removed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "entryId",
+          "body",
+          "removed",
+          "createdAt",
+          "mine",
+          "canRemove"
+        ],
+        "type": "object"
+      },
+      "DailyPrompt": {
+        "properties": {
+          "body": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "createdBy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "day": {
+            "description": "`YYYY-MM-DD`, the Pacific prompt day; `None` while it waits in the queue.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "position": {
+            "description": "Its place in the queue.",
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "source": {
+            "description": "`curated` or `ai`. Only admins see it.",
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "body",
+          "source",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
       "DeleteAccountRequest": {
         "properties": {
           "code": {
@@ -1697,6 +1935,52 @@
         ],
         "type": "object"
       },
+      "DigestCount": {
+        "properties": {
+          "count": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "kind": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "count"
+        ],
+        "type": "object"
+      },
+      "DigestView": {
+        "properties": {
+          "counts": {
+            "items": {
+              "$ref": "#/components/schemas/DigestCount"
+            },
+            "type": "array"
+          },
+          "day": {
+            "description": "The day it sums up.",
+            "type": "string"
+          },
+          "readAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "text": {
+            "description": "\"Yesterday: 4 critiques and 2 replies on your answer to '…'. Today's\nprompt is open.\"",
+            "type": "string"
+          }
+        },
+        "required": [
+          "day",
+          "text",
+          "counts"
+        ],
+        "type": "object"
+      },
       "DisableTwoFactorRequest": {
         "properties": {
           "code": {
@@ -1772,6 +2056,139 @@
           "ok"
         ],
         "type": "object"
+      },
+      "EditCritiqueRequest": {
+        "properties": {
+          "body": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "body"
+        ],
+        "type": "object"
+      },
+      "EnrollmentView": {
+        "properties": {
+          "emailEnabled": {
+            "type": "boolean"
+          },
+          "emailLocalTime": {
+            "description": "`HH:MM` in `email_timezone`.",
+            "type": "string"
+          },
+          "emailTimezone": {
+            "type": "string"
+          },
+          "emailVerified": {
+            "description": "Email can only be turned on for a confirmed address.",
+            "type": "boolean"
+          },
+          "enrolled": {
+            "type": "boolean"
+          },
+          "enrolledAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "opensAtLocal": {
+            "description": "When today's prompt opens (and so when it closes), as `HH:MM` in\n`email_timezone`, for the note beside the time.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "enrolled",
+          "emailEnabled",
+          "emailLocalTime",
+          "emailTimezone",
+          "emailVerified",
+          "opensAtLocal"
+        ],
+        "type": "object"
+      },
+      "EntryCard": {
+        "properties": {
+          "author": {
+            "$ref": "#/components/schemas/AuthorCard"
+          },
+          "critiqueCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "day": {
+            "type": "string"
+          },
+          "editedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "excerpt": {
+            "description": "The first few lines.",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "late": {
+            "type": "boolean"
+          },
+          "mine": {
+            "type": "boolean"
+          },
+          "submittedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "wordCount": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "day",
+          "author",
+          "excerpt",
+          "wordCount",
+          "critiqueCount",
+          "late",
+          "mine"
+        ],
+        "type": "object"
+      },
+      "EntryPage": {
+        "properties": {
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/EntryCard"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "entries"
+        ],
+        "type": "object"
+      },
+      "EntryState": {
+        "enum": [
+          "draft",
+          "submitted",
+          "withdrawn"
+        ],
+        "type": "string"
       },
       "EntryView": {
         "allOf": [
@@ -2204,6 +2621,81 @@
         ],
         "type": "object"
       },
+      "InboxItemView": {
+        "properties": {
+          "actor": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AuthorCard"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "link": {
+            "description": "A path in the web app.",
+            "type": "string"
+          },
+          "readAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "text",
+          "link",
+          "createdAt"
+        ],
+        "type": "object"
+      },
+      "InboxPage": {
+        "properties": {
+          "digest": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DigestView",
+                "description": "The newest unread summary, pinned above the items."
+              }
+            ]
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/InboxItemView"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
       "InviteRequest": {
         "properties": {
           "circleId": {
@@ -2271,6 +2763,109 @@
           "code",
           "message"
         ],
+        "type": "object"
+      },
+      "JobHealth": {
+        "properties": {
+          "lastTick": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "problems": {
+            "description": "What is late, if anything.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "ok",
+          "problems"
+        ],
+        "type": "object"
+      },
+      "JobRun": {
+        "properties": {
+          "attempts": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "finishedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "job": {
+            "type": "string"
+          },
+          "key": {
+            "description": "What the run is for: the day, for a daily job.",
+            "type": "string"
+          },
+          "startedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "job",
+          "key",
+          "startedAt",
+          "attempts"
+        ],
+        "type": "object"
+      },
+      "JobsReport": {
+        "properties": {
+          "health": {
+            "$ref": "#/components/schemas/JobHealth"
+          },
+          "mailFailed": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "mailWaiting": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "runs": {
+            "description": "The most recent runs, newest first.",
+            "items": {
+              "$ref": "#/components/schemas/JobRun"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "health",
+          "runs",
+          "mailWaiting",
+          "mailFailed"
+        ],
+        "type": "object"
+      },
+      "JoinRequest": {
+        "properties": {
+          "timezone": {
+            "description": "The writer's timezone (IANA), from their browser. Sets the default\ntime for the email, which stays off until they turn it on.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
         "type": "object"
       },
       "LastUsed": {
@@ -2594,6 +3189,24 @@
           "keywords",
           "contributors",
           "hasCover"
+        ],
+        "type": "object"
+      },
+      "NewPromptRequest": {
+        "properties": {
+          "body": {
+            "type": "string"
+          },
+          "day": {
+            "description": "Pin it to this future day instead of queueing it.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "body"
         ],
         "type": "object"
       },
@@ -3122,6 +3735,197 @@
         ],
         "type": "object"
       },
+      "PromptCritiqueReport": {
+        "properties": {
+          "createdAt": {
+            "type": "string"
+          },
+          "critiqueId": {
+            "type": "string"
+          },
+          "detail": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/ReportReason"
+          },
+          "reporterId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "critiqueId",
+          "reporterId",
+          "reason",
+          "createdAt"
+        ],
+        "type": "object"
+      },
+      "PromptEntry": {
+        "properties": {
+          "authorId": {
+            "type": "string"
+          },
+          "contentHash": {
+            "type": "string"
+          },
+          "convertedWorkId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "editedAt": {
+            "description": "The last change made after submitting.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "promptId": {
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/components/schemas/EntryState",
+            "description": "`draft`, `submitted` or `withdrawn`."
+          },
+          "submittedAt": {
+            "description": "The first submission. Never moved by an edit or a resubmission.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updatedAt": {
+            "type": "string"
+          },
+          "wordCount": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "promptId",
+          "authorId",
+          "contentHash",
+          "wordCount",
+          "state",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "PromptEntryView": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PromptEntry"
+          },
+          {
+            "properties": {
+              "author": {
+                "$ref": "#/components/schemas/AuthorCard"
+              },
+              "content": {
+                "description": "The answer, as a ProseMirror document.",
+                "type": "object"
+              },
+              "convertedWork": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/WorkLink",
+                    "description": "The last project made from it, if it still exists."
+                  }
+                ]
+              },
+              "critiqueCount": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "day": {
+                "type": "string"
+              },
+              "late": {
+                "type": "boolean"
+              },
+              "mine": {
+                "type": "boolean"
+              },
+              "prompt": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "day",
+              "prompt",
+              "content",
+              "author",
+              "late",
+              "critiqueCount",
+              "mine"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "PromptView": {
+        "properties": {
+          "body": {
+            "type": "string"
+          },
+          "closesAt": {
+            "type": "string"
+          },
+          "day": {
+            "description": "`YYYY-MM-DD`, Pacific.",
+            "type": "string"
+          },
+          "myEntryId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "myState": {
+            "description": "The caller's own answer: `none`, or the entry's state.",
+            "type": "string"
+          },
+          "opensAt": {
+            "description": "When it opened and when it closes.",
+            "type": "string"
+          },
+          "submissions": {
+            "description": "How many have been submitted, late ones included.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "day",
+          "body",
+          "opensAt",
+          "closesAt",
+          "myState",
+          "submissions"
+        ],
+        "type": "object"
+      },
       "Publication": {
         "properties": {
           "closesAt": {
@@ -3553,6 +4357,21 @@
         ],
         "type": "object"
       },
+      "ReorderPromptsRequest": {
+        "properties": {
+          "ids": {
+            "description": "Every queued prompt's id, in the new order.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "ids"
+        ],
+        "type": "object"
+      },
       "ReorderRequest": {
         "properties": {
           "ids": {
@@ -3894,6 +4713,31 @@
           }
         ]
       },
+      "SaveEntryRequest": {
+        "properties": {
+          "baseHash": {
+            "description": "The hash the edit was made on top of; a save against something newer\nis refused with 409, as scene saves are.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "content": {
+            "type": "object"
+          },
+          "localDay": {
+            "description": "The writer's own date, for their daily goal.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "content"
+        ],
+        "type": "object"
+      },
       "SaveProfileRequest": {
         "properties": {
           "name": {
@@ -4084,6 +4928,22 @@
           "chapterId",
           "title",
           "snippet"
+        ],
+        "type": "object"
+      },
+      "ScenePreview": {
+        "properties": {
+          "firstLine": {
+            "type": "string"
+          },
+          "wordCount": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "firstLine",
+          "wordCount"
         ],
         "type": "object"
       },
@@ -4970,6 +5830,42 @@
         ],
         "type": "object"
       },
+      "ToWorkPreview": {
+        "properties": {
+          "blankParagraphSplits": {
+            "description": "Whether a blank paragraph separated scenes, from the writer's setting.",
+            "type": "boolean"
+          },
+          "scenes": {
+            "items": {
+              "$ref": "#/components/schemas/ScenePreview"
+            },
+            "type": "array"
+          },
+          "title": {
+            "description": "A title from the prompt, for the dialog to offer.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "scenes",
+          "blankParagraphSplits"
+        ],
+        "type": "object"
+      },
+      "ToWorkRequest": {
+        "properties": {
+          "title": {
+            "description": "Unset, the title the preview offered.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
       "TocChapter": {
         "properties": {
           "chapterId": {
@@ -4995,6 +5891,21 @@
           "title",
           "sceneIds",
           "wordCount"
+        ],
+        "type": "object"
+      },
+      "TodayResponse": {
+        "properties": {
+          "enrolled": {
+            "type": "boolean"
+          },
+          "prompt": {
+            "$ref": "#/components/schemas/PromptView"
+          }
+        },
+        "required": [
+          "prompt",
+          "enrolled"
         ],
         "type": "object"
       },
@@ -5106,6 +6017,19 @@
         ],
         "type": "object"
       },
+      "UnreadCount": {
+        "properties": {
+          "count": {
+            "description": "Unread items, plus one for an unread summary.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "count"
+        ],
+        "type": "object"
+      },
       "UpdateAnnotationRequest": {
         "properties": {
           "from": {
@@ -5206,6 +6130,31 @@
           },
           "state": {
             "description": "`open` or `resolved`; only the author of the work may resolve.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "UpdateEnrollmentRequest": {
+        "properties": {
+          "emailEnabled": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "emailLocalTime": {
+            "description": "`HH:MM`.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "emailTimezone": {
+            "description": "An IANA name.",
             "type": [
               "string",
               "null"
@@ -5357,6 +6306,28 @@
         },
         "type": "object"
       },
+      "UpdatePromptRequest": {
+        "properties": {
+          "body": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "day": {
+            "description": "Pin to this future day.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "unpin": {
+            "description": "Take it off its day and put it at the end of the queue.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
       "UpdatePublicationRequest": {
         "properties": {
           "closesAt": {
@@ -5471,6 +6442,18 @@
           "title": {
             "type": [
               "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "UpdateSettingsRequest": {
+        "properties": {
+          "doubleEnterSplitsScenes": {
+            "description": "Turning text into a project also splits scenes at a blank paragraph.",
+            "type": [
+              "boolean",
               "null"
             ]
           }
@@ -5650,6 +6633,10 @@
           "displayName": {
             "type": "string"
           },
+          "doubleEnterSplitsScenes": {
+            "description": "Turning text into a project splits scenes at a blank paragraph (double\nEnter) as well as at a `--` line.",
+            "type": "boolean"
+          },
           "email": {
             "type": "string"
           },
@@ -5662,6 +6649,10 @@
           },
           "id": {
             "type": "string"
+          },
+          "isAdmin": {
+            "description": "A site administrator: curates the daily prompts. Set from the command\nline only; no request body can change it.",
+            "type": "boolean"
           },
           "legalName": {
             "description": "Contact details for a submission's first page. Kept on the writer rather\nthan the work, since they are the same for every submission.",
@@ -5727,7 +6718,9 @@
           "email",
           "displayName",
           "createdAt",
-          "updatedAt"
+          "updatedAt",
+          "isAdmin",
+          "doubleEnterSplitsScenes"
         ],
         "type": "object"
       },
@@ -6279,6 +7272,21 @@
         ],
         "type": "string"
       },
+      "WorkLink": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title"
+        ],
+        "type": "object"
+      },
       "WorkStatus": {
         "enum": [
           "draft",
@@ -6401,6 +7409,242 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/admin/jobs": {
+      "get": {
+        "operationId": "jobs",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobsReport"
+                }
+              }
+            },
+            "description": "What ran, what failed, what is late"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not an admin"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/prompts": {
+      "get": {
+        "operationId": "list_prompts",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPrompts"
+                }
+              }
+            },
+            "description": "The queue and the days around today"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not an admin"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "operationId": "create_prompt",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewPromptRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPrompts"
+                }
+              }
+            },
+            "description": "Queued, or pinned"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/prompts/reorder": {
+      "post": {
+        "operationId": "reorder_prompts",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReorderPromptsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPrompts"
+                }
+              }
+            },
+            "description": "Reordered"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/prompts/{prompt_id}": {
+      "delete": {
+        "operationId": "delete_prompt",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "prompt_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPrompts"
+                }
+              }
+            },
+            "description": "Deleted"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Someone has written to it"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      },
+      "patch": {
+        "operationId": "update_prompt",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "prompt_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePromptRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPrompts"
+                }
+              }
+            },
+            "description": "Saved"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/annotations/{annotation_id}": {
       "delete": {
         "operationId": "delete_annotation",
@@ -7742,6 +8986,201 @@
         ]
       }
     },
+    "/api/inbox": {
+      "get": {
+        "operationId": "list",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboxPage"
+                }
+              }
+            },
+            "description": "Newest first, the unread summary pinned"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "inbox"
+        ]
+      }
+    },
+    "/api/inbox/digests/{day}/read": {
+      "post": {
+        "operationId": "read_digest",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "day",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnreadCount"
+                }
+              }
+            },
+            "description": "The summary is read, and no longer pinned"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "inbox"
+        ]
+      }
+    },
+    "/api/inbox/read-all": {
+      "post": {
+        "operationId": "read_all",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnreadCount"
+                }
+              }
+            },
+            "description": "Everything is read, the summary too"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "inbox"
+        ]
+      }
+    },
+    "/api/inbox/unread-count": {
+      "get": {
+        "operationId": "unread_count",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnreadCount"
+                }
+              }
+            },
+            "description": "For the bell"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "inbox"
+        ]
+      }
+    },
+    "/api/inbox/{item_id}/read": {
+      "post": {
+        "operationId": "read_one",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnreadCount"
+                }
+              }
+            },
+            "description": "Read"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "inbox"
+        ]
+      }
+    },
     "/api/live/ticket": {
       "post": {
         "operationId": "ticket",
@@ -8436,6 +9875,47 @@
         ]
       }
     },
+    "/api/me/settings": {
+      "patch": {
+        "operationId": "update_settings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSettingsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            },
+            "description": "Saved"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "The writer's own settings, the ones every device reads from the account\n(`GET /api/me`) rather than keeping locally.",
+        "tags": [
+          "account"
+        ]
+      }
+    },
     "/api/me/summaries": {
       "delete": {
         "operationId": "withdraw",
@@ -8930,6 +10410,1003 @@
         },
         "tags": [
           "notebook"
+        ]
+      }
+    },
+    "/api/prompt-critiques/{critique_id}": {
+      "delete": {
+        "operationId": "delete_critique",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "critique_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Removed"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "critiques"
+        ]
+      },
+      "patch": {
+        "operationId": "update",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "critique_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EditCritiqueRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CritiqueView"
+                }
+              }
+            },
+            "description": "Saved, and marked edited"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "critiques"
+        ]
+      }
+    },
+    "/api/prompt-critiques/{critique_id}/report": {
+      "post": {
+        "operationId": "report",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "critique_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Reported to the answer's writer"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "critiques"
+        ]
+      }
+    },
+    "/api/prompt-entries/{entry_id}": {
+      "get": {
+        "operationId": "get_one",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptEntryView"
+                }
+              }
+            },
+            "description": "The whole answer"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "prompts"
+        ]
+      }
+    },
+    "/api/prompt-entries/{entry_id}/critiques": {
+      "get": {
+        "operationId": "list",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CritiqueView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "The whole tree, flat, oldest first; nest by parentId"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "critiques"
+        ]
+      },
+      "post": {
+        "operationId": "create",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CritiqueRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CritiqueView"
+                }
+              }
+            },
+            "description": "Posted"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "critiques"
+        ]
+      }
+    },
+    "/api/prompt-entries/{entry_id}/reports": {
+      "get": {
+        "operationId": "list_reports",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CritiqueReportView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "What was reported on the caller's own answer"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "critiques"
+        ]
+      }
+    },
+    "/api/prompt-entries/{entry_id}/to-work": {
+      "post": {
+        "operationId": "to_work",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ToWorkRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutlineResponse"
+                }
+              }
+            },
+            "description": "The new work, a copy; the answer is unchanged"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "prompts"
+        ]
+      }
+    },
+    "/api/prompt-entries/{entry_id}/to-work/preview": {
+      "post": {
+        "operationId": "to_work_preview",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToWorkPreview"
+                }
+              }
+            },
+            "description": "The scenes it would make; nothing is created"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "prompts"
+        ]
+      }
+    },
+    "/api/prompts": {
+      "get": {
+        "operationId": "archive",
+        "parameters": [
+          {
+            "description": "Days before this one (`YYYY-MM-DD`). Unset, the days before today.",
+            "in": "query",
+            "name": "before",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArchivePage"
+                }
+              }
+            },
+            "description": "Past prompts, newest first"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "prompts"
+        ]
+      }
+    },
+    "/api/prompts/enrollment": {
+      "delete": {
+        "operationId": "leave",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnrollmentView"
+                }
+              }
+            },
+            "description": "Left. Submitted answers and critiques stay where they are."
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "prompts"
+        ]
+      },
+      "get": {
+        "operationId": "get_enrollment",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnrollmentView"
+                }
+              }
+            },
+            "description": "Whether the caller takes part, and how"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "prompts"
+        ]
+      },
+      "patch": {
+        "operationId": "update_enrollment",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateEnrollmentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnrollmentView"
+                }
+              }
+            },
+            "description": "Saved"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "prompts"
+        ]
+      },
+      "post": {
+        "operationId": "join",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JoinRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnrollmentView"
+                }
+              }
+            },
+            "description": "Joined"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "prompts"
+        ]
+      }
+    },
+    "/api/prompts/today": {
+      "get": {
+        "operationId": "today_prompt",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TodayResponse"
+                }
+              }
+            },
+            "description": "Today's prompt"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "prompts"
+        ]
+      }
+    },
+    "/api/prompts/unsubscribe": {
+      "post": {
+        "operationId": "unsubscribe",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "The email is off"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "That link is not one of ours"
+          }
+        },
+        "summary": "One click, signed in or not: the link in the email's footer (through the\nweb page) and mail clients' `List-Unsubscribe-Post` both land here. Turns\nthe email off and nothing else.",
+        "tags": [
+          "prompts"
+        ]
+      }
+    },
+    "/api/prompts/{day}": {
+      "get": {
+        "operationId": "one_day",
+        "parameters": [
+          {
+            "description": "YYYY-MM-DD",
+            "in": "path",
+            "name": "day",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptView"
+                }
+              }
+            },
+            "description": "That day's prompt"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "No prompt that day, or not open yet"
+          }
+        },
+        "tags": [
+          "prompts"
+        ]
+      }
+    },
+    "/api/prompts/{day}/entries": {
+      "get": {
+        "operationId": "feed",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "day",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`newest` (the default) or `fewest_critiques`.",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntryPage"
+                }
+              }
+            },
+            "description": "The day's submitted answers, late ones too"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not enrolled"
+          }
+        },
+        "tags": [
+          "prompts"
+        ]
+      }
+    },
+    "/api/prompts/{day}/entry": {
+      "delete": {
+        "operationId": "delete_entry",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "day",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Gone, with all its critiques"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "prompts"
+        ]
+      },
+      "get": {
+        "operationId": "get_entry",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "day",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptEntryView"
+                }
+              }
+            },
+            "description": "The caller's answer"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not started"
+          }
+        },
+        "tags": [
+          "prompts"
+        ]
+      },
+      "put": {
+        "operationId": "save_entry",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "day",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveEntryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptEntryView"
+                }
+              }
+            },
+            "description": "Saved"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Changed somewhere else since"
+          }
+        },
+        "tags": [
+          "prompts"
+        ]
+      }
+    },
+    "/api/prompts/{day}/entry/submit": {
+      "post": {
+        "operationId": "submit",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "day",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptEntryView"
+                }
+              }
+            },
+            "description": "Readable by every enrolled writer"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "prompts"
+        ]
+      }
+    },
+    "/api/prompts/{day}/entry/withdraw": {
+      "post": {
+        "operationId": "withdraw",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "day",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptEntryView"
+                }
+              }
+            },
+            "description": "Private again; its critiques are kept"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "prompts"
         ]
       }
     },
@@ -13827,6 +16304,22 @@
     {
       "description": "Co-authors, their roles, and what they did",
       "name": "collaboration"
+    },
+    {
+      "description": "Daily Prompts: a prompt a day, written and shared",
+      "name": "prompts"
+    },
+    {
+      "description": "Threaded critiques of Daily Prompts answers",
+      "name": "critiques"
+    },
+    {
+      "description": "What happened that you should hear about",
+      "name": "inbox"
+    },
+    {
+      "description": "For site administrators",
+      "name": "admin"
     }
   ]
 }

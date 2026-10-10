@@ -107,7 +107,7 @@ public struct APIClient: Sendable {
         return request
     }
 
-    private func send<T: Decodable>(
+    func send<T: Decodable>(
         _ method: String,
         _ path: String,
         body: Encodable? = nil,

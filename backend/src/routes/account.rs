@@ -183,7 +183,7 @@ pub async fn send_verification(state: &AppState, user: &User) -> ApiResult<()> {
                 "Hello {},\n\nConfirm this is your address, so drafts and books shared with it reach you:\n\n{}/verify?token={token}\n\nThe link lasts {VERIFY_HOURS} hours. If you did not sign up, ignore this and nothing happens.\n",
                 user.display_name, state.config.public_url
             ),
-        })
+            ..Default::default()        })
         .await
 }
 
@@ -363,7 +363,7 @@ pub async fn forgot(
                     "Hello {},\n\nSomeone asked to reset the password on this account. If it was you:\n\n{}/reset?token={token}\n\nThe link lasts {RESET_MINUTES} minutes and works once. Using it signs out every device. If it was not you, ignore this; your password has not changed.\n",
                     user.display_name, state.config.public_url
                 ),
-            })
+                ..Default::default()            })
             .await;
         // The answer is the same either way; a failure is for the logs.
         if let Err(e) = sent {
@@ -416,6 +416,43 @@ pub async fn reset(
     })
     .await?;
     Ok(Json(Done { ok: true }))
+}
+
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateSettingsRequest {
+    /// Turning text into a project also splits scenes at a blank paragraph.
+    #[serde(default)]
+    pub double_enter_splits_scenes: Option<bool>,
+}
+
+/// The writer's own settings, the ones every device reads from the account
+/// (`GET /api/me`) rather than keeping locally.
+#[utoipa::path(
+    patch,
+    path = "/api/me/settings",
+    tag = "account",
+    request_body = UpdateSettingsRequest,
+    responses(
+        (status = 200, description = "Saved", body = User),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
+pub async fn update_settings(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Json(body): Json<UpdateSettingsRequest>,
+) -> ApiResult<Json<User>> {
+    let updated = blocking(&state.pool, move |conn| {
+        if let Some(on) = body.double_enter_splits_scenes {
+            diesel::update(users::table.find(&user.id))
+                .set(users::double_enter_splits_scenes.eq(on))
+                .execute(conn)?;
+        }
+        support::find_user(conn, &user.id)
+    })
+    .await?;
+    Ok(Json(updated))
 }
 
 #[utoipa::path(

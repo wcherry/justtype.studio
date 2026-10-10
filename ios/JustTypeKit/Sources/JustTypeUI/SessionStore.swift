@@ -29,8 +29,23 @@ public final class SessionStore: ObservableObject {
         self.sync = SyncEngine(client: client, store: LocalStore(), queue: SaveQueue())
     }
 
+    /// Unread in the inbox, for the tab's badge. Read on coming to the front
+    /// and on opening the inbox: there is no push yet, so a badge on the app
+    /// icon would be stale most of the time and is not shown.
+    @Published public private(set) var unread = 0
+
+    public func refreshUnread() async {
+        if let count = try? await client.unreadCount() { unread = count }
+    }
+
+    public func setUnread(_ count: Int) { unread = count }
+
+    /// After a setting changes, so every screen reads the account's value.
+    public func replaceUser(_ next: API.User) { user = next }
+
     /// Called when the app comes back to the foreground, and after every save.
     public func catchUp() async {
+        await refreshUnread()
         let outcomes = await sync.flush()
         working = !outcomes.values.contains(.queued)
         pending = await sync.pendingCount

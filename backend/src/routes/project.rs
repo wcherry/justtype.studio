@@ -312,7 +312,7 @@ pub async fn import_work(
 }
 
 /// Makes the book a project describes, for `user`.
-async fn create_from(
+pub(crate) async fn create_from(
     state: &AppState,
     user: AuthUser,
     project: Project,

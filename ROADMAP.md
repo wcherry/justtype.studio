@@ -838,16 +838,16 @@ A prompt a day, for enrolled writers: by email, or under **Daily Prompts** in
 the header. Write an answer; keep it, submit it for other writers to read and
 critique, or turn it into a project. The day is Pacific time, the server's.
 
-### 9.1 Groundwork · **Later**
+### 9.1 Groundwork · **Done**
 - A job runner that survives restarts and runs each job once, and the Pacific
   prompt day. Site administrators, the first role that is not one work's.
 
-### 9.2 Prompts · **Later**
+### 9.2 Prompts · **Done**
 - A curated queue with an admin page, and prompts pinned to a date. Claude
   writes one the day before when the queue is empty, and a built-in list
   covers a failed call. An archive of every past day, still open to write on.
 
-### 9.3 Writing and sharing · **Later**
+### 9.3 Writing and sharing · **Done**
 - Opt-in enrollment. A private, autosaved answer in the editor's single-scene
   mode; submit, edit (marked), withdraw. A feed of the day's submissions,
   visible to enrolled writers only.
@@ -855,20 +855,29 @@ critique, or turn it into a project. The day is Pacific time, the server's.
   reporting reaches the entry's author. Site moderation, blocking and live
   inbox notices come later.
 
-### 9.4 Into a project · **Later**
+### 9.4 Into a project · **Done**
 - Any answer becomes a new work, split into scenes at a line of `--`, and at
   a blank line when the writer has asked for that (a new *Writing* setting, on
   an Account page now split into *Account* and *Settings*). The prompt goes
   into the notebook.
 
-### 9.5 Reaching people · **Later**
+### 9.5 Reaching people · **Done** (email to the outbox until a sending domain is set up)
 - The prompt by email at each writer's chosen local time, with one-click
   unsubscribe. An in-app inbox — critiques, replies, a daily summary —
   built to take project comments next.
 
-### 9.6 iOS · **Later**
+### 9.6 iOS · **Done** (universal links need `JUSTTYPE_APPLE_APP_ID` on the server)
 - Writing, critiques, the inbox and the new setting on the phone; the email's
   link opens the app.
+
+Built as described, with these choices worth knowing: the job runner claims
+each daily run in `job_runs` and mail a job sends goes through a database
+queue (`mail_queue`) written in the same transaction; an answer's body lives in
+its row rather than a file; on the web, writing an answer is its own page
+built from the editor's parts (the same extensions, goals bar, writing room
+and type settings) rather than a mode of the book editor, and `--` typed at
+the start of a line stays `--` there instead of becoming an em dash. Still to
+come, as planned: moderation, blocking, live inbox notices, and push.
 
 ---
 

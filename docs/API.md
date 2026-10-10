@@ -635,6 +635,7 @@ It has no foreign keys, so the line saying an account was deleted outlives it.
 | Method | Path | Notes |
 |---|---|---|
 | `GET` | `/status` | public; `200` when every check passes, `503` otherwise — see `docs/OPERATIONS.md` |
+| `GET` | `/.well-known/apple-app-site-association` | (not under `/api`) lets the iOS app open `/prompts/…` links; served when `JUSTTYPE_APPLE_APP_ID` is set |
 
 Every response has an `x-request-id` header, and every error envelope repeats
 it as `error.requestId`. A client may send its own (8–64 letters, digits, `-`
@@ -821,3 +822,72 @@ publication; quotes are kept to 2,000 characters, notes to 500.
 `POST /works/{id}/tasks` also takes `quote`, the passage a to-do was written
 against (it needs `sceneId`).
 
+## Daily Prompts
+
+A prompt a day. A **prompt day** is a calendar day in Pacific time
+(`JUSTTYPE_PROMPT_TZ`, default `America/Los_Angeles`), following daylight
+saving, written `YYYY-MM-DD`. A day that has not opened is never returned by
+any route.
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/prompts/today` | `{ prompt, enrolled }`; the prompt carries `opensAt`, `closesAt`, the caller's `myState` (`none` or the entry's state) and `submissions` |
+| `GET` | `/prompts?before=&limit=` | the archive, newest first, days before today; `nextBefore` pages back |
+| `GET` | `/prompts/{day}` | one day; 404 for one not yet open |
+| `GET` / `POST` / `PATCH` / `DELETE` | `/prompts/enrollment` | join (`{ timezone }`, which sets the default email time), change `emailEnabled` / `emailLocalTime` (`HH:MM`) / `emailTimezone` (IANA), leave. Email needs a confirmed address (403). Leaving keeps the preferences for rejoining |
+| `POST` | `/prompts/unsubscribe?token=` | one click, no sign-in: turns the email off. Also the email's `List-Unsubscribe-Post` target |
+| `GET` / `PUT` / `DELETE` | `/prompts/{day}/entry` | the caller's own answer (404 when not started). `PUT { content, baseHash?, localDay? }` autosaves a private draft, refused with 409 when `baseHash` is stale; words count toward the day's goal as scene saves do. `DELETE` takes every critique and every inbox item about it |
+| `POST` | `/prompts/{day}/entry/submit`, `…/withdraw` | submit makes it readable by every enrolled writer; `submittedAt` is the first submission and never moves, and the answer is `late` when that came after its day closed. Editing a submitted answer sets `editedAt`. Withdrawing makes it private again and keeps its critiques |
+| `GET` | `/prompts/{day}/entries?sort=newest\|fewest_critiques&cursor=` | submitted answers only, late ones included; 403 unless enrolled |
+| `GET` | `/prompt-entries/{id}` | yours in any state, anyone's submitted one while you are enrolled |
+| `POST` | `/prompt-entries/{id}/to-work/preview` | the scenes your answer would split into, from your *double Enter* setting; nothing is made |
+| `POST` | `/prompt-entries/{id}/to-work` | `{ title? }` → a new work (an outline): one chapter of scenes, the prompt as a notebook note. A copy; the answer is unchanged and no words are counted again |
+
+Writing needs enrollment; reading your own answers does not. A writer who
+leaves stops seeing the feed, and their submitted answers stay in it.
+
+**Splitting into scenes.** A line that is only `--` always separates scenes
+(also between hard breaks inside a paragraph); `--` in a sentence, an em dash
+or `---` does not. A blank paragraph separates them when
+`users.doubleEnterSplitsScenes` is on (`PATCH /me/settings`); a run of them is
+one break. Empty scenes are dropped. The rule lives in `domain/split.rs`, and
+both clients show the preview rather than implementing it.
+
+### Critiques
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET` / `POST` | `/prompt-entries/{id}/critiques` | the whole tree, flat, oldest first, with `parentId`; `POST { body, parentId? }` (rate-limited by `JUSTTYPE_COMMENT_RATE`) |
+| `PATCH` / `DELETE` | `/prompt-critiques/{id}` | edit your own (marked `editedAt`); delete your own, or any on your own answer. One with replies stays as a `removed` placeholder |
+| `POST` | `/prompt-critiques/{id}/report` | `{ reason, detail? }`, reasons as for comments; goes to the answer's writer (and their inbox) |
+| `GET` | `/prompt-entries/{id}/reports` | the answer's writer only |
+
+Names are always shown. On a submitted answer every enrolled writer sees every
+critique; on a withdrawn one its writer sees them all, each critic their own,
+and nobody else any.
+
+### Inbox
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/inbox?cursor=` | `{ digest, items, nextCursor }`, newest first; `digest` is the newest unread daily summary, pinned |
+| `GET` | `/inbox/unread-count` | unread items, plus one for an unread summary |
+| `POST` | `/inbox/{id}/read`, `/inbox/digests/{day}/read`, `/inbox/read-all` | each returns the new count |
+
+Items: `prompt.critique` (your answer was critiqued), `prompt.reply` (a reply to
+your critique, or anywhere in a thread on your answer: once per event),
+`prompt.report`. Nobody is told about their own action. What each kind says
+and links to is in `domain/inbox.rs`; adding a kind is a registry entry.
+
+### Admin
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET` / `POST` | `/admin/prompts` | the queue and the days around today; `POST { body, day? }` queues one or pins it to a future day (409 if taken) |
+| `PATCH` / `DELETE` | `/admin/prompts/{id}` | `{ body?, day?, unpin? }`; an edit after the day opened is in the audit log; one with answers cannot be deleted |
+| `POST` | `/admin/prompts/reorder` | `{ ids }`, every queued id |
+| `GET` | `/admin/jobs` | the job runner's health, recent runs and the mail queue |
+
+Every `/admin/*` route is 403 for anyone who is not a site administrator.
+Admins are made with `cargo xtask admin grant <email>` (and `revoke`), never
+through the API.

@@ -15,6 +15,11 @@ interface Props {
   bookDeadline: string | null
   canSetBookTarget: boolean
   onSetBookTarget: (target: number | null, deadline: string | null) => void | Promise<void>
+  /**
+   * For writing that is not a book (a Daily Prompts answer): its words, so
+   * named, in place of the book's and the scene's targets.
+   */
+  pieceLabel?: string
 }
 
 /** Days from `from` to `to`, counting both: the deadline day is a writing day. */
@@ -62,7 +67,7 @@ function plural(n: number, word: string) {
  */
 export function GoalBar({
   summary, sessionWords, sceneWords, sceneTarget, onSetDailyGoal, onSetWeeklyGoal,
-  onSetSceneTarget, bookWords, bookTarget, bookDeadline, canSetBookTarget, onSetBookTarget,
+  onSetSceneTarget, bookWords, bookTarget, bookDeadline, canSetBookTarget, onSetBookTarget, pieceLabel,
 }: Props) {
   const [editing, setEditing] = useState<'daily' | 'weekly' | 'book' | 'scene' | null>(null)
 
@@ -102,6 +107,12 @@ export function GoalBar({
 
         <span className="goals__spacer" />
 
+        {pieceLabel ? (
+          <span className="goals__stat">
+            <strong>{sceneWords.toLocaleString()}</strong> {pieceLabel}
+          </span>
+        ) : (
+        <>
         <button
           type="button"
           className={goalClass(bookWords, bookTarget)}
@@ -125,6 +136,8 @@ export function GoalBar({
           <strong>{sceneWords.toLocaleString()}</strong>
           {sceneTarget ? ` of ${sceneTarget.toLocaleString()} in this scene` : ' in this scene'}
         </button>
+        </>
+        )}
       </div>
 
       {met && <p className="goals__met">Target met — {plural(today - goal, 'word')} past it.</p>}

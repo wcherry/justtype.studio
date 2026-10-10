@@ -1,11 +1,15 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import { useAuth } from '../state/auth'
 
 export function LoginPage() {
   const { login, register } = useAuth()
   const navigate = useNavigate()
+  // Sent here from somewhere (the link in the prompt email, say): go back there.
+  const location = useLocation()
+  const from = (location.state as { from?: { pathname: string; search?: string; hash?: string } } | null)?.from
+  const back = from ? `${from.pathname}${from.search ?? ''}${from.hash ?? ''}` : '/'
   const [mode, setMode] = useState<'login' | 'register'>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -24,7 +28,7 @@ export function LoginPage() {
     try {
       if (mode === 'login') await login(email, password, needsCode ? code : undefined)
       else await register(email, password, displayName, acceptTerms)
-      navigate('/')
+      navigate(back, { replace: true })
     } catch (e) {
       if (e instanceof ApiError && e.code === 'two_factor_required') {
         setNeedsCode(true)

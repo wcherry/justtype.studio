@@ -27,6 +27,18 @@ users ──┬─< works ──┬─< chapters ──< scenes ──┬─< sc
 | `export_last_options` | The options last used, per work per format | Opens the dialog; "Export again" repeats the newest |
 | `export_history` | What was exported, when, and a hash of the bytes | Draft exports keep the record only; version exports can be made again |
 | `users.about_author` | A paragraph reusable as back matter | Private |
+| `users.is_admin` | A site administrator | Set from the command line only (`--admin grant`), audited |
+| `users.double_enter_splits_scenes` | Whether a blank paragraph splits scenes when text becomes a project | Read by web and iOS from `/auth/me` |
+| `job_runs` | One row per scheduled run, keyed `(job, key)` (the day) | The key is the guard against running twice; a claim older than 15 minutes with no finish is taken over |
+| `mail_queue` | Mail a job decided to send | Written in the same transaction as the reason for it, delivered by the runner with backoff until `give_up_at` |
+| `daily_prompts` | A prompt: queued (`day` NULL, ordered by `position`) or assigned to a Pacific day | `source` is `curated`, `ai` or `evergreen`; never shown to writers |
+| `prompt_enrollments` | Taking part, and the email preferences | `left_at` set while away; `unsubscribe_token` for the one-click link |
+| `prompt_entries` | One answer per writer per prompt | Body is a ProseMirror document in the row (not a file), so a delete takes its critiques in one transaction; `submitted_at` is the first submission |
+| `prompt_critiques` | Critiques and replies, `parent_id` to any depth | Soft-deleted (`deleted_at`) when it has replies; a departing account's are blanked and credited to the former member |
+| `prompt_critique_reports` | Reports on critiques | Go to the answer's writer |
+| `inbox_items` | Something a writer should hear about | `kind` is open (`domain/inbox.rs`); subject and context say what to delete it with |
+| `inbox_digests` | Yesterday summed up, per writer with activity | `(user_id, day)` is the key, so it is built once |
+| `prompt_email_sends` | One row per writer per day the prompt was emailed | Written in the transaction that queues the mail |
 | `scenes` | The unit of writing | `content_hash` detects real changes; body is on disk |
 | `scene_revisions` | Autosave history | One row per checkpoint; body is on disk |
 | `tracked_changes` | Proposed edits | `pending → accepted / rejected` |

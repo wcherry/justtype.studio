@@ -10,6 +10,16 @@ public enum SaveOutcome: Equatable, Sendable {
     case conflict(message: String)
 }
 
+/// What became of saving a Daily Prompts answer.
+public enum EntrySaveOutcome: Equatable, Sendable {
+    case saved(API.PromptEntryView)
+    case queued
+    /// Saved elsewhere since: the writer chooses which to keep.
+    case conflict(message: String)
+    /// Refused for good (not enrolled, say). Not queued: it would fail again.
+    case refused(message: String)
+}
+
 /// What a read came from, so the writer can be told.
 public enum Freshness: Equatable, Sendable {
     case server
@@ -136,6 +146,69 @@ public actor SyncEngine {
         }
     }
 
+    // MARK: - Daily Prompts answers
+
+    /// The writer's answer to `day`, and the document to open: a queued edit
+    /// wins over the server's copy, as it does for a scene.
+    public func entry(day: String) async -> (entry: API.PromptEntryView?, document: API.DocNode?, freshness: Freshness) {
+        let key = PendingSave.entryKey(day: day)
+        // Reached the server: its answer, or none started. Did not: the copy here.
+        let reached: Bool
+        var entry: API.PromptEntryView?
+        do {
+            entry = try await client.entry(day: day)
+            reached = true
+            if let entry { await store.putEntry(entry) }
+        } catch {
+            entry = await store.entry(day: day)
+            reached = false
+        }
+        if let pending = await queue.pending(for: key) {
+            return (entry, pending.content, .local)
+        }
+        return (entry, entry?.document, reached ? .server : .local)
+    }
+
+    public func saveEntry(day: String, content: API.DocNode, baseHash: String?, localDay: String) async -> EntrySaveOutcome {
+        let key = PendingSave.entryKey(day: day)
+        do {
+            let saved = try await client.saveEntry(day: day, content: content, baseHash: baseHash, localDay: localDay)
+            await queue.remove(sceneId: key)
+            await store.putEntry(saved)
+            return .saved(saved)
+        } catch APIError.conflict(let message) {
+            await queue.enqueue(PendingSave(sceneId: key, content: content, baseHash: baseHash, createRevision: false, conflicted: true, day: day, localDay: localDay))
+            return .conflict(message: message)
+        } catch APIError.http(let status, _, let message) where (400..<500).contains(status) && status != 408 && status != 429 {
+            // Refused for good (not enrolled, say): queueing would retry forever.
+            return .refused(message: message)
+        } catch {
+            await queue.enqueue(PendingSave(sceneId: key, content: content, baseHash: baseHash, createRevision: false, day: day, localDay: localDay))
+            return .queued
+        }
+    }
+
+    /// The writer keeps their answer over the one saved elsewhere.
+    public func keepMyEntry(day: String) async -> EntrySaveOutcome {
+        let key = PendingSave.entryKey(day: day)
+        guard let pending = await queue.pending(for: key) else { return .queued }
+        guard let latest = try? await client.entry(day: day) else { return .queued }
+        await queue.rebase(sceneId: key, onto: latest.contentHash)
+        return await saveEntry(day: day, content: pending.content, baseHash: latest.contentHash, localDay: pending.localDay ?? Self.today())
+    }
+
+    public func discardMyEntry(day: String) async {
+        await queue.remove(sceneId: PendingSave.entryKey(day: day))
+    }
+
+    static func today() -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: Date())
+    }
+
     // MARK: - Catching up
 
     public var pendingCount: Int {
@@ -154,6 +227,18 @@ public actor SyncEngine {
     public func flush() async -> [String: SaveOutcome] {
         var outcomes: [String: SaveOutcome] = [:]
         for entry in await queue.all() where !entry.conflicted {
+            if let day = entry.day {
+                let sent = await saveEntry(day: day, content: entry.content, baseHash: entry.baseHash, localDay: entry.localDay ?? Self.today())
+                let outcome: SaveOutcome
+                switch sent {
+                case .saved(let saved): outcome = .saved(hash: saved.contentHash)
+                case .queued: outcome = .queued
+                case .conflict(let message), .refused(let message): outcome = .conflict(message: message)
+                }
+                outcomes[entry.sceneId] = outcome
+                if outcome == .queued { break }
+                continue
+            }
             let outcome = await save(
                 sceneId: entry.sceneId,
                 content: entry.content,

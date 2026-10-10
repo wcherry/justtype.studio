@@ -1,5 +1,5 @@
 <!--
-  Version 2. The backend serves this file as written (`GET /api/terms`) and
+  Version 3. The backend serves this file as written (`GET /api/terms`) and
   asks everyone to agree again when TERMS_VERSION in routes/privacy.rs goes up.
   Bump that constant with any change of substance.
 
@@ -53,6 +53,30 @@ you do, you choose who can read it: named readers, signed-in members, anyone
 with the link, or everyone. You can withdraw a publication at any time.
 Co-authors you add can work on the book according to the role you give them,
 and you can take them off again.
+
+## Daily Prompts
+
+Daily Prompts is something you join, and can leave, from its page. While you
+take part:
+
+- What you write in answer to a prompt is private, a draft only you can see,
+  until you submit it. A submitted answer can be read, with your name on it,
+  by everyone else who has joined Daily Prompts. You can edit it, withdraw it
+  (which makes it private again) or delete it at any time.
+- Critiques you write on other people's answers carry your name and can be
+  read by everyone who has joined. There are no anonymous critiques. A
+  critique can be reported to the writer of the answer, who can remove it.
+- If you leave, your submitted answers and your critiques stay where they are
+  for the others, and you can still open your own answers. Deleting your
+  account deletes your answers; your critiques are blanked, as notes are.
+- The daily email is off until you turn it on, and only goes to an address
+  you have confirmed. Every one has a link that turns it off with one click.
+- When nobody has queued a prompt for a day, it may be written by a model
+  Anthropic runs. It is told only the recent prompts, never anything anyone
+  wrote.
+
+Turning an answer into a project makes a copy as a new book of yours; the
+answer stays as it was.
 
 ## What readers leave
 

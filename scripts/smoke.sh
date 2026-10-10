@@ -57,6 +57,7 @@ JUSTTYPE_BACKUP_DIR="$TMP/backups" \
 JUSTTYPE_METRICS_TOKEN="smoke-metrics-token-0123456789" \
 JUSTTYPE_OUTBOX="$TMP/outbox.jsonl" \
 JUSTTYPE_PUBLIC_URL="http://justtype.test" \
+JUSTTYPE_TEST_CLOCK=1 \
 RUST_LOG=warn,justtype_backend::ops=info \
   "$ROOT/target/debug/justtype-backend" >"$TMP/server.log" 2>&1 &
 SERVER_PID=$!
@@ -1436,6 +1437,132 @@ print('  the feed finds a phrase in the published text:', rows[0]['snippet'].rep
 curl -s "$API/publications?q=field" | python3 -c "
 import sys,json;rows=json.load(sys.stdin);assert all(r['visibility']=='public' for r in rows), rows
 print(f'  signed out, the same search sees only public work ({len(rows)} found)')"
+
+step "Daily Prompts"
+for who in pat lee; do
+  curl -s -X POST "$API/auth/register" -H 'content-type: application/json' \
+    -d "{\"email\":\"$who@example.com\",\"password\":\"correcthorse\",\"displayName\":\"$who\",\"acceptTerms\":true}" >/dev/null
+  confirm "$who@example.com"
+done
+token_of() { curl -s -X POST "$API/auth/login" -H 'content-type: application/json' \
+  -d "{\"email\":\"$1@example.com\",\"password\":\"correcthorse\"}" | field accessToken; }
+PAUTH="Authorization: Bearer $(token_of pat)"
+LAUTH="Authorization: Bearer $(token_of lee)"
+# The same binary, against the same database, is the only way to make an admin.
+cli() {
+  JUSTTYPE_DATABASE_URL="$TMP/justtype.db" JUSTTYPE_DATA_DIR="$TMP/works" \
+  JUSTTYPE_JWT_SECRET="smoke-test-secret-value-1234567890" JUSTTYPE_MAIL=outbox \
+  JUSTTYPE_OUTBOX="$TMP/outbox.jsonl" RUST_LOG=error "$ROOT/target/debug/justtype-backend" "$@"
+}
+[ "$(code "$API/admin/prompts" -H "$AUTH")" = "403" ] && echo "  the admin page is closed to a writer" || { echo "  EXPECTED 403"; exit 1; }
+[ "$(code -X PATCH "$API/me/profile" -H "$AUTH" -H 'content-type: application/json' -d '{"isAdmin":true}')" = "200" ] \
+  && [ "$(code "$API/admin/prompts" -H "$AUTH")" = "403" ] && echo "  and no request body opens it" || { echo "  isAdmin was accepted"; exit 1; }
+cli --admin grant ada@example.com | sed 's/^/  /'
+[ "$(code "$API/admin/prompts" -H "$AUTH")" = "200" ] || { echo "  the grant did not take"; exit 1; }
+TOMORROW=$(curl -s "$API/admin/prompts" -H "$AUTH" | python3 -c "
+import sys,json,datetime;d=json.load(sys.stdin)
+print((datetime.date.fromisoformat(d['today'])+datetime.timedelta(days=1)).isoformat())")
+# From noon Pacific tomorrow already has its prompt, and an admin can change
+# it; before noon, an admin pins one.
+TOMORROW_ID=$(curl -s "$API/admin/prompts" -H "$AUTH" | python3 -c "
+import sys,json;d=json.load(sys.stdin)
+print(next((x['prompt']['id'] for x in d['days'] if x['day']=='$TOMORROW' and x['prompt']), ''))")
+if [ -n "$TOMORROW_ID" ]; then
+  curl -s -X PATCH "$API/admin/prompts/$TOMORROW_ID" -H "$AUTH" -H 'content-type: application/json' \
+    -d '{"body":"Write about the night the lighthouse went dark."}' >/dev/null
+  echo "  tomorrow was prepared at noon; the admin rewrites it"
+  [ "$(code -X POST "$API/admin/prompts" -H "$AUTH" -H 'content-type: application/json' -d "{\"body\":\"x\",\"day\":\"$TOMORROW\"}")" = "409" ] \
+    && echo "  and a second prompt cannot be pinned to the same day" || { echo "  EXPECTED 409"; exit 1; }
+else
+  curl -s -X POST "$API/admin/prompts" -H "$AUTH" -H 'content-type: application/json' \
+    -d "{\"body\":\"Write about the night the lighthouse went dark.\",\"day\":\"$TOMORROW\"}" >/dev/null
+  echo "  the admin pins a prompt to tomorrow"
+fi
+curl -s -X POST "$API/admin/prompts" -H "$AUTH" -H 'content-type: application/json' -d '{"body":"A queued one."}' | python3 -c "
+import sys,json;d=json.load(sys.stdin)
+assert d['warning'] and len(d['queue'])==1, d
+print('  one queued, and a warning that the queue is short')"
+TC=$(code "$API/prompts/$TOMORROW" -H "$PAUTH"); [ "$TC" = "404" ] && echo "  tomorrow's prompt cannot be seen before it opens" || { echo "  EXPECTED 404, got $TC for $TOMORROW"; curl -s "$API/prompts/$TOMORROW" -H "$PAUTH"; exit 1; }
+DAY=$(curl -s "$API/prompts/today" -H "$PAUTH" | python3 -c "
+import sys,json;d=json.load(sys.stdin);assert d['prompt']['body'] and not d['enrolled'], d;print(d['prompt']['day'])")
+echo "  today ($DAY) has a prompt even with nothing queued for it"
+[ "$(code "$API/prompts/$DAY/entries" -H "$LAUTH")" = "403" ] && echo "  the feed is closed to a writer who has not joined" || { echo "  EXPECTED 403"; exit 1; }
+for H in "$AUTH" "$PAUTH"; do
+  curl -s -X POST "$API/prompts/enrollment" -H "$H" -H 'content-type: application/json' -d '{"timezone":"America/Los_Angeles"}' >/dev/null
+done
+curl -s -X PATCH "$API/prompts/enrollment" -H "$PAUTH" -H 'content-type: application/json' \
+  -d '{"emailEnabled":true,"emailLocalTime":"07:00"}' | python3 -c "
+import sys,json;d=json.load(sys.stdin);assert d['enrolled'] and d['emailEnabled'] and d['emailLocalTime']=='07:00', d
+print('  pat joins, and asks for the email at 07:00 Pacific')"
+curl -s -X PUT "$API/prompts/$DAY/entry" -H "$AUTH" -H 'content-type: application/json' \
+  -d "{\"content\":{\"type\":\"doc\",\"content\":[{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"The keeper counted the steps.\"}]},{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"--\"}]},{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"Then the light went out.\"}]}]},\"localDay\":\"$(date +%F)\"}" >/dev/null
+ENTRY=$(curl -s -X POST "$API/prompts/$DAY/entry/submit" -H "$AUTH" | field id)
+curl -s "$API/prompts/$DAY/entries" -H "$PAUTH" | python3 -c "
+import sys,json;d=json.load(sys.stdin);assert d['entries'][0]['id']=='$ENTRY', d
+print('  ada answers and submits; pat sees it in the feed for the day')"
+CRIT=$(curl -s -X POST "$API/prompt-entries/$ENTRY/critiques" -H "$PAUTH" -H 'content-type: application/json' -d '{"body":"Which steps?"}' | field id)
+curl -s -X POST "$API/prompt-entries/$ENTRY/critiques" -H "$AUTH" -H 'content-type: application/json' \
+  -d "{\"body\":\"All of them.\",\"parentId\":\"$CRIT\"}" >/dev/null
+curl -s "$API/inbox/unread-count" -H "$AUTH" | python3 -c "
+import sys,json;assert json.load(sys.stdin)['count']==1
+print('  pat critiques it, ada replies: one item for each of them, none for their own words')"
+curl -s -X POST "$API/prompt-entries/$ENTRY/to-work/preview" -H "$AUTH" | python3 -c "
+import sys,json;d=json.load(sys.stdin);assert [s['firstLine'] for s in d['scenes']]==['The keeper counted the steps.','Then the light went out.'], d
+print('  turning it into a project would make 2 scenes, split on the -- line')"
+curl -s -X POST "$API/prompt-entries/$ENTRY/to-work" -H "$AUTH" -H 'content-type: application/json' -d '{}' | python3 -c "
+import sys,json;d=json.load(sys.stdin);assert len(d['chapters'][0]['scenes'])==2, d
+print('  and makes it:', d['title'])"
+
+# Tomorrow, at 07:01 Pacific: the pinned prompt opens, yesterday is summed up
+# in the inbox, and pat's email goes out.
+AT=$(python3 -c "
+import datetime,zoneinfo
+t=datetime.datetime.fromisoformat('${TOMORROW}T07:01:00').replace(tzinfo=zoneinfo.ZoneInfo('America/Los_Angeles'))
+print(t.astimezone(datetime.timezone.utc).isoformat())")
+curl -s -X POST "$API/test/clock" -H 'content-type: application/json' -d "{\"now\":\"$AT\"}" | python3 -c "
+import sys,json;d=json.load(sys.stdin);assert d['day']=='$TOMORROW', d
+print('  the clock moves to', d['day'], '07:01 Pacific')"
+cat > "$TMP/mail.py" <<'PY'
+import json, sys, re
+mail = [json.loads(l) for l in open(sys.argv[1])]
+day = sys.argv[2]
+# The runner may already have sent today's, at 07:00 by the real clock; what
+# matters is tomorrow's, sent once, to pat alone.
+mine = [m for m in mail if m['to'] == 'pat@example.com' and f'/prompts/{day}/write' in m['body']]
+assert len(mine) == 1, [m['subject'] for m in mail]
+m = mine[0]
+assert 'lighthouse went dark' in m['body'] and 'Write your answer' in m['html'], m
+assert m['headers']['List-Unsubscribe-Post'] == 'List-Unsubscribe=One-Click'
+assert not any(x['to'] == 'ada@example.com' and x['subject'].startswith("Today's prompt") for x in mail)
+print(re.search(r'(http://justtype\.test/prompts/[0-9-]+/write)', m['body']).group(1))
+print(re.search(r'unsubscribe\?token=([0-9a-f]+)', m['body']).group(1))
+PY
+LINK=$(python3 "$TMP/mail.py" "$TMP/outbox.jsonl" "$TOMORROW")
+WRITE=$(echo "$LINK" | head -1); UNSUB=$(echo "$LINK" | tail -1)
+echo "  pat's email is in the outbox, with a link to $WRITE"
+curl -s "$API/prompts/$TOMORROW" -H "$PAUTH" | python3 -c "
+import sys,json;d=json.load(sys.stdin);assert 'lighthouse went dark' in d['body'] and d['myState']=='none', d
+print('  following it lands on the writing page for', d['day'], '— the pinned prompt, not yet started')"
+curl -s -X POST "$API/test/clock" -H 'content-type: application/json' -d "{\"now\":\"$AT\"}" >/dev/null
+SENT=$(python3 -c "import json;print(sum(1 for l in open('$TMP/outbox.jsonl') if '/prompts/$TOMORROW/write' in json.loads(l)['body']))")
+[ "$SENT" = "1" ] && echo "  and another tick sends nothing twice" || { echo "  $SENT emails went"; exit 1; }
+curl -s "$API/inbox" -H "$AUTH" | python3 -c "
+import sys,json;d=json.load(sys.stdin);t=d['digest']['text']
+assert t.startswith('Yesterday: 1 critique'), t
+assert t.endswith('prompt is open.'), t
+print('  the inbox opens with:', t)"
+[ "$(code -X POST "$API/prompts/unsubscribe?token=$UNSUB")" = "200" ] \
+  && curl -s "$API/prompts/enrollment" -H "$PAUTH" | python3 -c "
+import sys,json;assert not json.load(sys.stdin)['emailEnabled'];print('  one click, signed out, and the email is off')" \
+  || { echo "  unsubscribe failed"; exit 1; }
+curl -s "$API/admin/jobs" -H "$AUTH" | python3 -c "
+import sys,json;d=json.load(sys.stdin);jobs={r['job'] for r in d['runs']}
+assert {'open_prompt','build_digests'} <= jobs and d['mailWaiting']==0, d
+print('  the jobs ran:', ', '.join(sorted(jobs)))"
+cli --admin revoke ada@example.com >/dev/null
+[ "$(code "$API/admin/jobs" -H "$AUTH")" = "403" ] && echo "  and the admin is revoked again" || { echo "  EXPECTED 403"; exit 1; }
+curl -s -X POST "$API/test/clock" -H 'content-type: application/json' \
+  -d "{\"now\":\"$(python3 -c 'import datetime;print(datetime.datetime.now(datetime.timezone.utc).isoformat())')\"}" >/dev/null
 
 step "Live: presence, saves and notes as they happen"
 curl -s -X POST "$API/works/$WID/collaborators" -H "$AUTH" -H 'content-type: application/json' \

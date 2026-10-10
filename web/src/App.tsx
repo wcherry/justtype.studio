@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { Fragment, useEffect, useState } from 'react'
+import { Link, NavLink, Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom'
 import { api } from './api/client'
 import { ForgotPage, ResetPage, TermsPage, VerifyPage } from './pages/AccountPages'
 import { EditorPage } from './pages/EditorPage'
@@ -10,7 +10,14 @@ import { ProfilePage } from './pages/ProfilePage'
 import { SettingsPage } from './pages/SettingsPage'
 import { StatusPage } from './pages/StatusPage'
 import { ReviewPage } from './pages/ReviewPage'
+import { AdminPromptsPage } from './pages/AdminPromptsPage'
+import { InboxPage } from './pages/InboxPage'
+import { PromptDayPage, PromptsPage } from './pages/PromptsPage'
+import { PromptEntryPage } from './pages/PromptEntryPage'
+import { PromptWritePage } from './pages/PromptWritePage'
+import { UnsubscribePage } from './pages/UnsubscribePage'
 import { useAuth } from './state/auth'
+import { useUnreadCount } from './state/inbox'
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -22,16 +29,34 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 
 function Chrome({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth()
+  const unread = useUnreadCount(!!user)
   return (
     <div className="shell">
       <nav className="shell__nav">
         <Link to="/" className="shell__brand">Just Type Studio</Link>
         <Link to="/">Desk</Link>
         <Link to="/review">Review</Link>
+        {user && (
+          <NavLink to="/prompts" className={({ isActive }) => (isActive ? 'is-active' : undefined)}>
+            Daily Prompts
+          </NavLink>
+        )}
         <span className="shell__spacer" />
         {user && (
           <>
+            <Link
+              to="/inbox"
+              className={unread > 0 ? 'shell__bell has-unread' : 'shell__bell'}
+              aria-label={unread > 0 ? `Inbox, ${unread} unread` : 'Inbox'}
+              title="Inbox"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+              </svg>
+              {unread > 0 && <span className="shell__count">{unread > 99 ? '99+' : unread}</span>}
+            </Link>
             <Link to={`/people/${user.id}`} className="shell__user">{user.displayName}</Link>
+            {user.isAdmin && <Link to="/admin/prompts" className="shell__user">Admin</Link>}
             <Link to="/settings" className="shell__user">Account</Link>
             <button type="button" className="linklike" onClick={() => void logout()}>Sign out</button>
           </>
@@ -89,6 +114,12 @@ function AccountBanners() {
   )
 }
 
+/** A page that should start afresh when its route parameters change. */
+function Keyed({ children }: { children: React.ReactNode }) {
+  const params = useParams()
+  return <Fragment key={JSON.stringify(params)}>{children}</Fragment>
+}
+
 export function App() {
   return (
     <Routes>
@@ -98,9 +129,35 @@ export function App() {
       <Route path="/verify" element={<VerifyPage />} />
       <Route path="/terms" element={<TermsPage />} />
       <Route path="/status" element={<StatusPage />} />
+      <Route path="/prompts/unsubscribe" element={<UnsubscribePage />} />
+      <Route path="/settings" element={<Navigate to="/settings/account" replace />} />
       <Route
-        path="/settings"
+        path="/settings/:tab"
         element={<RequireAuth><Chrome><SettingsPage /></Chrome></RequireAuth>}
+      />
+      <Route
+        path="/prompts"
+        element={<RequireAuth><Chrome><PromptsPage /></Chrome></RequireAuth>}
+      />
+      <Route
+        path="/prompts/:day"
+        element={<RequireAuth><Chrome><Keyed><PromptDayPage /></Keyed></Chrome></RequireAuth>}
+      />
+      <Route
+        path="/prompts/:day/write"
+        element={<RequireAuth><Chrome><Keyed><PromptWritePage /></Keyed></Chrome></RequireAuth>}
+      />
+      <Route
+        path="/prompts/:day/entries/:entryId"
+        element={<RequireAuth><Chrome><Keyed><PromptEntryPage /></Keyed></Chrome></RequireAuth>}
+      />
+      <Route
+        path="/inbox"
+        element={<RequireAuth><Chrome><InboxPage /></Chrome></RequireAuth>}
+      />
+      <Route
+        path="/admin/prompts"
+        element={<RequireAuth><Chrome><AdminPromptsPage /></Chrome></RequireAuth>}
       />
       <Route
         path="/"

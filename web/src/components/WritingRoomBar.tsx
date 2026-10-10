@@ -27,11 +27,14 @@ const clamp = (value: number, { min, max }: { min: number; max: number }) => Mat
  * it, so a menu opened from it never vanishes underneath you.
  */
 export function WritingRoomBar({
-  outline, scene, wordCount, saveLabel, zoom, onZoom, width, onWidth,
-  outlineShown, onToggleOutline, outlinePanel, onOpenScene, onLeave,
+  outline, scene = null, title, wordCount, saveLabel, zoom, onZoom, width, onWidth,
+  outlineShown = false, onToggleOutline, outlinePanel, onOpenScene, onLeave,
 }: {
-  outline: Outline
-  scene: Scene | null
+  /** The book, for the menu of places to go. Without one (a Daily Prompts
+   *  answer) the bar shows `title` and has no outline. */
+  outline?: Outline
+  scene?: Scene | null
+  title?: string
   wordCount: number
   saveLabel: string
   zoom: number
@@ -39,11 +42,11 @@ export function WritingRoomBar({
   /** How much of the screen's width the page takes, in percent. */
   width: number
   onWidth: (percent: number) => void
-  outlineShown: boolean
-  onToggleOutline: () => void
+  outlineShown?: boolean
+  onToggleOutline?: () => void
   /** The outline itself, shown in a popup under its button. */
-  outlinePanel: ReactNode
-  onOpenScene: (scene: Scene) => void
+  outlinePanel?: ReactNode
+  onOpenScene?: (scene: Scene) => void
   onLeave: () => void
 }) {
   const [shown, setShown] = useState(true)
@@ -96,7 +99,7 @@ export function WritingRoomBar({
   // A click anywhere else, or Escape, puts the outline away. Escape is taken
   // before the room sees it, so it closes the popup rather than the room.
   useEffect(() => {
-    if (!outlineShown) return
+    if (!outlineShown || !onToggleOutline) return
     const away = (event: PointerEvent) => {
       if (!outlineRef.current?.contains(event.target as Node)) onToggleOutline()
     }
@@ -133,8 +136,8 @@ export function WritingRoomBar({
     return () => window.removeEventListener('keydown', onKey)
   }, [zoom, zoomTo, reveal])
 
-  const chapter = outline.chapters.find((c) => c.id === scene?.chapterId)
-  const places: MenuItem[] = outline.chapters.flatMap((c) => [
+  const chapter = outline?.chapters.find((c) => c.id === scene?.chapterId)
+  const places: MenuItem[] = (outline?.chapters ?? []).flatMap((c) => [
     { key: `chapter-${c.id}`, label: c.title, heading: true },
     ...(c.scenes.length === 0
       ? [{ key: `empty-${c.id}`, label: 'No scenes yet', disabled: true }]
@@ -142,7 +145,7 @@ export function WritingRoomBar({
           key: s.id,
           label: s.title,
           checked: s.id === scene?.id,
-          onSelect: () => onOpenScene(s),
+          onSelect: () => onOpenScene?.(s),
         }))),
   ])
 
@@ -162,20 +165,26 @@ export function WritingRoomBar({
         if (!outlineShown) reveal(HIDE_AFTER_LEAVING_MS)
       }}
     >
-      <Menu
-        align="left"
-        className="room-bar__where"
-        title="Go to another scene"
-        label={
-          <span>
-            {chapter && <span className="room-bar__chapter">{chapter.title} › </span>}
-            <span className="room-bar__scene">
-              {chapter?.scenes.find((s) => s.id === scene?.id)?.title ?? outline.title}
+      {outline ? (
+        <Menu
+          align="left"
+          className="room-bar__where"
+          title="Go to another scene"
+          label={
+            <span>
+              {chapter && <span className="room-bar__chapter">{chapter.title} › </span>}
+              <span className="room-bar__scene">
+                {chapter?.scenes.find((s) => s.id === scene?.id)?.title ?? outline.title}
+              </span>
             </span>
-          </span>
-        }
-        items={places}
-      />
+          }
+          items={places}
+        />
+      ) : (
+        <span className="room-bar__where">
+          <span className="room-bar__scene">{title}</span>
+        </span>
+      )}
       <span className="room-bar__meta">
         {wordCount.toLocaleString()} words · {saveLabel || 'Saved'}
       </span>
@@ -185,7 +194,7 @@ export function WritingRoomBar({
       <Slider label="Width" value={width} range={WIDTH} onChange={onWidth} title="How much of the screen the page takes" />
 
       <div className="room-bar__actions">
-        <div className="room-outline" ref={outlineRef}>
+        {outlinePanel && onToggleOutline && <div className="room-outline" ref={outlineRef}>
           <ToolButton
             icon="outline"
             label="Outline (⌘⇧O)"
@@ -199,7 +208,7 @@ export function WritingRoomBar({
               {outlinePanel}
             </div>
           )}
-        </div>
+        </div>}
         <ToolButton icon="leave" label="Back to the desk (Esc)" onClick={onLeave} />
       </div>
     </div>

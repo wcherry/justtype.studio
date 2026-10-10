@@ -155,6 +155,28 @@ export type {
   StylePreset,
   Summary as ExportSummary,
   UpdateMetadataRequest,
+  // Daily Prompts, critiques, the inbox, admins.
+  AdminDay,
+  AdminPrompts,
+  ArchivePage,
+  CritiqueReportView,
+  CritiqueView,
+  DailyPrompt,
+  DigestView,
+  EnrollmentView,
+  EntryCard,
+  EntryPage,
+  EntryState,
+  InboxItemView,
+  InboxPage,
+  JobsReport,
+  PromptEntryView,
+  PromptView,
+  ScenePreview,
+  TodayResponse,
+  ToWorkPreview,
+  UnreadCount,
+  UpdateEnrollmentRequest,
 } from './schema'
 
 import type { Anchor, OutlineResponse, SessionResponse, TemplateView } from './schema'

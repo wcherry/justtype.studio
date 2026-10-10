@@ -33,7 +33,7 @@ use super::support;
 
 /// Raise this with any change of substance to `backend/terms.md`; everyone is
 /// asked to agree again.
-pub const TERMS_VERSION: i32 = 2;
+pub const TERMS_VERSION: i32 = 3;
 // Compiled in, so the server never reads it from disk. It lives in backend/
 // because the crate is built on its own (the Docker image copies backend/
 // alone), and a file outside it is not there to read.
@@ -234,6 +234,10 @@ contributions.json  what you did on other people's work: notes, votes, reactions
                     were added to, and your own highlights and bookmarks
 exports.json        your saved export profiles, the settings last used for each
                     book, and the record of what you exported and when
+prompts.json        Daily Prompts: whether you take part and your email
+                    preferences, every answer you wrote (each a TipTap
+                    document), the critiques and reports you wrote, the days
+                    the prompt was emailed to you, and your inbox
 audit.json          the record of what you did to your account and your works
 manuscripts/        the files behind each work you started, exactly as stored:
                     working/ is the current draft of each scene, revisions/ its
@@ -484,8 +488,53 @@ fn gather(conn: &mut Conn, user_id: &str) -> ApiResult<Vec<(&'static str, Value)
         })).collect::<Vec<_>>(),
     });
 
+    // Daily Prompts.
+    let enrollment: Option<PromptEnrollment> = prompt_enrollments::table
+        .find(user_id)
+        .select(PromptEnrollment::as_select())
+        .first(conn)
+        .optional()?;
+    let entries: Vec<(PromptEntry, Option<String>, String)> = prompt_entries::table
+        .inner_join(daily_prompts::table)
+        .filter(prompt_entries::author_id.eq(user_id))
+        .order(prompt_entries::created_at.asc())
+        .select((
+            PromptEntry::as_select(),
+            daily_prompts::day,
+            daily_prompts::body,
+        ))
+        .load(conn)?;
+    let critiques: Vec<PromptCritique> = prompt_critiques::table
+        .filter(prompt_critiques::author_id.eq(user_id))
+        .order(prompt_critiques::created_at.asc())
+        .select(PromptCritique::as_select())
+        .load(conn)?;
+    let reports: Vec<PromptCritiqueReport> = prompt_critique_reports::table
+        .filter(prompt_critique_reports::reporter_id.eq(user_id))
+        .select(PromptCritiqueReport::as_select())
+        .load(conn)?;
+    let emailed: Vec<(String, String)> = prompt_email_sends::table
+        .filter(prompt_email_sends::user_id.eq(user_id))
+        .order(prompt_email_sends::day.asc())
+        .select((prompt_email_sends::day, prompt_email_sends::sent_at))
+        .load(conn)?;
+    let prompts_out = json!({
+        "enrollment": enrollment,
+        "entries": entries.iter().map(|(e, day, prompt)| json!({
+            "entry": e,
+            "day": day,
+            "prompt": prompt,
+            "content": serde_json::from_str::<Value>(&e.body).unwrap_or(Value::Null),
+        })).collect::<Vec<_>>(),
+        "critiques": critiques,
+        "reportsFiled": reports,
+        "emailedOn": emailed.iter().map(|(day, at)| json!({ "day": day, "sentAt": at })).collect::<Vec<_>>(),
+        "inbox": super::inbox::export_of(conn, user_id)?,
+    });
+
     Ok(vec![
         ("account", account),
+        ("prompts", prompts_out),
         ("works", Value::Array(works_out)),
         ("contributions", contributions),
         ("exports", exports),
@@ -668,6 +717,38 @@ fn hand_over(conn: &mut Conn, user: &User, owned: &[String]) -> ApiResult<()> {
         .set(publication_invites::invited_by.eq(owner_id))
         .execute(conn)?;
     }
+
+    // Daily Prompts. Their own answers go with the account (by cascade), and
+    // the critiques on them; first the inbox items other people hold about
+    // those answers, which nothing would otherwise remove.
+    let my_entries: Vec<String> = prompt_entries::table
+        .filter(prompt_entries::author_id.eq(gone))
+        .select(prompt_entries::id)
+        .load(conn)?;
+    diesel::delete(
+        inbox_items::table
+            .filter(inbox_items::context_type.eq("prompt_entry"))
+            .filter(inbox_items::context_id.eq_any(&my_entries)),
+    )
+    .execute(conn)?;
+    // Critiques on other people's answers keep their place, as notes do, but
+    // lose their words and their author, and nobody is still told about them.
+    let my_critiques = prompt_critiques::table
+        .filter(prompt_critiques::author_id.eq(gone))
+        .select(prompt_critiques::id);
+    diesel::delete(
+        inbox_items::table
+            .filter(inbox_items::subject_type.eq("prompt_critique"))
+            .filter(inbox_items::subject_id.eq_any(my_critiques)),
+    )
+    .execute(conn)?;
+    diesel::update(prompt_critiques::table.filter(prompt_critiques::author_id.eq(gone)))
+        .set((
+            prompt_critiques::author_id.eq(FORMER_MEMBER),
+            prompt_critiques::body.eq(""),
+            prompt_critiques::deleted_at.eq(Some(now_iso())),
+        ))
+        .execute(conn)?;
 
     // Notes keep their place so the replies under them still read, but lose
     // their words and their author.

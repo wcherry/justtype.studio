@@ -1,4 +1,5 @@
 pub mod account;
+pub mod admin;
 pub mod annotations;
 pub mod assistant;
 pub mod audit;
@@ -7,17 +8,22 @@ pub mod book_details;
 pub mod changes;
 pub mod collaborators;
 pub mod comments;
+pub mod critiques;
 pub mod discovery;
 pub mod export;
 pub mod export_settings;
 pub mod feedback;
 pub mod goals;
+pub mod inbox;
 pub mod moderation;
 pub mod notebook;
 pub mod openapi;
 pub mod privacy;
 pub mod profiles;
 pub mod project;
+pub mod prompts;
+#[cfg(test)]
+mod prompts_api_tests;
 pub mod publications;
 pub mod readers;
 pub mod scenes;
@@ -219,16 +225,74 @@ fn api_router() -> OpenApiRouter<AppState> {
         .routes(routes!(privacy::accept_terms))
         .routes(routes!(privacy::export))
         .routes(routes!(privacy::delete_account))
+        .routes(routes!(account::update_settings))
+        // Daily Prompts. The literal paths before `{day}`, so they are not
+        // taken for a day.
+        .routes(routes!(prompts::today_prompt))
+        .routes(routes!(prompts::archive))
+        .routes(routes!(
+            prompts::get_enrollment,
+            prompts::join,
+            prompts::update_enrollment,
+            prompts::leave
+        ))
+        .routes(routes!(prompts::unsubscribe))
+        .routes(routes!(prompts::one_day))
+        .routes(routes!(
+            prompts::get_entry,
+            prompts::save_entry,
+            prompts::delete_entry
+        ))
+        .routes(routes!(prompts::submit))
+        .routes(routes!(prompts::withdraw))
+        .routes(routes!(prompts::feed))
+        .routes(routes!(prompts::get_one))
+        .routes(routes!(prompts::to_work_preview))
+        .routes(routes!(prompts::to_work))
+        .routes(routes!(critiques::list, critiques::create))
+        .routes(routes!(critiques::update, critiques::delete_critique))
+        .routes(routes!(critiques::report))
+        .routes(routes!(critiques::list_reports))
+        .routes(routes!(inbox::list))
+        .routes(routes!(inbox::unread_count))
+        .routes(routes!(inbox::read_one))
+        .routes(routes!(inbox::read_digest))
+        .routes(routes!(inbox::read_all))
+        .routes(routes!(admin::list_prompts, admin::create_prompt))
+        .routes(routes!(admin::reorder_prompts))
+        .routes(routes!(admin::update_prompt, admin::delete_prompt))
+        .routes(routes!(admin::jobs))
 }
 
 pub fn router(state: AppState) -> Router {
-    let (router, api) = api_router().with_state(state).split_for_parts();
+    let test_clock = std::env::var("JUSTTYPE_TEST_CLOCK").as_deref() == Ok("1");
+    let app_id = std::env::var("JUSTTYPE_APPLE_APP_ID").ok();
+    let (mut router, api) = api_router().with_state(state.clone()).split_for_parts();
+    if test_clock {
+        tracing::warn!("JUSTTYPE_TEST_CLOCK is on: anyone can move this server's clock");
+        router = router.merge(
+            Router::new()
+                .route(
+                    "/api/test/clock",
+                    axum::routing::post(admin::set_test_clock),
+                )
+                .with_state(state),
+        );
+    }
     // Served so a client generator can point straight at a running instance;
     // the checked-in docs/openapi.json is the same document.
-    router.route(
-        "/api/openapi.json",
-        axum::routing::get(move || async move { axum::Json(api) }),
-    )
+    router
+        .route(
+            "/.well-known/apple-app-site-association",
+            axum::routing::get(move || {
+                let app_id = app_id.clone();
+                async move { crate::web::app_site_association(app_id.as_deref()) }
+            }),
+        )
+        .route(
+            "/api/openapi.json",
+            axum::routing::get(move || async move { axum::Json(api) }),
+        )
 }
 
 /// The document on its own, for `cargo xtask openapi`. Needs no state: nothing

@@ -17,6 +17,20 @@ macro_rules! row {
     };
 }
 
+/// `row!` for a table whose primary key is not `id`.
+macro_rules! row_keyed {
+    ($name:ident, $table:ident, ($($pk:ident),+), { $($(#[$fattr:meta])* $field:ident : $ty:ty),* $(,)? }) => {
+        #[derive(Debug, Clone, Queryable, Selectable, Identifiable, Serialize, Deserialize, utoipa::ToSchema)]
+        #[diesel(table_name = $table)]
+        #[diesel(primary_key($($pk),+))]
+        #[diesel(check_for_backend(diesel::sqlite::Sqlite))]
+        #[serde(rename_all = "camelCase")]
+        pub struct $name {
+            $($(#[$fattr])* pub $field: $ty),*
+        }
+    };
+}
+
 row!(User, users, {
     id: String,
     email: String,
@@ -55,6 +69,12 @@ row!(User, users, {
     /// When they agreed that text they hand the writing assistant may be sent
     /// to the model provider. Separate from summaries: a different use.
     assistant_allowed_at: Option<String>,
+    /// A site administrator: curates the daily prompts. Set from the command
+    /// line only; no request body can change it.
+    is_admin: bool,
+    /// Turning text into a project splits scenes at a blank paragraph (double
+    /// Enter) as well as at a `--` line.
+    double_enter_splits_scenes: bool,
 });
 
 #[derive(Debug, Clone, Queryable, Selectable, Serialize, Deserialize, utoipa::ToSchema)]
@@ -778,4 +798,179 @@ new_row!(NewReviewAnswer, review_answers, {
 
 new_row!(NewCommentVote, comment_votes, {
     id: String, comment_id: String, user_id: String, value: i32, created_at: String,
+});
+
+// --- Daily Prompts, the job runner, the inbox ------------------------------
+
+row_keyed!(JobRun, job_runs, (job, key), {
+    job: String,
+    /// What the run is for: the day, for a daily job.
+    key: String,
+    started_at: String,
+    finished_at: Option<String>,
+    error: Option<String>,
+    attempts: i32,
+});
+
+new_row!(NewJobRun, job_runs, {
+    job: String, key: String, started_at: String, finished_at: Option<String>,
+    error: Option<String>, attempts: i32,
+});
+
+row!(QueuedMail, mail_queue, {
+    id: String,
+    to_address: String,
+    subject: String,
+    body: String,
+    html: Option<String>,
+    headers: Option<String>,
+    created_at: String,
+    attempts: i32,
+    next_attempt_at: String,
+    give_up_at: String,
+    sent_at: Option<String>,
+    failed_at: Option<String>,
+    last_error: Option<String>,
+});
+
+new_row!(NewQueuedMail, mail_queue, {
+    id: String, to_address: String, subject: String, body: String,
+    html: Option<String>, headers: Option<String>, created_at: String,
+    attempts: i32, next_attempt_at: String, give_up_at: String,
+    sent_at: Option<String>, failed_at: Option<String>, last_error: Option<String>,
+});
+
+row!(DailyPrompt, daily_prompts, {
+    id: String,
+    /// `YYYY-MM-DD`, the Pacific prompt day; `None` while it waits in the queue.
+    day: Option<String>,
+    /// Its place in the queue.
+    position: Option<i32>,
+    body: String,
+    /// `curated` or `ai`. Only admins see it.
+    source: String,
+    created_by: Option<String>,
+    created_at: String,
+    updated_at: String,
+});
+
+new_row!(NewDailyPrompt, daily_prompts, {
+    id: String, day: Option<String>, position: Option<i32>, body: String,
+    source: String, created_by: Option<String>, created_at: String, updated_at: String,
+});
+
+row_keyed!(PromptEnrollment, prompt_enrollments, (user_id), {
+    user_id: String,
+    enrolled_at: String,
+    /// Set while the writer has left; their preferences are kept for rejoining.
+    left_at: Option<String>,
+    email_enabled: bool,
+    /// `HH:MM`, in `email_timezone`.
+    email_local_time: String,
+    /// An IANA name, such as `Europe/London`.
+    email_timezone: String,
+    #[serde(skip)]
+    unsubscribe_token: String,
+    updated_at: String,
+});
+
+new_row!(NewPromptEnrollment, prompt_enrollments, {
+    user_id: String, enrolled_at: String, left_at: Option<String>,
+    email_enabled: bool, email_local_time: String, email_timezone: String,
+    unsubscribe_token: String, updated_at: String,
+});
+
+row!(PromptEntry, prompt_entries, {
+    id: String,
+    prompt_id: String,
+    author_id: String,
+    /// A ProseMirror document, as JSON.
+    #[serde(skip)]
+    body: String,
+    content_hash: String,
+    word_count: i32,
+    /// `draft`, `submitted` or `withdrawn`.
+    #[schema(value_type = crate::domain::enums::EntryState)]
+    state: String,
+    /// The first submission. Never moved by an edit or a resubmission.
+    submitted_at: Option<String>,
+    /// The last change made after submitting.
+    edited_at: Option<String>,
+    converted_work_id: Option<String>,
+    created_at: String,
+    updated_at: String,
+});
+
+new_row!(NewPromptEntry, prompt_entries, {
+    id: String, prompt_id: String, author_id: String, body: String,
+    content_hash: String, word_count: i32, state: String,
+    submitted_at: Option<String>, edited_at: Option<String>,
+    converted_work_id: Option<String>, created_at: String, updated_at: String,
+});
+
+row!(PromptCritique, prompt_critiques, {
+    id: String,
+    entry_id: String,
+    /// The critique this one replies to.
+    parent_id: Option<String>,
+    author_id: String,
+    body: String,
+    edited_at: Option<String>,
+    /// Kept as a placeholder because it has replies.
+    deleted_at: Option<String>,
+    created_at: String,
+    updated_at: String,
+});
+
+new_row!(NewPromptCritique, prompt_critiques, {
+    id: String, entry_id: String, parent_id: Option<String>, author_id: String,
+    body: String, edited_at: Option<String>, deleted_at: Option<String>,
+    created_at: String, updated_at: String,
+});
+
+row!(PromptCritiqueReport, prompt_critique_reports, {
+    id: String,
+    critique_id: String,
+    reporter_id: String,
+    #[schema(value_type = crate::domain::enums::ReportReason)]
+    reason: String,
+    detail: Option<String>,
+    created_at: String,
+});
+
+new_row!(NewPromptCritiqueReport, prompt_critique_reports, {
+    id: String, critique_id: String, reporter_id: String, reason: String,
+    detail: Option<String>, created_at: String,
+});
+
+row!(InboxItem, inbox_items, {
+    id: String,
+    user_id: String,
+    /// See `domain::inbox` for what each kind means.
+    kind: String,
+    subject_type: String,
+    subject_id: String,
+    context_type: Option<String>,
+    context_id: Option<String>,
+    actor_id: Option<String>,
+    #[serde(skip)]
+    detail: Option<String>,
+    created_at: String,
+    read_at: Option<String>,
+});
+
+new_row!(NewInboxItem, inbox_items, {
+    id: String, user_id: String, kind: String, subject_type: String,
+    subject_id: String, context_type: Option<String>, context_id: Option<String>,
+    actor_id: Option<String>, detail: Option<String>, created_at: String,
+    read_at: Option<String>,
+});
+
+row_keyed!(InboxDigest, inbox_digests, (user_id, day), {
+    user_id: String,
+    day: String,
+    #[serde(skip)]
+    summary_json: String,
+    created_at: String,
+    read_at: Option<String>,
 });

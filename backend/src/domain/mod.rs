@@ -2,8 +2,11 @@ pub mod diff;
 pub mod doc;
 pub mod edit;
 pub mod enums;
+pub mod inbox;
 pub mod naming;
+pub mod prompts;
 pub mod sketches;
+pub mod split;
 pub mod templates;
 
 use chrono::SecondsFormat;

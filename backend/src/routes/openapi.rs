@@ -37,6 +37,10 @@ use utoipa::OpenApi;
         (name = "account", description = "Proving an address, getting back in, a second factor, sessions"),
         (name = "trust", description = "Your data, the audit log, the terms"),
         (name = "collaboration", description = "Co-authors, their roles, and what they did"),
+        (name = "prompts", description = "Daily Prompts: a prompt a day, written and shared"),
+        (name = "critiques", description = "Threaded critiques of Daily Prompts answers"),
+        (name = "inbox", description = "What happened that you should hear about"),
+        (name = "admin", description = "For site administrators"),
     )
 )]
 pub struct ApiDoc;

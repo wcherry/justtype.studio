@@ -113,6 +113,48 @@ public enum API {
         }
     }
 
+    public struct AdminDay: Codable, Hashable, Sendable {
+        public var day: String
+        /// Answers started, drafts included: a prompt with any cannot be deleted.
+        public var entries: Int
+        public var opened: Bool
+        public var prompt: DailyPrompt?
+
+        public init(
+            day: String,
+            entries: Int,
+            opened: Bool,
+            prompt: DailyPrompt? = nil
+        ) {
+            self.day = day
+            self.entries = entries
+            self.opened = opened
+            self.prompt = prompt
+        }
+    }
+
+    public struct AdminPrompts: Codable, Hashable, Sendable {
+        /// Tomorrow and the two weeks after it, then today and the two weeks before.
+        public var days: [AdminDay]
+        /// The queue, in the order it will be used.
+        public var queue: [DailyPrompt]
+        public var today: String
+        /// Set when fewer than seven are queued.
+        public var warning: String?
+
+        public init(
+            days: [AdminDay],
+            queue: [DailyPrompt],
+            today: String,
+            warning: String? = nil
+        ) {
+            self.days = days
+            self.queue = queue
+            self.today = today
+            self.warning = warning
+        }
+    }
+
     public enum Align: String, Codable, CaseIterable, Hashable, Sendable {
         case left = "left"
         case justify = "justify"
@@ -234,6 +276,20 @@ public enum API {
         }
     }
 
+    public struct ArchivePage: Codable, Hashable, Sendable {
+        /// Pass as `before` for the page after this one; unset at the first day.
+        public var nextBefore: String?
+        public var prompts: [PromptView]
+
+        public init(
+            nextBefore: String? = nil,
+            prompts: [PromptView]
+        ) {
+            self.nextBefore = nextBefore
+            self.prompts = prompts
+        }
+    }
+
     public struct AssistRequest: Codable, Hashable, Sendable {
         /// The scene's text after the selection. Only the start of it is sent on.
         public var after: String?
@@ -312,6 +368,9 @@ public enum API {
         case summaries_withdrawn = "summaries_withdrawn"
         case assistant_allowed = "assistant_allowed"
         case assistant_withdrawn = "assistant_withdrawn"
+        case admin_granted = "admin_granted"
+        case admin_revoked = "admin_revoked"
+        case prompt_edited = "prompt_edited"
     }
 
     public struct AuditEvent: Codable, Hashable, Sendable {
@@ -1255,6 +1314,124 @@ public enum API {
         }
     }
 
+    public struct CritiqueReportView: Codable, Hashable, Sendable {
+        public var createdAt: String
+        public var critiqueId: String
+        public var detail: String?
+        public var id: String
+        public var reason: ReportReason
+        public var reporterId: String
+        public var critique: CritiqueView
+        public var reporter: AuthorCard
+
+        public init(
+            createdAt: String,
+            critiqueId: String,
+            detail: String? = nil,
+            id: String,
+            reason: ReportReason,
+            reporterId: String,
+            critique: CritiqueView,
+            reporter: AuthorCard
+        ) {
+            self.createdAt = createdAt
+            self.critiqueId = critiqueId
+            self.detail = detail
+            self.id = id
+            self.reason = reason
+            self.reporterId = reporterId
+            self.critique = critique
+            self.reporter = reporter
+        }
+    }
+
+    public struct CritiqueRequest: Codable, Hashable, Sendable {
+        public var body: String
+        /// The critique this replies to.
+        public var parentId: String?
+
+        public init(
+            body: String,
+            parentId: String? = nil
+        ) {
+            self.body = body
+            self.parentId = parentId
+        }
+    }
+
+    public struct CritiqueView: Codable, Hashable, Sendable {
+        public var author: AuthorCard?
+        /// Empty when removed.
+        public var body: String
+        /// The caller may delete it: their own, or any on their own answer.
+        public var canRemove: Bool
+        public var createdAt: String
+        public var editedAt: String?
+        public var entryId: String
+        public var id: String
+        public var mine: Bool
+        public var parentId: String?
+        public var removed: Bool
+
+        public init(
+            author: AuthorCard? = nil,
+            body: String,
+            canRemove: Bool,
+            createdAt: String,
+            editedAt: String? = nil,
+            entryId: String,
+            id: String,
+            mine: Bool,
+            parentId: String? = nil,
+            removed: Bool
+        ) {
+            self.author = author
+            self.body = body
+            self.canRemove = canRemove
+            self.createdAt = createdAt
+            self.editedAt = editedAt
+            self.entryId = entryId
+            self.id = id
+            self.mine = mine
+            self.parentId = parentId
+            self.removed = removed
+        }
+    }
+
+    public struct DailyPrompt: Codable, Hashable, Sendable {
+        public var body: String
+        public var createdAt: String
+        public var createdBy: String?
+        /// `YYYY-MM-DD`, the Pacific prompt day; `None` while it waits in the queue.
+        public var day: String?
+        public var id: String
+        /// Its place in the queue.
+        public var position: Int?
+        /// `curated` or `ai`. Only admins see it.
+        public var source: String
+        public var updatedAt: String
+
+        public init(
+            body: String,
+            createdAt: String,
+            createdBy: String? = nil,
+            day: String? = nil,
+            id: String,
+            position: Int? = nil,
+            source: String,
+            updatedAt: String
+        ) {
+            self.body = body
+            self.createdAt = createdAt
+            self.createdBy = createdBy
+            self.day = day
+            self.id = id
+            self.position = position
+            self.source = source
+            self.updatedAt = updatedAt
+        }
+    }
+
     public struct DeleteAccountRequest: Codable, Hashable, Sendable {
         /// From the authenticator, when two-factor sign-in is on.
         public var code: String?
@@ -1338,6 +1515,41 @@ public enum API {
         }
     }
 
+    public struct DigestCount: Codable, Hashable, Sendable {
+        public var count: Int
+        public var kind: String
+
+        public init(
+            count: Int,
+            kind: String
+        ) {
+            self.count = count
+            self.kind = kind
+        }
+    }
+
+    public struct DigestView: Codable, Hashable, Sendable {
+        public var counts: [DigestCount]
+        /// The day it sums up.
+        public var day: String
+        public var readAt: String?
+        /// "Yesterday: 4 critiques and 2 replies on your answer to '…'. Today's
+        /// prompt is open."
+        public var text: String
+
+        public init(
+            counts: [DigestCount],
+            day: String,
+            readAt: String? = nil,
+            text: String
+        ) {
+            self.counts = counts
+            self.day = day
+            self.readAt = readAt
+            self.text = text
+        }
+    }
+
     public struct DisableTwoFactorRequest: Codable, Hashable, Sendable {
         /// From the authenticator, or a recovery code.
         public var code: String
@@ -1402,6 +1614,105 @@ public enum API {
         ) {
             self.ok = ok
         }
+    }
+
+    public struct EditCritiqueRequest: Codable, Hashable, Sendable {
+        public var body: String
+
+        public init(
+            body: String
+        ) {
+            self.body = body
+        }
+    }
+
+    public struct EnrollmentView: Codable, Hashable, Sendable {
+        public var emailEnabled: Bool
+        /// `HH:MM` in `email_timezone`.
+        public var emailLocalTime: String
+        public var emailTimezone: String
+        /// Email can only be turned on for a confirmed address.
+        public var emailVerified: Bool
+        public var enrolled: Bool
+        public var enrolledAt: String?
+        /// When today's prompt opens (and so when it closes), as `HH:MM` in
+        /// `email_timezone`, for the note beside the time.
+        public var opensAtLocal: String
+
+        public init(
+            emailEnabled: Bool,
+            emailLocalTime: String,
+            emailTimezone: String,
+            emailVerified: Bool,
+            enrolled: Bool,
+            enrolledAt: String? = nil,
+            opensAtLocal: String
+        ) {
+            self.emailEnabled = emailEnabled
+            self.emailLocalTime = emailLocalTime
+            self.emailTimezone = emailTimezone
+            self.emailVerified = emailVerified
+            self.enrolled = enrolled
+            self.enrolledAt = enrolledAt
+            self.opensAtLocal = opensAtLocal
+        }
+    }
+
+    public struct EntryCard: Codable, Hashable, Sendable {
+        public var author: AuthorCard
+        public var critiqueCount: Int
+        public var day: String
+        public var editedAt: String?
+        /// The first few lines.
+        public var excerpt: String
+        public var id: String
+        public var late: Bool
+        public var mine: Bool
+        public var submittedAt: String?
+        public var wordCount: Int
+
+        public init(
+            author: AuthorCard,
+            critiqueCount: Int,
+            day: String,
+            editedAt: String? = nil,
+            excerpt: String,
+            id: String,
+            late: Bool,
+            mine: Bool,
+            submittedAt: String? = nil,
+            wordCount: Int
+        ) {
+            self.author = author
+            self.critiqueCount = critiqueCount
+            self.day = day
+            self.editedAt = editedAt
+            self.excerpt = excerpt
+            self.id = id
+            self.late = late
+            self.mine = mine
+            self.submittedAt = submittedAt
+            self.wordCount = wordCount
+        }
+    }
+
+    public struct EntryPage: Codable, Hashable, Sendable {
+        public var entries: [EntryCard]
+        public var nextCursor: String?
+
+        public init(
+            entries: [EntryCard],
+            nextCursor: String? = nil
+        ) {
+            self.entries = entries
+            self.nextCursor = nextCursor
+        }
+    }
+
+    public enum EntryState: String, Codable, CaseIterable, Hashable, Sendable {
+        case draft = "draft"
+        case submitted = "submitted"
+        case withdrawn = "withdrawn"
     }
 
     public struct EntryView: Codable, Hashable, Sendable {
@@ -1712,6 +2023,51 @@ public enum API {
         }
     }
 
+    public struct InboxItemView: Codable, Hashable, Sendable {
+        public var actor: AuthorCard?
+        public var createdAt: String
+        public var id: String
+        public var kind: String
+        /// A path in the web app.
+        public var link: String
+        public var readAt: String?
+        public var text: String
+
+        public init(
+            actor: AuthorCard? = nil,
+            createdAt: String,
+            id: String,
+            kind: String,
+            link: String,
+            readAt: String? = nil,
+            text: String
+        ) {
+            self.actor = actor
+            self.createdAt = createdAt
+            self.id = id
+            self.kind = kind
+            self.link = link
+            self.readAt = readAt
+            self.text = text
+        }
+    }
+
+    public struct InboxPage: Codable, Hashable, Sendable {
+        public var digest: DigestView?
+        public var items: [InboxItemView]
+        public var nextCursor: String?
+
+        public init(
+            digest: DigestView? = nil,
+            items: [InboxItemView],
+            nextCursor: String? = nil
+        ) {
+            self.digest = digest
+            self.items = items
+            self.nextCursor = nextCursor
+        }
+    }
+
     public struct InviteRequest: Codable, Hashable, Sendable {
         /// Invite everyone in one of the author's circles, by id.
         public var circleId: String?
@@ -1778,6 +2134,81 @@ public enum API {
             self.location = location
             self.message = message
             self.severity = severity
+        }
+    }
+
+    public struct JobHealth: Codable, Hashable, Sendable {
+        public var lastTick: String?
+        public var ok: Bool
+        /// What is late, if anything.
+        public var problems: [String]
+
+        public init(
+            lastTick: String? = nil,
+            ok: Bool,
+            problems: [String]
+        ) {
+            self.lastTick = lastTick
+            self.ok = ok
+            self.problems = problems
+        }
+    }
+
+    public struct JobRun: Codable, Hashable, Sendable {
+        public var attempts: Int
+        public var error: String?
+        public var finishedAt: String?
+        public var job: String
+        /// What the run is for: the day, for a daily job.
+        public var key: String
+        public var startedAt: String
+
+        public init(
+            attempts: Int,
+            error: String? = nil,
+            finishedAt: String? = nil,
+            job: String,
+            key: String,
+            startedAt: String
+        ) {
+            self.attempts = attempts
+            self.error = error
+            self.finishedAt = finishedAt
+            self.job = job
+            self.key = key
+            self.startedAt = startedAt
+        }
+    }
+
+    public struct JobsReport: Codable, Hashable, Sendable {
+        public var health: JobHealth
+        public var mailFailed: Int
+        public var mailWaiting: Int
+        /// The most recent runs, newest first.
+        public var runs: [JobRun]
+
+        public init(
+            health: JobHealth,
+            mailFailed: Int,
+            mailWaiting: Int,
+            runs: [JobRun]
+        ) {
+            self.health = health
+            self.mailFailed = mailFailed
+            self.mailWaiting = mailWaiting
+            self.runs = runs
+        }
+    }
+
+    public struct JoinRequest: Codable, Hashable, Sendable {
+        /// The writer's timezone (IANA), from their browser. Sets the default
+        /// time for the email, which stays off until they turn it on.
+        public var timezone: String?
+
+        public init(
+            timezone: String? = nil
+        ) {
+            self.timezone = timezone
         }
     }
 
@@ -1990,6 +2421,20 @@ public enum API {
             self.publisher = publisher
             self.textDirection = textDirection
             self.updatedAt = updatedAt
+        }
+    }
+
+    public struct NewPromptRequest: Codable, Hashable, Sendable {
+        public var body: String
+        /// Pin it to this future day instead of queueing it.
+        public var day: String?
+
+        public init(
+            body: String,
+            day: String? = nil
+        ) {
+            self.body = body
+            self.day = day
         }
     }
 
@@ -2436,6 +2881,174 @@ public enum API {
         }
     }
 
+    public struct PromptCritiqueReport: Codable, Hashable, Sendable {
+        public var createdAt: String
+        public var critiqueId: String
+        public var detail: String?
+        public var id: String
+        public var reason: ReportReason
+        public var reporterId: String
+
+        public init(
+            createdAt: String,
+            critiqueId: String,
+            detail: String? = nil,
+            id: String,
+            reason: ReportReason,
+            reporterId: String
+        ) {
+            self.createdAt = createdAt
+            self.critiqueId = critiqueId
+            self.detail = detail
+            self.id = id
+            self.reason = reason
+            self.reporterId = reporterId
+        }
+    }
+
+    public struct PromptEntry: Codable, Hashable, Sendable {
+        public var authorId: String
+        public var contentHash: String
+        public var convertedWorkId: String?
+        public var createdAt: String
+        /// The last change made after submitting.
+        public var editedAt: String?
+        public var id: String
+        public var promptId: String
+        /// `draft`, `submitted` or `withdrawn`.
+        public var state: EntryState
+        /// The first submission. Never moved by an edit or a resubmission.
+        public var submittedAt: String?
+        public var updatedAt: String
+        public var wordCount: Int
+
+        public init(
+            authorId: String,
+            contentHash: String,
+            convertedWorkId: String? = nil,
+            createdAt: String,
+            editedAt: String? = nil,
+            id: String,
+            promptId: String,
+            state: EntryState,
+            submittedAt: String? = nil,
+            updatedAt: String,
+            wordCount: Int
+        ) {
+            self.authorId = authorId
+            self.contentHash = contentHash
+            self.convertedWorkId = convertedWorkId
+            self.createdAt = createdAt
+            self.editedAt = editedAt
+            self.id = id
+            self.promptId = promptId
+            self.state = state
+            self.submittedAt = submittedAt
+            self.updatedAt = updatedAt
+            self.wordCount = wordCount
+        }
+    }
+
+    public struct PromptEntryView: Codable, Hashable, Sendable {
+        public var authorId: String
+        public var contentHash: String
+        public var convertedWorkId: String?
+        public var createdAt: String
+        /// The last change made after submitting.
+        public var editedAt: String?
+        public var id: String
+        public var promptId: String
+        /// `draft`, `submitted` or `withdrawn`.
+        public var state: EntryState
+        /// The first submission. Never moved by an edit or a resubmission.
+        public var submittedAt: String?
+        public var updatedAt: String
+        public var wordCount: Int
+        public var author: AuthorCard
+        /// The answer, as a ProseMirror document.
+        public var content: JSONValue
+        public var convertedWork: WorkLink?
+        public var critiqueCount: Int
+        public var day: String
+        public var late: Bool
+        public var mine: Bool
+        public var prompt: String
+
+        public init(
+            authorId: String,
+            contentHash: String,
+            convertedWorkId: String? = nil,
+            createdAt: String,
+            editedAt: String? = nil,
+            id: String,
+            promptId: String,
+            state: EntryState,
+            submittedAt: String? = nil,
+            updatedAt: String,
+            wordCount: Int,
+            author: AuthorCard,
+            content: JSONValue,
+            convertedWork: WorkLink? = nil,
+            critiqueCount: Int,
+            day: String,
+            late: Bool,
+            mine: Bool,
+            prompt: String
+        ) {
+            self.authorId = authorId
+            self.contentHash = contentHash
+            self.convertedWorkId = convertedWorkId
+            self.createdAt = createdAt
+            self.editedAt = editedAt
+            self.id = id
+            self.promptId = promptId
+            self.state = state
+            self.submittedAt = submittedAt
+            self.updatedAt = updatedAt
+            self.wordCount = wordCount
+            self.author = author
+            self.content = content
+            self.convertedWork = convertedWork
+            self.critiqueCount = critiqueCount
+            self.day = day
+            self.late = late
+            self.mine = mine
+            self.prompt = prompt
+        }
+    }
+
+    public struct PromptView: Codable, Hashable, Sendable {
+        public var body: String
+        public var closesAt: String
+        /// `YYYY-MM-DD`, Pacific.
+        public var day: String
+        public var myEntryId: String?
+        /// The caller's own answer: `none`, or the entry's state.
+        public var myState: String
+        /// When it opened and when it closes.
+        public var opensAt: String
+        /// How many have been submitted, late ones included.
+        public var submissions: Int
+
+        public init(
+            body: String,
+            closesAt: String,
+            day: String,
+            myEntryId: String? = nil,
+            myState: String,
+            opensAt: String,
+            submissions: Int
+        ) {
+            self.body = body
+            self.closesAt = closesAt
+            self.day = day
+            self.myEntryId = myEntryId
+            self.myState = myState
+            self.opensAt = opensAt
+            self.submissions = submissions
+        }
+    }
+
     public struct Publication: Codable, Hashable, Sendable {
         public var closesAt: String?
         public var createdAt: String
@@ -2834,6 +3447,17 @@ public enum API {
         }
     }
 
+    public struct ReorderPromptsRequest: Codable, Hashable, Sendable {
+        /// Every queued prompt's id, in the new order.
+        public var ids: [String]
+
+        public init(
+            ids: [String]
+        ) {
+            self.ids = ids
+        }
+    }
+
     public struct ReorderRequest: Codable, Hashable, Sendable {
         /// Complete ordered list of ids; anything missing keeps its current slot.
         public var ids: [String]
@@ -3120,6 +3744,25 @@ public enum API {
         }
     }
 
+    public struct SaveEntryRequest: Codable, Hashable, Sendable {
+        /// The hash the edit was made on top of; a save against something newer
+        /// is refused with 409, as scene saves are.
+        public var baseHash: String?
+        public var content: JSONValue
+        /// The writer's own date, for their daily goal.
+        public var localDay: String?
+
+        public init(
+            baseHash: String? = nil,
+            content: JSONValue,
+            localDay: String? = nil
+        ) {
+            self.baseHash = baseHash
+            self.content = content
+            self.localDay = localDay
+        }
+    }
+
     public struct SaveProfileRequest: Codable, Hashable, Sendable {
         public var name: String
         public var options: ExportOptions
@@ -3258,6 +3901,19 @@ public enum API {
             self.sceneId = sceneId
             self.snippet = snippet
             self.title = title
+        }
+    }
+
+    public struct ScenePreview: Codable, Hashable, Sendable {
+        public var firstLine: String
+        public var wordCount: Int
+
+        public init(
+            firstLine: String,
+            wordCount: Int
+        ) {
+            self.firstLine = firstLine
+            self.wordCount = wordCount
         }
     }
 
@@ -3998,6 +4654,35 @@ public enum API {
         }
     }
 
+    public struct ToWorkPreview: Codable, Hashable, Sendable {
+        /// Whether a blank paragraph separated scenes, from the writer's setting.
+        public var blankParagraphSplits: Bool
+        public var scenes: [ScenePreview]
+        /// A title from the prompt, for the dialog to offer.
+        public var title: String
+
+        public init(
+            blankParagraphSplits: Bool,
+            scenes: [ScenePreview],
+            title: String
+        ) {
+            self.blankParagraphSplits = blankParagraphSplits
+            self.scenes = scenes
+            self.title = title
+        }
+    }
+
+    public struct ToWorkRequest: Codable, Hashable, Sendable {
+        /// Unset, the title the preview offered.
+        public var title: String?
+
+        public init(
+            title: String? = nil
+        ) {
+            self.title = title
+        }
+    }
+
     public struct TocChapter: Codable, Hashable, Sendable {
         public var chapterId: String
         /// In reading order.
@@ -4015,6 +4700,19 @@ public enum API {
             self.sceneIds = sceneIds
             self.title = title
             self.wordCount = wordCount
+        }
+    }
+
+    public struct TodayResponse: Codable, Hashable, Sendable {
+        public var enrolled: Bool
+        public var prompt: PromptView
+
+        public init(
+            enrolled: Bool,
+            prompt: PromptView
+        ) {
+            self.enrolled = enrolled
+            self.prompt = prompt
         }
     }
 
@@ -4097,6 +4795,17 @@ public enum API {
         }
     }
 
+    public struct UnreadCount: Codable, Hashable, Sendable {
+        /// Unread items, plus one for an unread summary.
+        public var count: Int
+
+        public init(
+            count: Int
+        ) {
+            self.count = count
+        }
+    }
+
     public struct UpdateAnnotationRequest: Codable, Hashable, Sendable {
         /// Where the passage is now, after the draft moved it.
         public var from: Int?
@@ -4167,6 +4876,24 @@ public enum API {
         ) {
             self.body = body
             self.state = state
+        }
+    }
+
+    public struct UpdateEnrollmentRequest: Codable, Hashable, Sendable {
+        public var emailEnabled: Bool?
+        /// `HH:MM`.
+        public var emailLocalTime: String?
+        /// An IANA name.
+        public var emailTimezone: String?
+
+        public init(
+            emailEnabled: Bool? = nil,
+            emailLocalTime: String? = nil,
+            emailTimezone: String? = nil
+        ) {
+            self.emailEnabled = emailEnabled
+            self.emailLocalTime = emailLocalTime
+            self.emailTimezone = emailTimezone
         }
     }
 
@@ -4261,6 +4988,24 @@ public enum API {
         }
     }
 
+    public struct UpdatePromptRequest: Codable, Hashable, Sendable {
+        public var body: String?
+        /// Pin to this future day.
+        public var day: String?
+        /// Take it off its day and put it at the end of the queue.
+        public var unpin: Bool?
+
+        public init(
+            body: String? = nil,
+            day: String? = nil,
+            unpin: Bool? = nil
+        ) {
+            self.body = body
+            self.day = day
+            self.unpin = unpin
+        }
+    }
+
     public struct UpdatePublicationRequest: Codable, Hashable, Sendable {
         public var closesAt: String?
         /// `0` removes the cap.
@@ -4330,6 +5075,17 @@ public enum API {
             self.summary = summary
             self.targetWords = targetWords
             self.title = title
+        }
+    }
+
+    public struct UpdateSettingsRequest: Codable, Hashable, Sendable {
+        /// Turning text into a project also splits scenes at a blank paragraph.
+        public var doubleEnterSplitsScenes: Bool?
+
+        public init(
+            doubleEnterSplitsScenes: Bool? = nil
+        ) {
+            self.doubleEnterSplitsScenes = doubleEnterSplitsScenes
         }
     }
 
@@ -4425,11 +5181,17 @@ public enum API {
         /// The writer's daily target in words, when they have set one.
         public var dailyWordGoal: Int?
         public var displayName: String
+        /// Turning text into a project splits scenes at a blank paragraph (double
+        /// Enter) as well as at a `--` line.
+        public var doubleEnterSplitsScenes: Bool
         public var email: String
         /// When the address was proved. Invitations addressed to it reach this
         /// account only once it has been.
         public var emailVerifiedAt: String?
         public var id: String
+        /// A site administrator: curates the daily prompts. Set from the command
+        /// line only; no request body can change it.
+        public var isAdmin: Bool
         /// Contact details for a submission's first page. Kept on the writer rather
         /// than the work, since they are the same for every submission.
         public var legalName: String?
@@ -4454,9 +5216,11 @@ public enum API {
             createdAt: String,
             dailyWordGoal: Int? = nil,
             displayName: String,
+            doubleEnterSplitsScenes: Bool,
             email: String,
             emailVerifiedAt: String? = nil,
             id: String,
+            isAdmin: Bool,
             legalName: String? = nil,
             mailingAddress: String? = nil,
             phone: String? = nil,
@@ -4473,9 +5237,11 @@ public enum API {
             self.createdAt = createdAt
             self.dailyWordGoal = dailyWordGoal
             self.displayName = displayName
+            self.doubleEnterSplitsScenes = doubleEnterSplitsScenes
             self.email = email
             self.emailVerifiedAt = emailVerifiedAt
             self.id = id
+            self.isAdmin = isAdmin
             self.legalName = legalName
             self.mailingAddress = mailingAddress
             self.phone = phone
@@ -4974,6 +5740,19 @@ public enum API {
         case novella = "novella"
         case short_story = "short_story"
         case serial = "serial"
+    }
+
+    public struct WorkLink: Codable, Hashable, Sendable {
+        public var id: String
+        public var title: String
+
+        public init(
+            id: String,
+            title: String
+        ) {
+            self.id = id
+            self.title = title
+        }
     }
 
     public enum WorkStatus: String, Codable, CaseIterable, Hashable, Sendable {

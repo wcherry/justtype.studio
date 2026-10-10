@@ -69,6 +69,42 @@ impl FromRequestParts<AppState> for AuthUser {
     }
 }
 
+/// A signed-in site administrator. Everyone else gets a 403, signed in or
+/// not, so the admin routes say nothing about what they hold.
+#[derive(Debug, Clone)]
+pub struct AdminUser(pub AuthUser);
+
+impl FromRequestParts<AppState> for AdminUser {
+    type Rejection = ApiError;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        let user = AuthUser::from_request_parts(parts, state)
+            .await
+            .map_err(|_| ApiError::Forbidden("that is for site administrators".into()))?;
+        let id = user.id.clone();
+        let admin = crate::db::blocking(&state.pool, move |conn| {
+            use crate::db::schema::users;
+            use diesel::prelude::*;
+            Ok(users::table
+                .find(&id)
+                .select(users::is_admin)
+                .first::<bool>(conn)
+                .optional()?
+                .unwrap_or(false))
+        })
+        .await?;
+        if !admin {
+            return Err(ApiError::Forbidden(
+                "that is for site administrators".into(),
+            ));
+        }
+        Ok(AdminUser(user))
+    }
+}
+
 /// Where a request came from, for telling sessions apart in a list. Never
 /// used to decide anything: a user agent says whatever the client likes.
 #[derive(Debug, Clone, Default)]

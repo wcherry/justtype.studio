@@ -69,6 +69,13 @@ public actor LocalStore {
         write(scene, to: "scene-\(safe(scene.id))")
     }
 
+    /// A Daily Prompts answer, so the writing screen opens without a network.
+    public func entry(day: String) -> API.PromptEntryView? { read("entry-\(safe(day))") }
+
+    public func putEntry(_ entry: API.PromptEntryView) {
+        write(entry, to: "entry-\(safe(entry.day))")
+    }
+
     /// Everything, for signing out. A shared phone should not keep somebody
     /// else's unpublished novel on it.
     public func clear() {
