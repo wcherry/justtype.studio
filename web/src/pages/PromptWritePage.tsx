@@ -7,6 +7,8 @@ import Placeholder from '@tiptap/extension-placeholder'
 import { ApiError, prompts } from '../api/client'
 import type { DocNode, PromptEntryView, PromptView } from '../api/types'
 import { GoalBar } from '../components/GoalBar'
+import { SelectionMenu, useSelectionMenu } from '../components/SelectionMenu'
+import type { MenuTarget, SelectionAction } from '../components/SelectionMenu'
 import { SidePanel } from '../components/SidePanel'
 import { ToolButton, Toolbar } from '../components/Toolbar'
 import { WritingPreferencesPanel } from '../components/WritingPreferences'
@@ -17,6 +19,9 @@ import { useWritingPreferences } from '../editor/preferences'
 import { AnswerTypography } from '../editor/typography'
 import { TypewriterScrolling } from '../editor/typewriter'
 import { useEntryAutosave } from '../editor/useEntryAutosave'
+import { Spellcheck } from '../editor/spelling/spellcheck'
+import { useSpelling } from '../editor/spelling/useSpelling'
+import { useWordMenu } from '../editor/spelling/useWordMenu'
 import { useSessionGoals } from '../editor/useSessionGoals'
 import { entryKey, pendingFor, startQueueReplay } from '../offline/queue'
 import { dayName, localTime } from '../prompts/days'
@@ -79,8 +84,12 @@ export function PromptWritePage() {
       FocusMode,
       TypewriterScrolling,
       ...AnswerTypography,
+      Spellcheck,
     ],
     content: '',
+    // The app checks spelling itself, as on a book; the browser's own checker
+    // would mark the same words twice, differently, with its own menu.
+    editorProps: { attributes: { spellcheck: 'false' } },
   })
   useEffect(() => {
     if (!editor) return
@@ -90,6 +99,34 @@ export function PromptWritePage() {
     if (typewriter) typewriter.options.enabled = preferences.typewriter
     editor.view.dispatch(editor.state.tr)
   }, [editor, preferences.focusMode, preferences.typewriter])
+
+  // The writer's own dictionary, as on a book. An answer has no notebook, so
+  // no character names.
+  const spelling = useSpelling(editor, {
+    enabled: preferences.spellcheck,
+    language: preferences.spellingLanguage,
+    workId: '',
+  })
+  const contextMenu = useSelectionMenu(editor, true, true)
+  const wordActions = useWordMenu(editor, contextMenu.target, {
+    spelling,
+    spellcheck: preferences.spellcheck,
+    writable: !!enrolled,
+    onError: setError,
+  })
+
+  /** Right-click: spelling and synonyms for a word, and Copy for a selection. */
+  const menuActions = (target: MenuTarget): SelectionAction[] => {
+    const actions = wordActions()
+    const quote = target.selection?.quote
+    if (quote) {
+      actions.push({
+        key: 'copy', label: 'Copy', hint: '⌘C', divider: actions.length > 0,
+        onSelect: () => void navigator.clipboard?.writeText(quote),
+      })
+    }
+    return actions
+  }
 
   const page = useDistractionFree()
   const roomStyle = {
@@ -304,6 +341,9 @@ export function PromptWritePage() {
         </div>
       </section>
 
+      {contextMenu.target && (
+        <SelectionMenu target={contextMenu.target} actions={menuActions(contextMenu.target)} onClose={contextMenu.close} />
+      )}
       {prefsOpen && (
         <SidePanel title="Writing" onClose={() => setPrefsOpen(false)}>
           <WritingPreferencesPanel preferences={preferences} onChange={setPreference} onReset={resetPreferences} />
