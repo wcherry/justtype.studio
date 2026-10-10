@@ -16,7 +16,7 @@ import type {
   AssistRequest, AssistView, ThesaurusEntry,
   AdminPrompts, ArchivePage, CritiqueReportView, CritiqueView, EnrollmentView, EntryPage,
   InboxPage, JobsReport, PromptEntryView, PromptView, TodayResponse, ToWorkPreview, UnreadCount,
-  UpdateEnrollmentRequest,
+  UpdateEnrollmentRequest, WritingPlace,
 } from './types'
 
 const BASE = '/api'
@@ -321,6 +321,8 @@ export const api = {
       ),
     get: (workId: string) => get<Work>(`/works/${workId}`),
     outline: (workId: string) => get<Outline>(`/works/${workId}/outline`),
+    /** Where the writer is in the book, so opening it again — anywhere — goes back there. */
+    putPlace: (workId: string, place: WritingPlace) => put<WritingPlace>(`/works/${workId}/place`, place),
     create: (input: {
       title: string; kind: WorkKind; templateId?: string; synopsis?: string; genre?: Genre
     }) => post<Outline>('/works', input),

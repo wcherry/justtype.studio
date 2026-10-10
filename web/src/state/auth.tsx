@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type { ReactNode } from 'react'
 import { ApiError, api, tokens } from '../api/client'
 import type { User } from '../api/types'
+import { cache } from '../offline/cache'
 
 /** Last known profile, so the app opens offline instead of bouncing to sign-in. */
 const USER_KEY = 'justtype.user'
@@ -15,7 +16,13 @@ function cachedUser(): User | null {
   }
 }
 
+/** Who is signed in on this browser, for code that runs outside React. */
+export function signedInUserId(): string | null {
+  return cachedUser()?.id ?? null
+}
+
 function cacheUser(user: User | null) {
+  if (user) cache.claim(user.id)
   try {
     if (user) localStorage.setItem(USER_KEY, JSON.stringify(user))
     else localStorage.removeItem(USER_KEY)
@@ -94,6 +101,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await api.auth.logout().catch(() => undefined)
     tokens.clear()
     cacheUser(null)
+    cache.clear()
     setUser(null)
   }, [])
 

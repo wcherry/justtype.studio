@@ -18,6 +18,8 @@ pub mod inbox;
 pub mod moderation;
 pub mod notebook;
 pub mod openapi;
+#[cfg(test)]
+mod place_api_tests;
 pub mod privacy;
 pub mod profiles;
 pub mod project;
@@ -87,6 +89,7 @@ fn api_router() -> OpenApiRouter<AppState> {
         .routes(routes!(works::list, works::create))
         .routes(routes!(works::get_one, works::update, works::delete_work))
         .routes(routes!(works::outline))
+        .routes(routes!(works::put_place))
         .routes(routes!(notebook::templates))
         .routes(routes!(notebook::list, notebook::create))
         .routes(routes!(notebook::update, notebook::delete_entry))

@@ -169,7 +169,8 @@ recovering, not writing.
 | `GET` | `/works` | the caller's works, `limit` / `offset` |
 | `POST` | `/works` | `title`, `kind`, optional `templateId`; returns the outline |
 | `GET` | `/works/{id}` | |
-| `GET` | `/works/{id}/outline` | work with chapters and scenes nested |
+| `GET` | `/works/{id}/outline` | work with chapters and scenes nested; `place` is where the caller was in it, when known |
+| `PUT` | `/works/{id}/place` | `sceneId`, `from`, `to`: remember where the caller is, for any device; anyone who can read the work |
 | `PATCH` | `/works/{id}` | `title`, `subtitle`, `synopsis`, `status` (`draft`/`archived` only), front matter |
 | `DELETE` | `/works/{id}` | removes the manuscript tree too |
 | `POST` | `/works/{id}/chapters` | `title` |

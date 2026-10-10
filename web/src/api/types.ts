@@ -177,6 +177,7 @@ export type {
   ToWorkPreview,
   UnreadCount,
   UpdateEnrollmentRequest,
+  WritingPlace,
 } from './schema'
 
 import type { Anchor, OutlineResponse, SessionResponse, TemplateView } from './schema'
