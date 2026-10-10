@@ -97,8 +97,7 @@ impl Mailer {
             }
             "resend" => {
                 let var = |key: &str| {
-                    std::env::var(key)
-                        .map_err(|_| anyhow::anyhow!("{key} is required for Resend"))
+                    std::env::var(key).map_err(|_| anyhow::anyhow!("{key} is required for Resend"))
                 };
                 let api_key = var("JUSTTYPE_RESEND_API_KEY")?;
                 let from = var("JUSTTYPE_MAIL_FROM")?;
@@ -116,9 +115,9 @@ impl Mailer {
                     from,
                 })
             }
-            other => anyhow::bail!(
-                "JUSTTYPE_MAIL must be `outbox`, `smtp` or `resend`, not `{other}`"
-            ),
+            other => {
+                anyhow::bail!("JUSTTYPE_MAIL must be `outbox`, `smtp` or `resend`, not `{other}`")
+            }
         }
     }
 
@@ -225,7 +224,9 @@ impl Mailer {
                     .unwrap_or_else(|_| {
                         String::from_utf8_lossy(&detail).chars().take(300).collect()
                     });
-                Err(ApiError::internal(format!("Resend refused it ({status}): {detail}")))
+                Err(ApiError::internal(format!(
+                    "Resend refused it ({status}): {detail}"
+                )))
             }
         }
     }
@@ -360,7 +361,10 @@ mod tests {
     /// `status`.
     async fn fake_resend(
         status: u16,
-    ) -> (String, std::sync::Arc<std::sync::Mutex<Vec<(String, serde_json::Value)>>>) {
+    ) -> (
+        String,
+        std::sync::Arc<std::sync::Mutex<Vec<(String, serde_json::Value)>>>,
+    ) {
         use axum::{extract::State, http::HeaderMap, routing::post, Json, Router};
         type Seen = std::sync::Arc<std::sync::Mutex<Vec<(String, serde_json::Value)>>>;
         let seen: Seen = Default::default();
