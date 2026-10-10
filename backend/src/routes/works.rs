@@ -7,7 +7,7 @@ use serde_json::Value;
 use crate::auth::AuthUser;
 use crate::db::blocking;
 use crate::db::models::*;
-use crate::db::schema::{chapters, scenes, templates, works};
+use crate::db::schema::{chapters, scenes, templates, works, writing_places};
 use crate::domain::enums::{ActivityKind, AuditAction, Genre, WorkKind};
 use crate::domain::templates::TemplateStructure;
 use crate::domain::{doc, new_id, now_iso};
@@ -101,6 +101,20 @@ pub struct OutlineResponse {
     /// client cached before collaboration existed still decodes.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub access: Option<WorkAccess>,
+    /// Where the caller was when they last had the book open, to put them
+    /// back there. Absent the first time, or once that scene is gone.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub place: Option<WritingPlace>,
+}
+
+/// Where a writer was in a book: the scene, and the selection in it, as the
+/// editor's positions within that scene's document.
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WritingPlace {
+    pub scene_id: String,
+    pub from: i32,
+    pub to: i32,
 }
 
 /// What the outline tells a client about who it is to this work.
@@ -139,6 +153,12 @@ pub(crate) fn outline_for(
         creator: access.creator,
         owner,
     });
+    outline.place = writing_places::table
+        .find((&user.id, work_id))
+        .select((writing_places::scene_id, writing_places::sel_from, writing_places::sel_to))
+        .first::<(String, i32, i32)>(conn)
+        .optional()?
+        .map(|(scene_id, from, to)| WritingPlace { scene_id, from, to });
     Ok(outline)
 }
 
@@ -577,6 +597,59 @@ pub async fn outline(
     Ok(Json(outline))
 }
 
+/// Remember where the caller is in the book, so opening it again — here or on
+/// another device — puts them back there. Anyone who can read the book has a
+/// place in it; it is theirs alone and changes nothing for anyone else.
+#[utoipa::path(
+    put,
+    path = "/api/works/{work_id}/place",
+    tag = "works",
+    params(("work_id" = String, Path)),
+    request_body = WritingPlace,
+    responses(
+        (status = 200, description = "The place, as kept", body = WritingPlace),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
+pub async fn put_place(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(work_id): Path<String>,
+    Json(place): Json<WritingPlace>,
+) -> ApiResult<Json<WritingPlace>> {
+    if place.from < 0 || place.to < place.from {
+        return Err(ApiError::BadRequest(
+            "a place is a selection: from and to at or after the start, to not before from".into(),
+        ));
+    }
+    let kept = place.clone();
+    blocking(&state.pool, move |conn| {
+        support::work_for(conn, &work_id, &user, Ability::Read)?;
+        let in_work = scenes::table
+            .filter(scenes::id.eq(&place.scene_id))
+            .filter(scenes::work_id.eq(&work_id))
+            .count()
+            .get_result::<i64>(conn)?
+            > 0;
+        if !in_work {
+            return Err(ApiError::NotFound("that scene is not in this work".into()));
+        }
+        diesel::replace_into(writing_places::table)
+            .values((
+                writing_places::user_id.eq(&user.id),
+                writing_places::work_id.eq(&work_id),
+                writing_places::scene_id.eq(&place.scene_id),
+                writing_places::sel_from.eq(place.from),
+                writing_places::sel_to.eq(place.to),
+                writing_places::updated_at.eq(now_iso()),
+            ))
+            .execute(conn)?;
+        Ok(())
+    })
+    .await?;
+    Ok(Json(kept))
+}
+
 /// The outline with every untitled chapter and scene called by where it
 /// falls — "Chapter 3", "Scene 2" — as a version freezes them.
 pub(crate) fn with_placeholder_names(mut outline: OutlineResponse) -> OutlineResponse {
@@ -636,6 +709,7 @@ pub(crate) fn load_outline(
         work,
         chapters: chapters_out,
         access: None,
+        place: None,
     })
 }
 

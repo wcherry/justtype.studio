@@ -15,20 +15,20 @@ use crate::clock;
 use crate::db::schema::*;
 use crate::state::AppState;
 
-struct Server {
+pub(super) struct Server {
     base: String,
     state: AppState,
     root: std::path::PathBuf,
     http: reqwest::Client,
 }
 
-struct Writer {
-    id: String,
+pub(super) struct Writer {
+    pub(super) id: String,
     token: String,
 }
 
 impl Server {
-    async fn start() -> Self {
+    pub(super) async fn start() -> Self {
         crate::auth::password::configure(crate::auth::password::Cost {
             memory_kib: 8_192,
             iterations: 1,
@@ -83,7 +83,7 @@ impl Server {
         self.state.pool.get().unwrap()
     }
 
-    async fn writer(&self, name: &str) -> Writer {
+    pub(super) async fn writer(&self, name: &str) -> Writer {
         let r: Value = self
             .http
             .post(format!("{}/auth/register", self.base))
@@ -135,7 +135,7 @@ impl Server {
         )
     }
 
-    async fn ok(&self, who: &Writer, method: &str, path: &str, body: Option<Value>) -> Value {
+    pub(super) async fn ok(&self, who: &Writer, method: &str, path: &str, body: Option<Value>) -> Value {
         let (status, value) = self.call(Some(who), method, path, body).await;
         assert!(
             (200..300).contains(&status),
@@ -144,7 +144,7 @@ impl Server {
         value
     }
 
-    async fn status(
+    pub(super) async fn status(
         &self,
         who: Option<&Writer>,
         method: &str,

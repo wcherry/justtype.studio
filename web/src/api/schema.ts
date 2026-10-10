@@ -1058,6 +1058,7 @@ export interface OutlineResponse {
   wordCount: number
   access?: WorkAccess | null
   chapters: OutlineChapter[]
+  place?: WritingPlace | null
 }
 
 export type PageSize = 'letter' | 'a4' | 'trade5x8' | 'trade5_5x8_5' | 'trade6x9'
@@ -2331,6 +2332,14 @@ export interface WritingDay {
   saves: number
   updatedAt: string
   userId: string
+}
+
+// Where a writer was in a book: the scene, and the selection in it, as the
+// editor's positions within that scene's document.
+export interface WritingPlace {
+  from: number
+  sceneId: string
+  to: number
 }
 
 export interface WritingSummary {

@@ -1,6 +1,7 @@
 import { ApiError, api } from '../api/client'
 import { prompts } from '../api/client'
 import type { DocNode, PromptEntryView, SaveResult } from '../api/types'
+import { signedInUserId } from '../state/auth'
 import { idb } from './db'
 
 /**
@@ -34,6 +35,19 @@ export interface PendingSave {
   queuedAt: number
   /** For an answer: the prompt's day. */
   day?: string
+  /**
+   * Who wrote it. Several writers can share one browser, and a save replayed
+   * under someone else's session would be refused and dropped — or, for an
+   * answer, filed under the wrong account. Unset on saves queued before this
+   * existed; those replay for whoever is signed in, as they always did.
+   */
+  userId?: string
+}
+
+/** The saves the signed-in writer owns; anyone else's wait for them. */
+async function ownSaves(): Promise<PendingSave[]> {
+  const me = signedInUserId()
+  return (await idb.all<PendingSave>()).filter((save) => !save.userId || save.userId === me)
 }
 
 /** The queue key an answer is saved under. */
@@ -97,7 +111,7 @@ function emit(event: QueueEvent) {
 }
 
 export async function pendingCount(): Promise<number> {
-  return (await idb.all<PendingSave>()).length
+  return (await ownSaves()).length
 }
 
 export async function pendingFor(sceneId: string): Promise<PendingSave | null> {
@@ -105,12 +119,12 @@ export async function pendingFor(sceneId: string): Promise<PendingSave | null> {
 }
 
 async function enqueue(save: PendingSave) {
-  await idb.put(save)
+  await idb.put({ ...save, userId: save.userId ?? signedInUserId() ?? undefined })
   emit({ type: 'queued', sceneId: save.sceneId, pending: await pendingCount() })
 }
 
 /** A failure that leaves the write still worth retrying later. */
-function isOffline(error: unknown): boolean {
+export function isOffline(error: unknown): boolean {
   if (error instanceof ApiError) {
     // 5xx and 408/429 are the server being temporarily unable, not a rejection
     // of the content. Anything else — 400, 403, 404, 409 — will fail the same
@@ -209,7 +223,7 @@ export async function flushQueue(): Promise<void> {
   flushing = true
   let reachable = true
   try {
-    for (const save of await idb.all<PendingSave>()) {
+    for (const save of await ownSaves()) {
       try {
         if (save.kind === 'entry' && save.day) {
           const entry = await prompts.saveEntry(save.day, save.content, save.baseHash, save.localDay)

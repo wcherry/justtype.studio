@@ -579,6 +579,17 @@ diesel::table! {
     }
 }
 
+diesel::table! {
+    writing_places (user_id, work_id) {
+        user_id -> Text,
+        work_id -> Text,
+        scene_id -> Text,
+        sel_from -> Integer,
+        sel_to -> Integer,
+        updated_at -> Text,
+    }
+}
+
 diesel::joinable!(export_last_options -> works (work_id));
 diesel::joinable!(export_history -> works (work_id));
 diesel::joinable!(export_profiles -> users (user_id));
@@ -794,6 +805,7 @@ diesel::allow_tables_to_appear_in_same_query!(
     export_last_options,
     export_history,
     dictionary_words,
+    writing_places,
     job_runs,
     mail_queue,
     daily_prompts,

@@ -7,9 +7,14 @@ export function LoginPage() {
   const { login, register } = useAuth()
   const navigate = useNavigate()
   // Sent here from somewhere (the link in the prompt email, say): go back there.
+  // Never into a book, though: the page that sent us here may have been the
+  // last writer's, left open when their session ran out. Signing in lands on
+  // the desk, and opening a book from there picks up where it was left.
   const location = useLocation()
   const from = (location.state as { from?: { pathname: string; search?: string; hash?: string } } | null)?.from
-  const back = from ? `${from.pathname}${from.search ?? ''}${from.hash ?? ''}` : '/'
+  const back = from && !from.pathname.startsWith('/works/')
+    ? `${from.pathname}${from.search ?? ''}${from.hash ?? ''}`
+    : '/'
   const [mode, setMode] = useState<'login' | 'register'>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')

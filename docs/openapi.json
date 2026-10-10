@@ -3434,6 +3434,17 @@
                   "$ref": "#/components/schemas/OutlineChapter"
                 },
                 "type": "array"
+              },
+              "place": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/WritingPlace",
+                    "description": "Where the caller was when they last had the book open, to put them\nback there. Absent the first time, or once that scene is gone."
+                  }
+                ]
               }
             },
             "required": [
@@ -7331,6 +7342,28 @@
           "saves",
           "createdAt",
           "updatedAt"
+        ],
+        "type": "object"
+      },
+      "WritingPlace": {
+        "description": "Where a writer was in a book: the scene, and the selection in it, as the\neditor's positions within that scene's document.",
+        "properties": {
+          "from": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "sceneId": {
+            "type": "string"
+          },
+          "to": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "sceneId",
+          "from",
+          "to"
         ],
         "type": "object"
       },
@@ -15909,6 +15942,57 @@
             "description": "Refused"
           }
         },
+        "tags": [
+          "works"
+        ]
+      }
+    },
+    "/api/works/{work_id}/place": {
+      "put": {
+        "operationId": "put_place",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WritingPlace"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WritingPlace"
+                }
+              }
+            },
+            "description": "The place, as kept"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "Remember where the caller is in the book, so opening it again — here or on\nanother device — puts them back there. Anyone who can read the book has a\nplace in it; it is theirs alone and changes nothing for anyone else.",
         "tags": [
           "works"
         ]

@@ -59,7 +59,7 @@ import { replaceWord as replaceWordIn, useWordMenu } from '../editor/spelling/us
 import type { WordAt } from '../editor/spelling/useWordMenu'
 import { useSessionGoals } from '../editor/useSessionGoals'
 import { cache } from '../offline/cache'
-import { pendingFor, startQueueReplay } from '../offline/queue'
+import { isOffline, pendingFor, startQueueReplay } from '../offline/queue'
 import { permissions } from '../state/permissions'
 import { useAuth } from '../state/auth'
 import { here, useLive, usePresence } from '../live'
@@ -119,12 +119,28 @@ const SCENE_STATUSES: { value: Scene['status']; label: string }[] = [
   { value: 'done', label: 'Done' },
 ]
 
-/** Where the writer was in a book: the scene, and the selection within it. */
-interface Resume { sceneId: string; from: number; to: number }
-const resumeKey = (workId: string) => `justtype.resume.${workId}`
-function readResume(workId: string): Resume | null {
+/**
+ * Where the writer was in a book: the scene, and the selection within it.
+ * `unsent` while the server has not heard of it yet, so a place moved offline
+ * is not overwritten by the older one the server still holds.
+ */
+interface Resume { sceneId: string; from: number; to: number; unsent?: boolean }
+/**
+ * The server keeps each writer's place in each book, so it follows them to
+ * another device; this is this device's copy, for opening offline and for
+ * the moments between telling the server. Per writer, and kept through
+ * signing out. It holds positions, not text.
+ */
+const resumeKey = (userId: string, workId: string) => `justtype.place.${userId}.${workId}`
+/** Before positions were per writer. Read once so nobody loses their place. */
+const legacyResumeKey = (workId: string) => `justtype.resume.${workId}`
+/** Moving the cursor is constant; telling the server is not worth doing per keystroke. */
+const PLACE_DEBOUNCE_MS = 2_000
+function readResume(userId: string, workId: string): Resume | null {
   try {
-    const value = JSON.parse(localStorage.getItem(resumeKey(workId)) ?? 'null')
+    const value = JSON.parse(
+      localStorage.getItem(resumeKey(userId, workId)) ?? localStorage.getItem(legacyResumeKey(workId)) ?? 'null',
+    )
     return value && typeof value.sceneId === 'string' && Number.isFinite(value.from) && Number.isFinite(value.to)
       ? value
       : null
@@ -132,11 +148,12 @@ function readResume(workId: string): Resume | null {
     return null
   }
 }
-function writeResume(workId: string, resume: Resume) {
+function writeResume(userId: string, workId: string, resume: Resume) {
   try {
-    localStorage.setItem(resumeKey(workId), JSON.stringify(resume))
+    localStorage.setItem(resumeKey(userId, workId), JSON.stringify(resume))
+    localStorage.removeItem(legacyResumeKey(workId))
   } catch {
-    // Blocked site data: the writer just starts at the top next time.
+    // Blocked site data: the server's copy is still there.
   }
 }
 
@@ -279,6 +296,48 @@ export function EditorPage() {
   }
   const can = permissions(outline?.access)
   const { user } = useAuth()
+  // The route is signed-in only, so this is always someone.
+  const userId = user?.id ?? ''
+
+  /** Tells the server where the writer is; on failure it stays marked unsent for next time. */
+  const sendPlace = useCallback(
+    async (place: Resume) => {
+      const { sceneId, from, to } = place
+      try {
+        await api.works.putPlace(workId, { sceneId, from, to })
+        // Only clear the mark if they have not moved again meanwhile.
+        const now = readResume(userId, workId)
+        if (now && now.sceneId === sceneId && now.from === from && now.to === to) {
+          writeResume(userId, workId, { sceneId, from, to })
+        }
+      } catch {
+        // Offline or refused: it is still marked unsent, and goes with the next move or open.
+      }
+    },
+    [userId, workId],
+  )
+  const placeTimer = useRef<number | null>(null)
+  const sendPlaceNow = useCallback(() => {
+    if (placeTimer.current === null) return
+    window.clearTimeout(placeTimer.current)
+    placeTimer.current = null
+    const place = readResume(userId, workId)
+    if (place?.unsent) void sendPlace(place)
+  }, [sendPlace, userId, workId])
+  // Leaving the book — back to the desk, another tab, closing it — sends the
+  // place at once rather than losing the last two seconds of it.
+  useEffect(() => {
+    const onHide = () => {
+      if (document.visibilityState === 'hidden') sendPlaceNow()
+    }
+    window.addEventListener('pagehide', sendPlaceNow)
+    document.addEventListener('visibilitychange', onHide)
+    return () => {
+      window.removeEventListener('pagehide', sendPlaceNow)
+      document.removeEventListener('visibilitychange', onHide)
+      sendPlaceNow()
+    }
+  }, [sendPlaceNow])
 
   // Who else is writing the book right now, and where.
   const room = `work:${workId}`
@@ -548,12 +607,19 @@ export function EditorPage() {
       const next = await api.works.outline(workId)
       setOutline(next)
       cache.putOutline(workId, next)
+      // The server's place wins — the writer may have moved on another device
+      // since — unless this device moved somewhere the server never heard.
+      const local = readResume(userId, workId)
+      if (local?.unsent) void sendPlace(local)
+      else if (next.place) writeResume(userId, workId, next.place)
       setError(null)
       return next
     } catch (e) {
       // Offline: the cached structure is enough to get the writer back to the
-      // scene they were in, where their queued text is waiting.
-      const fallback = cache.outline(workId)
+      // scene they were in, where their queued text is waiting. Only offline:
+      // a 403 or 404 is the server saying this is not theirs to open, and the
+      // cache must not answer differently.
+      const fallback = isOffline(e) ? cache.outline(workId) : null
       if (fallback) {
         setOutline(fallback)
         return fallback
@@ -561,7 +627,8 @@ export function EditorPage() {
       setError(e instanceof Error ? e.message : 'Could not open that work')
       return null
     }
-  }, [workId])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, workId])
 
   const loadVersions = useCallback(async () => {
     setVersions(await api.versions.list(workId).catch(() => []))
@@ -574,7 +641,7 @@ export function EditorPage() {
       await loadVersions()
       const scenes = next?.chapters.flatMap((c) => c.scenes) ?? []
       // Where the writer left off, if that scene is still in the book.
-      const left = readResume(workId)
+      const left = readResume(userId, workId)
       const first = scenes.find((s) => s.id === left?.sceneId) ?? scenes[0]
       if (first) void openScene(first)
     })()
@@ -589,6 +656,10 @@ export function EditorPage() {
         full = await api.scenes.get(target.id)
         cache.putScene(full)
       } catch (e) {
+        if (!isOffline(e)) {
+          setError(e instanceof Error ? e.message : 'Could not open that scene')
+          return
+        }
         const fallback = cache.scene(target.id)
         if (!fallback) {
           setError(
@@ -602,7 +673,7 @@ export function EditorPage() {
       // reopening a scene edited offline would show the older text, and the next
       // keystroke would be based on it — quietly undoing the recovered writing
       // the moment the queue flushed.
-      const resume = readResume(workId)
+      const resume = readResume(userId, workId)
       const queued = await pendingFor(target.id)
       const content = queued?.content ?? full.content ?? { type: 'doc', content: [] }
       sceneRef.current = full.id
@@ -617,7 +688,7 @@ export function EditorPage() {
         }
       }
     },
-    [editor, flush, saveState, setWordCount, workId],
+    [editor, flush, saveState, setWordCount, userId, workId],
   )
 
   // The editor instance outlives scene changes, so wire the change handler once
@@ -637,7 +708,11 @@ export function EditorPage() {
     if (!editor) return
     const handler = () => {
       const { from, to, empty } = editor.state.selection
-      if (sceneRef.current) writeResume(workId, { sceneId: sceneRef.current, from, to })
+      if (sceneRef.current) {
+        writeResume(userId, workId, { sceneId: sceneRef.current, from, to, unsent: true })
+        if (placeTimer.current !== null) window.clearTimeout(placeTimer.current)
+        placeTimer.current = window.setTimeout(sendPlaceNow, PLACE_DEBOUNCE_MS)
+      }
       setSelection(
         empty ? null : { from, to, quote: editor.state.doc.textBetween(from, to, ' ') },
       )
@@ -646,7 +721,7 @@ export function EditorPage() {
     return () => {
       editor.off('selectionUpdate', handler)
     }
-  }, [editor, workId])
+  }, [editor, sendPlaceNow, userId, workId])
 
   /** The scene after this one in the same chapter, if there is one. */
   const nextScene = (() => {

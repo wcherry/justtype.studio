@@ -2633,6 +2633,7 @@ public enum API {
         public var wordCount: Int
         public var access: WorkAccess?
         public var chapters: [OutlineChapter]
+        public var place: WritingPlace?
 
         public init(
             copyrightLine: String? = nil,
@@ -2658,7 +2659,8 @@ public enum API {
             updatedAt: String,
             wordCount: Int,
             access: WorkAccess? = nil,
-            chapters: [OutlineChapter]
+            chapters: [OutlineChapter],
+            place: WritingPlace? = nil
         ) {
             self.copyrightLine = copyrightLine
             self.createdAt = createdAt
@@ -2684,6 +2686,7 @@ public enum API {
             self.wordCount = wordCount
             self.access = access
             self.chapters = chapters
+            self.place = place
         }
     }
 
@@ -5788,6 +5791,24 @@ public enum API {
             self.saves = saves
             self.updatedAt = updatedAt
             self.userId = userId
+        }
+    }
+
+    /// Where a writer was in a book: the scene, and the selection in it, as the
+    /// editor's positions within that scene's document.
+    public struct WritingPlace: Codable, Hashable, Sendable {
+        public var from: Int
+        public var sceneId: String
+        public var to: Int
+
+        public init(
+            from: Int,
+            sceneId: String,
+            to: Int
+        ) {
+            self.from = from
+            self.sceneId = sceneId
+            self.to = to
         }
     }
 
