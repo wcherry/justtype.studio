@@ -1,25 +1,82 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { ApiError, api, downloadAccountExport, tokens } from '../api/client'
 import type { AuditEvent, SessionView, TwoFactorSetup } from '../api/types'
+import { Tabs } from '../components/Tabs'
 import { useAuth } from '../state/auth'
 
-/** The account: its address, its password, its second factor, where it is
- *  signed in, and the data held about it. */
+type SettingsTab = 'account' | 'general'
+const TABS: { key: SettingsTab; label: string }[] = [
+  { key: 'account', label: 'Account' },
+  { key: 'general', label: 'Settings' },
+]
+
+/**
+ * Two tabs, each with its own address so a link can go straight to one:
+ * the account (its address, password, second factor, where it is signed in,
+ * the data held about it) and the settings (what the models may see, how
+ * writing behaves, Daily Prompts).
+ */
 export function SettingsPage() {
+  const { tab } = useParams()
+  const navigate = useNavigate()
+  if (tab !== 'account' && tab !== 'general') return <Navigate to="/settings/account" replace />
   return (
     <main className="feed settings">
       <header className="feed__header">
-        <h1>Account</h1>
+        <h1>{tab === 'account' ? 'Account' : 'Settings'}</h1>
       </header>
-      <AddressSection />
-      <PasswordSection />
-      <TwoFactorSection />
-      <SessionsSection />
-      <SummariesSection />
-      <AssistantSection />
-      <DataSection />
+      <Tabs label="Account and settings" tabs={TABS} active={tab} onChange={(key) => navigate(`/settings/${key}`)}>
+        {tab === 'account' ? (
+          <>
+            <AddressSection />
+            <PasswordSection />
+            <TwoFactorSection />
+            <SessionsSection />
+            <DataSection />
+          </>
+        ) : (
+          <>
+            <SummariesSection />
+            <AssistantSection />
+            <WritingSection />
+            <Section title="Daily Prompts">
+              <p className="field__hint">
+                Whether you take part, and the daily email, are set on <Link to="/prompts#preferences">the Daily Prompts page</Link>.
+              </p>
+            </Section>
+          </>
+        )}
+      </Tabs>
     </main>
+  )
+}
+
+function WritingSection() {
+  const { user, updateUser } = useAuth()
+  const { busy, run, status } = useRun()
+  if (!user) return null
+  return (
+    <Section title="Writing">
+      <label className="settings__row">
+        <input
+          type="checkbox"
+          checked={!!user.doubleEnterSplitsScenes}
+          disabled={busy}
+          onChange={(e) => {
+            const on = e.target.checked
+            void run(async () => {
+              updateUser(await api.account.updateSettings({ doubleEnterSplitsScenes: on }))
+            })
+          }}
+        />
+        Treat a blank line (double Enter) as a scene break when turning text into a project
+      </label>
+      <p className="field__hint">
+        A line that is only <code>--</code> always starts a new scene. This adds a blank line too. It is kept with your account, so the app on your phone follows it.
+      </p>
+      {status}
+    </Section>
   )
 }
 

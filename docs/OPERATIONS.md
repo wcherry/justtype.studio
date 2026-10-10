@@ -31,6 +31,7 @@ client shows the same checks to a person.
 | database | it answers, and no migration is pending |
 | manuscripts | the data folder takes a write and a rename — what a save does |
 | backups | the newest backup is under 26 hours old **and its restore drill passed** |
+| jobs | the scheduled jobs are on time: the runner ticked in the last 5 minutes, and today's `open_prompt` and `build_digests` and tomorrow's `prepare_prompt` (from noon Pacific) have run. Which one is late is at `/api/admin/jobs`, for admins |
 | mail | always; says whether mail goes to the outbox or out through SMTP |
 
 `/api/health` still exists and only says the process is up.
@@ -176,6 +177,44 @@ token set, the endpoint does not exist.
 If the numbers ever say SQLite is the bottleneck, the contingency is Postgres
 behind Diesel (see `ROADMAP.md`, *7.1*). They are there so that decision is
 made from a graph.
+
+## Scheduled jobs
+
+The server runs its own jobs: one task ticks every minute
+(`JUSTTYPE_JOB_TICK_SECONDS`) and runs what is due. Each daily run is claimed
+in `job_runs` under its day before it starts and marked when it ends, so a
+restart, a missed tick or a second process cannot run it twice, and a run
+missed while the server was down happens on the first tick back.
+
+| Job | When | Does |
+|---|---|---|
+| `open_prompt` | from midnight Pacific | gives today a prompt if it has none: pinned, else queued, else written by the model, else the built-in list |
+| `prepare_prompt` | from noon Pacific | gives tomorrow its prompt (pinned, queued, or the model's), so admins can see and change it; a model failure is retried after 5 minutes |
+| `build_digests` | from midnight Pacific | yesterday's inbox summary for each writer with activity |
+| prompt emails | every tick | queues today's prompt for each writer whose chosen time has come, once per day |
+| mail delivery | every tick | sends `mail_queue`, retrying with backoff (1 minute, doubling, at most an hour) until the message's day is over |
+
+Settings:
+
+- `JUSTTYPE_PROMPT_TZ`: the prompt day's timezone (default `America/Los_Angeles`).
+- `JUSTTYPE_APPLE_APP_ID`: `TEAMID.app.scriptorium.ios`, to serve the
+  `apple-app-site-association` that lets the email's links open the iOS app.
+- `JUSTTYPE_TEST_CLOCK=1`: **for the smoke walkthrough only.** Mounts
+  `POST /api/test/clock {now}`, which moves the server's clock and runs a tick.
+  Never set it on a server people use.
+
+Going live with the email needs `JUSTTYPE_MAIL=smtp` and a sending domain;
+until then it goes to the outbox file like the rest of the mail.
+
+## Site administrators
+
+```sh
+cargo xtask admin grant ada@example.com    # or: justtype-backend --admin grant …
+cargo xtask admin revoke ada@example.com
+```
+
+Run against the same environment (or `.env`) as the server. Both are recorded
+in the audit log. No request body can change who is an admin.
 
 ## Not built here
 

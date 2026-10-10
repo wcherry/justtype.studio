@@ -12,6 +12,13 @@ public struct PendingSave: Codable, Equatable, Sendable {
     /// Set when the server refused it. The writer has to choose, so it stops
     /// being retried until they do.
     public var conflicted: Bool
+    /// For a Daily Prompts answer: the prompt's day. Its `sceneId` is then
+    /// `prompt:<day>`, the key the answer is queued under. Unset for a scene,
+    /// and on saves queued before answers existed.
+    public var day: String?
+    /// For an answer: the writer's date when they wrote it, for their daily
+    /// goal — not the date it finally goes up.
+    public var localDay: String?
 
     public init(
         sceneId: String,
@@ -19,7 +26,9 @@ public struct PendingSave: Codable, Equatable, Sendable {
         baseHash: String?,
         createRevision: Bool,
         queuedAt: Date = Date(),
-        conflicted: Bool = false
+        conflicted: Bool = false,
+        day: String? = nil,
+        localDay: String? = nil
     ) {
         self.sceneId = sceneId
         self.content = content
@@ -27,7 +36,12 @@ public struct PendingSave: Codable, Equatable, Sendable {
         self.createRevision = createRevision
         self.queuedAt = queuedAt
         self.conflicted = conflicted
+        self.day = day
+        self.localDay = localDay
     }
+
+    /// The key an answer to `day` is queued under.
+    public static func entryKey(day: String) -> String { "prompt:\(day)" }
 }
 
 /// Saves waiting for a network, kept on disk.

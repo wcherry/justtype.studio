@@ -68,6 +68,8 @@ Tasks:
                        --no-build   run the image last built
                        --detach     run in the background (docker stop justtype-local)
                        --fresh      start from an empty data volume
+  admin grant|revoke <email>
+                     Make an account a site administrator, or stop it being one
   fmt                Format the Rust sources";
 
 fn main() {
@@ -102,6 +104,27 @@ fn main() {
         "backup" => run_script(&cfg.workspace_root, "scripts/backup.sh", &extra),
         "docker" => run_docker(&cfg, &extra),
         "fmt" => run("cargo", &["fmt", "--all"], &cfg.workspace_root),
+        // Never through the API: the server's own `--admin` flag, against the
+        // database the environment (or .env) names.
+        "admin" => match extra.as_slice() {
+            [verb, email] if verb == "grant" || verb == "revoke" => {
+                let mut args = vec![
+                    "run",
+                    "-q",
+                    "-p",
+                    cfg.backend_package.as_str(),
+                    "--",
+                    "--admin",
+                ];
+                args.push(verb);
+                args.push(email);
+                run("cargo", &args, &cfg.workspace_root);
+            }
+            _ => {
+                eprintln!("Usage: cargo xtask admin grant|revoke <email>");
+                process::exit(1);
+            }
+        },
         other => {
             eprintln!("Unknown task: {other}\n\n{USAGE}");
             process::exit(1);

@@ -123,6 +123,22 @@ EPUBs are checked twice. At runtime the writer verifies its own package
 single file, RTL, with a cover, foot- and endnotes) and runs W3C epubcheck on
 them; it is Java, so it stays out of the runtime image.
 
+## Scheduled work and mail
+
+Nothing used to run on a schedule. `jobs.rs` is one Tokio task that ticks
+every minute; each daily job claims its run in `job_runs` under its day, so the
+key, not the timing, is what stops a second run, and a run missed while the
+server was down happens when it comes back. `clock.rs` owns "now" and the
+Pacific prompt day, with daylight saving (23- and 25-hour days); the smoke
+walkthrough moves that clock through a test-only route.
+
+Mail a job decides to send cannot share a transaction with an SMTP
+conversation, so it goes into `mail_queue` in the same transaction as the
+record of having sent it (`prompt_email_sends`), and the runner delivers the
+queue with backoff. A writer gets at most one prompt email a day however the
+process restarts. Mail sent during a request (a reset link) still goes
+straight out.
+
 ## Web
 
 Vite + React + TipTap. The interesting part is `editor/commentAnchors.ts`:

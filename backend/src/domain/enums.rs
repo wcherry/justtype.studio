@@ -173,6 +173,31 @@ api_enum!(ReportReason {
     Other => "other",
 });
 
+api_enum!(EntryState {
+    /// Private: only its writer sees it.
+    Draft => "draft",
+    /// Readable by every writer enrolled in Daily Prompts.
+    Submitted => "submitted",
+    /// Taken back: private again, its critiques kept.
+    Withdrawn => "withdrawn",
+});
+
+api_enum!(EntrySort {
+    /// Most recently submitted first.
+    Newest => "newest",
+    /// Fewest critiques first, so a new writer is not buried.
+    FewestCritiques => "fewest_critiques",
+});
+
+api_enum!(PromptSource {
+    /// Written or chosen by an admin.
+    Curated => "curated",
+    /// Written by the model when nothing was queued.
+    Ai => "ai",
+    /// From the built-in list, when even the model could not be reached.
+    Evergreen => "evergreen",
+});
+
 api_enum!(Genre {
     Literary => "literary",
     Fantasy => "fantasy",
@@ -268,6 +293,9 @@ api_enum!(AuditAction {
     SummariesWithdrawn => "summaries_withdrawn",
     AssistantAllowed => "assistant_allowed",
     AssistantWithdrawn => "assistant_withdrawn",
+    AdminGranted => "admin_granted",
+    AdminRevoked => "admin_revoked",
+    PromptEdited => "prompt_edited",
 });
 
 api_enum!(AnnotationKind {

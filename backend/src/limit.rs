@@ -36,6 +36,8 @@ pub enum Action {
     Summaries,
     /// Requests to the writing assistant, per writer: a paid call each.
     Assistant,
+    /// Critiques and replies on Daily Prompts answers.
+    Critique,
 }
 
 impl Action {
@@ -50,6 +52,7 @@ impl Action {
             Action::AuthRequests => "sign-in requests",
             Action::Summaries => "summaries",
             Action::Assistant => "assistant requests",
+            Action::Critique => "critiques",
         }
     }
 }

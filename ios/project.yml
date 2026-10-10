@@ -69,6 +69,11 @@ targets:
       properties:
         com.apple.security.application-groups:
           - group.app.scriptorium.ios
+        # The daily prompt email's links open the app when it is installed;
+        # the server answers /.well-known/apple-app-site-association when
+        # JUSTTYPE_APPLE_APP_ID is set (TEAMID.app.scriptorium.ios).
+        com.apple.developer.associated-domains:
+          - applinks:www.justtype.studio
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.scriptorium.ios

@@ -14,6 +14,9 @@ import type {
   ExportOptions, ExportFormat, PreflightReport, ExportProfile, ExportProfiles, LastUsedResponse,
   ExportHistoryItem, MetadataResponse, UpdateMetadataRequest,
   AssistRequest, AssistView, ThesaurusEntry,
+  AdminPrompts, ArchivePage, CritiqueReportView, CritiqueView, EnrollmentView, EntryPage,
+  InboxPage, JobsReport, PromptEntryView, PromptView, TodayResponse, ToWorkPreview, UnreadCount,
+  UpdateEnrollmentRequest,
 } from './types'
 
 const BASE = '/api'
@@ -634,6 +637,8 @@ export const api = {
     sessions: () => get<SessionView[]>('/me/sessions'),
     revokeSession: (sessionId: string) => del<{ ok: boolean }>(`/me/sessions/${sessionId}`),
     signOutOthers: () => post<{ ok: boolean }>('/me/sessions/sign-out-others'),
+    /** Settings every device reads from the account. */
+    updateSettings: (input: { doubleEnterSplitsScenes?: boolean }) => patch<User>('/me/settings', input),
   },
 
   /** What this server can do. */
@@ -747,6 +752,75 @@ export const api = {
 }
 
 /** What the sidebar is narrowed to. Lifted out because the page owns it. */
+/** Daily Prompts: the day's prompt, taking part, an answer, everyone else's. */
+export const prompts = {
+  today: () => get<TodayResponse>('/prompts/today'),
+  day: (day: string) => get<PromptView>(`/prompts/${day}`),
+  archive: (before?: string, limit = 30) =>
+    get<ArchivePage>(`/prompts?limit=${limit}${before ? `&before=${encodeURIComponent(before)}` : ''}`),
+
+  enrollment: () => get<EnrollmentView>('/prompts/enrollment'),
+  join: (timezone: string) => post<EnrollmentView>('/prompts/enrollment', { timezone }),
+  updateEnrollment: (input: UpdateEnrollmentRequest) => patch<EnrollmentView>('/prompts/enrollment', input),
+  leave: () => del<EnrollmentView>('/prompts/enrollment'),
+  /** Signed out is fine: the token in the link is the proof. */
+  unsubscribe: (token: string) =>
+    post<{ unsubscribed: boolean }>(`/prompts/unsubscribe?token=${encodeURIComponent(token)}`),
+
+  /** The caller's own answer, or null when not started. */
+  async entry(day: string): Promise<PromptEntryView | null> {
+    try {
+      return await get<PromptEntryView>(`/prompts/${day}/entry`)
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) return null
+      throw e
+    }
+  },
+  saveEntry: (day: string, content: DocNode, baseHash: string | null, localDay: string) =>
+    put<PromptEntryView>(`/prompts/${day}/entry`, { content, baseHash, localDay }),
+  submit: (day: string) => post<PromptEntryView>(`/prompts/${day}/entry/submit`),
+  withdraw: (day: string) => post<PromptEntryView>(`/prompts/${day}/entry/withdraw`),
+  deleteEntry: (day: string) => del<{ deleted: boolean }>(`/prompts/${day}/entry`),
+
+  feed: (day: string, sort: 'newest' | 'fewest_critiques', cursor?: string | null) =>
+    get<EntryPage>(
+      `/prompts/${day}/entries?sort=${sort}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`,
+    ),
+  get: (entryId: string) => get<PromptEntryView>(`/prompt-entries/${entryId}`),
+  previewWork: (entryId: string) => post<ToWorkPreview>(`/prompt-entries/${entryId}/to-work/preview`),
+  toWork: (entryId: string, title: string) => post<Outline>(`/prompt-entries/${entryId}/to-work`, { title }),
+}
+
+export const critiques = {
+  list: (entryId: string) => get<CritiqueView[]>(`/prompt-entries/${entryId}/critiques`),
+  create: (entryId: string, body: string, parentId?: string | null) =>
+    post<CritiqueView>(`/prompt-entries/${entryId}/critiques`, { body, parentId: parentId ?? null }),
+  update: (id: string, body: string) => patch<CritiqueView>(`/prompt-critiques/${id}`, { body }),
+  remove: (id: string) => del<{ removed: boolean }>(`/prompt-critiques/${id}`),
+  report: (id: string, reason: ReportReason, detail?: string) =>
+    post<{ reported: boolean }>(`/prompt-critiques/${id}/report`, { reason, detail: detail || null }),
+  reports: (entryId: string) => get<CritiqueReportView[]>(`/prompt-entries/${entryId}/reports`),
+}
+
+export const inbox = {
+  list: (cursor?: string | null) =>
+    get<InboxPage>(`/inbox${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`),
+  unread: () => get<UnreadCount>('/inbox/unread-count'),
+  read: (id: string) => post<UnreadCount>(`/inbox/${id}/read`),
+  readDigest: (day: string) => post<UnreadCount>(`/inbox/digests/${day}/read`),
+  readAll: () => post<UnreadCount>('/inbox/read-all'),
+}
+
+export const admin = {
+  prompts: () => get<AdminPrompts>('/admin/prompts'),
+  addPrompt: (body: string, day?: string | null) => post<AdminPrompts>('/admin/prompts', { body, day: day || null }),
+  updatePrompt: (id: string, input: { body?: string; day?: string | null; unpin?: boolean }) =>
+    patch<AdminPrompts>(`/admin/prompts/${id}`, input),
+  deletePrompt: (id: string) => del<AdminPrompts>(`/admin/prompts/${id}`),
+  reorder: (ids: string[]) => post<AdminPrompts>('/admin/prompts/reorder', { ids }),
+  jobs: () => get<JobsReport>('/admin/jobs'),
+}
+
 export interface CommentFilters {
   sceneId?: string
   sort?: 'top' | 'new'

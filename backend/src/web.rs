@@ -63,6 +63,34 @@ async fn page(dir: PathBuf, request: Request) -> Response {
     with_cache(response.into_response(), REVALIDATE)
 }
 
+/// What tells iOS that links to `/prompts/…` (the daily email's "Write your
+/// answer") may open the app instead of the browser. Served when
+/// `JUSTTYPE_APPLE_APP_ID` names the app (`TEAMID.bundle.id`); a 404
+/// otherwise, which iOS takes as "no app".
+pub fn app_site_association(app_id: Option<&str>) -> Response {
+    let Some(id) = app_id.filter(|id| id.contains('.')) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let body = serde_json::json!({
+        "applinks": {
+            "details": [{
+                "appIDs": [id],
+                "components": [
+                    { "/": "/prompts/*", "comment": "Daily Prompts, from the email" },
+                ],
+            }],
+        },
+    });
+    (
+        [(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static("application/json"),
+        )],
+        body.to_string(),
+    )
+        .into_response()
+}
+
 fn with_cache(mut response: Response<Body>, policy: &'static str) -> Response {
     if response.status().is_success() {
         response
@@ -75,6 +103,25 @@ fn with_cache(mut response: Response<Body>, policy: &'static str) -> Response {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn the_app_claims_the_prompt_links_only_when_named() {
+        assert_eq!(app_site_association(None).status(), StatusCode::NOT_FOUND);
+        let response = app_site_association(Some("46KWJJ63FU.app.scriptorium.ios"));
+        assert_eq!(response.status(), StatusCode::OK);
+        let bytes = axum::body::to_bytes(response.into_body(), 1 << 16)
+            .await
+            .unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(
+            v["applinks"]["details"][0]["appIDs"][0],
+            "46KWJJ63FU.app.scriptorium.ios"
+        );
+        assert_eq!(
+            v["applinks"]["details"][0]["components"][0]["/"],
+            "/prompts/*"
+        );
+    }
 
     async fn get(app: Router, path: &str) -> (StatusCode, String, Option<String>) {
         let response = app

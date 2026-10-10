@@ -42,6 +42,24 @@ export interface AddMemberRequest {
   name?: string | null
 }
 
+export interface AdminDay {
+  day: string
+  // Answers started, drafts included: a prompt with any cannot be deleted.
+  entries: number
+  opened: boolean
+  prompt?: DailyPrompt | null
+}
+
+export interface AdminPrompts {
+  // Tomorrow and the two weeks after it, then today and the two weeks before.
+  days: AdminDay[]
+  // The queue, in the order it will be used.
+  queue: DailyPrompt[]
+  today: string
+  // Set when fewer than seven are queued.
+  warning?: string | null
+}
+
 export type Align = 'left' | 'justify'
 
 export interface Anchor {
@@ -88,6 +106,12 @@ export interface AnswerView {
   reader: AuthorCard
 }
 
+export interface ArchivePage {
+  // Pass as `before` for the page after this one; unset at the first day.
+  nextBefore?: string | null
+  prompts: PromptView[]
+}
+
 export interface AssistRequest {
   // The scene's text after the selection. Only the start of it is sent on.
   after?: string
@@ -110,7 +134,7 @@ export interface AssistView {
   text: string
 }
 
-export type AuditAction = 'password_reset' | 'password_changed' | 'two_factor_enabled' | 'two_factor_disabled' | 'session_revoked' | 'sessions_revoked' | 'account_exported' | 'account_deleted' | 'work_deleted' | 'publication_created' | 'publication_changed' | 'publication_withdrawn' | 'collaborator_added' | 'collaborator_changed' | 'collaborator_removed' | 'reader_invited' | 'reader_uninvited' | 'reader_blocked' | 'reader_unblocked' | 'terms_accepted' | 'share_link_made' | 'share_links_revoked' | 'summaries_allowed' | 'summaries_withdrawn' | 'assistant_allowed' | 'assistant_withdrawn'
+export type AuditAction = 'password_reset' | 'password_changed' | 'two_factor_enabled' | 'two_factor_disabled' | 'session_revoked' | 'sessions_revoked' | 'account_exported' | 'account_deleted' | 'work_deleted' | 'publication_created' | 'publication_changed' | 'publication_withdrawn' | 'collaborator_added' | 'collaborator_changed' | 'collaborator_removed' | 'reader_invited' | 'reader_uninvited' | 'reader_blocked' | 'reader_unblocked' | 'terms_accepted' | 'share_link_made' | 'share_links_revoked' | 'summaries_allowed' | 'summaries_withdrawn' | 'assistant_allowed' | 'assistant_withdrawn' | 'admin_granted' | 'admin_revoked' | 'prompt_edited'
 
 export interface AuditEvent {
   action: AuditAction
@@ -487,6 +511,52 @@ export interface CreateWorkRequest {
   title: string
 }
 
+export interface CritiqueReportView {
+  createdAt: string
+  critiqueId: string
+  detail?: string | null
+  id: string
+  reason: ReportReason
+  reporterId: string
+  critique: CritiqueView
+  reporter: AuthorCard
+}
+
+export interface CritiqueRequest {
+  body: string
+  // The critique this replies to.
+  parentId?: string | null
+}
+
+export interface CritiqueView {
+  author?: AuthorCard | null
+  // Empty when removed.
+  body: string
+  // The caller may delete it: their own, or any on their own answer.
+  canRemove: boolean
+  createdAt: string
+  editedAt?: string | null
+  entryId: string
+  id: string
+  mine: boolean
+  parentId?: string | null
+  removed: boolean
+}
+
+export interface DailyPrompt {
+  body: string
+  createdAt: string
+  createdBy?: string | null
+  // `YYYY-MM-DD`, the Pacific prompt day; `None` while it waits in the queue.
+  day?: string | null
+  id: string
+  // Its place in the queue.
+  position?: number | null
+  // `curated` or `ai`. Only admins see it.
+  source: string
+  updatedAt: string
+}
+
 export interface DeleteAccountRequest {
   // From the authenticator, when two-factor sign-in is on.
   code?: string | null
@@ -520,6 +590,21 @@ export interface DiffSummary {
   wordsRemoved: number
 }
 
+export interface DigestCount {
+  count: number
+  kind: string
+}
+
+export interface DigestView {
+  counts: DigestCount[]
+  // The day it sums up.
+  day: string
+  readAt?: string | null
+  // "Yesterday: 4 critiques and 2 replies on your answer to '…'. Today's
+  // prompt is open."
+  text: string
+}
+
 export interface DisableTwoFactorRequest {
   // From the authenticator, or a recovery code.
   code: string
@@ -549,6 +634,45 @@ export interface DocNode {
 export interface Done {
   ok: boolean
 }
+
+export interface EditCritiqueRequest {
+  body: string
+}
+
+export interface EnrollmentView {
+  emailEnabled: boolean
+  // `HH:MM` in `email_timezone`.
+  emailLocalTime: string
+  emailTimezone: string
+  // Email can only be turned on for a confirmed address.
+  emailVerified: boolean
+  enrolled: boolean
+  enrolledAt?: string | null
+  // When today's prompt opens (and so when it closes), as `HH:MM` in
+  // `email_timezone`, for the note beside the time.
+  opensAtLocal: string
+}
+
+export interface EntryCard {
+  author: AuthorCard
+  critiqueCount: number
+  day: string
+  editedAt?: string | null
+  // The first few lines.
+  excerpt: string
+  id: string
+  late: boolean
+  mine: boolean
+  submittedAt?: string | null
+  wordCount: number
+}
+
+export interface EntryPage {
+  entries: EntryCard[]
+  nextCursor?: string | null
+}
+
+export type EntryState = 'draft' | 'submitted' | 'withdrawn'
 
 export interface EntryView {
   body?: string | null
@@ -675,6 +799,23 @@ export interface ImportProfileRequest {
   options: JsonValue
 }
 
+export interface InboxItemView {
+  actor?: AuthorCard | null
+  createdAt: string
+  id: string
+  kind: string
+  // A path in the web app.
+  link: string
+  readAt?: string | null
+  text: string
+}
+
+export interface InboxPage {
+  digest?: DigestView | null
+  items: InboxItemView[]
+  nextCursor?: string | null
+}
+
 export interface InviteRequest {
   // Invite everyone in one of the author's circles, by id.
   circleId?: string | null
@@ -702,6 +843,37 @@ export interface Issue {
   // Says what to do next, not just what went wrong.
   message: string
   severity: Severity
+}
+
+export interface JobHealth {
+  lastTick?: string | null
+  ok: boolean
+  // What is late, if anything.
+  problems: string[]
+}
+
+export interface JobRun {
+  attempts: number
+  error?: string | null
+  finishedAt?: string | null
+  job: string
+  // What the run is for: the day, for a daily job.
+  key: string
+  startedAt: string
+}
+
+export interface JobsReport {
+  health: JobHealth
+  mailFailed: number
+  mailWaiting: number
+  // The most recent runs, newest first.
+  runs: JobRun[]
+}
+
+export interface JoinRequest {
+  // The writer's timezone (IANA), from their browser. Sets the default
+  // time for the email, which stays off until they turn it on.
+  timezone?: string | null
 }
 
 export interface LastUsed {
@@ -786,6 +958,12 @@ export interface MetadataResponse {
   publisher?: string | null
   textDirection?: string | null
   updatedAt?: string | null
+}
+
+export interface NewPromptRequest {
+  body: string
+  // Pin it to this future day instead of queueing it.
+  day?: string | null
 }
 
 export interface NoteCounts {
@@ -961,6 +1139,72 @@ export interface ProgressRequest {
   sceneId: string
 }
 
+export interface PromptCritiqueReport {
+  createdAt: string
+  critiqueId: string
+  detail?: string | null
+  id: string
+  reason: ReportReason
+  reporterId: string
+}
+
+export interface PromptEntry {
+  authorId: string
+  contentHash: string
+  convertedWorkId?: string | null
+  createdAt: string
+  // The last change made after submitting.
+  editedAt?: string | null
+  id: string
+  promptId: string
+  // `draft`, `submitted` or `withdrawn`.
+  state: EntryState
+  // The first submission. Never moved by an edit or a resubmission.
+  submittedAt?: string | null
+  updatedAt: string
+  wordCount: number
+}
+
+export interface PromptEntryView {
+  authorId: string
+  contentHash: string
+  convertedWorkId?: string | null
+  createdAt: string
+  // The last change made after submitting.
+  editedAt?: string | null
+  id: string
+  promptId: string
+  // `draft`, `submitted` or `withdrawn`.
+  state: EntryState
+  // The first submission. Never moved by an edit or a resubmission.
+  submittedAt?: string | null
+  updatedAt: string
+  wordCount: number
+  author: AuthorCard
+  // The answer, as a ProseMirror document.
+  content: JsonValue
+  convertedWork?: WorkLink | null
+  critiqueCount: number
+  day: string
+  late: boolean
+  mine: boolean
+  prompt: string
+}
+
+export interface PromptView {
+  body: string
+  closesAt: string
+  // `YYYY-MM-DD`, Pacific.
+  day: string
+  myEntryId?: string | null
+  // The caller's own answer: `none`, or the entry's state.
+  myState: string
+  // When it opened and when it closes.
+  opensAt: string
+  // How many have been submitted, late ones included.
+  submissions: number
+}
+
 export interface Publication {
   closesAt?: string | null
   createdAt: string
@@ -1129,6 +1373,11 @@ export interface RegisterRequest {
   password: string
 }
 
+export interface ReorderPromptsRequest {
+  // Every queued prompt's id, in the new order.
+  ids: string[]
+}
+
 export interface ReorderRequest {
   // Complete ordered list of ids; anything missing keeps its current slot.
   ids: string[]
@@ -1241,6 +1490,15 @@ export interface RevisionWithContent {
   content: DocNode
 }
 
+export interface SaveEntryRequest {
+  // The hash the edit was made on top of; a save against something newer
+  // is refused with 409, as scene saves are.
+  baseHash?: string | null
+  content: JsonValue
+  // The writer's own date, for their daily goal.
+  localDay?: string | null
+}
+
 export interface SaveProfileRequest {
   name: string
   options: ExportOptions
@@ -1292,6 +1550,11 @@ export interface SceneHit {
   // U+0003.
   snippet: string
   title: string
+}
+
+export interface ScenePreview {
+  firstLine: string
+  wordCount: number
 }
 
 export interface SceneRevision {
@@ -1603,12 +1866,30 @@ export interface ThesaurusEntry {
   word: string
 }
 
+export interface ToWorkPreview {
+  // Whether a blank paragraph separated scenes, from the writer's setting.
+  blankParagraphSplits: boolean
+  scenes: ScenePreview[]
+  // A title from the prompt, for the dialog to offer.
+  title: string
+}
+
+export interface ToWorkRequest {
+  // Unset, the title the preview offered.
+  title?: string | null
+}
+
 export interface TocChapter {
   chapterId: string
   // In reading order.
   sceneIds: string[]
   title: string
   wordCount: number
+}
+
+export interface TodayResponse {
+  enrolled: boolean
+  prompt: PromptView
 }
 
 export interface TokenRequest {
@@ -1642,6 +1923,11 @@ export interface TwoFactorSetup {
   url: string
 }
 
+export interface UnreadCount {
+  // Unread items, plus one for an unread summary.
+  count: number
+}
+
 export interface UpdateAnnotationRequest {
   // Where the passage is now, after the draft moved it.
   from?: number | null
@@ -1673,6 +1959,14 @@ export interface UpdateCommentRequest {
   body?: string | null
   // `open` or `resolved`; only the author of the work may resolve.
   state?: string | null
+}
+
+export interface UpdateEnrollmentRequest {
+  emailEnabled?: boolean | null
+  // `HH:MM`.
+  emailLocalTime?: string | null
+  // An IANA name.
+  emailTimezone?: string | null
 }
 
 export interface UpdateEntryRequest {
@@ -1716,6 +2010,14 @@ export interface UpdateProfileRequest {
   displayName?: string | null
 }
 
+export interface UpdatePromptRequest {
+  body?: string | null
+  // Pin to this future day.
+  day?: string | null
+  // Take it off its day and put it at the end of the queue.
+  unpin?: boolean
+}
+
 export interface UpdatePublicationRequest {
   closesAt?: string | null
   // `0` removes the cap.
@@ -1744,6 +2046,11 @@ export interface UpdateSceneRequest {
   // `present_or_absent`.
   targetWords?: number | null
   title?: string | null
+}
+
+export interface UpdateSettingsRequest {
+  // Turning text into a project also splits scenes at a blank paragraph.
+  doubleEnterSplitsScenes?: boolean | null
 }
 
 export interface UpdateTaskRequest {
@@ -1790,11 +2097,17 @@ export interface User {
   // The writer's daily target in words, when they have set one.
   dailyWordGoal?: number | null
   displayName: string
+  // Turning text into a project splits scenes at a blank paragraph (double
+  // Enter) as well as at a `--` line.
+  doubleEnterSplitsScenes: boolean
   email: string
   // When the address was proved. Invitations addressed to it reach this
   // account only once it has been.
   emailVerifiedAt?: string | null
   id: string
+  // A site administrator: curates the daily prompts. Set from the command
+  // line only; no request body can change it.
+  isAdmin: boolean
   // Contact details for a submission's first page. Kept on the writer rather
   // than the work, since they are the same for every submission.
   legalName?: string | null
@@ -2001,6 +2314,11 @@ export interface WorkActivity {
 }
 
 export type WorkKind = 'novel' | 'novella' | 'short_story' | 'serial'
+
+export interface WorkLink {
+  id: string
+  title: string
+}
 
 export type WorkStatus = 'draft' | 'published' | 'final' | 'archived'
 

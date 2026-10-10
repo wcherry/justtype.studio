@@ -1,5 +1,6 @@
 import { ApiError, api } from '../api/client'
-import type { DocNode, SaveResult } from '../api/types'
+import { prompts } from '../api/client'
+import type { DocNode, PromptEntryView, SaveResult } from '../api/types'
 import { idb } from './db'
 
 /**
@@ -13,9 +14,15 @@ import { idb } from './db'
  * One entry per scene, holding the newest document. Replaying a queue of every
  * intermediate keystroke would send a hundred writes that the next one
  * immediately supersedes.
+ *
+ * A Daily Prompts answer queues the same way, under the key `prompt:<day>`
+ * with `kind: 'entry'`, so a writer can answer offline and submit once back.
  */
 
 export interface PendingSave {
+  /** Unset on saves queued before answers existed: those are scenes. */
+  kind?: 'scene' | 'entry'
+  /** The key: a scene's id, or `prompt:<day>` for an answer. */
   sceneId: string
   workId: string
   sceneTitle: string
@@ -25,11 +32,17 @@ export interface PendingSave {
   /** The writer's local date when they wrote it — not when it finally syncs. */
   localDay: string
   queuedAt: number
+  /** For an answer: the prompt's day. */
+  day?: string
 }
+
+/** The queue key an answer is saved under. */
+export const entryKey = (day: string) => `prompt:${day}`
 
 export type QueueEvent =
   | { type: 'queued'; sceneId: string; pending: number }
   | { type: 'flushed'; sceneId: string; result: SaveResult; pending: number }
+  | { type: 'entryFlushed'; sceneId: string; entry: PromptEntryView; pending: number }
   | { type: 'conflict'; sceneId: string; pending: number; details: ConflictDetails }
   | { type: 'failed'; sceneId: string; pending: number; message: string }
 
@@ -150,6 +163,39 @@ export async function saveScene(save: PendingSave, createRevision: boolean): Pro
 }
 
 /**
+ * Save an answer, queueing it if the network is down. The same contract as
+ * `saveScene`: the server's view of it when it landed, null when queued.
+ */
+export async function saveEntry(save: PendingSave): Promise<PromptEntryView | null> {
+  const queued = { ...save, kind: 'entry' as const }
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    await enqueue(queued)
+    return null
+  }
+  try {
+    const entry = await prompts.saveEntry(save.day!, save.content, save.baseHash, save.localDay)
+    await idb.delete(save.sceneId)
+    return entry
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 409) {
+      await enqueue(queued)
+      emit({
+        type: 'conflict',
+        sceneId: save.sceneId,
+        pending: await pendingCount(),
+        details: error.details as ConflictDetails,
+      })
+      return null
+    }
+    if (isOffline(error)) {
+      await enqueue(queued)
+      return null
+    }
+    throw error
+  }
+}
+
+/**
  * Replay everything queued. Safe to call at any time — on reconnect, on load,
  * or on a timer — and it will not run twice concurrently.
  */
@@ -165,6 +211,12 @@ export async function flushQueue(): Promise<void> {
   try {
     for (const save of await idb.all<PendingSave>()) {
       try {
+        if (save.kind === 'entry' && save.day) {
+          const entry = await prompts.saveEntry(save.day, save.content, save.baseHash, save.localDay)
+          await idb.delete(save.sceneId)
+          emit({ type: 'entryFlushed', sceneId: save.sceneId, entry, pending: await pendingCount() })
+          continue
+        }
         const result = await api.scenes.saveContent(
           save.sceneId,
           save.content,

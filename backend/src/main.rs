@@ -1,11 +1,13 @@
 mod ai;
 mod auth;
 mod cache;
+mod clock;
 mod config;
 mod db;
 mod domain;
 mod error;
 mod export;
+mod jobs;
 mod limit;
 mod live;
 mod mail;
@@ -151,6 +153,20 @@ async fn main() -> anyhow::Result<()> {
     let pool = db::build_pool(&config.database_url)?;
     db::run_migrations(&pool)?;
 
+    // `--admin grant|revoke <email>`: the only way anyone becomes a site
+    // administrator. `cargo xtask admin` runs this.
+    if let Some(i) = args.iter().position(|a| a == "--admin") {
+        let (verb, email) = match (args.get(i + 1), args.get(i + 2)) {
+            (Some(v), Some(e)) if v == "grant" || v == "revoke" => (v.clone(), e.clone()),
+            _ => anyhow::bail!("usage: --admin grant|revoke <email>"),
+        };
+        let mut conn = pool.get()?;
+        let said = routes::admin::grant(&mut conn, &email, verb == "grant")
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
+        println!("{said}");
+        return Ok(());
+    }
+
     // Built-in templates are refreshed on every boot so editing the template
     // file is all it takes to ship a new one.
     {
@@ -206,6 +222,9 @@ async fn main() -> anyhow::Result<()> {
         hub: Arc::new(live::Hub::default()),
         login_guard: Arc::new(limit::LoginGuard::default()),
     };
+
+    // The scheduled jobs: the day's prompt, the emails, the inbox summaries.
+    jobs::spawn(state.clone());
 
     // Outermost first in effect: the request id wraps everything, so even a
     // panic's 500 and the CORS preflight carry one.

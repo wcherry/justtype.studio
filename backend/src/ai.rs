@@ -423,9 +423,78 @@ pub async fn assist(
     .await
 }
 
+// --- the daily prompt ------------------------------------------------------
+
+pub fn daily_prompt_system() -> String {
+    "You write the daily writing prompt for a community of fiction writers. \
+Reply with the prompt alone: one to three sentences, no title, no quotation \
+marks, no preamble and nothing after it. It should give a writer somewhere \
+to start (a situation, an image, a constraint) without telling them what \
+to write, and suit any genre. Do not repeat or closely echo any of the \
+recent prompts you are shown."
+        .into()
+}
+
+/// The request for a new prompt. Only earlier prompts go with it, never
+/// anything a writer wrote, so no writer's consent is involved.
+pub fn daily_prompt_request(model: &str, recent: &[String]) -> Value {
+    let listed: String = recent
+        .iter()
+        .map(|p| format!("<prompt>{}</prompt>\n", p.trim()))
+        .collect();
+    json!({
+        "model": model,
+        "max_tokens": 4000,
+        "output_config": { "effort": "low" },
+        "fallbacks": "default",
+        "system": daily_prompt_system(),
+        "messages": [{
+            "role": "user",
+            "content": format!(
+                "The most recent prompts, newest first:\n<recent>\n{listed}</recent>\n\nWrite tomorrow's."
+            ),
+        }],
+    })
+}
+
+pub async fn write_prompt(
+    api_key: &str,
+    base_url: &str,
+    model: &str,
+    recent: &[String],
+) -> ApiResult<String> {
+    let reply = call(
+        api_key,
+        base_url,
+        &daily_prompt_request(model, recent),
+        "daily prompt",
+        Duration::from_secs(120),
+    )
+    .await?;
+    let text = reply.text.trim().trim_matches('"').trim().to_string();
+    if text.is_empty() || text.chars().count() > 1_000 {
+        return Err(ApiError::internal(
+            "the model's prompt was empty or too long",
+        ));
+    }
+    Ok(text)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_prompt_request_carries_the_recent_ones_and_nothing_else() {
+        let body = daily_prompt_request("claude-opus-5-5", &["A door.".into(), "A key.".into()]);
+        let content = body["messages"][0]["content"].as_str().unwrap();
+        assert!(content.contains("<prompt>A door.</prompt>\n<prompt>A key.</prompt>"));
+        assert_eq!(body["fallbacks"], "default");
+        assert!(body["system"]
+            .as_str()
+            .unwrap()
+            .contains("daily writing prompt"));
+    }
 
     #[test]
     fn the_request_is_the_shape_the_api_wants() {

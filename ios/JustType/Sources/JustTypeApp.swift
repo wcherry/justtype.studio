@@ -8,6 +8,8 @@ import JustTypeUI
 @main
 struct JustTypeApp: App {
     @StateObject private var deeplink = Deeplink.shared
+    /// A universal link from the daily prompt email, for the Prompts tab.
+    @State private var link: URL?
 
     var body: some SwiftUI.Scene {
         WindowGroup {
@@ -31,8 +33,15 @@ struct JustTypeApp: App {
                             }
                         },
                         set: { if $0 == nil { deeplink.open = nil } }
-                    )
+                    ),
+                    link: $link
                 )
+                .onOpenURL { url in
+                    if PromptLink.handles(url) { link = url }
+                }
+                .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
+                    if let url = activity.webpageURL, PromptLink.handles(url) { link = url }
+                }
             }
         }
     }

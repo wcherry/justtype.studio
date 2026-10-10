@@ -1,0 +1,12 @@
+DROP TABLE prompt_email_sends;
+DROP TABLE inbox_digests;
+DROP TABLE inbox_items;
+DROP TABLE prompt_critique_reports;
+DROP TABLE prompt_critiques;
+DROP TABLE prompt_entries;
+DROP TABLE prompt_enrollments;
+DROP TABLE daily_prompts;
+DROP TABLE mail_queue;
+DROP TABLE job_runs;
+ALTER TABLE users DROP COLUMN double_enter_splits_scenes;
+ALTER TABLE users DROP COLUMN is_admin;
