@@ -113,12 +113,13 @@ A running server also serves the document at `/api/openapi.json`.
 | `JUSTTYPE_REFRESH_TTL_DAYS` | `30` | Refresh-token lifetime |
 | `JUSTTYPE_CORS_ORIGINS` | `http://localhost:5183` | Comma-separated allowed origins |
 | `JUSTTYPE_PUBLIC_URL` | `http://localhost:5183` | Where the web client lives, for links in mail |
-| `JUSTTYPE_MAIL` | `outbox` | `outbox` writes mail to a file; `smtp` sends it |
+| `JUSTTYPE_MAIL` | `outbox` | `outbox` writes mail to a file; `smtp` or `resend` sends it |
 | `JUSTTYPE_OUTBOX` | `<data dir>/../outbox.jsonl` | The outbox file, one JSON message per line |
 | `JUSTTYPE_SMTP_HOST` | *(required for smtp)* | Relay, spoken to with STARTTLS |
 | `JUSTTYPE_SMTP_PORT` | `587` | |
 | `JUSTTYPE_SMTP_USER`, `JUSTTYPE_SMTP_PASSWORD` | *(none)* | Relay credentials, if it wants them |
-| `JUSTTYPE_MAIL_FROM` | *(required for smtp)* | The sender address |
+| `JUSTTYPE_RESEND_API_KEY` | *(required for resend)* | Resend API key (`re_…`) |
+| `JUSTTYPE_MAIL_FROM` | *(required for smtp, resend)* | The sender address, on a domain the provider has verified |
 | `JUSTTYPE_SECOND_FACTOR_RATE` | `5` | Two-factor tries per account per minute |
 | `JUSTTYPE_LOG_FORMAT` | `text` | `json` for one JSON object per log line |
 | `JUSTTYPE_BACKUP_DIR` | *(none)* | Where `cargo backup` puts backups; `/api/status` checks them |
@@ -184,4 +185,4 @@ manuscript files and the mail outbox in the `/usr/local/data` volume, logs
 JSON to stderr, and checks its own `/api/health`. It defaults
 `JUSTTYPE_PUBLIC_URL` and `JUSTTYPE_CORS_ORIGINS` to
 `https://www.justtype.studio`; set `JUSTTYPE_TRUST_PROXY=true` behind a
-reverse proxy, and `JUSTTYPE_MAIL=smtp` with its settings to send real mail.
+reverse proxy, and `JUSTTYPE_MAIL=smtp` or `resend` with its settings to send real mail.

@@ -8,12 +8,12 @@
 //! the message's `give_up_at`. A send can then never be recorded without its
 //! message, or the other way round.
 //!
-//! Two ways to send. `Outbox` appends each message as a line of JSON to a
+//! Three ways to send. `Outbox` appends each message as a line of JSON to a
 //! file, which is what development, the smoke walkthrough and the tests use —
 //! the link in a message can be read back and followed, so the whole flow is
 //! exercised without a mail server. `Smtp` hands it to a real one, configured
-//! from the environment; which provider sits behind it is a deployment choice,
-//! not this code's.
+//! from the environment. `Resend` posts it to Resend's HTTP API with an API
+//! key, for when there is no relay to speak SMTP to.
 use std::path::PathBuf;
 
 use diesel::prelude::*;
@@ -44,10 +44,26 @@ pub enum Mailer {
         transport: AsyncSmtpTransport<Tokio1Executor>,
         from: String,
     },
+    Resend {
+        client: reqwest::Client,
+        api_key: String,
+        /// `https://api.resend.com` unless `JUSTTYPE_RESEND_URL` says otherwise.
+        base_url: String,
+        from: String,
+    },
+}
+
+/// What Resend says when it refuses a message.
+#[derive(serde::Deserialize)]
+struct ResendError {
+    #[serde(default)]
+    name: String,
+    #[serde(default)]
+    message: String,
 }
 
 impl Mailer {
-    /// From `JUSTTYPE_MAIL`: `outbox` (the default) or `smtp`.
+    /// From `JUSTTYPE_MAIL`: `outbox` (the default), `smtp` or `resend`.
     pub fn from_env(data_dir: &std::path::Path) -> anyhow::Result<Self> {
         let kind = std::env::var("JUSTTYPE_MAIL").unwrap_or_else(|_| "outbox".into());
         match kind.as_str() {
@@ -79,7 +95,29 @@ impl Mailer {
                     from,
                 })
             }
-            other => anyhow::bail!("JUSTTYPE_MAIL must be `outbox` or `smtp`, not `{other}`"),
+            "resend" => {
+                let var = |key: &str| {
+                    std::env::var(key).map_err(|_| anyhow::anyhow!("{key} is required for Resend"))
+                };
+                let api_key = var("JUSTTYPE_RESEND_API_KEY")?;
+                let from = var("JUSTTYPE_MAIL_FROM")?;
+                let base_url = std::env::var("JUSTTYPE_RESEND_URL")
+                    .unwrap_or_else(|_| "https://api.resend.com".into())
+                    .trim_end_matches('/')
+                    .to_string();
+                let client = reqwest::Client::builder()
+                    .timeout(std::time::Duration::from_secs(30))
+                    .build()?;
+                Ok(Mailer::Resend {
+                    client,
+                    api_key,
+                    base_url,
+                    from,
+                })
+            }
+            other => {
+                anyhow::bail!("JUSTTYPE_MAIL must be `outbox`, `smtp` or `resend`, not `{other}`")
+            }
         }
     }
 
@@ -145,6 +183,50 @@ impl Mailer {
                     .await
                     .map_err(|e| ApiError::internal(format!("the mail server refused it: {e}")))?;
                 Ok(())
+            }
+            Mailer::Resend {
+                client,
+                api_key,
+                base_url,
+                from,
+            } => {
+                let mut body = serde_json::json!({
+                    "from": from,
+                    "to": [message.to],
+                    "subject": message.subject,
+                    "text": message.body,
+                });
+                if let Some(html) = message.html {
+                    body["html"] = html.into();
+                }
+                if !message.headers.is_empty() {
+                    body["headers"] = message
+                        .headers
+                        .into_iter()
+                        .map(|(k, v)| (k, serde_json::Value::from(v)))
+                        .collect::<serde_json::Map<_, _>>()
+                        .into();
+                }
+                let response = client
+                    .post(format!("{base_url}/emails"))
+                    .bearer_auth(api_key)
+                    .json(&body)
+                    .send()
+                    .await
+                    .map_err(|e| ApiError::internal(format!("could not reach Resend: {e}")))?;
+                let status = response.status();
+                if status.is_success() {
+                    return Ok(());
+                }
+                let detail = response.bytes().await.unwrap_or_default();
+                let detail = serde_json::from_slice::<ResendError>(&detail)
+                    .map(|e| format!("{}: {}", e.name, e.message))
+                    .unwrap_or_else(|_| {
+                        String::from_utf8_lossy(&detail).chars().take(300).collect()
+                    });
+                Err(ApiError::internal(format!(
+                    "Resend refused it ({status}): {detail}"
+                )))
             }
         }
     }
@@ -273,5 +355,101 @@ mod tests {
         assert_eq!(backoff(1), chrono::Duration::minutes(2));
         assert_eq!(backoff(3), chrono::Duration::minutes(8));
         assert_eq!(backoff(20), chrono::Duration::minutes(60));
+    }
+
+    /// A stand-in for Resend that records what it was sent and answers with
+    /// `status`.
+    async fn fake_resend(
+        status: u16,
+    ) -> (
+        String,
+        std::sync::Arc<std::sync::Mutex<Vec<(String, serde_json::Value)>>>,
+    ) {
+        use axum::{extract::State, http::HeaderMap, routing::post, Json, Router};
+        type Seen = std::sync::Arc<std::sync::Mutex<Vec<(String, serde_json::Value)>>>;
+        let seen: Seen = Default::default();
+        let app = Router::new()
+            .route(
+                "/emails",
+                post(
+                    move |State(seen): State<Seen>,
+                          headers: HeaderMap,
+                          Json(body): Json<serde_json::Value>| async move {
+                        let auth = headers
+                            .get("authorization")
+                            .and_then(|v| v.to_str().ok())
+                            .unwrap_or_default()
+                            .to_string();
+                        seen.lock().unwrap().push((auth, body));
+                        let code = axum::http::StatusCode::from_u16(status).unwrap();
+                        if code.is_success() {
+                            (code, Json(serde_json::json!({ "id": "abc" })))
+                        } else {
+                            (
+                                code,
+                                Json(serde_json::json!({
+                                    "statusCode": status,
+                                    "name": "validation_error",
+                                    "message": "The domain is not verified.",
+                                })),
+                            )
+                        }
+                    },
+                ),
+            )
+            .with_state(seen.clone());
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        (url, seen)
+    }
+
+    fn resend(base_url: String) -> Mailer {
+        Mailer::Resend {
+            client: reqwest::Client::new(),
+            api_key: "re_test".into(),
+            base_url,
+            from: "Just Type <hello@example.com>".into(),
+        }
+    }
+
+    #[tokio::test]
+    async fn resend_gets_the_whole_message() {
+        let (url, seen) = fake_resend(200).await;
+        resend(url)
+            .send(Message {
+                to: "ada@example.com".into(),
+                subject: "Today's prompt".into(),
+                body: "plain".into(),
+                html: Some("<p>html</p>".into()),
+                headers: vec![("List-Unsubscribe".into(), "<https://x/u>".into())],
+            })
+            .await
+            .unwrap();
+        let seen = seen.lock().unwrap();
+        let (auth, body) = &seen[0];
+        assert_eq!(auth, "Bearer re_test");
+        assert_eq!(body["from"], "Just Type <hello@example.com>");
+        assert_eq!(body["to"], serde_json::json!(["ada@example.com"]));
+        assert_eq!(body["subject"], "Today's prompt");
+        assert_eq!(body["text"], "plain");
+        assert_eq!(body["html"], "<p>html</p>");
+        assert_eq!(body["headers"]["List-Unsubscribe"], "<https://x/u>");
+    }
+
+    #[tokio::test]
+    async fn a_refusal_says_why() {
+        let (url, _) = fake_resend(403).await;
+        let err = resend(url)
+            .send(Message {
+                to: "ada@example.com".into(),
+                subject: "s".into(),
+                body: "b".into(),
+                ..Default::default()
+            })
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("The domain is not verified."), "{err}");
     }
 }
