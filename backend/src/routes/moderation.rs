@@ -91,6 +91,19 @@ pub async fn report(
             .select(comment_reports::id)
             .first(conn)
             .optional()?;
+        let new_report = existing.is_none();
+        if new_report {
+            super::reports::check_daily_limit(conn, &user.id)?;
+        }
+        // Staff see it too, unless it is only about craft.
+        super::reports::reach_staff(
+            conn,
+            "comment",
+            &comment.id,
+            &comment.author_id,
+            &body.reason,
+            new_report,
+        )?;
         match existing {
             Some(id) => {
                 diesel::update(comment_reports::table.find(&id))

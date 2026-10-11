@@ -15,7 +15,7 @@ use crate::db::models::{AuditEvent, NewAuditEvent};
 use crate::db::schema::{audit_events, work_collaborators, works};
 use crate::db::{blocking, Conn};
 use crate::domain::enums::AuditAction;
-use crate::domain::{new_id, now_iso};
+use crate::domain::new_id;
 use crate::error::{ApiResult, ErrorEnvelope};
 use crate::state::AppState;
 
@@ -35,7 +35,34 @@ pub fn record(
             work_id: work_id.map(str::to_string),
             action: action.as_str().to_string(),
             detail: detail.to_string(),
-            created_at: now_iso(),
+            created_at: crate::clock::now_iso(),
+            subject_id: None,
+            reason: None,
+        })
+        .execute(conn)?;
+    Ok(())
+}
+
+/// A line in the moderation log: who did it (a user id, or `external:…` for
+/// the moderation platform), to which account, and why. One line per action.
+pub fn record_staff(
+    conn: &mut Conn,
+    actor: &str,
+    subject_user: Option<&str>,
+    action: AuditAction,
+    detail: &str,
+    reason: Option<&str>,
+) -> ApiResult<()> {
+    diesel::insert_into(audit_events::table)
+        .values(&NewAuditEvent {
+            id: new_id(),
+            actor_id: Some(actor.to_string()),
+            work_id: None,
+            action: action.as_str().to_string(),
+            detail: detail.to_string(),
+            created_at: crate::clock::now_iso(),
+            subject_id: subject_user.map(str::to_string),
+            reason: reason.map(str::to_string),
         })
         .execute(conn)?;
     Ok(())

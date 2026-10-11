@@ -77,6 +77,49 @@ pub async fn tick(state: &AppState) {
             send_prompt_emails(state, now).await.map(|_| ()),
         ),
         (
+            "expire_restrictions",
+            blocking(&state.pool, |conn| {
+                crate::moderation_jobs::expire_restrictions(conn).map(|_| ())
+            })
+            .await,
+        ),
+        ("apply_external_events", {
+            let (secret, url) = (
+                state.config.jwt_secret.clone(),
+                state.config.public_url.clone(),
+            );
+            blocking(&state.pool, move |conn| {
+                crate::routes::moderation_webhooks::apply_pending(conn, &secret, &url).map(|_| ())
+            })
+            .await
+        }),
+        (
+            "external_checks",
+            crate::moderation_jobs::external_checks(state)
+                .await
+                .map(|_| ()),
+        ),
+        (
+            "auto_flag_accounts",
+            blocking(&state.pool, |conn| {
+                crate::moderation_jobs::auto_flag_accounts(conn).map(|_| ())
+            })
+            .await,
+        ),
+        (
+            "closing_reminders",
+            blocking(&state.pool, move |conn| {
+                crate::moderation_jobs::send_closing_reminders(conn, now).map(|_| ())
+            })
+            .await,
+        ),
+        (
+            "purge_accounts",
+            crate::moderation_jobs::purge_accounts(state, now)
+                .await
+                .map(|_| ()),
+        ),
+        (
             "deliver_mail",
             crate::mail::deliver_due(&state.pool, &state.mailer)
                 .await

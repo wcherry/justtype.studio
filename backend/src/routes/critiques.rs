@@ -8,7 +8,8 @@
 //!   own, and nobody else sees any.
 //!
 //! A report goes to the answer's writer, who can remove the critique — the
-//! same rule as reports on book comments. There is no site moderator yet.
+//! same rule as reports on book comments. Site staff see reports as well
+//! (see `reports`), and can remove or hold a critique.
 use std::collections::{HashMap, HashSet};
 
 use axum::extract::{Path, State};
@@ -23,6 +24,8 @@ use crate::db::models::*;
 use crate::db::schema::*;
 use crate::db::{blocking, Conn};
 use crate::domain::enums::{EntryState, ReportReason};
+use crate::domain::filter::Surface;
+use crate::domain::moderation;
 use crate::domain::new_id;
 use crate::error::{ApiError, ApiResult, ErrorEnvelope};
 use crate::limit::Action;
@@ -49,6 +52,9 @@ pub struct CritiqueView {
     pub mine: bool,
     /// The caller may delete it: their own, or any on their own answer.
     pub can_remove: bool,
+    /// `removed` (by a moderator; shown as a placeholder) or `held` (awaiting
+    /// review; only its writer and staff see it).
+    pub moderated: Option<String>,
 }
 
 struct Access {
@@ -119,11 +125,21 @@ fn view_all(
         .into_iter()
         .map(|c| {
             let removed = c.deleted_at.is_some();
+            let by_moderator = c.moderation_state == "removed";
             CritiqueView {
-                author: (!removed)
+                moderated: match c.moderation_state.as_str() {
+                    "removed" => Some("removed".to_string()),
+                    "held" => Some("held".to_string()),
+                    _ => None,
+                },
+                author: (!removed && !by_moderator)
                     .then(|| cards.get(&c.author_id).cloned())
                     .flatten(),
-                body: if removed { String::new() } else { c.body },
+                body: if removed || by_moderator {
+                    String::new()
+                } else {
+                    c.body
+                },
                 removed,
                 mine: c.author_id == viewer,
                 can_remove: !removed && (c.author_id == viewer || entry_author),
@@ -166,6 +182,25 @@ pub async fn list(
         // Withdrawn: the writer sees everything; a critic, only their own.
         if access.entry.state != EntryState::Submitted.as_str() && !access.author {
             rows.retain(|c| c.author_id == user.id && c.deleted_at.is_none());
+        }
+        // What moderation has done: held ones show only to their writer and
+        // to staff, and an account that is hidden is gone from the thread,
+        // leaving a placeholder where a reply sits beneath it.
+        let hidden = crate::domain::restrictions::hidden_users(conn)?;
+        let staff = moderation::is_staff(conn, Some(&user.id))?;
+        for c in rows.iter_mut() {
+            if moderation::visibility(
+                &c.moderation_state,
+                &c.author_id,
+                Some(&user.id),
+                staff,
+                &hidden,
+            )
+            .is_none()
+            {
+                c.deleted_at = Some(clock::now_iso());
+                c.body.clear();
+            }
         }
         view_all(conn, keep_answered(rows), &user.id, access.author)
     })
@@ -241,6 +276,7 @@ pub async fn create(
     state
         .limiter
         .check(&user.id, Action::Critique, state.config.comment_rate)?;
+    let screen = moderation::screen(&state, Surface::Critique, &user.id, &text).await?;
     let view = blocking(&state.pool, move |conn| {
         require_enrolled(conn, &user.id)?;
         let entry = entry_of(conn, &entry_id)?;
@@ -273,16 +309,30 @@ pub async fn create(
                     entry_id: entry.id.clone(),
                     parent_id: parent.as_ref().map(|p| p.id.clone()),
                     author_id: user.id.clone(),
-                    body: text,
+                    body: screen.text.clone(),
                     edited_at: None,
                     deleted_at: None,
                     created_at: now.clone(),
                     updated_at: now,
                 })
                 .execute(conn)?;
+            if let Some(original) = &screen.original {
+                diesel::update(prompt_critiques::table.find(&id))
+                    .set(prompt_critiques::original_body.eq(Some(original.clone())))
+                    .execute(conn)?;
+            }
+            let provider = moderation::provider_name(conn)?;
+            moderation::record(conn, &screen, "critique", &id, &user.id, &provider)?;
             // Who hears about it, each once, and never the person who wrote it.
+            // A held critique tells nobody until it is released.
             let mut told: HashSet<String> = HashSet::new();
             told.insert(user.id.clone());
+            if screen.hold {
+                told.insert(entry.author_id.clone());
+                if let Some(p) = &parent {
+                    told.insert(p.author_id.clone());
+                }
+            }
             match &parent {
                 None => {
                     if told.insert(entry.author_id.clone()) {
@@ -372,6 +422,7 @@ pub async fn update(
     Json(body): Json<EditCritiqueRequest>,
 ) -> ApiResult<Json<CritiqueView>> {
     let text = clean_body(&body.body)?;
+    let screen = moderation::screen(&state, Surface::Critique, &user.id, &text).await?;
     let view = blocking(&state.pool, move |conn| {
         let critique = critique_of(conn, &critique_id)?;
         if critique.author_id != user.id {
@@ -384,11 +435,14 @@ pub async fn update(
         let now = clock::now_iso();
         diesel::update(prompt_critiques::table.find(&critique.id))
             .set((
-                prompt_critiques::body.eq(text),
+                prompt_critiques::body.eq(&screen.text),
+                prompt_critiques::original_body.eq(screen.original.clone()),
                 prompt_critiques::edited_at.eq(Some(&now)),
                 prompt_critiques::updated_at.eq(&now),
             ))
             .execute(conn)?;
+        let provider = moderation::provider_name(conn)?;
+        moderation::record(conn, &screen, "critique", &critique.id, &user.id, &provider)?;
         let entry = entry_of(conn, &critique.entry_id)?;
         let row = critique_of(conn, &critique.id)?;
         Ok(view_all(conn, vec![row], &user.id, entry.author_id == user.id)?.remove(0))
@@ -516,6 +570,19 @@ pub async fn report(
             .first(conn)
             .optional()?;
         conn.transaction::<_, ApiError, _>(|conn| {
+            let new_report = existing.is_none();
+            if new_report {
+                super::reports::check_daily_limit(conn, &user.id)?;
+            }
+            // Staff see it too, unless it is only about craft.
+            super::reports::reach_staff(
+                conn,
+                "critique",
+                &critique.id,
+                &critique.author_id,
+                &body.reason,
+                new_report,
+            )?;
             match existing {
                 // The same report again is the same report, not a louder one.
                 Some(id) => {
@@ -640,6 +707,8 @@ mod tests {
             deleted_at: deleted.then(|| "t".to_string()),
             created_at: id.into(),
             updated_at: id.into(),
+            moderation_state: "visible".into(),
+            original_body: None,
         }
     }
 

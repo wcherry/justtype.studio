@@ -12,6 +12,7 @@ mod limit;
 mod live;
 mod mail;
 mod metrics;
+mod moderation_jobs;
 mod ops;
 mod routes;
 mod state;
@@ -221,6 +222,7 @@ async fn main() -> anyhow::Result<()> {
         scene_cache: Arc::new(cache::SceneCache::new(cache_bytes)),
         hub: Arc::new(live::Hub::default()),
         login_guard: Arc::new(limit::LoginGuard::default()),
+        moderation: Arc::new(domain::filter::FilterCache::default()),
     };
 
     // The scheduled jobs: the day's prompt, the emails, the inbox summaries.

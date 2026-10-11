@@ -49,15 +49,29 @@ impl FromRequestParts<AppState> for AuthUser {
         let (email, verified) = crate::db::blocking(&state.pool, move |conn| {
             use crate::db::schema::{sessions, users};
             use diesel::prelude::*;
-            sessions::table
+            let (email, verified, deactivated) = sessions::table
                 .inner_join(users::table)
                 .filter(sessions::id.eq(&lookup_session))
                 .filter(sessions::user_id.eq(&lookup_user))
                 .filter(sessions::revoked_at.is_null())
-                .select((users::email, users::email_verified_at))
-                .first::<(String, Option<String>)>(conn)
+                .select((
+                    users::email,
+                    users::email_verified_at,
+                    users::deactivated_at,
+                ))
+                .first::<(String, Option<String>, Option<String>)>(conn)
                 .optional()?
-                .ok_or_else(|| ApiError::Unauthorized("this session has been signed out".into()))
+                .ok_or_else(|| ApiError::Unauthorized("this session has been signed out".into()))?;
+            // A restriction takes effect on the very next request, not when a
+            // token runs out.
+            if deactivated.is_some() {
+                return Err(crate::domain::restrictions::deactivated_error());
+            }
+            let rows = crate::domain::restrictions::active(conn, &lookup_user)?;
+            if let Some(ban) = crate::domain::restrictions::site_ban(&rows) {
+                return Err(crate::domain::restrictions::banned(ban));
+            }
+            Ok((email, verified))
         })
         .await?;
         Ok(AuthUser {
@@ -102,6 +116,120 @@ impl FromRequestParts<AppState> for AdminUser {
             ));
         }
         Ok(AdminUser(user))
+    }
+}
+
+/// What staff can do. Moderators get the content half; admins get everything.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Permission {
+    ViewQueue,
+    ActOnContent,
+    /// Any restriction limited to discussions.
+    RestrictDiscussion,
+    /// A site-wide ban or suspension for 3, 7 or 30 days.
+    RestrictSiteTemporary,
+    /// Read-only site-wide, or a permanent site ban: both end in deletion.
+    CloseAccount,
+    ManagePermanentBans,
+    DecideAppeal,
+    /// Email, legal name, address, phone, IPs and sessions.
+    ViewAccountPii,
+    ManageAccounts,
+    ManageModerators,
+    ManageWordFilter,
+    ManageExternalModeration,
+    /// The whole moderation log. A moderator without it sees their own lines.
+    ViewFullLog,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum StaffRole {
+    Moderator,
+    Admin,
+}
+
+impl StaffRole {
+    /// The one table that says who may do what.
+    pub fn allows(self, permission: Permission) -> bool {
+        use Permission::*;
+        match self {
+            StaffRole::Admin => true,
+            StaffRole::Moderator => matches!(
+                permission,
+                ViewQueue
+                    | ActOnContent
+                    | RestrictDiscussion
+                    | RestrictSiteTemporary
+                    | DecideAppeal
+            ),
+        }
+    }
+}
+
+/// A signed-in moderator or administrator. Everyone else gets a 403, signed in
+/// or not. The routes call [`StaffUser::require`] for the one thing they need.
+#[derive(Debug, Clone)]
+pub struct StaffUser {
+    pub user: AuthUser,
+    pub role: StaffRole,
+}
+
+impl StaffUser {
+    pub fn require(&self, permission: Permission) -> Result<(), ApiError> {
+        if self.role.allows(permission) {
+            Ok(())
+        } else {
+            Err(ApiError::Forbidden(
+                "that is for site administrators".into(),
+            ))
+        }
+    }
+
+    pub fn can(&self, permission: Permission) -> bool {
+        self.role.allows(permission)
+    }
+
+    pub fn id(&self) -> &str {
+        &self.user.id
+    }
+
+    /// `external:` actors are not people; staff ids are user ids.
+    pub fn is_admin(&self) -> bool {
+        self.role == StaffRole::Admin
+    }
+}
+
+impl FromRequestParts<AppState> for StaffUser {
+    type Rejection = ApiError;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        let user = AuthUser::from_request_parts(parts, state)
+            .await
+            .map_err(|_| ApiError::Forbidden("that is for site staff".into()))?;
+        let id = user.id.clone();
+        let (admin, moderator) = crate::db::blocking(&state.pool, move |conn| {
+            use crate::db::schema::users;
+            use diesel::prelude::*;
+            Ok(users::table
+                .find(&id)
+                .select((users::is_admin, users::is_moderator))
+                .first::<(bool, bool)>(conn)
+                .optional()?
+                .unwrap_or((false, false)))
+        })
+        .await?;
+        let role = if admin {
+            StaffRole::Admin
+        } else if moderator {
+            StaffRole::Moderator
+        } else {
+            return Err(ApiError::Forbidden("that is for site staff".into()));
+        };
+        Ok(StaffUser { user, role })
     }
 }
 

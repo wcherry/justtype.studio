@@ -17,6 +17,8 @@ use crate::db::blocking;
 use crate::db::models::*;
 use crate::db::schema::{reactions, review_answers, review_questions};
 use crate::domain::enums::{QuestionKind, QuestionScope, ReactionKind};
+use crate::domain::filter::Surface;
+use crate::domain::moderation;
 use crate::domain::{new_id, now_iso};
 use crate::error::{ApiError, ApiResult, ErrorEnvelope};
 use crate::limit::Action;
@@ -355,8 +357,14 @@ pub async fn list_questions(
     Path(publication_id): Path<String>,
 ) -> ApiResult<Json<Vec<ReviewQuestion>>> {
     let rows = blocking(&state.pool, move |conn| {
-        support::publication_for_reader(conn, &publication_id, Some(&user))?;
-        questions_of(conn, &publication_id)
+        let (_, work) = support::publication_for_reader(conn, &publication_id, Some(&user))?;
+        let mut rows = questions_of(conn, &publication_id)?;
+        // Held or removed by moderation: the author still sees theirs, and
+        // no reader does.
+        if !support::is_author(conn, &work, &user)? {
+            rows.retain(|q| q.moderation_state == "visible");
+        }
+        Ok(rows)
     })
     .await?;
     Ok(Json(rows))
@@ -409,6 +417,8 @@ pub async fn create_question(
         )));
     }
 
+    let screen =
+        moderation::screen(&state, Surface::Question, &user.id, body.prompt.trim()).await?;
     let row = blocking(&state.pool, move |conn| {
         support::publication_for_owner(conn, &publication_id, &user)?;
         let next: i64 = review_questions::table
@@ -419,7 +429,7 @@ pub async fn create_question(
         let row = NewReviewQuestion {
             id: new_id(),
             publication_id: publication_id.clone(),
-            prompt: body.prompt.trim().to_string(),
+            prompt: screen.text.clone(),
             kind: body.kind.clone(),
             scope: body.scope.clone(),
             position: next as i32,
@@ -429,6 +439,8 @@ pub async fn create_question(
         diesel::insert_into(review_questions::table)
             .values(&row)
             .execute(conn)?;
+        let provider = moderation::provider_name(conn)?;
+        moderation::record(conn, &screen, "question", &row.id, &user.id, &provider)?;
         Ok(review_questions::table
             .find(&row.id)
             .select(ReviewQuestion::as_select())
@@ -455,15 +467,29 @@ pub async fn update_question(
     Path(question_id): Path<String>,
     Json(body): Json<UpdateQuestionRequest>,
 ) -> ApiResult<Json<ReviewQuestion>> {
+    let screen = match body
+        .prompt
+        .as_deref()
+        .map(str::trim)
+        .filter(|p| !p.is_empty())
+    {
+        Some(prompt) => {
+            Some(moderation::screen(&state, Surface::Question, &user.id, prompt).await?)
+        }
+        None => None,
+    };
     let row = blocking(&state.pool, move |conn| {
         let question = question_for_owner(conn, &question_id, &user)?;
         if let Some(prompt) = body.prompt.as_ref().map(|p| p.trim()) {
             if prompt.is_empty() {
                 return Err(ApiError::BadRequest("a question needs a prompt".into()));
             }
+            let screen = screen.clone().unwrap_or_default();
             diesel::update(review_questions::table.find(&question.id))
-                .set(review_questions::prompt.eq(prompt))
+                .set(review_questions::prompt.eq(&screen.text))
                 .execute(conn)?;
+            let provider = moderation::provider_name(conn)?;
+            moderation::record(conn, &screen, "question", &question.id, &user.id, &provider)?;
         }
         if let Some(position) = body.position {
             diesel::update(review_questions::table.find(&question.id))
@@ -561,6 +587,15 @@ pub async fn answer(
     Path(question_id): Path<String>,
     Json(body): Json<AnswerRequest>,
 ) -> ApiResult<Json<AnswerView>> {
+    let screen = match body
+        .body
+        .as_deref()
+        .map(str::trim)
+        .filter(|b| !b.is_empty())
+    {
+        Some(text) => Some(moderation::screen(&state, Surface::Answer, &user.id, text).await?),
+        None => None,
+    };
     let view = blocking(&state.pool, move |conn| {
         let question: ReviewQuestion = review_questions::table
             .find(&question_id)
@@ -624,7 +659,10 @@ pub async fn answer(
                 diesel::update(review_answers::table.find(&row.id))
                     .set((
                         review_answers::rating.eq(body.rating),
-                        review_answers::body.eq(body.body.clone()),
+                        review_answers::body.eq(screen
+                            .as_ref()
+                            .map(|s| s.text.clone())
+                            .or(body.body.clone())),
                         review_answers::updated_at.eq(&now),
                     ))
                     .execute(conn)?;
@@ -637,7 +675,10 @@ pub async fn answer(
                     user_id: user.id.clone(),
                     chapter_id,
                     rating: body.rating,
-                    body: body.body.clone(),
+                    body: screen
+                        .as_ref()
+                        .map(|s| s.text.clone())
+                        .or(body.body.clone()),
                     created_at: now.clone(),
                     updated_at: now,
                 };
@@ -647,6 +688,10 @@ pub async fn answer(
                 row.id
             }
         };
+        if let Some(screen) = &screen {
+            let provider = moderation::provider_name(conn)?;
+            moderation::record(conn, screen, "answer", &id, &user.id, &provider)?;
+        }
 
         let answer: ReviewAnswer = review_answers::table
             .find(&id)
@@ -697,6 +742,18 @@ pub async fn list_answers(
             .into_boxed();
         if !support::is_author(conn, &work, &user)? {
             q = q.filter(review_answers::user_id.eq(&user.id));
+        } else {
+            // The author reads everyone's answers, except ones moderation
+            // holds or removed, and ones from an account that is hidden. A
+            // reader's own answers always come back to them.
+            let hidden = crate::domain::restrictions::hidden_users(conn)?;
+            q = q
+                .filter(
+                    review_answers::moderation_state
+                        .eq("visible")
+                        .or(review_answers::user_id.eq(&user.id)),
+                )
+                .filter(review_answers::user_id.ne_all(hidden));
         }
         let rows: Vec<ReviewAnswer> = q
             .order(review_answers::created_at.asc())

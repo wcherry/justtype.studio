@@ -16,6 +16,8 @@ use crate::db::blocking;
 use crate::db::models::*;
 use crate::db::schema::{comment_votes, comments};
 use crate::domain::enums::CommentCategory;
+use crate::domain::filter::Surface;
+use crate::domain::moderation;
 use crate::domain::{new_id, now_iso};
 use crate::error::{ApiError, ApiResult, ErrorEnvelope};
 use crate::limit::Action;
@@ -186,6 +188,29 @@ pub async fn list(
             }
         }
 
+        // What moderation has done: removed notes stay as a placeholder (the
+        // replies under them keep their question), held ones show only to
+        // their author and to staff, and an account that is hidden is gone
+        // from every public read.
+        let hidden = crate::domain::restrictions::hidden_users(conn)?;
+        let staff = moderation::is_staff(conn, viewer_id.as_deref())?;
+        for c in rows.iter_mut() {
+            match moderation::visibility(
+                &c.moderation_state,
+                &c.author_id,
+                viewer_id.as_deref(),
+                staff,
+                &hidden,
+            ) {
+                None => c.state = "deleted".into(),
+                Some(true) => {
+                    c.body.clear();
+                    c.anchor_quote = None;
+                }
+                Some(false) => {}
+            }
+        }
+
         // Replies survive their parent being filtered out only as far as
         // `build_threads` can find the parent, so filter roots and let the
         // thread come with them.
@@ -344,6 +369,9 @@ pub async fn create(
     state
         .limiter
         .check(&user.id, Action::Comment, state.config.comment_rate)?;
+    // The word filter and the platform, before it is saved: a blocked comment
+    // is refused here, a held or flagged one is acted on once it has an id.
+    let screen = moderation::screen(&state, Surface::Comment, &user.id, &text).await?;
 
     let view = blocking(&state.pool, move |conn| {
         let (publication, _) = support::publication_for_reader(conn, &publication_id, Some(&user))?;
@@ -373,7 +401,7 @@ pub async fn create(
             scene_id: body.scene_id.clone(),
             parent_id: body.parent_id.clone(),
             author_id: user.id.clone(),
-            body: text,
+            body: screen.text.clone(),
             anchor: body
                 .anchor
                 .as_ref()
@@ -388,6 +416,13 @@ pub async fn create(
         diesel::insert_into(comments::table)
             .values(&row)
             .execute(conn)?;
+        if let Some(original) = &screen.original {
+            diesel::update(comments::table.find(&row.id))
+                .set(comments::original_body.eq(Some(original.clone())))
+                .execute(conn)?;
+        }
+        let provider = moderation::provider_name(conn)?;
+        moderation::record(conn, &screen, "comment", &row.id, &user.id, &provider)?;
 
         let comment: Comment = comments::table
             .find(&row.id)
@@ -528,6 +563,18 @@ pub async fn update(
     Path(comment_id): Path<String>,
     Json(body): Json<UpdateCommentRequest>,
 ) -> ApiResult<Json<Comment>> {
+    // Editing the words is taking part in a discussion; resolving a note is
+    // the work's author at their own desk, and a restriction on discussion
+    // leaves that alone.
+    let screen = match body
+        .body
+        .as_deref()
+        .map(str::trim)
+        .filter(|t| !t.is_empty())
+    {
+        Some(text) => Some(moderation::screen(&state, Surface::Comment, &user.id, text).await?),
+        None => None,
+    };
     let comment = blocking(&state.pool, move |conn| {
         let comment: Comment = comments::table
             .find(&comment_id)
@@ -546,9 +593,20 @@ pub async fn update(
             if text.trim().is_empty() {
                 return Err(ApiError::BadRequest("a comment needs a body".into()));
             }
+            crate::domain::restrictions::check(
+                conn,
+                &user.id,
+                crate::domain::restrictions::Capability::Discuss,
+            )?;
+            let screen = screen.clone().unwrap_or_default();
             diesel::update(comments::table.find(&comment.id))
-                .set(comments::body.eq(text.trim()))
+                .set((
+                    comments::body.eq(screen.text.trim()),
+                    comments::original_body.eq(screen.original.clone()),
+                ))
                 .execute(conn)?;
+            let provider = moderation::provider_name(conn)?;
+            moderation::record(conn, &screen, "comment", &comment.id, &user.id, &provider)?;
         }
         if let Some(new_state) = &body.state {
             if new_state != "open" && new_state != "resolved" {
@@ -739,6 +797,8 @@ mod thread_tests {
             score: 0,
             created_at: "t".into(),
             updated_at: "t".into(),
+            moderation_state: "visible".into(),
+            original_body: None,
         }
     }
 

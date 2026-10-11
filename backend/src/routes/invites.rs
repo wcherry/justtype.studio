@@ -161,7 +161,10 @@ pub async fn invite(
                         .count()
                         .get_result::<i64>(conn)?
                         > 0;
-                    let mail = !member && !lately;
+                    // A banned address is treated like a member: recorded and
+                    // counted, never mailed, and the reply says nothing.
+                    let banned = crate::domain::bans::refused(conn, email)?;
+                    let mail = !member && !lately && !banned;
                     diesel::insert_into(site_invites::table)
                         .values((
                             site_invites::id.eq(new_id()),

@@ -22,4 +22,6 @@ pub struct AppState {
     pub hub: Arc<crate::live::Hub>,
     /// Failed sign-ins per account — see `limit::LoginGuard`.
     pub login_guard: Arc<crate::limit::LoginGuard>,
+    /// The word filter, compiled — see `domain::filter`.
+    pub moderation: Arc<crate::domain::filter::FilterCache>,
 }

@@ -17,14 +17,14 @@ use crate::state::AppState;
 
 pub(super) struct Server {
     pub(super) base: String,
-    state: AppState,
+    pub(super) state: AppState,
     pub(super) root: std::path::PathBuf,
     pub(super) http: reqwest::Client,
 }
 
 pub(super) struct Writer {
     pub(super) id: String,
-    token: String,
+    pub(super) token: String,
 }
 
 impl Server {
@@ -58,6 +58,7 @@ impl Server {
             scene_cache: Arc::new(crate::cache::SceneCache::new(1 << 20)),
             hub: Arc::new(crate::live::Hub::default()),
             login_guard: Arc::new(crate::limit::LoginGuard::default()),
+            moderation: Arc::new(crate::domain::filter::FilterCache::default()),
         };
         state.store.init().unwrap();
         let app = super::router(state.clone());
@@ -161,7 +162,7 @@ impl Server {
     }
 
     /// Gives `day` a known prompt.
-    fn prompt(&self, day: &str, body: &str) {
+    pub(super) fn prompt(&self, day: &str, body: &str) {
         diesel::insert_into(daily_prompts::table)
             .values(&crate::db::models::NewDailyPrompt {
                 id: uuid::Uuid::new_v4().to_string(),
@@ -199,7 +200,7 @@ impl Drop for Server {
     }
 }
 
-fn text_doc(text: &str) -> Value {
+pub(super) fn text_doc(text: &str) -> Value {
     let paragraphs: Vec<Value> = text
         .split('\n')
         .map(|p| {
@@ -213,7 +214,7 @@ fn text_doc(text: &str) -> Value {
     json!({ "type": "doc", "content": paragraphs })
 }
 
-fn today() -> String {
+pub(super) fn today() -> String {
     clock::day_string(super::prompts::today())
 }
 

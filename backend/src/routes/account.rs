@@ -104,7 +104,12 @@ fn later(duration: chrono::Duration) -> String {
     (chrono::Utc::now() + duration).to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
 }
 
-fn mint(conn: &mut Conn, user: &User, purpose: &str, lasts: chrono::Duration) -> ApiResult<String> {
+pub(crate) fn mint(
+    conn: &mut Conn,
+    user: &User,
+    purpose: &str,
+    lasts: chrono::Duration,
+) -> ApiResult<String> {
     // A new link retires the old ones: only the latest mail should work.
     diesel::update(
         email_tokens::table
@@ -132,7 +137,7 @@ fn mint(conn: &mut Conn, user: &User, purpose: &str, lasts: chrono::Duration) ->
 
 /// Spends a link: checks it is live, for this purpose, and still for the
 /// address on the account, then marks it used.
-fn redeem(conn: &mut Conn, token: &str, purpose: &str) -> ApiResult<User> {
+pub(crate) fn redeem(conn: &mut Conn, token: &str, purpose: &str) -> ApiResult<User> {
     let row: EmailToken = email_tokens::table
         .filter(email_tokens::token_hash.eq(auth::hash_refresh_token(token.trim())))
         .filter(email_tokens::purpose.eq(purpose))

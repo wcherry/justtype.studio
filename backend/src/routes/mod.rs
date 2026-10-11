@@ -1,6 +1,12 @@
 pub mod account;
 pub mod admin;
+#[cfg(test)]
+mod admin_api_tests;
+pub mod admin_moderation;
+pub mod admin_restrictions;
+pub mod admin_users;
 pub mod annotations;
+pub mod appeals;
 pub mod assistant;
 pub mod audit;
 pub mod auth;
@@ -19,6 +25,9 @@ pub mod invites;
 #[cfg(test)]
 mod invites_api_tests;
 pub mod moderation;
+#[cfg(test)]
+mod moderation_api_tests;
+pub mod moderation_webhooks;
 pub mod notebook;
 pub mod openapi;
 #[cfg(test)]
@@ -31,6 +40,9 @@ pub mod prompts;
 mod prompts_api_tests;
 pub mod publications;
 pub mod readers;
+pub mod reports;
+#[cfg(test)]
+mod restriction_api_tests;
 pub mod scenes;
 pub mod search;
 pub mod share;
@@ -211,6 +223,7 @@ fn api_router() -> OpenApiRouter<AppState> {
         .routes(routes!(tasks::update, tasks::delete_task))
         .routes(routes!(moderation::report))
         .routes(routes!(moderation::list_reports))
+        .routes(routes!(reports::report))
         .routes(routes!(moderation::list_blocks, moderation::block))
         .routes(routes!(moderation::unblock))
         .routes(routes!(profiles::profile))
@@ -273,12 +286,87 @@ fn api_router() -> OpenApiRouter<AppState> {
         .routes(routes!(admin::reorder_prompts))
         .routes(routes!(admin::update_prompt, admin::delete_prompt))
         .routes(routes!(admin::jobs))
+        .routes(routes!(admin_users::overview))
+        .routes(routes!(admin_users::list_users, admin_users::create_user))
+        .routes(routes!(
+            admin_users::get_user,
+            admin_users::edit_user,
+            admin_users::delete_user
+        ))
+        .routes(routes!(admin_users::add_note))
+        .routes(routes!(admin_users::set_moderator))
+        .routes(routes!(admin_users::resend_setup))
+        .routes(routes!(admin_users::send_reset))
+        .routes(routes!(admin_users::revoke_all))
+        .routes(routes!(admin_users::revoke_one))
+        .routes(routes!(admin_users::deactivate))
+        .routes(routes!(admin_users::reactivate))
+        .routes(routes!(admin_users::delete_content))
+        .routes(routes!(admin_users::setup))
+        .routes(routes!(admin_moderation::queue))
+        .routes(routes!(admin_moderation::bulk_dismiss))
+        .routes(routes!(admin_moderation::claim))
+        .routes(routes!(admin_moderation::dismiss))
+        .routes(routes!(admin_moderation::remove))
+        .routes(routes!(admin_moderation::restore))
+        .routes(routes!(admin_moderation::hold))
+        .routes(routes!(admin_moderation::release))
+        .routes(routes!(admin_moderation::words, admin_moderation::add_term))
+        .routes(routes!(
+            admin_moderation::update_term,
+            admin_moderation::delete_term
+        ))
+        .routes(routes!(admin_moderation::test_words))
+        .routes(routes!(admin_moderation::import_words))
+        .routes(routes!(admin_moderation::export_words))
+        .routes(routes!(admin_moderation::rescan))
+        .routes(routes!(admin_moderation::add_allowed))
+        .routes(routes!(admin_moderation::remove_allowed))
+        .routes(routes!(
+            admin_moderation::get_external,
+            admin_moderation::put_external
+        ))
+        .routes(routes!(admin_moderation::test_external))
+        .routes(routes!(
+            admin_moderation::get_settings,
+            admin_moderation::put_settings
+        ))
+        .routes(routes!(admin_moderation::log))
+        .routes(routes!(admin_moderation::log_csv))
+        .routes(routes!(moderation_webhooks::receive))
+        .routes(routes!(appeals::my_standing))
+        .routes(routes!(appeals::appeal))
+        .routes(routes!(appeals::appeal_link))
+        .routes(routes!(appeals::appeal_from_link))
+        .routes(routes!(appeals::ban_export))
+        .routes(routes!(appeals::download_export))
+        .routes(routes!(admin_restrictions::restrict))
+        .routes(routes!(admin_restrictions::change))
+        .routes(routes!(admin_restrictions::lift_one))
+        .routes(routes!(admin_restrictions::list_appeals))
+        .routes(routes!(admin_restrictions::decide))
+        .routes(routes!(
+            admin_restrictions::list_bans,
+            admin_restrictions::add_ban
+        ))
+        .routes(routes!(admin_restrictions::remove_ban))
+        .routes(routes!(
+            admin_restrictions::list_domains,
+            admin_restrictions::add_domain
+        ))
+        .routes(routes!(admin_restrictions::remove_domain))
 }
 
 pub fn router(state: AppState) -> Router {
     let test_clock = std::env::var("JUSTTYPE_TEST_CLOCK").as_deref() == Ok("1");
     let app_id = std::env::var("JUSTTYPE_APPLE_APP_ID").ok();
     let (mut router, api) = api_router().with_state(state.clone()).split_for_parts();
+    // Restrictions are enforced here, once, for every route: see
+    // `domain::restrictions::GATES`.
+    router = router.route_layer(axum::middleware::from_fn_with_state(
+        state.clone(),
+        crate::domain::restrictions::enforce,
+    ));
     if test_clock {
         tracing::warn!("JUSTTYPE_TEST_CLOCK is on: anyone can move this server's clock");
         router = router.merge(

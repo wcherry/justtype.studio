@@ -332,6 +332,12 @@ pub fn publication_for_reader(
         }
     }
 
+    // An account that is deactivated or permanently banned is not on the site:
+    // its publications are gone from every public read.
+    if crate::domain::restrictions::hidden_users(conn)?.contains(&work.owner_id) {
+        return Err(ApiError::NotFound("publication not found".into()));
+    }
+
     // A block is one writer's door, not a platform ban, and it is checked here
     // so that it covers everything a reader could do with a publication rather
     // than only the handlers someone remembered to guard.

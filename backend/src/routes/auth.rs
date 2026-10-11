@@ -73,7 +73,7 @@ pub(crate) fn check_password(password: &str) -> ApiResult<()> {
 }
 
 /// Opens a new signed-in session for this device and mints its first tokens.
-fn start_session(
+pub(crate) fn start_session(
     state: &AppState,
     conn: &mut Conn,
     user: User,
@@ -193,7 +193,9 @@ pub async fn register(
             .select(users::id)
             .first(conn)
             .optional()?;
-        if existing.is_some() {
+        // A banned address or a throwaway domain gets the answer any taken
+        // address gets, so the list cannot be probed.
+        if existing.is_some() || crate::domain::bans::refused(conn, &new_user.email)? {
             return Err(ApiError::Conflict(
                 "that email is already registered".into(),
             ));
@@ -264,6 +266,9 @@ pub async fn login(
         if !auth::password::verify(&password, &user.password_hash) {
             return Err(wrong());
         }
+        // Only once the password is right, so this says nothing to someone
+        // guessing: a banned writer is told why, instead of a generic error.
+        crate::domain::restrictions::sign_in_refusal(conn, &user.id)?;
         // Asked only once the password is right, so the refusal reveals
         // nothing to someone who does not already have it.
         if user.totp_enabled_at.is_some() {
@@ -340,6 +345,7 @@ pub async fn refresh(
             .find(&row.user_id)
             .select(User::as_select())
             .first(conn)?;
+        crate::domain::restrictions::sign_in_refusal(conn, &user.id)?;
         match &row.session_id {
             Some(session_id) => {
                 // A revoked session cannot be revived by a token it issued.

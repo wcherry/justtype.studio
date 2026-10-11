@@ -27,6 +27,10 @@ diesel::table! {
         double_enter_splits_scenes -> Bool,
         theme -> Text,
         welcomed_at -> Nullable<Text>,
+        is_moderator -> Bool,
+        deactivated_at -> Nullable<Text>,
+        closing_at -> Nullable<Text>,
+        purge_at -> Nullable<Text>,
     }
 }
 
@@ -307,6 +311,8 @@ diesel::table! {
         score -> Integer,
         created_at -> Text,
         updated_at -> Text,
+        moderation_state -> Text,
+        original_body -> Nullable<Text>,
     }
 }
 
@@ -367,6 +373,7 @@ diesel::table! {
         position -> Integer,
         created_at -> Text,
         updated_at -> Text,
+        moderation_state -> Text,
     }
 }
 
@@ -380,6 +387,7 @@ diesel::table! {
         body -> Nullable<Text>,
         created_at -> Text,
         updated_at -> Text,
+        moderation_state -> Text,
     }
 }
 
@@ -481,6 +489,8 @@ diesel::table! {
         action -> Text,
         detail -> Text,
         created_at -> Text,
+        subject_id -> Nullable<Text>,
+        reason -> Nullable<Text>,
     }
 }
 
@@ -704,6 +714,7 @@ diesel::table! {
         converted_work_id -> Nullable<Text>,
         created_at -> Text,
         updated_at -> Text,
+        moderation_state -> Text,
     }
 }
 
@@ -718,6 +729,8 @@ diesel::table! {
         deleted_at -> Nullable<Text>,
         created_at -> Text,
         updated_at -> Text,
+        moderation_state -> Text,
+        original_body -> Nullable<Text>,
     }
 }
 
@@ -774,6 +787,202 @@ diesel::joinable!(prompt_critique_reports -> prompt_critiques (critique_id));
 diesel::joinable!(prompt_enrollments -> users (user_id));
 diesel::joinable!(prompt_email_sends -> users (user_id));
 
+diesel::table! {
+    staff_notes (id) {
+        id -> Text,
+        user_id -> Text,
+        author_id -> Text,
+        body -> Text,
+        created_at -> Text,
+    }
+}
+
+diesel::table! {
+    restrictions (id) {
+        id -> Text,
+        user_id -> Text,
+        kind -> Text,
+        scope -> Text,
+        starts_at -> Text,
+        ends_at -> Nullable<Text>,
+        reason_code -> Text,
+        reason_text -> Text,
+        internal_note -> Nullable<Text>,
+        created_by -> Text,
+        created_at -> Text,
+        lifted_at -> Nullable<Text>,
+        lifted_by -> Nullable<Text>,
+        lift_reason -> Nullable<Text>,
+        ended_notified_at -> Nullable<Text>,
+        linked_items -> Nullable<Text>,
+    }
+}
+
+diesel::table! {
+    appeals (id) {
+        id -> Text,
+        restriction_id -> Text,
+        body -> Text,
+        state -> Text,
+        decided_by -> Nullable<Text>,
+        decision_text -> Nullable<Text>,
+        created_at -> Text,
+        decided_at -> Nullable<Text>,
+    }
+}
+
+diesel::table! {
+    permanent_bans (id) {
+        id -> Text,
+        email -> Text,
+        email_canonical -> Text,
+        former_user_id -> Nullable<Text>,
+        display_name -> Text,
+        reason_code -> Text,
+        reason_text -> Text,
+        restriction_id -> Nullable<Text>,
+        banned_by -> Text,
+        created_at -> Text,
+        removed_at -> Nullable<Text>,
+        removed_by -> Nullable<Text>,
+        removed_reason -> Nullable<Text>,
+    }
+}
+
+diesel::table! {
+    blocked_domains (domain) {
+        domain -> Text,
+        note -> Text,
+        created_by -> Text,
+        created_at -> Text,
+    }
+}
+
+diesel::table! {
+    reports (id) {
+        id -> Text,
+        subject_type -> Text,
+        subject_id -> Text,
+        subject_author_id -> Text,
+        reporter_id -> Text,
+        reason -> Text,
+        detail -> Nullable<Text>,
+        created_at -> Text,
+    }
+}
+
+diesel::table! {
+    moderation_items (id) {
+        id -> Text,
+        subject_type -> Text,
+        subject_id -> Text,
+        subject_author_id -> Text,
+        state -> Text,
+        sources -> Text,
+        report_count -> Integer,
+        top_reason -> Nullable<Text>,
+        severity -> Integer,
+        labels -> Nullable<Text>,
+        first_flagged_at -> Text,
+        last_flagged_at -> Text,
+        claimed_by -> Nullable<Text>,
+        claimed_until -> Nullable<Text>,
+        decided_by -> Nullable<Text>,
+        decided_at -> Nullable<Text>,
+        decision -> Nullable<Text>,
+    }
+}
+
+diesel::table! {
+    word_filter_terms (id) {
+        id -> Text,
+        term -> Text,
+        normalized -> Text,
+        match_kind -> Text,
+        action -> Text,
+        applies_to -> Text,
+        note -> Text,
+        created_by -> Text,
+        created_at -> Text,
+        updated_at -> Text,
+    }
+}
+
+diesel::table! {
+    word_filter_allow (word) {
+        word -> Text,
+        created_by -> Text,
+        created_at -> Text,
+    }
+}
+
+diesel::table! {
+    moderation_settings (key) {
+        key -> Text,
+        value -> Text,
+        updated_by -> Nullable<Text>,
+        updated_at -> Text,
+    }
+}
+
+diesel::table! {
+    external_checks (id) {
+        id -> Text,
+        subject_type -> Text,
+        subject_id -> Text,
+        provider -> Text,
+        external_id -> Nullable<Text>,
+        state -> Text,
+        attempts -> Integer,
+        recommended_action -> Nullable<Text>,
+        labels -> Nullable<Text>,
+        created_at -> Text,
+        checked_at -> Nullable<Text>,
+        next_attempt_at -> Text,
+    }
+}
+
+diesel::table! {
+    external_events (id) {
+        id -> Text,
+        provider -> Text,
+        event_id -> Text,
+        kind -> Text,
+        payload -> Text,
+        received_at -> Text,
+        applied_at -> Nullable<Text>,
+        error -> Nullable<Text>,
+    }
+}
+
+diesel::table! {
+    external_outbox (id) {
+        id -> Text,
+        provider -> Text,
+        external_id -> Text,
+        decision -> Text,
+        attempts -> Integer,
+        created_at -> Text,
+        sent_at -> Nullable<Text>,
+    }
+}
+
+diesel::table! {
+    emailed_exports (id) {
+        id -> Text,
+        token_hash -> Text,
+        email -> Text,
+        path -> Text,
+        expires_at -> Text,
+        downloaded_at -> Nullable<Text>,
+        created_at -> Text,
+    }
+}
+
+diesel::joinable!(restrictions -> users (user_id));
+diesel::joinable!(appeals -> restrictions (restriction_id));
+diesel::joinable!(staff_notes -> users (user_id));
+
 diesel::allow_tables_to_appear_in_same_query!(
     annotations,
     chapters,
@@ -829,4 +1038,18 @@ diesel::allow_tables_to_appear_in_same_query!(
     inbox_items,
     inbox_digests,
     prompt_email_sends,
+    staff_notes,
+    restrictions,
+    appeals,
+    permanent_bans,
+    blocked_domains,
+    reports,
+    moderation_items,
+    word_filter_terms,
+    word_filter_allow,
+    moderation_settings,
+    external_checks,
+    external_events,
+    external_outbox,
+    emailed_exports,
 );
