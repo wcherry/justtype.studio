@@ -15,7 +15,9 @@ export function LoginPage() {
   const back = from && !from.pathname.startsWith('/works/')
     ? `${from.pathname}${from.search ?? ''}${from.hash ?? ''}`
     : '/'
-  const [mode, setMode] = useState<'login' | 'register'>('login')
+  // Someone who followed an invitation has no account yet: open on sign-up.
+  const invited = new URLSearchParams(location.search).has('invited')
+  const [mode, setMode] = useState<'login' | 'register'>(invited ? 'register' : 'login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [displayName, setDisplayName] = useState('')

@@ -16,7 +16,7 @@ import type {
   AssistRequest, AssistView, ThesaurusEntry,
   AdminPrompts, ArchivePage, CritiqueReportView, CritiqueView, EnrollmentView, EntryPage,
   InboxPage, JobsReport, PromptEntryView, PromptView, TodayResponse, ToWorkPreview, UnreadCount,
-  UpdateEnrollmentRequest, UpdateSettingsRequest, WritingPlace,
+  UpdateEnrollmentRequest, UpdateSettingsRequest, WritingPlace, InviteResponse,
 } from './types'
 
 const BASE = '/api'
@@ -641,6 +641,8 @@ export const api = {
     signOutOthers: () => post<{ ok: boolean }>('/me/sessions/sign-out-others'),
     /** Settings every device reads from the account. */
     updateSettings: (input: UpdateSettingsRequest) => patch<User>('/me/settings', input),
+    /** Ask people to come and write here, by email. */
+    invite: (emails: string[]) => post<InviteResponse>('/invites', { emails }),
   },
 
   /** What this server can do. */

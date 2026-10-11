@@ -2069,17 +2069,28 @@ public enum API {
     }
 
     public struct InviteRequest: Codable, Hashable, Sendable {
-        /// Invite everyone in one of the author's circles, by id.
-        public var circleId: String?
-        /// Addresses to invite. Duplicates and ones already invited are ignored.
-        public var emails: [String]?
+        public var emails: [String]
 
         public init(
-            circleId: String? = nil,
-            emails: [String]? = nil
+            emails: [String]
         ) {
-            self.circleId = circleId
             self.emails = emails
+        }
+    }
+
+    public struct InviteResponse: Codable, Hashable, Sendable {
+        /// The addresses as understood: trimmed, lowercased, each once. The same
+        /// whether or not they were mailed, for the reason at the top.
+        public var invited: [String]
+        /// How many more addresses the writer can invite today.
+        public var remainingToday: Int
+
+        public init(
+            invited: [String],
+            remainingToday: Int
+        ) {
+            self.invited = invited
+            self.remainingToday = remainingToday
         }
     }
 

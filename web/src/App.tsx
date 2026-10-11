@@ -16,6 +16,7 @@ import { PromptDayPage, PromptsPage } from './pages/PromptsPage'
 import { PromptEntryPage } from './pages/PromptEntryPage'
 import { PromptWritePage } from './pages/PromptWritePage'
 import { UnsubscribePage } from './pages/UnsubscribePage'
+import { InviteButton } from './components/InviteButton'
 import { useAuth } from './state/auth'
 import { useUnreadCount } from './state/inbox'
 
@@ -55,6 +56,7 @@ function Chrome({ children }: { children: React.ReactNode }) {
               </svg>
               {unread > 0 && <span className="shell__count">{unread > 99 ? '99+' : unread}</span>}
             </Link>
+            <InviteButton />
             <Link to={`/people/${user.id}`} className="shell__user">{user.displayName}</Link>
             {user.isAdmin && <Link to="/admin/prompts" className="shell__user">Admin</Link>}
             <Link to="/settings" className="shell__user">Account</Link>

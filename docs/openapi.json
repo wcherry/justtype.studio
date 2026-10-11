@@ -2698,21 +2698,37 @@
       },
       "InviteRequest": {
         "properties": {
-          "circleId": {
-            "description": "Invite everyone in one of the author's circles, by id.",
-            "type": [
-              "string",
-              "null"
-            ]
-          },
           "emails": {
-            "description": "Addresses to invite. Duplicates and ones already invited are ignored.",
             "items": {
               "type": "string"
             },
             "type": "array"
           }
         },
+        "required": [
+          "emails"
+        ],
+        "type": "object"
+      },
+      "InviteResponse": {
+        "properties": {
+          "invited": {
+            "description": "The addresses as understood: trimmed, lowercased, each once. The same\nwhether or not they were mailed, for the reason at the top.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "remainingToday": {
+            "description": "How many more addresses the writer can invite today.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "invited",
+          "remainingToday"
+        ],
         "type": "object"
       },
       "InviteView": {
@@ -9237,6 +9253,47 @@
         },
         "tags": [
           "inbox"
+        ]
+      }
+    },
+    "/api/invites": {
+      "post": {
+        "operationId": "invite",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InviteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InviteResponse"
+                }
+              }
+            },
+            "description": "Invited"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "Invites people to Just Type Studio by email.",
+        "tags": [
+          "account"
         ]
       }
     },

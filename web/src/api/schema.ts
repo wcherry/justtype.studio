@@ -817,10 +817,15 @@ export interface InboxPage {
 }
 
 export interface InviteRequest {
-  // Invite everyone in one of the author's circles, by id.
-  circleId?: string | null
-  // Addresses to invite. Duplicates and ones already invited are ignored.
-  emails?: string[]
+  emails: string[]
+}
+
+export interface InviteResponse {
+  // The addresses as understood: trimmed, lowercased, each once. The same
+  // whether or not they were mailed, for the reason at the top.
+  invited: string[]
+  // How many more addresses the writer can invite today.
+  remainingToday: number
 }
 
 export interface InviteView {

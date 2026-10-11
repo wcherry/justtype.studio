@@ -573,6 +573,7 @@ their own book in `readerCount`, and notes on it are not reading for others.
 | `DELETE` | `/me/sessions/{id}` | sign one out |
 | `POST` | `/me/sessions/sign-out-others` | |
 | `PATCH` | `/me/settings` | `doubleEnterSplitsScenes`, `theme` (`system`, `light`, `dark`, `sepia`, `night`); each left out stays as it is; returns the user |
+| `POST` | `/invites` | `emails` (up to 10); mails each a fixed invitation from the writer, with a sign-up link. Needs a confirmed address (403); 20 addresses a day (429 for a batch that would cross it). Returns `invited` and `remainingToday`, the same whether or not an address already has an account — one that does is not mailed, and neither is one anybody invited in the last 30 days |
 
 **Invitations wait for a proved address.** A reader invitation and a seat on a
 book are both addressed to an email, so until an account has proved its

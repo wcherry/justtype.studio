@@ -1575,6 +1575,21 @@ dialog.dialog--export fieldset { min-width: 0; }
 .shell__nav a.is-active { color: var(--accent); }
 .shell__bell { position: relative; display: inline-flex; align-items: center; color: var(--ink-soft); padding: 2px; }
 .shell__bell:hover, .shell__bell.has-unread { color: var(--accent); }
+/* The invite button sits beside the bell and looks like it, though it is a button. */
+.invite { position: relative; display: inline-flex; }
+.invite__button { background: none; border: none; cursor: pointer; }
+.invite__button[aria-expanded='true'] { color: var(--accent); }
+.invite__panel {
+  position: absolute; right: -8px; top: calc(100% + 10px); z-index: 30;
+  width: min(320px, calc(100vw - 32px)); padding: 16px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+.invite__panel h2 { font-family: var(--serif); font-size: 17px; font-weight: normal; margin: 0 0 12px; color: var(--ink); }
+.invite__panel textarea { width: 100%; resize: vertical; }
+.invite__panel .field__hint { margin: -4px 0 12px; }
+.invite__panel button[type='submit'] { width: 100%; }
+.invite__done { font-size: 13px; color: var(--ink-soft); margin: 0 0 12px; }
 .shell__count {
   position: absolute; top: -6px; right: -10px; min-width: 16px; height: 16px; padding: 0 4px;
   border-radius: 8px; background: var(--accent); color: var(--surface);
