@@ -43,6 +43,8 @@ public struct RootView: View {
             }
         }
         .environmentObject(session)
+        // The account's theme; signed out, the device decides.
+        .preferredColorScheme(session.user?.theme.colorScheme)
         // A cover rather than a push: "start writing" should put the page in
         // front of the writer, not somewhere three taps into a hierarchy.
         .sheet(item: $startWriting) { scene in
@@ -140,6 +142,20 @@ struct AccountView: View {
                     }
                 } else {
                     Section {
+                        Picker("Theme", selection: Binding(
+                            get: { session.user?.theme ?? .system },
+                            set: { theme in Task { await setTheme(theme) } }
+                        )) {
+                            ForEach(API.Theme.allCases, id: \.self) { theme in
+                                Text(theme.label).tag(theme)
+                            }
+                        }
+                    } header: {
+                        Text("Appearance")
+                    } footer: {
+                        Text("Kept with your account, so the web looks the same. On iPhone, Sepia shows as Light and Night as Dark for now.")
+                    }
+                    Section {
                         Toggle("Treat a blank line (double Enter) as a scene break", isOn: Binding(
                             get: { session.user?.doubleEnterSplitsScenes ?? false },
                             set: { on in Task { await setDoubleEnter(on) } }
@@ -161,12 +177,43 @@ struct AccountView: View {
         }
     }
 
+    private func setTheme(_ theme: API.Theme) async {
+        do {
+            session.replaceUser(try await session.client.updateSettings(theme: theme))
+            problem = nil
+        } catch {
+            problem = error.localizedDescription
+        }
+    }
+
     private func setDoubleEnter(_ on: Bool) async {
         do {
             session.replaceUser(try await session.client.updateSettings(doubleEnterSplitsScenes: on))
             problem = nil
         } catch {
             problem = error.localizedDescription
+        }
+    }
+}
+
+extension API.Theme {
+    /// What SwiftUI can show of it: the web's warmer and dimmer themes fall
+    /// back to the light or dark they are variations of.
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .system: return nil
+        case .light, .sepia: return .light
+        case .dark, .night: return .dark
+        }
+    }
+
+    var label: String {
+        switch self {
+        case .system: return "System"
+        case .light: return "Light"
+        case .dark: return "Dark"
+        case .sepia: return "Sepia"
+        case .night: return "Night"
         }
     }
 }

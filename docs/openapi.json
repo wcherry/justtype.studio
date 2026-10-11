@@ -5816,6 +5816,16 @@
         ],
         "type": "object"
       },
+      "Theme": {
+        "enum": [
+          "system",
+          "light",
+          "dark",
+          "sepia",
+          "night"
+        ],
+        "type": "string"
+      },
       "ThesaurusEntry": {
         "properties": {
           "base": {
@@ -6467,6 +6477,17 @@
               "boolean",
               "null"
             ]
+          },
+          "theme": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Theme",
+                "description": "How the app looks, on every device the writer signs in on."
+              }
+            ]
           }
         },
         "type": "object"
@@ -6705,6 +6726,10 @@
               "null"
             ]
           },
+          "theme": {
+            "$ref": "#/components/schemas/Theme",
+            "description": "How the app looks for them, on every device."
+          },
           "totpEnabledAt": {
             "description": "When two-factor sign-in was turned on.",
             "type": [
@@ -6731,7 +6756,8 @@
           "createdAt",
           "updatedAt",
           "isAdmin",
-          "doubleEnterSplitsScenes"
+          "doubleEnterSplitsScenes",
+          "theme"
         ],
         "type": "object"
       },

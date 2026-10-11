@@ -198,6 +198,17 @@ api_enum!(PromptSource {
     Evergreen => "evergreen",
 });
 
+api_enum!(Theme {
+    /// Light or dark, following the device.
+    System => "system",
+    Light => "light",
+    Dark => "dark",
+    /// Warm, low-glare paper.
+    Sepia => "sepia",
+    /// Dim and low-contrast, for writing in the dark.
+    Night => "night",
+});
+
 api_enum!(Genre {
     Literary => "literary",
     Fantasy => "fantasy",

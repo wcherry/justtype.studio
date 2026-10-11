@@ -4636,6 +4636,14 @@ public enum API {
         }
     }
 
+    public enum Theme: String, Codable, CaseIterable, Hashable, Sendable {
+        case system = "system"
+        case light = "light"
+        case dark = "dark"
+        case sepia = "sepia"
+        case night = "night"
+    }
+
     public struct ThesaurusEntry: Codable, Hashable, Sendable {
         /// The form it was found under: "walked" is found as "walk". When the word
         /// is both a word and a form of another ("running"), this is the other,
@@ -5085,11 +5093,14 @@ public enum API {
         /// A blank paragraph (double Enter) is a scene break, while writing a book
         /// and when turning text into a project.
         public var doubleEnterSplitsScenes: Bool?
+        public var theme: Theme?
 
         public init(
-            doubleEnterSplitsScenes: Bool? = nil
+            doubleEnterSplitsScenes: Bool? = nil,
+            theme: Theme? = nil
         ) {
             self.doubleEnterSplitsScenes = doubleEnterSplitsScenes
+            self.theme = theme
         }
     }
 
@@ -5208,6 +5219,8 @@ public enum API {
         public var termsAcceptedAt: String?
         /// The version of the terms they last agreed to.
         public var termsVersion: Int?
+        /// How the app looks for them, on every device.
+        public var theme: Theme
         /// When two-factor sign-in was turned on.
         public var totpEnabledAt: String?
         public var updatedAt: String
@@ -5232,6 +5245,7 @@ public enum API {
             summariesAllowedAt: String? = nil,
             termsAcceptedAt: String? = nil,
             termsVersion: Int? = nil,
+            theme: Theme,
             totpEnabledAt: String? = nil,
             updatedAt: String,
             weeklyWordGoal: Int? = nil
@@ -5253,6 +5267,7 @@ public enum API {
             self.summariesAllowedAt = summariesAllowedAt
             self.termsAcceptedAt = termsAcceptedAt
             self.termsVersion = termsVersion
+            self.theme = theme
             self.totpEnabledAt = totpEnabledAt
             self.updatedAt = updatedAt
             self.weeklyWordGoal = weeklyWordGoal

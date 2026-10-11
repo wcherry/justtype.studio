@@ -29,6 +29,7 @@ users ──┬─< works ──┬─< chapters ──< scenes ──┬─< sc
 | `users.about_author` | A paragraph reusable as back matter | Private |
 | `users.welcomed_at` | When the welcome email was queued | Set the first time the address is proved (by the confirmation link or a password reset), in the same transaction as queueing the mail; never set twice, so a later confirmation sends nothing. Backfilled for accounts confirmed before it existed |
 | `users.is_admin` | A site administrator | Set from the command line only (`--admin grant`), audited |
+| `users.theme` | `system`, `light`, `dark`, `sepia` or `night` | Kept with the account so every device looks the same; the web copies it to `localStorage` to paint the first frame, iOS maps it to light/dark |
 | `users.double_enter_splits_scenes` | Whether a blank paragraph (double Enter) is a scene break: the web book editor moves on to the next scene, and text becoming a project splits there | Read by web and iOS from `/auth/me` |
 | `job_runs` | One row per scheduled run, keyed `(job, key)` (the day) | The key is the guard against running twice; a claim older than 15 minutes with no finish is taken over |
 | `mail_queue` | Mail a job decided to send | Written in the same transaction as the reason for it, delivered by the runner with backoff until `give_up_at` |

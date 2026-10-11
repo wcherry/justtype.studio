@@ -1,7 +1,10 @@
 /* Just Type Studio — a calm surface for long-form writing.
    Tokens first, then layout, then the two reading surfaces (editor, reader). */
 
-:root {
+/* Light. */
+:root,
+[data-theme='light'] {
+  color-scheme: light;
   --ink: #1c1b19;
   --ink-soft: #5c5850;
   --ink-faint: #8f8a80;
@@ -14,6 +17,9 @@
   --add-soft: #dff2e5;
   --del: #9b2c2c;
   --del-soft: #fbe3e3;
+  --mark-highlight: #fbe7a1;
+  --mark-bookmark: #efe6d8;
+  --spell: #c0392b;
   --radius: 8px;
   --serif: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
   --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -28,22 +34,72 @@
   --prose-family: var(--family-serif);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --ink: #ece7dd;
-    --ink-soft: #a8a196;
-    --ink-faint: #756e64;
-    --paper: #16151300;
-    --paper: #161513;
-    --surface: #1e1c1a;
-    --line: #322e2a;
-    --accent: #d2ab74;
-    --accent-soft: #2f2820;
-    --add: #7fcf9c;
-    --add-soft: #1f2f25;
-    --del: #e98a8a;
-    --del-soft: #322020;
-  }
+/* Themes. The block above is Light. The theme is chosen in Settings, kept
+   with the account, and set as `data-theme` on <html> before the first paint
+   (see index.html and state/theme.ts); "system" resolves to light or dark
+   there, so nothing here asks the device itself. Every colour that should
+   follow the theme is a token, and anything not overridden falls back to
+   Light. The blocks are not tied to <html>, so a swatch in Settings can wear
+   any theme to preview it. */
+
+[data-theme='dark'] {
+  color-scheme: dark;
+  --ink: #ece7dd;
+  --ink-soft: #a8a196;
+  --ink-faint: #756e64;
+  --paper: #161513;
+  --surface: #1e1c1a;
+  --line: #322e2a;
+  --accent: #d2ab74;
+  --accent-soft: #2f2820;
+  --add: #7fcf9c;
+  --add-soft: #1f2f25;
+  --del: #e98a8a;
+  --del-soft: #322020;
+  --mark-highlight: #5a4a17;
+  --mark-bookmark: #2e2820;
+  --spell: #e0786b;
+}
+
+/* Warm, low-glare paper for long sessions in daylight. */
+[data-theme='sepia'] {
+  color-scheme: light;
+  --ink: #3b2f22;
+  --ink-soft: #64543f;
+  --ink-faint: #8c7a63;
+  --paper: #f4ecd8;
+  --surface: #fbf5e6;
+  --line: #e0d2b4;
+  --accent: #82531f;
+  --accent-soft: #ecdcbf;
+  --add: #356332;
+  --add-soft: #dfe9cf;
+  --del: #963526;
+  --del-soft: #f3d9cc;
+  --mark-highlight: #f0d98a;
+  --mark-bookmark: #e6d6b4;
+  --spell: #a8362a;
+}
+
+/* Dim and quiet, for writing in the dark: less light off the page than Dark,
+   and less contrast, while body text still reads comfortably. */
+[data-theme='night'] {
+  color-scheme: dark;
+  --ink: #b9b3a8;
+  --ink-soft: #8d887f;
+  --ink-faint: #6f6b63;
+  --paper: #0e0f11;
+  --surface: #15161a;
+  --line: #24262b;
+  --accent: #b08d5e;
+  --accent-soft: #24201a;
+  --add: #6fae84;
+  --add-soft: #172219;
+  --del: #c77b7b;
+  --del-soft: #281818;
+  --mark-highlight: #3d3414;
+  --mark-bookmark: #221e19;
+  --spell: #c46a5e;
 }
 
 * { box-sizing: border-box; }
@@ -1321,10 +1377,6 @@ body.writing-page .room-outline .outline { display: block; border: none; max-hei
   width: 7px; height: 11px; background: var(--accent);
   clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 72%, 0 100%);
 }
-:root { --mark-highlight: #fbe7a1; --mark-bookmark: #efe6d8; }
-@media (prefers-color-scheme: dark) {
-  :root { --mark-highlight: #5a4a17; --mark-bookmark: #2e2820; }
-}
 
 .selection-menu {
   position: fixed; z-index: 60; min-width: 190px; max-width: 320px; padding: 4px;
@@ -1467,10 +1519,6 @@ dialog.dialog--export fieldset { min-width: 0; }
 
 /* --- spelling, thesaurus, assistant -------------------------------------- */
 
-:root { --spell: #c0392b; }
-@media (prefers-color-scheme: dark) {
-  :root { --spell: #e0786b; }
-}
 /* A wavy line under the word, drawn by the app's own checker. */
 .prose .spell-error {
   text-decoration: underline wavy var(--spell);
@@ -1640,3 +1688,37 @@ body.writing-page .access-note { margin-top: 56px; }
 .admin__days li.is-today { border-left: 3px solid var(--accent); padding-left: 10px; }
 .settings__row input[type='checkbox'] { width: auto; flex: none; margin: 0; }
 label.settings__row { display: flex; flex-wrap: nowrap; color: var(--ink); font-size: 14px; }
+
+/* --- appearance ---------------------------------------------------------- */
+
+.theme-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px;
+  margin: 4px 0 10px;
+}
+.theme-option {
+  display: flex; flex-direction: column; align-items: stretch; gap: 4px; padding: 8px;
+  text-align: left; font: inherit; color: var(--ink); cursor: pointer;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+}
+.theme-option:hover { border-color: var(--ink-faint); }
+.theme-option:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.theme-option.is-selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.theme-option:disabled { cursor: progress; }
+.theme-option__preview {
+  display: flex; height: 64px; overflow: hidden;
+  border: 1px solid var(--line); border-radius: calc(var(--radius) - 3px);
+}
+.theme-option__label { font-weight: 600; font-size: 14px; }
+.theme-option__hint { font-size: 12px; color: var(--ink-soft); line-height: 1.35; }
+/* Wears its own theme's tokens, whatever the page around it is in. */
+.theme-page {
+  flex: 1; position: relative; display: flex; flex-direction: column; gap: 6px;
+  padding: 10px; background: var(--paper);
+}
+.theme-page__line { display: block; height: 4px; border-radius: 2px; background: var(--ink-faint); }
+.theme-page__line--title { width: 55%; background: var(--ink); }
+.theme-page__line--short { width: 70%; }
+.theme-page__accent {
+  position: absolute; right: 10px; bottom: 8px; width: 10px; height: 10px;
+  border-radius: 50%; background: var(--accent);
+}
