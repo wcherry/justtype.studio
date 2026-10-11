@@ -26,6 +26,7 @@ diesel::table! {
         is_admin -> Bool,
         double_enter_splits_scenes -> Bool,
         theme -> Text,
+        welcomed_at -> Nullable<Text>,
     }
 }
 

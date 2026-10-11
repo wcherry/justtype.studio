@@ -299,15 +299,94 @@ pub async fn verify(
     State(state): State<AppState>,
     Json(body): Json<TokenRequest>,
 ) -> ApiResult<Json<Done>> {
+    let public_url = state.config.public_url.clone();
     blocking(&state.pool, move |conn| {
-        let user = redeem(conn, &body.token, "verify")?;
-        diesel::update(users::table.find(&user.id))
-            .set(users::email_verified_at.eq(now_iso()))
-            .execute(conn)?;
-        Ok(())
+        conn.transaction::<_, ApiError, _>(|conn| {
+            let user = redeem(conn, &body.token, "verify")?;
+            diesel::update(users::table.find(&user.id))
+                .set(users::email_verified_at.eq(now_iso()))
+                .execute(conn)?;
+            welcome_once(conn, &user, &public_url)
+        })
     })
     .await?;
     Ok(Json(Done { ok: true }))
+}
+
+/// How long the queue keeps trying to deliver a welcome before giving up.
+const WELCOME_GIVE_UP_DAYS: i64 = 3;
+
+/// Queues the welcome email, the first time an address is proved and never
+/// again. Call inside the transaction that records the proof, so the welcome
+/// is queued if and only if the confirmation sticks.
+///
+/// Claimed with a conditional update rather than read-then-write, so two
+/// confirmations racing each other still send one.
+fn welcome_once(conn: &mut Conn, user: &User, public_url: &str) -> ApiResult<()> {
+    let claimed = diesel::update(
+        users::table
+            .find(&user.id)
+            .filter(users::welcomed_at.is_null()),
+    )
+    .set(users::welcomed_at.eq(now_iso()))
+    .execute(conn)?;
+    if claimed == 0 {
+        return Ok(());
+    }
+    crate::mail::enqueue(
+        conn,
+        &welcome_message(public_url, &user.email, &user.display_name),
+        chrono::Utc::now() + chrono::Duration::days(WELCOME_GIVE_UP_DAYS),
+    )
+}
+
+/// The welcome: what the place is for, and where to begin. One message, sent
+/// because they signed up, so it carries no unsubscribe link — and so it must
+/// stay a welcome, never an advertisement.
+pub fn welcome_message(public_url: &str, to: &str, name: &str) -> Message {
+    let desk = format!("{public_url}/");
+    let prompts = format!("{public_url}/prompts");
+    let settings = format!("{public_url}/settings/general");
+    let body = format!(
+        "Hello {name},\n\n\
+Your address is confirmed — welcome to Just Type Studio.\n\n\
+It is a quiet place to write something long: a novel, a novella, a story. \
+Start a book from your desk, empty or from a template that lays out the \
+chapters for you, and write scene by scene. Everything saves as you go, \
+and keeps working offline.\n\n\
+Start your first book:\n{desk}\n\n\
+If you want a reason to write every day, Daily Prompts sends one prompt a \
+day. Answer it privately, or share it and read what others made of it:\n{prompts}\n\n\
+The page itself — type, line length, focus mode, spelling — is yours to \
+change in Settings, along with two-factor sign-in:\n{settings}\n\n\
+Happy writing.\n"
+    );
+    let button = "display:inline-block;padding:10px 16px;background:#7a4f2a;color:#fff;text-decoration:none;border-radius:4px";
+    let html = format!(
+        "<!doctype html><html><body style=\"font-family:Georgia,serif;color:#222;max-width:560px;margin:0 auto;padding:24px;line-height:1.5\">\
+<p>Hello {name},</p>\
+<p>Your address is confirmed — welcome to Just Type Studio.</p>\
+<p>It is a quiet place to write something long: a novel, a novella, a story. \
+Start a book from your desk, empty or from a template that lays out the chapters for you, \
+and write scene by scene. Everything saves as you go, and keeps working offline.</p>\
+<p><a href=\"{desk}\" style=\"{button}\">Start your first book</a></p>\
+<p>If you want a reason to write every day, <a href=\"{prompts}\">Daily Prompts</a> sends one prompt a day. \
+Answer it privately, or share it and read what others made of it.</p>\
+<p>The page itself — type, line length, focus mode, spelling — is yours to change in \
+<a href=\"{settings}\">Settings</a>, along with two-factor sign-in.</p>\
+<p>Happy writing.</p></body></html>",
+        name = crate::jobs::escape(name),
+        desk = crate::jobs::escape(&desk),
+        prompts = crate::jobs::escape(&prompts),
+        settings = crate::jobs::escape(&settings),
+    );
+    Message {
+        to: to.into(),
+        subject: "Welcome to Just Type Studio".into(),
+        body,
+        html: Some(html),
+        headers: Vec::new(),
+    }
 }
 
 // --- getting back in -----------------------------------------------------
@@ -389,6 +468,7 @@ pub async fn reset(
 ) -> ApiResult<Json<Done>> {
     check_password(&body.password)?;
     let hash = auth::password::hash(&body.password)?;
+    let public_url = state.config.public_url.clone();
     blocking(&state.pool, move |conn| {
         conn.transaction::<_, ApiError, _>(|conn| {
             let user = redeem(conn, &body.token, "reset")?;
@@ -402,6 +482,8 @@ pub async fn reset(
                         .eq(user.email_verified_at.clone().unwrap_or(now.clone())),
                 ))
                 .execute(conn)?;
+            // Proving the address this way is still the first time for some.
+            welcome_once(conn, &user, &public_url)?;
             // Whoever had the old password is out, everywhere.
             revoke_sessions(conn, &user.id, None)?;
             super::audit::record(

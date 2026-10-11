@@ -1,5 +1,5 @@
-//! Mail going out: proving an address, resetting a password, the daily
-//! prompt.
+//! Mail going out: proving an address, the welcome once it is proved,
+//! resetting a password, the daily prompt.
 //!
 //! Mail sent as part of a request (a reset link) goes straight out. Mail a
 //! scheduled job decides to send is put in `mail_queue` inside the same
@@ -153,6 +153,11 @@ impl Mailer {
                     .open(path)
                     .await?;
                 file.write_all(line.as_bytes()).await?;
+                // Tokio hands the write to a background thread; without this
+                // the request can answer before the line is in the file, and
+                // whoever reads the outbox next (a test, the smoke script)
+                // finds the message missing.
+                file.flush().await?;
                 Ok(())
             }
             Mailer::Smtp { transport, from } => {

@@ -39,6 +39,8 @@ pub mod templates;
 #[cfg(test)]
 mod theme_api_tests;
 pub mod versions;
+#[cfg(test)]
+mod welcome_api_tests;
 pub mod words;
 pub mod works;
 
