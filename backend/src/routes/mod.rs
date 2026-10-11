@@ -15,6 +15,9 @@ pub mod export_settings;
 pub mod feedback;
 pub mod goals;
 pub mod inbox;
+pub mod invites;
+#[cfg(test)]
+mod invites_api_tests;
 pub mod moderation;
 pub mod notebook;
 pub mod openapi;
@@ -190,6 +193,7 @@ fn api_router() -> OpenApiRouter<AppState> {
         .routes(routes!(comments::list, comments::create))
         .routes(routes!(comments::update, comments::delete_comment))
         .routes(routes!(comments::vote))
+        .routes(routes!(invites::invite))
         .routes(routes!(feedback::list_reactions, feedback::react))
         .routes(routes!(feedback::list_questions, feedback::create_question))
         .routes(routes!(

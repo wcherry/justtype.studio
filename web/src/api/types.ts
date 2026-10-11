@@ -169,6 +169,8 @@ export type {
   EntryState,
   InboxItemView,
   InboxPage,
+  InviteRequest,
+  InviteResponse,
   JobsReport,
   PromptEntryView,
   PromptView,

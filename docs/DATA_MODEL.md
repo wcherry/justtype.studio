@@ -57,6 +57,7 @@ users ──┬─< works ──┬─< chapters ──< scenes ──┬─< sc
 | `recovery_codes` | Two-factor recovery | Digest only; each used once |
 | `audit_events` | The record | No foreign keys, so it outlives what it describes |
 | `work_activity` | What happened to a work, and who did it | Written as it happens; edits fold into one line per sitting |
+| `site_invites` | Who invited which address to join, and whether it was mailed | Unique per `(inviter_id, email)`; written for every address, members included, so neither the reply nor the daily limit says who has an account |
 | `writing_places` | Where each writer was in each book: scene and selection | One row per `(user_id, work_id)`; returned as `place` on that writer's outline; gone with the scene |
 
 ## Lifecycles
