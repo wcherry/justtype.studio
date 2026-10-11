@@ -434,8 +434,13 @@ pub async fn following(
             .order(follows::created_at.desc())
             .select(follows::followee_id)
             .load(conn)?;
+        let hidden = crate::domain::restrictions::hidden_users(conn)?;
         let mut cards = support::author_cards(conn, &ids)?;
-        Ok(ids.iter().filter_map(|id| cards.remove(id)).collect())
+        Ok(ids
+            .iter()
+            .filter(|id| !hidden.contains(id))
+            .filter_map(|id| cards.remove(id))
+            .collect())
     })
     .await?;
     Ok(Json(cards))
