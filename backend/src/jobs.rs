@@ -462,7 +462,7 @@ pub async fn send_prompt_emails(state: &AppState, now: DateTime<Utc>) -> ApiResu
     .await
 }
 
-fn escape(text: &str) -> String {
+pub(crate) fn escape(text: &str) -> String {
     text.replace('&', "&amp;")
         .replace('<', "&lt;")
         .replace('>', "&gt;")
