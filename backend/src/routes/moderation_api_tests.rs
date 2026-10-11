@@ -948,6 +948,19 @@ async fn a_term_applies_only_where_it_is_set_and_names_and_bios_are_checked() {
         .await,
         400
     );
+    // A name chosen at sign-up is public text too.
+    let (status, refused) = s
+        .call(
+            None,
+            "POST",
+            "/auth/register",
+            Some(json!({
+                "email": "new@example.com", "password": "correcthorse",
+                "displayName": "Badname Jr", "acceptTerms": true
+            })),
+        )
+        .await;
+    assert_eq!(status, 400, "{refused}");
     s.ok(
         &w,
         "PATCH",
