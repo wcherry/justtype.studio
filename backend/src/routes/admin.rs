@@ -445,6 +445,10 @@ pub struct JobsReport {
     pub runs: Vec<JobRun>,
     pub mail_waiting: i64,
     pub mail_failed: i64,
+    /// Public posts waiting for the moderation platform to come back.
+    pub external_backlog: i64,
+    /// Events from the platform that were stored and not applied.
+    pub external_unapplied: Vec<String>,
 }
 
 #[utoipa::path(
@@ -475,11 +479,26 @@ pub async fn jobs(State(state): State<AppState>, _admin: AdminUser) -> ApiResult
             .filter(mail_queue::failed_at.is_not_null())
             .count()
             .get_result(conn)?;
+        let external_backlog: i64 = external_checks::table
+            .filter(external_checks::state.eq("pending"))
+            .count()
+            .get_result(conn)?;
+        let external_unapplied: Vec<String> = external_events::table
+            .filter(external_events::error.is_not_null())
+            .order(external_events::received_at.desc())
+            .limit(20)
+            .select((external_events::kind, external_events::error))
+            .load::<(String, Option<String>)>(conn)?
+            .into_iter()
+            .map(|(kind, error)| format!("{kind}: {}", error.unwrap_or_default()))
+            .collect();
         Ok(JobsReport {
             health,
             runs,
             mail_waiting,
             mail_failed,
+            external_backlog,
+            external_unapplied,
         })
     })
     .await?;

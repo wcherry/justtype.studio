@@ -21,7 +21,8 @@ use crate::db::models::*;
 use crate::db::schema::*;
 use crate::db::{blocking, Conn};
 use crate::domain::enums::{EntrySort, EntryState};
-use crate::domain::{doc, new_id, prompts as rules, split};
+use crate::domain::filter::Surface;
+use crate::domain::{doc, moderation, new_id, prompts as rules, split};
 use crate::error::{ApiError, ApiResult, ErrorEnvelope};
 use crate::state::AppState;
 
@@ -697,6 +698,23 @@ pub async fn save_entry(
     if day == today() {
         ensure_today(&state).await?;
     }
+    // An edit to a submitted answer is public text again, so it is screened
+    // like the submission was. A draft is private and is not.
+    let screen = {
+        let uid = user.id.clone();
+        let submitted = blocking(&state.pool, move |conn| {
+            let prompt = prompt_for(conn, day)?;
+            Ok(own_entry(conn, &prompt.id, &uid)?
+                .is_some_and(|e| e.state == EntryState::Submitted.as_str()))
+        })
+        .await?;
+        if submitted {
+            let text = doc::plain_text(&body.content);
+            Some(moderation::screen(&state, Surface::Entry, &user.id, &text).await?)
+        } else {
+            None
+        }
+    };
     let view = blocking(&state.pool, move |conn| {
         require_enrolled(conn, &user.id)?;
         let prompt = prompt_for(conn, day)?;
@@ -739,6 +757,12 @@ pub async fn save_entry(
                             diesel::update(prompt_entries::table.find(&entry.id))
                                 .set(prompt_entries::edited_at.eq(Some(at)))
                                 .execute(conn)?;
+                            if let Some(screen) = &screen {
+                                let provider = moderation::provider_name(conn)?;
+                                moderation::record(
+                                    conn, screen, "entry", &entry.id, &user.id, &provider,
+                                )?;
+                            }
                         }
                     }
                 }
@@ -783,6 +807,23 @@ async fn transition(
     to: EntryState,
 ) -> ApiResult<PromptEntryView> {
     let day = opened_day(&day)?;
+    // Only an answer being made public is screened: until it is submitted it
+    // is private, and private writing is never sent anywhere.
+    let screen = if to == EntryState::Submitted {
+        let uid = user.id.clone();
+        let text = blocking(&state.pool, move |conn| {
+            let prompt = prompt_for(conn, day)?;
+            Ok(own_entry(conn, &prompt.id, &uid)?
+                .map(|e| doc::plain_text(&serde_json::from_str(&e.body).unwrap_or(Value::Null))))
+        })
+        .await?;
+        match text {
+            Some(text) => Some(moderation::screen(state, Surface::Entry, &user.id, &text).await?),
+            None => None,
+        }
+    } else {
+        None
+    };
     blocking(&state.pool, move |conn| {
         require_enrolled(conn, &user.id)?;
         let prompt = prompt_for(conn, day)?;
@@ -808,6 +849,10 @@ async fn transition(
                         prompt_entries::updated_at.eq(&now),
                     ))
                     .execute(conn)?;
+                if let Some(screen) = &screen {
+                    let provider = moderation::provider_name(conn)?;
+                    moderation::record(conn, screen, "entry", &entry.id, &user.id, &provider)?;
+                }
             }
             EntryState::Withdrawn => {
                 if entry.state != EntryState::Submitted.as_str() {
@@ -923,6 +968,8 @@ pub struct EntryCard {
     pub edited_at: Option<String>,
     pub late: bool,
     pub mine: bool,
+    /// `held` (awaiting review) or `removed`, on the writer's own answer.
+    pub moderated: Option<String>,
 }
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
@@ -990,9 +1037,18 @@ pub async fn feed(
                 next_cursor: None,
             });
         };
+        // Held and removed answers, and answers by an account that is hidden,
+        // are out of everyone else's feed; a writer still sees their own.
+        let hidden = crate::domain::restrictions::hidden_users(conn)?;
         let rows: Vec<PromptEntry> = prompt_entries::table
             .filter(prompt_entries::prompt_id.eq(&prompt.id))
             .filter(prompt_entries::state.eq(EntryState::Submitted.as_str()))
+            .filter(
+                prompt_entries::moderation_state
+                    .eq("visible")
+                    .or(prompt_entries::author_id.eq(&user.id)),
+            )
+            .filter(prompt_entries::author_id.ne_all(&hidden))
             .select(PromptEntry::as_select())
             .load(conn)?;
         let ids: Vec<String> = rows.iter().map(|e| e.id.clone()).collect();
@@ -1021,6 +1077,8 @@ pub async fn feed(
                     critique_count: counts.get(&e.id).copied().unwrap_or(0),
                     late: is_late(&e, day),
                     mine: e.author_id == user.id,
+                    moderated: (e.moderation_state != "visible")
+                        .then(|| e.moderation_state.clone()),
                     submitted_at: e.submitted_at,
                     edited_at: e.edited_at,
                     id: e.id,
@@ -1075,6 +1133,13 @@ pub fn readable_entry(conn: &mut Conn, entry_id: &str, user_id: &str) -> ApiResu
     }
     require_enrolled(conn, user_id)?;
     if entry.state != EntryState::Submitted.as_str() {
+        return Err(ApiError::NotFound("that answer is not here".into()));
+    }
+    // Held or removed by moderation, or by an account that is hidden: it is
+    // not there for anyone but staff.
+    let hidden = crate::domain::restrictions::hidden_users(conn)?;
+    let staff = moderation::is_staff(conn, Some(user_id))?;
+    if !staff && (entry.moderation_state != "visible" || hidden.contains(&entry.author_id)) {
         return Err(ApiError::NotFound("that answer is not here".into()));
     }
     Ok(entry)
@@ -1306,6 +1371,7 @@ mod tests {
             converted_work_id: None,
             created_at: String::new(),
             updated_at: String::new(),
+            moderation_state: "visible".into(),
         };
         assert!(!is_late(&e, day));
         e.submitted_at = Some(at(closes));

@@ -24,6 +24,118 @@ public enum API {
         }
     }
 
+    public struct AccountStanding: Codable, Hashable, Sendable {
+        /// In force now (warnings excepted).
+        public var active: [MyRestriction]
+        public var closing: Closing?
+        /// Everything before, newest first, warnings included.
+        public var history: [MyRestriction]
+
+        public init(
+            active: [MyRestriction],
+            closing: Closing? = nil,
+            history: [MyRestriction]
+        ) {
+            self.active = active
+            self.closing = closing
+            self.history = history
+        }
+    }
+
+    public struct AccountSummary: Codable, Hashable, Sendable {
+        public var aboutAuthor: String?
+        public var bio: String?
+        public var closingAt: String?
+        public var createdAt: String
+        public var deactivatedAt: String?
+        public var displayName: String
+        /// Administrators only, as are the next four.
+        public var email: String?
+        public var emailVerified: Bool?
+        public var id: String
+        public var lastSeenAt: String?
+        public var legalName: String?
+        public var mailingAddress: String?
+        public var phone: String?
+        public var purgeAt: String?
+        public var role: StaffRole?
+        /// Made by staff and not yet set up by the person (administrators only).
+        public var setupPending: Bool?
+        public var status: String
+        public var statusEnds: String?
+        public var termsVersion: Int?
+        public var twoFactor: Bool
+
+        public init(
+            aboutAuthor: String? = nil,
+            bio: String? = nil,
+            closingAt: String? = nil,
+            createdAt: String,
+            deactivatedAt: String? = nil,
+            displayName: String,
+            email: String? = nil,
+            emailVerified: Bool? = nil,
+            id: String,
+            lastSeenAt: String? = nil,
+            legalName: String? = nil,
+            mailingAddress: String? = nil,
+            phone: String? = nil,
+            purgeAt: String? = nil,
+            role: StaffRole? = nil,
+            setupPending: Bool? = nil,
+            status: String,
+            statusEnds: String? = nil,
+            termsVersion: Int? = nil,
+            twoFactor: Bool
+        ) {
+            self.aboutAuthor = aboutAuthor
+            self.bio = bio
+            self.closingAt = closingAt
+            self.createdAt = createdAt
+            self.deactivatedAt = deactivatedAt
+            self.displayName = displayName
+            self.email = email
+            self.emailVerified = emailVerified
+            self.id = id
+            self.lastSeenAt = lastSeenAt
+            self.legalName = legalName
+            self.mailingAddress = mailingAddress
+            self.phone = phone
+            self.purgeAt = purgeAt
+            self.role = role
+            self.setupPending = setupPending
+            self.status = status
+            self.statusEnds = statusEnds
+            self.termsVersion = termsVersion
+            self.twoFactor = twoFactor
+        }
+    }
+
+    public struct Activity: Codable, Hashable, Sendable {
+        public var comments: Int
+        public var critiques: Int
+        public var invitesSent: Int
+        public var publications: Int
+        public var submissions: Int
+        public var works: Int
+
+        public init(
+            comments: Int,
+            critiques: Int,
+            invitesSent: Int,
+            publications: Int,
+            submissions: Int,
+            works: Int
+        ) {
+            self.comments = comments
+            self.critiques = critiques
+            self.invitesSent = invitesSent
+            self.publications = publications
+            self.submissions = submissions
+            self.works = works
+        }
+    }
+
     public enum ActivityKind: String, Codable, CaseIterable, Hashable, Sendable {
         case scene_edited = "scene_edited"
         case scene_added = "scene_added"
@@ -79,6 +191,25 @@ public enum API {
             self.updatedAt = updatedAt
             self.workId = workId
             self.actor = actor
+        }
+    }
+
+    public struct AddBanRequest: Codable, Hashable, Sendable {
+        public var displayName: String?
+        public var email: String
+        public var reasonCode: String
+        public var reasonText: String?
+
+        public init(
+            displayName: String? = nil,
+            email: String,
+            reasonCode: String,
+            reasonText: String? = nil
+        ) {
+            self.displayName = displayName
+            self.email = email
+            self.reasonCode = reasonCode
+            self.reasonText = reasonText
         }
     }
 
@@ -158,6 +289,16 @@ public enum API {
     public enum Align: String, Codable, CaseIterable, Hashable, Sendable {
         case left = "left"
         case justify = "justify"
+    }
+
+    public struct AllowRequest: Codable, Hashable, Sendable {
+        public var word: String
+
+        public init(
+            word: String
+        ) {
+            self.word = word
+        }
     }
 
     public struct Anchor: Codable, Hashable, Sendable {
@@ -247,6 +388,7 @@ public enum API {
         public var chapterId: String
         public var createdAt: String
         public var id: String
+        public var moderationState: String
         public var questionId: String
         public var rating: Int?
         public var updatedAt: String
@@ -258,6 +400,7 @@ public enum API {
             chapterId: String,
             createdAt: String,
             id: String,
+            moderationState: String,
             questionId: String,
             rating: Int? = nil,
             updatedAt: String,
@@ -268,11 +411,78 @@ public enum API {
             self.chapterId = chapterId
             self.createdAt = createdAt
             self.id = id
+            self.moderationState = moderationState
             self.questionId = questionId
             self.rating = rating
             self.updatedAt = updatedAt
             self.userId = userId
             self.reader = reader
+        }
+    }
+
+    public struct Appeal: Codable, Hashable, Sendable {
+        public var body: String
+        public var createdAt: String
+        public var decidedAt: String?
+        public var decidedBy: String?
+        public var decisionText: String?
+        public var id: String
+        public var restrictionId: String
+        /// `open`, `upheld` or `overturned`.
+        public var state: String
+
+        public init(
+            body: String,
+            createdAt: String,
+            decidedAt: String? = nil,
+            decidedBy: String? = nil,
+            decisionText: String? = nil,
+            id: String,
+            restrictionId: String,
+            state: String
+        ) {
+            self.body = body
+            self.createdAt = createdAt
+            self.decidedAt = decidedAt
+            self.decidedBy = decidedBy
+            self.decisionText = decisionText
+            self.id = id
+            self.restrictionId = restrictionId
+            self.state = state
+        }
+    }
+
+    public struct AppealRequest: Codable, Hashable, Sendable {
+        public var body: String
+
+        public init(
+            body: String
+        ) {
+            self.body = body
+        }
+    }
+
+    public struct AppealRow: Codable, Hashable, Sendable {
+        public var appeal: Appeal
+        /// Days until the account is deleted, for an appeal on a closing
+        /// restriction. The purge waits for the decision.
+        public var daysLeft: Int?
+        public var displayName: String
+        public var restriction: Restriction
+        public var userId: String
+
+        public init(
+            appeal: Appeal,
+            daysLeft: Int? = nil,
+            displayName: String,
+            restriction: Restriction,
+            userId: String
+        ) {
+            self.appeal = appeal
+            self.daysLeft = daysLeft
+            self.displayName = displayName
+            self.restriction = restriction
+            self.userId = userId
         }
     }
 
@@ -371,6 +581,32 @@ public enum API {
         case admin_granted = "admin_granted"
         case admin_revoked = "admin_revoked"
         case prompt_edited = "prompt_edited"
+        case account_created_by_staff = "account_created_by_staff"
+        case account_edited = "account_edited"
+        case password_reset_sent = "password_reset_sent"
+        case sessions_revoked_by_staff = "sessions_revoked_by_staff"
+        case account_deactivated = "account_deactivated"
+        case account_reactivated = "account_reactivated"
+        case account_deleted_by_staff = "account_deleted_by_staff"
+        case moderator_granted = "moderator_granted"
+        case moderator_revoked = "moderator_revoked"
+        case restriction_added = "restriction_added"
+        case restriction_changed = "restriction_changed"
+        case restriction_lifted = "restriction_lifted"
+        case appeal_decided = "appeal_decided"
+        case permanent_ban_listed = "permanent_ban_listed"
+        case permanent_ban_removed = "permanent_ban_removed"
+        case account_purged = "account_purged"
+        case content_removed = "content_removed"
+        case content_restored = "content_restored"
+        case content_held = "content_held"
+        case report_dismissed = "report_dismissed"
+        case word_filter_changed = "word_filter_changed"
+        case external_moderation_changed = "external_moderation_changed"
+        case staff_note_added = "staff_note_added"
+        case blocked_domain_changed = "blocked_domain_changed"
+        case account_content_removed = "account_content_removed"
+        case work_handed_over = "work_handed_over"
     }
 
     public struct AuditEvent: Codable, Hashable, Sendable {
@@ -399,6 +635,31 @@ public enum API {
         }
     }
 
+    public struct AuditRow: Codable, Hashable, Sendable {
+        public var action: String
+        public var actor: AuthorCard?
+        public var createdAt: String
+        public var detail: String
+        public var id: String
+        public var reason: String?
+
+        public init(
+            action: String,
+            actor: AuthorCard? = nil,
+            createdAt: String,
+            detail: String,
+            id: String,
+            reason: String? = nil
+        ) {
+            self.action = action
+            self.actor = actor
+            self.createdAt = createdAt
+            self.detail = detail
+            self.id = id
+            self.reason = reason
+        }
+    }
+
     /// Author cards attached to comments so the clients need no second round trip.
     public struct AuthorCard: Codable, Hashable, Sendable {
         public var displayName: String
@@ -410,6 +671,16 @@ public enum API {
         ) {
             self.displayName = displayName
             self.id = id
+        }
+    }
+
+    public struct BanExportRequest: Codable, Hashable, Sendable {
+        public var email: String
+
+        public init(
+            email: String
+        ) {
+            self.email = email
         }
     }
 
@@ -508,6 +779,25 @@ public enum API {
         }
     }
 
+    public struct BlockedDomain: Codable, Hashable, Sendable {
+        public var createdAt: String
+        public var createdBy: String
+        public var domain: String
+        public var note: String
+
+        public init(
+            createdAt: String,
+            createdBy: String,
+            domain: String,
+            note: String
+        ) {
+            self.createdAt = createdAt
+            self.createdBy = createdBy
+            self.domain = domain
+            self.note = note
+        }
+    }
+
     public struct BlockedReader: Codable, Hashable, Sendable {
         public var createdAt: String
         public var id: String
@@ -524,6 +814,24 @@ public enum API {
             self.id = id
             self.ownerId = ownerId
             self.userId = userId
+        }
+    }
+
+    public struct BulkDismiss: Codable, Hashable, Sendable {
+        public var itemIds: [String]
+        public var reason: String?
+        /// The one source they all share: bulk dismissal is for a flood from the
+        /// same place, not for sweeping the queue.
+        public var source: String
+
+        public init(
+            itemIds: [String],
+            reason: String? = nil,
+            source: String
+        ) {
+            self.itemIds = itemIds
+            self.reason = reason
+            self.source = source
         }
     }
 
@@ -633,6 +941,25 @@ public enum API {
         }
     }
 
+    public struct ChangeRequest: Codable, Hashable, Sendable {
+        /// The new length in days (3, 7 or 30), or `null` for permanent. Left out,
+        /// the length stays.
+        public var days: Int?
+        /// Why it is being changed.
+        public var reason: String?
+        public var reasonText: String?
+
+        public init(
+            days: Int? = nil,
+            reason: String? = nil,
+            reasonText: String? = nil
+        ) {
+            self.days = days
+            self.reason = reason
+            self.reasonText = reasonText
+        }
+    }
+
     public enum ChangeState: String, Codable, CaseIterable, Hashable, Sendable {
         case pending = "pending"
         case accepted = "accepted"
@@ -735,6 +1062,27 @@ public enum API {
         }
     }
 
+    public struct Closing: Codable, Hashable, Sendable {
+        /// Waiting on an appeal: the deletion happens only once it is decided.
+        public var appealOpen: Bool
+        public var daysLeft: Int
+        /// `read_only` or `ban`.
+        public var kind: String
+        public var purgeAt: String
+
+        public init(
+            appealOpen: Bool,
+            daysLeft: Int,
+            kind: String,
+            purgeAt: String
+        ) {
+            self.appealOpen = appealOpen
+            self.daysLeft = daysLeft
+            self.kind = kind
+            self.purgeAt = purgeAt
+        }
+    }
+
     public struct CodeRequest: Codable, Hashable, Sendable {
         public var code: String
 
@@ -792,6 +1140,9 @@ public enum API {
         public var category: CommentCategory
         public var createdAt: String
         public var id: String
+        /// `visible`, `held` or `removed`: what site moderation has done with it,
+        /// apart from the author's own delete.
+        public var moderationState: String
         public var parentId: String?
         public var publicationId: String
         public var sceneId: String?
@@ -808,6 +1159,7 @@ public enum API {
             category: CommentCategory,
             createdAt: String,
             id: String,
+            moderationState: String,
             parentId: String? = nil,
             publicationId: String,
             sceneId: String? = nil,
@@ -823,6 +1175,7 @@ public enum API {
             self.category = category
             self.createdAt = createdAt
             self.id = id
+            self.moderationState = moderationState
             self.parentId = parentId
             self.publicationId = publicationId
             self.sceneId = sceneId
@@ -882,6 +1235,9 @@ public enum API {
         public var category: CommentCategory
         public var createdAt: String
         public var id: String
+        /// `visible`, `held` or `removed`: what site moderation has done with it,
+        /// apart from the author's own delete.
+        public var moderationState: String
         public var parentId: String?
         public var publicationId: String
         public var sceneId: String?
@@ -908,6 +1264,7 @@ public enum API {
             category: CommentCategory,
             createdAt: String,
             id: String,
+            moderationState: String,
             parentId: String? = nil,
             publicationId: String,
             sceneId: String? = nil,
@@ -927,6 +1284,7 @@ public enum API {
             self.category = category
             self.createdAt = createdAt
             self.id = id
+            self.moderationState = moderationState
             self.parentId = parentId
             self.publicationId = publicationId
             self.sceneId = sceneId
@@ -1268,6 +1626,22 @@ public enum API {
         }
     }
 
+    public struct CreateUserRequest: Codable, Hashable, Sendable {
+        public var displayName: String
+        public var email: String
+        public var moderator: Bool?
+
+        public init(
+            displayName: String,
+            email: String,
+            moderator: Bool? = nil
+        ) {
+            self.displayName = displayName
+            self.email = email
+            self.moderator = moderator
+        }
+    }
+
     public struct CreateVersionRequest: Codable, Hashable, Sendable {
         public var label: String?
         public var notes: String?
@@ -1311,6 +1685,22 @@ public enum API {
             self.synopsis = synopsis
             self.templateId = templateId
             self.title = title
+        }
+    }
+
+    public struct Created: Codable, Hashable, Sendable {
+        public var displayName: String
+        public var email: String
+        public var id: String
+
+        public init(
+            displayName: String,
+            email: String,
+            id: String
+        ) {
+            self.displayName = displayName
+            self.email = email
+            self.id = id
         }
     }
 
@@ -1370,6 +1760,9 @@ public enum API {
         public var entryId: String
         public var id: String
         public var mine: Bool
+        /// `removed` (by a moderator; shown as a placeholder) or `held` (awaiting
+        /// review; only its writer and staff see it).
+        public var moderated: String?
         public var parentId: String?
         public var removed: Bool
 
@@ -1382,6 +1775,7 @@ public enum API {
             entryId: String,
             id: String,
             mine: Bool,
+            moderated: String? = nil,
             parentId: String? = nil,
             removed: Bool
         ) {
@@ -1393,6 +1787,7 @@ public enum API {
             self.entryId = entryId
             self.id = id
             self.mine = mine
+            self.moderated = moderated
             self.parentId = parentId
             self.removed = removed
         }
@@ -1432,6 +1827,35 @@ public enum API {
         }
     }
 
+    public struct DecideRequest: Codable, Hashable, Sendable {
+        /// `upheld` (the restriction stands) or `overturned`.
+        public var decision: String
+        /// What the writer is told.
+        public var message: String?
+        /// On `overturned`: bring back what was removed alongside it.
+        public var restoreContent: Bool?
+
+        public init(
+            decision: String,
+            message: String? = nil,
+            restoreContent: Bool? = nil
+        ) {
+            self.decision = decision
+            self.message = message
+            self.restoreContent = restoreContent
+        }
+    }
+
+    public struct DecisionRequest: Codable, Hashable, Sendable {
+        public var reason: String?
+
+        public init(
+            reason: String? = nil
+        ) {
+            self.reason = reason
+        }
+    }
+
     public struct DeleteAccountRequest: Codable, Hashable, Sendable {
         /// From the authenticator, when two-factor sign-in is on.
         public var code: String?
@@ -1448,6 +1872,29 @@ public enum API {
             self.code = code
             self.deleteSharedWorks = deleteSharedWorks
             self.password = password
+        }
+    }
+
+    public struct DeleteUserRequest: Codable, Hashable, Sendable {
+        /// The account's display name, typed to confirm.
+        public var confirmName: String
+        /// Go ahead although other people are working on books this account owns.
+        public var deleteSharedWorks: Bool?
+        public var reason: String?
+        /// Don't email the person a copy of their data first. Needs the reason
+        /// above to say why (a spam account, say).
+        public var skipExport: Bool?
+
+        public init(
+            confirmName: String,
+            deleteSharedWorks: Bool? = nil,
+            reason: String? = nil,
+            skipExport: Bool? = nil
+        ) {
+            self.confirmName = confirmName
+            self.deleteSharedWorks = deleteSharedWorks
+            self.reason = reason
+            self.skipExport = skipExport
         }
     }
 
@@ -1606,6 +2053,19 @@ public enum API {
         }
     }
 
+    public struct DomainRequest: Codable, Hashable, Sendable {
+        public var domain: String
+        public var note: String?
+
+        public init(
+            domain: String,
+            note: String? = nil
+        ) {
+            self.domain = domain
+            self.note = note
+        }
+    }
+
     public struct Done: Codable, Hashable, Sendable {
         public var ok: Bool
 
@@ -1623,6 +2083,35 @@ public enum API {
             body: String
         ) {
             self.body = body
+        }
+    }
+
+    public struct EditUserRequest: Codable, Hashable, Sendable {
+        public var aboutAuthor: String?
+        public var bio: String?
+        public var displayName: String?
+        public var email: String?
+        public var markVerified: Bool?
+        /// Required for every change.
+        public var reason: String?
+        public var resetTwoFactor: Bool?
+
+        public init(
+            aboutAuthor: String? = nil,
+            bio: String? = nil,
+            displayName: String? = nil,
+            email: String? = nil,
+            markVerified: Bool? = nil,
+            reason: String? = nil,
+            resetTwoFactor: Bool? = nil
+        ) {
+            self.aboutAuthor = aboutAuthor
+            self.bio = bio
+            self.displayName = displayName
+            self.email = email
+            self.markVerified = markVerified
+            self.reason = reason
+            self.resetTwoFactor = resetTwoFactor
         }
     }
 
@@ -1668,6 +2157,8 @@ public enum API {
         public var id: String
         public var late: Bool
         public var mine: Bool
+        /// `held` (awaiting review) or `removed`, on the writer's own answer.
+        public var moderated: String?
         public var submittedAt: String?
         public var wordCount: Int
 
@@ -1680,6 +2171,7 @@ public enum API {
             id: String,
             late: Bool,
             mine: Bool,
+            moderated: String? = nil,
             submittedAt: String? = nil,
             wordCount: Int
         ) {
@@ -1691,6 +2183,7 @@ public enum API {
             self.id = id
             self.late = late
             self.mine = mine
+            self.moderated = moderated
             self.submittedAt = submittedAt
             self.wordCount = wordCount
         }
@@ -1775,7 +2268,8 @@ public enum API {
 
     public struct ErrorBody: Codable, Hashable, Sendable {
         /// `bad_request`, `unauthorized`, `two_factor_required`, `forbidden`,
-        /// `not_found`, `conflict`, `too_many_requests`, `internal`.
+        /// `account_banned`, `account_restricted`, `not_found`, `conflict`,
+        /// `too_many_requests`, `internal`.
         public var code: String
         /// Present when the client is expected to act on it — see a scene save conflict.
         public var details: JSONValue?
@@ -1842,6 +2336,107 @@ public enum API {
             self.pdf = pdf
             self.profile = profile
             self.style = style
+        }
+    }
+
+    /// What `/admin/external` saves, in `moderation_settings` under `external`.
+    /// The two secrets are stored sealed (see `secrets`) and never sent back.
+    public struct ExternalConfig: Codable, Hashable, Sendable {
+        /// The scope a temporary ban or suspension from the platform is given:
+        /// `discussion` (the default) or `site`.
+        public var banScope: String?
+        public var baseUrl: String?
+        /// `none`, `stream` or `stub`.
+        public var provider: String
+        /// What the platform's *remove* does here: `hold` (the default) or `block`.
+        public var removeAs: String?
+        public var surfaces: [String]?
+
+        public init(
+            banScope: String? = nil,
+            baseUrl: String? = nil,
+            provider: String,
+            removeAs: String? = nil,
+            surfaces: [String]? = nil
+        ) {
+            self.banScope = banScope
+            self.baseUrl = baseUrl
+            self.provider = provider
+            self.removeAs = removeAs
+            self.surfaces = surfaces
+        }
+    }
+
+    public struct ExternalTestResult: Codable, Hashable, Sendable {
+        public var labels: [String]
+        public var recommended: String
+
+        public init(
+            labels: [String],
+            recommended: String
+        ) {
+            self.labels = labels
+            self.recommended = recommended
+        }
+    }
+
+    public struct ExternalUpdate: Codable, Hashable, Sendable {
+        /// Set only when given; stored encrypted and never shown again.
+        public var apiKey: String?
+        public var banScope: String?
+        public var baseUrl: String?
+        public var provider: String
+        public var removeAs: String?
+        public var surfaces: [String]?
+        public var webhookSecret: String?
+
+        public init(
+            apiKey: String? = nil,
+            banScope: String? = nil,
+            baseUrl: String? = nil,
+            provider: String,
+            removeAs: String? = nil,
+            surfaces: [String]? = nil,
+            webhookSecret: String? = nil
+        ) {
+            self.apiKey = apiKey
+            self.banScope = banScope
+            self.baseUrl = baseUrl
+            self.provider = provider
+            self.removeAs = removeAs
+            self.surfaces = surfaces
+            self.webhookSecret = webhookSecret
+        }
+    }
+
+    public struct ExternalView: Codable, Hashable, Sendable {
+        /// The secrets are never sent back; only whether they are set.
+        public var apiKeySet: Bool
+        /// Checks waiting for the platform to come back.
+        public var backlog: Int
+        public var config: ExternalConfig
+        public var providers: [String]
+        public var surfaces: [String]
+        public var webhookSecretSet: Bool
+        /// Where the platform should send its webhooks.
+        public var webhookUrl: String
+
+        public init(
+            apiKeySet: Bool,
+            backlog: Int,
+            config: ExternalConfig,
+            providers: [String],
+            surfaces: [String],
+            webhookSecretSet: Bool,
+            webhookUrl: String
+        ) {
+            self.apiKeySet = apiKeySet
+            self.backlog = backlog
+            self.config = config
+            self.providers = providers
+            self.surfaces = surfaces
+            self.webhookSecretSet = webhookSecretSet
+            self.webhookUrl = webhookUrl
         }
     }
 
@@ -2023,6 +2618,17 @@ public enum API {
         }
     }
 
+    public struct ImportRequest: Codable, Hashable, Sendable {
+        /// `term,match,action,applies_to,note` — `applies_to` separated by `;`.
+        public var csv: String
+
+        public init(
+            csv: String
+        ) {
+            self.csv = csv
+        }
+    }
+
     public struct InboxItemView: Codable, Hashable, Sendable {
         public var actor: AuthorCard?
         public var createdAt: String
@@ -2192,6 +2798,10 @@ public enum API {
     }
 
     public struct JobsReport: Codable, Hashable, Sendable {
+        /// Public posts waiting for the moderation platform to come back.
+        public var externalBacklog: Int
+        /// Events from the platform that were stored and not applied.
+        public var externalUnapplied: [String]
         public var health: JobHealth
         public var mailFailed: Int
         public var mailWaiting: Int
@@ -2199,11 +2809,15 @@ public enum API {
         public var runs: [JobRun]
 
         public init(
+            externalBacklog: Int,
+            externalUnapplied: [String],
             health: JobHealth,
             mailFailed: Int,
             mailWaiting: Int,
             runs: [JobRun]
         ) {
+            self.externalBacklog = externalBacklog
+            self.externalUnapplied = externalUnapplied
             self.health = health
             self.mailFailed = mailFailed
             self.mailWaiting = mailWaiting
@@ -2263,11 +2877,34 @@ public enum API {
         case novel = "novel"
     }
 
+    public struct LiftRequest: Codable, Hashable, Sendable {
+        public var reason: String?
+
+        public init(
+            reason: String? = nil
+        ) {
+            self.reason = reason
+        }
+    }
+
     public enum LineSpacing: String, Codable, CaseIterable, Hashable, Sendable {
         case single = "single"
         case _1_15 = "1.15"
         case _1_5 = "1.5"
         case double = "double"
+    }
+
+    public struct LinkAppealRequest: Codable, Hashable, Sendable {
+        public var body: String
+        public var token: String
+
+        public init(
+            body: String,
+            token: String
+        ) {
+            self.body = body
+            self.token = token
+        }
     }
 
     public struct LinkRequest: Codable, Hashable, Sendable {
@@ -2301,6 +2938,51 @@ public enum API {
         ) {
             self.chapterId = chapterId
             self.sceneId = sceneId
+        }
+    }
+
+    public struct LogLine: Codable, Hashable, Sendable {
+        public var action: String
+        public var actor: AuthorCard?
+        public var createdAt: String
+        public var detail: String
+        public var id: String
+        /// `scheduled deletion` for a purge; `external` for the platform.
+        public var origin: String
+        public var reason: String?
+        public var subject: AuthorCard?
+
+        public init(
+            action: String,
+            actor: AuthorCard? = nil,
+            createdAt: String,
+            detail: String,
+            id: String,
+            origin: String,
+            reason: String? = nil,
+            subject: AuthorCard? = nil
+        ) {
+            self.action = action
+            self.actor = actor
+            self.createdAt = createdAt
+            self.detail = detail
+            self.id = id
+            self.origin = origin
+            self.reason = reason
+            self.subject = subject
+        }
+    }
+
+    public struct LogPage: Codable, Hashable, Sendable {
+        public var lines: [LogLine]
+        public var nextCursor: String?
+
+        public init(
+            lines: [LogLine],
+            nextCursor: String? = nil
+        ) {
+            self.lines = lines
+            self.nextCursor = nextCursor
         }
     }
 
@@ -2435,6 +3117,152 @@ public enum API {
         }
     }
 
+    public struct ModerationItem: Codable, Hashable, Sendable {
+        public var claimedBy: String?
+        public var claimedUntil: String?
+        public var decidedAt: String?
+        public var decidedBy: String?
+        public var decision: String?
+        public var firstFlaggedAt: String
+        public var id: String
+        public var labels: String?
+        public var lastFlaggedAt: String
+        public var reportCount: Int
+        public var severity: Int
+        /// JSON array: `report`, `word_filter`, `external`, `threshold`.
+        public var sources: String
+        /// `open`, `held`, `actioned` or `dismissed`.
+        public var state: String
+        public var subjectAuthorId: String
+        public var subjectId: String
+        public var subjectType: String
+        public var topReason: String?
+
+        public init(
+            claimedBy: String? = nil,
+            claimedUntil: String? = nil,
+            decidedAt: String? = nil,
+            decidedBy: String? = nil,
+            decision: String? = nil,
+            firstFlaggedAt: String,
+            id: String,
+            labels: String? = nil,
+            lastFlaggedAt: String,
+            reportCount: Int,
+            severity: Int,
+            sources: String,
+            state: String,
+            subjectAuthorId: String,
+            subjectId: String,
+            subjectType: String,
+            topReason: String? = nil
+        ) {
+            self.claimedBy = claimedBy
+            self.claimedUntil = claimedUntil
+            self.decidedAt = decidedAt
+            self.decidedBy = decidedBy
+            self.decision = decision
+            self.firstFlaggedAt = firstFlaggedAt
+            self.id = id
+            self.labels = labels
+            self.lastFlaggedAt = lastFlaggedAt
+            self.reportCount = reportCount
+            self.severity = severity
+            self.sources = sources
+            self.state = state
+            self.subjectAuthorId = subjectAuthorId
+            self.subjectId = subjectId
+            self.subjectType = subjectType
+            self.topReason = topReason
+        }
+    }
+
+    public struct ModerationSettings: Codable, Hashable, Sendable {
+        /// `warning`, `kind:scope:days` or `kind:scope:permanent`.
+        public var ladder: [String]
+        public var thresholds: Thresholds
+
+        public init(
+            ladder: [String],
+            thresholds: Thresholds
+        ) {
+            self.ladder = ladder
+            self.thresholds = thresholds
+        }
+    }
+
+    public struct ModeratorRequest: Codable, Hashable, Sendable {
+        public var moderator: Bool
+        public var reason: String?
+
+        public init(
+            moderator: Bool,
+            reason: String? = nil
+        ) {
+            self.moderator = moderator
+            self.reason = reason
+        }
+    }
+
+    public struct MyAppeal: Codable, Hashable, Sendable {
+        public var createdAt: String
+        public var decisionText: String?
+        /// `open`, `upheld` or `overturned`.
+        public var state: String
+
+        public init(
+            createdAt: String,
+            decisionText: String? = nil,
+            state: String
+        ) {
+            self.createdAt = createdAt
+            self.decisionText = decisionText
+            self.state = state
+        }
+    }
+
+    public struct MyRestriction: Codable, Hashable, Sendable {
+        public var appeal: MyAppeal?
+        /// Ends in the account being deleted.
+        public var closing: Bool
+        /// Absent when permanent.
+        public var endsAt: String?
+        public var id: String
+        public var inForce: Bool
+        public var kind: String
+        public var lifted: Bool
+        public var reasonCode: String
+        public var reasonText: String
+        public var scope: String
+        public var startsAt: String
+
+        public init(
+            appeal: MyAppeal? = nil,
+            closing: Bool,
+            endsAt: String? = nil,
+            id: String,
+            inForce: Bool,
+            kind: String,
+            lifted: Bool,
+            reasonCode: String,
+            reasonText: String,
+            scope: String,
+            startsAt: String
+        ) {
+            self.appeal = appeal
+            self.closing = closing
+            self.endsAt = endsAt
+            self.id = id
+            self.inForce = inForce
+            self.kind = kind
+            self.lifted = lifted
+            self.reasonCode = reasonCode
+            self.reasonText = reasonText
+            self.scope = scope
+            self.startsAt = startsAt
+        }
+    }
+
     public struct NewPromptRequest: Codable, Hashable, Sendable {
         public var body: String
         /// Pin it to this future day instead of queueing it.
@@ -2515,12 +3343,41 @@ public enum API {
         case book = "book"
     }
 
+    public struct NoteRequest: Codable, Hashable, Sendable {
+        public var body: String
+
+        public init(
+            body: String
+        ) {
+            self.body = body
+        }
+    }
+
     /// What became of the text a note was attached to.
     public enum NoteStatus: String, Codable, CaseIterable, Hashable, Sendable {
         case untouched = "untouched"
         case edited = "edited"
         case gone = "gone"
         case unanchored = "unanchored"
+    }
+
+    public struct NoteView: Codable, Hashable, Sendable {
+        public var author: AuthorCard
+        public var body: String
+        public var createdAt: String
+        public var id: String
+
+        public init(
+            author: AuthorCard,
+            body: String,
+            createdAt: String,
+            id: String
+        ) {
+            self.author = author
+            self.body = body
+            self.createdAt = createdAt
+            self.id = id
+        }
     }
 
     public struct NotebookEntry: Codable, Hashable, Sendable {
@@ -2701,6 +3558,39 @@ public enum API {
         }
     }
 
+    public struct Overview: Codable, Hashable, Sendable {
+        public var appealsOpen: Int
+        /// Restrictions ending in the next 24 hours.
+        public var endingSoon: Int
+        public var queueHeld: Int
+        public var queueOpen: Int
+        public var reportsToday: Int
+        public var role: StaffRole
+        public var signupsToday: Int
+        /// Closing accounts whose deletion is waiting on an open appeal.
+        public var waitingOnAppeal: Int
+
+        public init(
+            appealsOpen: Int,
+            endingSoon: Int,
+            queueHeld: Int,
+            queueOpen: Int,
+            reportsToday: Int,
+            role: StaffRole,
+            signupsToday: Int,
+            waitingOnAppeal: Int
+        ) {
+            self.appealsOpen = appealsOpen
+            self.endingSoon = endingSoon
+            self.queueHeld = queueHeld
+            self.queueOpen = queueOpen
+            self.reportsToday = reportsToday
+            self.role = role
+            self.signupsToday = signupsToday
+            self.waitingOnAppeal = waitingOnAppeal
+        }
+    }
+
     public enum PageSize: String, Codable, CaseIterable, Hashable, Sendable {
         case letter = "letter"
         case a4 = "a4"
@@ -2774,6 +3664,52 @@ public enum API {
             self.p50 = p50
             self.p95 = p95
             self.p99 = p99
+        }
+    }
+
+    public struct PermanentBan: Codable, Hashable, Sendable {
+        public var bannedBy: String
+        public var createdAt: String
+        public var displayName: String
+        public var email: String
+        public var emailCanonical: String
+        public var formerUserId: String?
+        public var id: String
+        public var reasonCode: String
+        public var reasonText: String
+        public var removedAt: String?
+        public var removedBy: String?
+        public var removedReason: String?
+        public var restrictionId: String?
+
+        public init(
+            bannedBy: String,
+            createdAt: String,
+            displayName: String,
+            email: String,
+            emailCanonical: String,
+            formerUserId: String? = nil,
+            id: String,
+            reasonCode: String,
+            reasonText: String,
+            removedAt: String? = nil,
+            removedBy: String? = nil,
+            removedReason: String? = nil,
+            restrictionId: String? = nil
+        ) {
+            self.bannedBy = bannedBy
+            self.createdAt = createdAt
+            self.displayName = displayName
+            self.email = email
+            self.emailCanonical = emailCanonical
+            self.formerUserId = formerUserId
+            self.id = id
+            self.reasonCode = reasonCode
+            self.reasonText = reasonText
+            self.removedAt = removedAt
+            self.removedBy = removedBy
+            self.removedReason = removedReason
+            self.restrictionId = restrictionId
         }
     }
 
@@ -2928,6 +3864,8 @@ public enum API {
         /// The last change made after submitting.
         public var editedAt: String?
         public var id: String
+        /// `visible`, `held` or `removed`, apart from the author's own state.
+        public var moderationState: String
         public var promptId: String
         /// `draft`, `submitted` or `withdrawn`.
         public var state: EntryState
@@ -2943,6 +3881,7 @@ public enum API {
             createdAt: String,
             editedAt: String? = nil,
             id: String,
+            moderationState: String,
             promptId: String,
             state: EntryState,
             submittedAt: String? = nil,
@@ -2955,6 +3894,7 @@ public enum API {
             self.createdAt = createdAt
             self.editedAt = editedAt
             self.id = id
+            self.moderationState = moderationState
             self.promptId = promptId
             self.state = state
             self.submittedAt = submittedAt
@@ -2971,6 +3911,8 @@ public enum API {
         /// The last change made after submitting.
         public var editedAt: String?
         public var id: String
+        /// `visible`, `held` or `removed`, apart from the author's own state.
+        public var moderationState: String
         public var promptId: String
         /// `draft`, `submitted` or `withdrawn`.
         public var state: EntryState
@@ -2995,6 +3937,7 @@ public enum API {
             createdAt: String,
             editedAt: String? = nil,
             id: String,
+            moderationState: String,
             promptId: String,
             state: EntryState,
             submittedAt: String? = nil,
@@ -3015,6 +3958,7 @@ public enum API {
             self.createdAt = createdAt
             self.editedAt = editedAt
             self.id = id
+            self.moderationState = moderationState
             self.promptId = promptId
             self.state = state
             self.submittedAt = submittedAt
@@ -3280,6 +4224,114 @@ public enum API {
         case chapter = "chapter"
     }
 
+    public struct QueueItem: Codable, Hashable, Sendable {
+        public var claimedBy: String?
+        public var claimedUntil: String?
+        public var decidedAt: String?
+        public var decidedBy: String?
+        public var decision: String?
+        public var firstFlaggedAt: String
+        public var id: String
+        public var labels: String?
+        public var lastFlaggedAt: String
+        public var reportCount: Int
+        public var severity: Int
+        /// JSON array: `report`, `word_filter`, `external`, `threshold`.
+        public var sources: String
+        /// `open`, `held`, `actioned` or `dismissed`.
+        public var state: String
+        public var subjectAuthorId: String
+        public var subjectId: String
+        public var subjectType: String
+        public var topReason: String?
+        public var author: AuthorCard
+        /// Administrators only.
+        public var authorEmail: String?
+        public var claimedByName: String?
+        /// Where it sits: the publication, the prompt, what it replies to.
+        public var context: String
+        public var reports: [ReportDetail]
+        public var sourcesList: [String]
+        /// What moderation has done with it: `visible`, `held` or `removed`.
+        public var subjectState: String
+        public var surface: String?
+        /// What was said, as text. Empty for an account.
+        public var text: String
+
+        public init(
+            claimedBy: String? = nil,
+            claimedUntil: String? = nil,
+            decidedAt: String? = nil,
+            decidedBy: String? = nil,
+            decision: String? = nil,
+            firstFlaggedAt: String,
+            id: String,
+            labels: String? = nil,
+            lastFlaggedAt: String,
+            reportCount: Int,
+            severity: Int,
+            sources: String,
+            state: String,
+            subjectAuthorId: String,
+            subjectId: String,
+            subjectType: String,
+            topReason: String? = nil,
+            author: AuthorCard,
+            authorEmail: String? = nil,
+            claimedByName: String? = nil,
+            context: String,
+            reports: [ReportDetail],
+            sourcesList: [String],
+            subjectState: String,
+            surface: String? = nil,
+            text: String
+        ) {
+            self.claimedBy = claimedBy
+            self.claimedUntil = claimedUntil
+            self.decidedAt = decidedAt
+            self.decidedBy = decidedBy
+            self.decision = decision
+            self.firstFlaggedAt = firstFlaggedAt
+            self.id = id
+            self.labels = labels
+            self.lastFlaggedAt = lastFlaggedAt
+            self.reportCount = reportCount
+            self.severity = severity
+            self.sources = sources
+            self.state = state
+            self.subjectAuthorId = subjectAuthorId
+            self.subjectId = subjectId
+            self.subjectType = subjectType
+            self.topReason = topReason
+            self.author = author
+            self.authorEmail = authorEmail
+            self.claimedByName = claimedByName
+            self.context = context
+            self.reports = reports
+            self.sourcesList = sourcesList
+            self.subjectState = subjectState
+            self.surface = surface
+            self.text = text
+        }
+    }
+
+    public struct QueuePage: Codable, Hashable, Sendable {
+        public var items: [QueueItem]
+        /// Open items, for the menu badge.
+        public var openCount: Int
+        public var total: Int
+
+        public init(
+            items: [QueueItem],
+            openCount: Int,
+            total: Int
+        ) {
+            self.items = items
+            self.openCount = openCount
+            self.total = total
+        }
+    }
+
     public struct ReactRequest: Codable, Hashable, Sendable {
         /// Index of the paragraph in the snapshot scene.
         public var blockIndex: Int
@@ -3420,6 +4472,16 @@ public enum API {
         }
     }
 
+    public struct ReasonRequest: Codable, Hashable, Sendable {
+        public var reason: String?
+
+        public init(
+            reason: String? = nil
+        ) {
+            self.reason = reason
+        }
+    }
+
     public struct RecoveryCodes: Codable, Hashable, Sendable {
         /// Shown once. Each gets someone in once if the authenticator is lost.
         public var codes: [String]
@@ -3461,6 +4523,16 @@ public enum API {
         }
     }
 
+    public struct RemoveBanRequest: Codable, Hashable, Sendable {
+        public var reason: String?
+
+        public init(
+            reason: String? = nil
+        ) {
+            self.reason = reason
+        }
+    }
+
     public struct ReorderPromptsRequest: Codable, Hashable, Sendable {
         /// Every queued prompt's id, in the new order.
         public var ids: [String]
@@ -3483,8 +4555,74 @@ public enum API {
         }
     }
 
+    public struct ReportAbout: Codable, Hashable, Sendable {
+        public var itemId: String
+        public var lastFlaggedAt: String
+        public var reportCount: Int
+        public var state: String
+        public var subjectType: String
+        public var topReason: String?
+
+        public init(
+            itemId: String,
+            lastFlaggedAt: String,
+            reportCount: Int,
+            state: String,
+            subjectType: String,
+            topReason: String? = nil
+        ) {
+            self.itemId = itemId
+            self.lastFlaggedAt = lastFlaggedAt
+            self.reportCount = reportCount
+            self.state = state
+            self.subjectType = subjectType
+            self.topReason = topReason
+        }
+    }
+
+    public struct ReportBy: Codable, Hashable, Sendable {
+        public var createdAt: String
+        public var kind: String
+        public var reason: String
+
+        public init(
+            createdAt: String,
+            kind: String,
+            reason: String
+        ) {
+            self.createdAt = createdAt
+            self.kind = kind
+            self.reason = reason
+        }
+    }
+
+    public struct ReportDetail: Codable, Hashable, Sendable {
+        public var createdAt: String
+        public var detail: String?
+        public var reason: String
+        public var reporter: AuthorCard
+
+        public init(
+            createdAt: String,
+            detail: String? = nil,
+            reason: String,
+            reporter: AuthorCard
+        ) {
+            self.createdAt = createdAt
+            self.detail = detail
+            self.reason = reason
+            self.reporter = reporter
+        }
+    }
+
     public enum ReportReason: String, Codable, CaseIterable, Hashable, Sendable {
         case abuse = "abuse"
+        case harassment = "harassment"
+        case hate = "hate"
+        case sexual_content = "sexual_content"
+        case self_harm = "self_harm"
+        case impersonation = "impersonation"
+        case illegal = "illegal"
         case spam = "spam"
         case spoiler = "spoiler"
         case off_topic = "off_topic"
@@ -3501,6 +4639,26 @@ public enum API {
         ) {
             self.detail = detail
             self.reason = reason
+        }
+    }
+
+    public struct ReportSubject: Codable, Hashable, Sendable {
+        public var detail: String?
+        public var reason: ReportReason
+        public var subjectId: String
+        /// `entry`, `question`, `answer`, `profile` or `publication`.
+        public var subjectType: String
+
+        public init(
+            detail: String? = nil,
+            reason: ReportReason,
+            subjectId: String,
+            subjectType: String
+        ) {
+            self.detail = detail
+            self.reason = reason
+            self.subjectId = subjectId
+            self.subjectType = subjectType
         }
     }
 
@@ -3539,6 +4697,20 @@ public enum API {
             self.commentBody = commentBody
             self.publicationId = publicationId
             self.reporter = reporter
+        }
+    }
+
+    public struct Reported: Codable, Hashable, Sendable {
+        public var reported: Bool
+        /// Present for a self-harm report: where to find help.
+        public var support: String?
+
+        public init(
+            reported: Bool,
+            support: String? = nil
+        ) {
+            self.reported = reported
+            self.support = support
         }
     }
 
@@ -3591,12 +4763,184 @@ public enum API {
         }
     }
 
+    public struct RestrictRequest: Codable, Hashable, Sendable {
+        /// For a restriction that ends in deletion: the account's display name,
+        /// typed to confirm.
+        public var confirmName: String?
+        /// 3, 7 or 30. Absent: permanent. Ignored for a site-wide read-only
+        /// restriction, which is always the 30 days before deletion.
+        public var days: Int?
+        public var internalNote: String?
+        /// Queue items that prompted it.
+        public var itemIds: [String]?
+        /// `warning`, `ban`, `suspend` or `read_only`.
+        public var kind: String
+        /// A section of the community guidelines.
+        public var reasonCode: String?
+        /// The message the writer is shown.
+        public var reasonText: String?
+        /// `site` or `discussion`.
+        public var scope: String
+
+        public init(
+            confirmName: String? = nil,
+            days: Int? = nil,
+            internalNote: String? = nil,
+            itemIds: [String]? = nil,
+            kind: String,
+            reasonCode: String? = nil,
+            reasonText: String? = nil,
+            scope: String
+        ) {
+            self.confirmName = confirmName
+            self.days = days
+            self.internalNote = internalNote
+            self.itemIds = itemIds
+            self.kind = kind
+            self.reasonCode = reasonCode
+            self.reasonText = reasonText
+            self.scope = scope
+        }
+    }
+
+    public struct Restriction: Codable, Hashable, Sendable {
+        public var createdAt: String
+        public var createdBy: String
+        public var endedNotifiedAt: String?
+        /// Absent for a permanent restriction.
+        public var endsAt: String?
+        public var id: String
+        public var internalNote: String?
+        /// `warning`, `ban`, `suspend` or `read_only`.
+        public var kind: String
+        public var liftReason: String?
+        public var liftedAt: String?
+        public var liftedBy: String?
+        /// JSON array of the queue items that prompted it.
+        public var linkedItems: String?
+        /// A section of the community guidelines.
+        public var reasonCode: String
+        /// The message the writer is shown.
+        public var reasonText: String
+        /// `site` or `discussion`.
+        public var scope: String
+        public var startsAt: String
+        public var userId: String
+
+        public init(
+            createdAt: String,
+            createdBy: String,
+            endedNotifiedAt: String? = nil,
+            endsAt: String? = nil,
+            id: String,
+            internalNote: String? = nil,
+            kind: String,
+            liftReason: String? = nil,
+            liftedAt: String? = nil,
+            liftedBy: String? = nil,
+            linkedItems: String? = nil,
+            reasonCode: String,
+            reasonText: String,
+            scope: String,
+            startsAt: String,
+            userId: String
+        ) {
+            self.createdAt = createdAt
+            self.createdBy = createdBy
+            self.endedNotifiedAt = endedNotifiedAt
+            self.endsAt = endsAt
+            self.id = id
+            self.internalNote = internalNote
+            self.kind = kind
+            self.liftReason = liftReason
+            self.liftedAt = liftedAt
+            self.liftedBy = liftedBy
+            self.linkedItems = linkedItems
+            self.reasonCode = reasonCode
+            self.reasonText = reasonText
+            self.scope = scope
+            self.startsAt = startsAt
+            self.userId = userId
+        }
+    }
+
+    public struct RestrictionView: Codable, Hashable, Sendable {
+        public var createdAt: String
+        public var createdBy: String
+        public var endedNotifiedAt: String?
+        /// Absent for a permanent restriction.
+        public var endsAt: String?
+        public var id: String
+        public var internalNote: String?
+        /// `warning`, `ban`, `suspend` or `read_only`.
+        public var kind: String
+        public var liftReason: String?
+        public var liftedAt: String?
+        public var liftedBy: String?
+        /// JSON array of the queue items that prompted it.
+        public var linkedItems: String?
+        /// A section of the community guidelines.
+        public var reasonCode: String
+        /// The message the writer is shown.
+        public var reasonText: String
+        /// `site` or `discussion`.
+        public var scope: String
+        public var startsAt: String
+        public var userId: String
+        public var appeal: Appeal?
+        public var createdByName: String?
+        public var inForce: Bool
+
+        public init(
+            createdAt: String,
+            createdBy: String,
+            endedNotifiedAt: String? = nil,
+            endsAt: String? = nil,
+            id: String,
+            internalNote: String? = nil,
+            kind: String,
+            liftReason: String? = nil,
+            liftedAt: String? = nil,
+            liftedBy: String? = nil,
+            linkedItems: String? = nil,
+            reasonCode: String,
+            reasonText: String,
+            scope: String,
+            startsAt: String,
+            userId: String,
+            appeal: Appeal? = nil,
+            createdByName: String? = nil,
+            inForce: Bool
+        ) {
+            self.createdAt = createdAt
+            self.createdBy = createdBy
+            self.endedNotifiedAt = endedNotifiedAt
+            self.endsAt = endsAt
+            self.id = id
+            self.internalNote = internalNote
+            self.kind = kind
+            self.liftReason = liftReason
+            self.liftedAt = liftedAt
+            self.liftedBy = liftedBy
+            self.linkedItems = linkedItems
+            self.reasonCode = reasonCode
+            self.reasonText = reasonText
+            self.scope = scope
+            self.startsAt = startsAt
+            self.userId = userId
+            self.appeal = appeal
+            self.createdByName = createdByName
+            self.inForce = inForce
+        }
+    }
+
     public struct ReviewAnswer: Codable, Hashable, Sendable {
         public var body: String?
         /// Empty for a work-scoped question.
         public var chapterId: String
         public var createdAt: String
         public var id: String
+        public var moderationState: String
         public var questionId: String
         public var rating: Int?
         public var updatedAt: String
@@ -3607,6 +4951,7 @@ public enum API {
             chapterId: String,
             createdAt: String,
             id: String,
+            moderationState: String,
             questionId: String,
             rating: Int? = nil,
             updatedAt: String,
@@ -3616,6 +4961,7 @@ public enum API {
             self.chapterId = chapterId
             self.createdAt = createdAt
             self.id = id
+            self.moderationState = moderationState
             self.questionId = questionId
             self.rating = rating
             self.updatedAt = updatedAt
@@ -3654,6 +5000,7 @@ public enum API {
         public var createdAt: String
         public var id: String
         public var kind: String
+        public var moderationState: String
         public var position: Int
         public var prompt: String
         public var publicationId: String
@@ -3664,6 +5011,7 @@ public enum API {
             createdAt: String,
             id: String,
             kind: String,
+            moderationState: String,
             position: Int,
             prompt: String,
             publicationId: String,
@@ -3673,6 +5021,7 @@ public enum API {
             self.createdAt = createdAt
             self.id = id
             self.kind = kind
+            self.moderationState = moderationState
             self.position = position
             self.prompt = prompt
             self.publicationId = publicationId
@@ -4125,6 +5474,28 @@ public enum API {
         }
     }
 
+    public struct SessionRow: Codable, Hashable, Sendable {
+        public var createdAt: String
+        public var id: String
+        public var ip: String?
+        public var lastSeenAt: String
+        public var userAgent: String?
+
+        public init(
+            createdAt: String,
+            id: String,
+            ip: String? = nil,
+            lastSeenAt: String,
+            userAgent: String? = nil
+        ) {
+            self.createdAt = createdAt
+            self.id = id
+            self.ip = ip
+            self.lastSeenAt = lastSeenAt
+            self.userAgent = userAgent
+        }
+    }
+
     public struct SessionView: Codable, Hashable, Sendable {
         public var createdAt: String
         public var id: String
@@ -4155,6 +5526,22 @@ public enum API {
             self.userAgent = userAgent
             self.userId = userId
             self.current = current
+        }
+    }
+
+    public struct SetupRequest: Codable, Hashable, Sendable {
+        public var acceptTerms: Bool?
+        public var password: String
+        public var token: String
+
+        public init(
+            acceptTerms: Bool? = nil,
+            password: String,
+            token: String
+        ) {
+            self.acceptTerms = acceptTerms
+            self.password = password
+            self.token = token
         }
     }
 
@@ -4292,6 +5679,22 @@ public enum API {
             self.first = first
             self.second = second
         }
+    }
+
+    public struct StaffResetRequest: Codable, Hashable, Sendable {
+        /// Also sign out every device now.
+        public var signOut: Bool?
+
+        public init(
+            signOut: Bool? = nil
+        ) {
+            self.signOut = signOut
+        }
+    }
+
+    public enum StaffRole: String, Codable, CaseIterable, Hashable, Sendable {
+        case moderator = "moderator"
+        case admin = "admin"
     }
 
     /// Why a change could not be applied, for a client that has to explain it.
@@ -4620,6 +6023,53 @@ public enum API {
         }
     }
 
+    public struct TermPatch: Codable, Hashable, Sendable {
+        public var action: String?
+        public var appliesTo: [String]?
+        public var matchKind: String?
+        public var note: String?
+        public var term: String?
+
+        public init(
+            action: String? = nil,
+            appliesTo: [String]? = nil,
+            matchKind: String? = nil,
+            note: String? = nil,
+            term: String? = nil
+        ) {
+            self.action = action
+            self.appliesTo = appliesTo
+            self.matchKind = matchKind
+            self.note = note
+            self.term = term
+        }
+    }
+
+    public struct TermRequest: Codable, Hashable, Sendable {
+        /// `block`, `hold`, `flag` or `mask`.
+        public var action: String
+        /// Where it applies. Never private writing.
+        public var appliesTo: [String]
+        /// `word` (default) or `substring`.
+        public var matchKind: String?
+        public var note: String?
+        public var term: String
+
+        public init(
+            action: String,
+            appliesTo: [String],
+            matchKind: String? = nil,
+            note: String? = nil,
+            term: String
+        ) {
+            self.action = action
+            self.appliesTo = appliesTo
+            self.matchKind = matchKind
+            self.note = note
+            self.term = term
+        }
+    }
+
     public struct Terms: Codable, Hashable, Sendable {
         /// Markdown.
         public var text: String
@@ -4631,6 +6081,53 @@ public enum API {
         ) {
             self.text = text
             self.version = version
+        }
+    }
+
+    public struct TestMatch: Codable, Hashable, Sendable {
+        public var action: String
+        public var note: String
+        public var term: String
+
+        public init(
+            action: String,
+            note: String,
+            term: String
+        ) {
+            self.action = action
+            self.note = note
+            self.term = term
+        }
+    }
+
+    public struct TestRequest: Codable, Hashable, Sendable {
+        /// A surface, to see what would happen there. Default `comment`.
+        public var surface: String?
+        public var text: String
+
+        public init(
+            surface: String? = nil,
+            text: String
+        ) {
+            self.surface = surface
+            self.text = text
+        }
+    }
+
+    public struct TestResult: Codable, Hashable, Sendable {
+        /// What would happen: `block`, `hold`, `flag`, `mask`, or none.
+        public var action: String?
+        public var masked: String?
+        public var matches: [TestMatch]
+
+        public init(
+            action: String? = nil,
+            masked: String? = nil,
+            matches: [TestMatch]
+        ) {
+            self.action = action
+            self.masked = masked
+            self.matches = matches
         }
     }
 
@@ -4673,6 +6170,29 @@ public enum API {
             self.base = base
             self.senses = senses
             self.word = word
+        }
+    }
+
+    /// The numbers `auto_flag_accounts` compares against.
+    public struct Thresholds: Codable, Hashable, Sendable {
+        public var commentsFirstHour: Int
+        public var removalDays: Int
+        public var removals: Int
+        public var reporterDays: Int
+        public var reporters: Int
+
+        public init(
+            commentsFirstHour: Int,
+            removalDays: Int,
+            removals: Int,
+            reporterDays: Int,
+            reporters: Int
+        ) {
+            self.commentsFirstHour = commentsFirstHour
+            self.removalDays = removalDays
+            self.removals = removals
+            self.reporterDays = reporterDays
+            self.reporters = reporters
         }
     }
 
@@ -5219,6 +6739,9 @@ public enum API {
         /// A site administrator: curates the daily prompts. Set from the command
         /// line only; no request body can change it.
         public var isAdmin: Bool
+        /// A site moderator: works the queue and sets short restrictions. Granted
+        /// from the admin dashboard, never from a request body of the account's own.
+        public var isModerator: Bool
         /// Contact details for a submission's first page. Kept on the writer rather
         /// than the work, since they are the same for every submission.
         public var legalName: String?
@@ -5250,6 +6773,7 @@ public enum API {
             emailVerifiedAt: String? = nil,
             id: String,
             isAdmin: Bool,
+            isModerator: Bool,
             legalName: String? = nil,
             mailingAddress: String? = nil,
             phone: String? = nil,
@@ -5272,6 +6796,7 @@ public enum API {
             self.emailVerifiedAt = emailVerifiedAt
             self.id = id
             self.isAdmin = isAdmin
+            self.isModerator = isModerator
             self.legalName = legalName
             self.mailingAddress = mailingAddress
             self.phone = phone
@@ -5282,6 +6807,101 @@ public enum API {
             self.totpEnabledAt = totpEnabledAt
             self.updatedAt = updatedAt
             self.weeklyWordGoal = weeklyWordGoal
+        }
+    }
+
+    public struct UserDetail: Codable, Hashable, Sendable {
+        /// What the viewer may do here, so the page shows only those buttons.
+        public var actions: [String]
+        public var activity: Activity
+        public var audit: [AuditRow]
+        /// The suggested next step on the escalation ladder.
+        public var ladder: [String]
+        public var notes: [NoteView]
+        public var reportsAbout: [ReportAbout]
+        public var reportsBy: [ReportBy]
+        public var restrictions: [RestrictionView]
+        /// Administrators only.
+        public var sessions: [SessionRow]?
+        public var summary: AccountSummary
+
+        public init(
+            actions: [String],
+            activity: Activity,
+            audit: [AuditRow],
+            ladder: [String],
+            notes: [NoteView],
+            reportsAbout: [ReportAbout],
+            reportsBy: [ReportBy],
+            restrictions: [RestrictionView],
+            sessions: [SessionRow]? = nil,
+            summary: AccountSummary
+        ) {
+            self.actions = actions
+            self.activity = activity
+            self.audit = audit
+            self.ladder = ladder
+            self.notes = notes
+            self.reportsAbout = reportsAbout
+            self.reportsBy = reportsBy
+            self.restrictions = restrictions
+            self.sessions = sessions
+            self.summary = summary
+        }
+    }
+
+    public struct UserList: Codable, Hashable, Sendable {
+        public var nextCursor: String?
+        public var users: [UserRow]
+
+        public init(
+            nextCursor: String? = nil,
+            users: [UserRow]
+        ) {
+            self.nextCursor = nextCursor
+            self.users = users
+        }
+    }
+
+    public struct UserRow: Codable, Hashable, Sendable {
+        public var createdAt: String
+        public var displayName: String
+        /// Administrators only.
+        public var email: String?
+        public var emailVerified: Bool
+        public var id: String
+        public var lastSeenAt: String?
+        public var openReports: Int
+        public var role: StaffRole?
+        public var status: String
+        /// When the restriction behind the status ends. Absent when permanent.
+        public var statusEnds: String?
+        public var twoFactor: Bool
+
+        public init(
+            createdAt: String,
+            displayName: String,
+            email: String? = nil,
+            emailVerified: Bool,
+            id: String,
+            lastSeenAt: String? = nil,
+            openReports: Int,
+            role: StaffRole? = nil,
+            status: String,
+            statusEnds: String? = nil,
+            twoFactor: Bool
+        ) {
+            self.createdAt = createdAt
+            self.displayName = displayName
+            self.email = email
+            self.emailVerified = emailVerified
+            self.id = id
+            self.lastSeenAt = lastSeenAt
+            self.openReports = openReports
+            self.role = role
+            self.status = status
+            self.statusEnds = statusEnds
+            self.twoFactor = twoFactor
         }
     }
 
@@ -5624,6 +7244,62 @@ public enum API {
             self.windowSeconds = windowSeconds
             self.writeMs = writeMs
             self.writeRequestsPerSecond = writeRequestsPerSecond
+        }
+    }
+
+    public struct WordFilterTerm: Codable, Hashable, Sendable {
+        /// `block`, `hold`, `flag` or `mask`.
+        public var action: String
+        /// JSON array of surfaces.
+        public var appliesTo: String
+        public var createdAt: String
+        public var createdBy: String
+        public var id: String
+        /// `word` or `substring`.
+        public var matchKind: String
+        public var normalized: String
+        public var note: String
+        public var term: String
+        public var updatedAt: String
+
+        public init(
+            action: String,
+            appliesTo: String,
+            createdAt: String,
+            createdBy: String,
+            id: String,
+            matchKind: String,
+            normalized: String,
+            note: String,
+            term: String,
+            updatedAt: String
+        ) {
+            self.action = action
+            self.appliesTo = appliesTo
+            self.createdAt = createdAt
+            self.createdBy = createdBy
+            self.id = id
+            self.matchKind = matchKind
+            self.normalized = normalized
+            self.note = note
+            self.term = term
+            self.updatedAt = updatedAt
+        }
+    }
+
+    public struct WordList: Codable, Hashable, Sendable {
+        public var allow: [String]
+        public var surfaces: [String]
+        public var terms: [WordFilterTerm]
+
+        public init(
+            allow: [String],
+            surfaces: [String],
+            terms: [WordFilterTerm]
+        ) {
+            self.allow = allow
+            self.surfaces = surfaces
+            self.terms = terms
         }
     }
 

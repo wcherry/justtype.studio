@@ -79,6 +79,9 @@ row!(User, users, {
     /// How the app looks for them, on every device.
     #[schema(value_type = crate::domain::enums::Theme)]
     theme: String,
+    /// A site moderator: works the queue and sets short restrictions. Granted
+    /// from the admin dashboard, never from a request body of the account's own.
+    is_moderator: bool,
 });
 
 #[derive(Debug, Clone, Queryable, Selectable, Serialize, Deserialize, utoipa::ToSchema)]
@@ -512,6 +515,7 @@ row!(ReviewQuestion, review_questions, {
     position: i32,
     created_at: String,
     updated_at: String,
+    moderation_state: String,
 });
 
 row!(ReviewAnswer, review_answers, {
@@ -524,6 +528,7 @@ row!(ReviewAnswer, review_answers, {
     body: Option<String>,
     created_at: String,
     updated_at: String,
+    moderation_state: String,
 });
 
 row!(Comment, comments, {
@@ -543,6 +548,11 @@ row!(Comment, comments, {
     score: i32,
     created_at: String,
     updated_at: String,
+    /// `visible`, `held` or `removed`: what site moderation has done with it,
+    /// apart from the author's own delete.
+    moderation_state: String,
+    #[serde(skip)]
+    original_body: Option<String>,
 });
 
 row!(CommentVote, comment_votes, {
@@ -601,7 +611,7 @@ new_row!(NewRefreshToken, refresh_tokens, {
 
 new_row!(NewAuditEvent, audit_events, {
     id: String, actor_id: Option<String>, work_id: Option<String>, action: String,
-    detail: String, created_at: String,
+    detail: String, created_at: String, subject_id: Option<String>, reason: Option<String>,
 });
 
 new_row!(NewSummary, summaries, {
@@ -903,6 +913,8 @@ row!(PromptEntry, prompt_entries, {
     converted_work_id: Option<String>,
     created_at: String,
     updated_at: String,
+    /// `visible`, `held` or `removed`, apart from the author's own state.
+    moderation_state: String,
 });
 
 new_row!(NewPromptEntry, prompt_entries, {
@@ -924,6 +936,9 @@ row!(PromptCritique, prompt_critiques, {
     deleted_at: Option<String>,
     created_at: String,
     updated_at: String,
+    moderation_state: String,
+    #[serde(skip)]
+    original_body: Option<String>,
 });
 
 new_row!(NewPromptCritique, prompt_critiques, {
@@ -977,4 +992,151 @@ row_keyed!(InboxDigest, inbox_digests, (user_id, day), {
     summary_json: String,
     created_at: String,
     read_at: Option<String>,
+});
+
+// --- site administration and moderation ------------------------------------
+
+// An audit line with the columns staff add: who it was about, and why.
+row!(StaffAuditRow, audit_events, {
+    id: String,
+    actor_id: Option<String>,
+    work_id: Option<String>,
+    action: String,
+    detail: String,
+    created_at: String,
+    subject_id: Option<String>,
+    reason: Option<String>,
+});
+
+row!(StaffNote, staff_notes, {
+    id: String,
+    user_id: String,
+    author_id: String,
+    body: String,
+    created_at: String,
+});
+
+row!(Restriction, restrictions, {
+    id: String,
+    user_id: String,
+    /// `warning`, `ban`, `suspend` or `read_only`.
+    kind: String,
+    /// `site` or `discussion`.
+    scope: String,
+    starts_at: String,
+    /// Absent for a permanent restriction.
+    ends_at: Option<String>,
+    /// A section of the community guidelines.
+    reason_code: String,
+    /// The message the writer is shown.
+    reason_text: String,
+    internal_note: Option<String>,
+    created_by: String,
+    created_at: String,
+    lifted_at: Option<String>,
+    lifted_by: Option<String>,
+    lift_reason: Option<String>,
+    ended_notified_at: Option<String>,
+    /// JSON array of the queue items that prompted it.
+    linked_items: Option<String>,
+});
+
+row!(Appeal, appeals, {
+    id: String,
+    restriction_id: String,
+    body: String,
+    /// `open`, `upheld` or `overturned`.
+    state: String,
+    decided_by: Option<String>,
+    decision_text: Option<String>,
+    created_at: String,
+    decided_at: Option<String>,
+});
+
+row!(PermanentBan, permanent_bans, {
+    id: String,
+    email: String,
+    email_canonical: String,
+    former_user_id: Option<String>,
+    display_name: String,
+    reason_code: String,
+    reason_text: String,
+    restriction_id: Option<String>,
+    banned_by: String,
+    created_at: String,
+    removed_at: Option<String>,
+    removed_by: Option<String>,
+    removed_reason: Option<String>,
+});
+
+row_keyed!(BlockedDomain, blocked_domains, (domain), {
+    domain: String,
+    note: String,
+    created_by: String,
+    created_at: String,
+});
+
+row!(ModerationItem, moderation_items, {
+    id: String,
+    subject_type: String,
+    subject_id: String,
+    subject_author_id: String,
+    /// `open`, `held`, `actioned` or `dismissed`.
+    state: String,
+    /// JSON array: `report`, `word_filter`, `external`, `threshold`.
+    sources: String,
+    report_count: i32,
+    top_reason: Option<String>,
+    severity: i32,
+    labels: Option<String>,
+    first_flagged_at: String,
+    last_flagged_at: String,
+    claimed_by: Option<String>,
+    claimed_until: Option<String>,
+    decided_by: Option<String>,
+    decided_at: Option<String>,
+    decision: Option<String>,
+});
+
+row!(WordFilterTerm, word_filter_terms, {
+    id: String,
+    term: String,
+    normalized: String,
+    /// `word` or `substring`.
+    match_kind: String,
+    /// `block`, `hold`, `flag` or `mask`.
+    action: String,
+    /// JSON array of surfaces.
+    applies_to: String,
+    note: String,
+    created_by: String,
+    created_at: String,
+    updated_at: String,
+});
+
+row!(ExternalCheck, external_checks, {
+    id: String,
+    subject_type: String,
+    subject_id: String,
+    provider: String,
+    external_id: Option<String>,
+    state: String,
+    attempts: i32,
+    recommended_action: Option<String>,
+    labels: Option<String>,
+    created_at: String,
+    checked_at: Option<String>,
+    next_attempt_at: String,
+});
+
+row!(ExternalEvent, external_events, {
+    id: String,
+    provider: String,
+    event_id: String,
+    kind: String,
+    #[serde(skip)]
+    payload: String,
+    received_at: String,
+    applied_at: Option<String>,
+    error: Option<String>,
 });

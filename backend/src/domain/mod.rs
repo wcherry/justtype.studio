@@ -1,10 +1,17 @@
+pub mod bans;
 pub mod diff;
 pub mod doc;
 pub mod edit;
 pub mod enums;
+pub mod external_moderation;
+pub mod filter;
 pub mod inbox;
+pub mod moderation;
 pub mod naming;
+pub mod notices;
 pub mod prompts;
+pub mod restrictions;
+pub mod secrets;
 pub mod sketches;
 pub mod split;
 pub mod templates;

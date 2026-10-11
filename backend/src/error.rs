@@ -31,6 +31,14 @@ pub enum ApiError {
     /// rather than report a failure.
     #[error("{0}")]
     TwoFactorRequired(String),
+    /// A refusal with a code of its own and the state a client needs to explain
+    /// it: `account_banned`, `account_restricted`. Always a 403.
+    #[error("{message}")]
+    Coded {
+        code: &'static str,
+        message: String,
+        details: serde_json::Value,
+    },
     #[error("{0}")]
     Internal(String),
 }
@@ -52,6 +60,7 @@ impl ApiError {
                 (StatusCode::TOO_MANY_REQUESTS, "too_many_requests")
             }
             ApiError::TwoFactorRequired(_) => (StatusCode::UNAUTHORIZED, "two_factor_required"),
+            ApiError::Coded { code, .. } => (StatusCode::FORBIDDEN, code),
             ApiError::Internal(_) => (StatusCode::INTERNAL_SERVER_ERROR, "internal"),
         }
     }
@@ -69,7 +78,7 @@ impl IntoResponse for ApiError {
         if let Some(id) = crate::ops::current_request_id() {
             error["requestId"] = json!(id);
         }
-        if let ApiError::ConflictWith { details, .. } = &self {
+        if let ApiError::ConflictWith { details, .. } | ApiError::Coded { details, .. } = &self {
             error["details"] = details.clone();
         }
         if let ApiError::TooManyRequests { retry_after, .. } = &self {
@@ -123,7 +132,8 @@ pub struct ErrorEnvelope {
 #[serde(rename_all = "camelCase")]
 pub struct ErrorBody {
     /// `bad_request`, `unauthorized`, `two_factor_required`, `forbidden`,
-    /// `not_found`, `conflict`, `too_many_requests`, `internal`.
+    /// `account_banned`, `account_restricted`, `not_found`, `conflict`,
+    /// `too_many_requests`, `internal`.
     pub code: String,
     pub message: String,
     /// Present when the client is expected to act on it — see a scene save conflict.

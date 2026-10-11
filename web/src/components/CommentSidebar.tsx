@@ -4,6 +4,7 @@ import { api } from '../api/client'
 import type { CommentFilters } from '../api/client'
 import type { CommentCategory, CommentView, ReportReason } from '../api/types'
 import type { Selection } from './ReaderScene'
+import { useStanding } from '../state/standing'
 
 interface Props {
   publicationId: string
@@ -27,7 +28,10 @@ const CATEGORIES: CommentCategory[] = [
   'general', 'praise', 'plot', 'pacing', 'prose', 'character', 'typo',
 ]
 
-const REPORT_REASONS: ReportReason[] = ['abuse', 'spam', 'spoiler', 'off_topic', 'other']
+const REPORT_REASONS: ReportReason[] = [
+  'abuse', 'harassment', 'hate', 'sexual_content', 'self_harm', 'impersonation', 'illegal',
+  'spam', 'spoiler', 'off_topic', 'other',
+]
 
 export function CommentSidebar({
   publicationId, comments, pending, isAuthor, viewerId, activeCommentId, reviewPrompt,
@@ -180,6 +184,9 @@ function CommentThread({
   const [reason, setReason] = useState<ReportReason>('off_topic')
   const [done, setDone] = useState<string | null>(null)
   const removed = comment.state === 'deleted'
+  const byModerator = comment.moderationState === 'removed'
+  const { blocked } = useStanding()
+  const cantDiscuss = blocked('discuss')
 
   const vote = async (value: -1 | 1) => {
     // Sending the same value again clears it, which the server enforces too.
@@ -197,18 +204,19 @@ function CommentThread({
       ].filter(Boolean).join(' ')}
       onClick={() => onActivate(comment.id)}
     >
-      {!removed && (
+      {!removed && !byModerator && (
       <div className="comment__vote">
-        <button type="button" className={comment.viewerVote === 1 ? 'is-on' : ''} onClick={() => vote(1)} title="Useful">▲</button>
+        <button type="button" disabled={!!cantDiscuss} className={comment.viewerVote === 1 ? 'is-on' : ''} onClick={() => vote(1)} title={cantDiscuss ?? 'Useful'}>▲</button>
         <span>{comment.score}</span>
-        <button type="button" className={comment.viewerVote === -1 ? 'is-on' : ''} onClick={() => vote(-1)} title="Not useful">▼</button>
+        <button type="button" disabled={!!cantDiscuss} className={comment.viewerVote === -1 ? 'is-on' : ''} onClick={() => vote(-1)} title={cantDiscuss ?? 'Not useful'}>▼</button>
       </div>
       )}
 
       <div className="comment__body">
         {/* Kept only because someone answered it; the answers follow. */}
         {removed && <p className="comment__removed">This note was removed.</p>}
-        {!removed && (<>
+        {!removed && byModerator && <p className="comment__removed comment__moderated">Removed by a moderator.</p>}
+        {!removed && !byModerator && (<>
         <div className="comment__meta">
           <strong><Link to={`/people/${comment.author.id}`}>{comment.author.displayName}</Link></strong>
           {/* What this reviewer's notes have been worth elsewhere, so a reader
@@ -220,11 +228,12 @@ function CommentThread({
           )}
           <span className={`badge badge--${comment.category}`}>{comment.category}</span>
           {comment.state === 'resolved' && <span className="badge badge--resolved">resolved</span>}
+          {comment.moderationState === 'held' && <span className="badge" title="A person is checking it before others see it">awaiting review</span>}
         </div>
         {comment.anchorQuote && <blockquote className="comment__quote">{comment.anchorQuote}</blockquote>}
         <p>{comment.body}</p>
         <div className="comment__actions">
-          <button type="button" onClick={() => setReplying((r) => !r)}>Reply</button>
+          <button type="button" disabled={!!cantDiscuss} title={cantDiscuss ?? undefined} onClick={() => setReplying((r) => !r)}>Reply</button>
           {isAuthor && comment.state === 'open' && (
             <button
               type="button"
@@ -249,7 +258,7 @@ function CommentThread({
             </button>
           )}
           {comment.author.id !== viewerId && (
-            <button type="button" onClick={() => setReporting((r) => !r)}>Report</button>
+            <button type="button" disabled={!!blocked('report')} title={blocked('report') ?? undefined} onClick={() => setReporting((r) => !r)}>Report</button>
           )}
           {done && <span className="field__hint">{done}</span>}
         </div>
@@ -262,7 +271,7 @@ function CommentThread({
               event.preventDefault()
               await api.comments.report(comment.id, { reason })
               setReporting(false)
-              setDone('reported to the author')
+              setDone(reason === 'spoiler' || reason === 'off_topic' ? 'reported to the author' : 'reported to the author and the site’s staff')
             }}
           >
             <select value={reason} onChange={(e) => setReason(e.target.value as ReportReason)}>
@@ -326,6 +335,7 @@ function NewComment({
   const [category, setCategory] = useState<CommentCategory>('general')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const cantPost = useStanding().blocked('discuss')
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -368,8 +378,9 @@ function NewComment({
             ))}
           </select>
         )}
-        <button type="submit" disabled={busy || !body.trim()}>Post</button>
+        <button type="submit" disabled={busy || !body.trim() || !!cantPost} title={cantPost ?? undefined}>Post</button>
       </div>
+      {cantPost && <p className="field__hint">{cantPost} <Link to="/standing">Why?</Link></p>}
       {error && <p className="error">{error}</p>}
     </form>
   )

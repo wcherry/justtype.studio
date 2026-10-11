@@ -77,6 +77,42 @@ pub const KINDS: &[KindSpec] = &[
         },
         link: entry_link,
     },
+    // Notices from the site's staff. They never name a moderator.
+    KindSpec {
+        kind: "moderation.restriction",
+        singular: "notice about your account",
+        plural: "notices about your account",
+        describe: |_, d| field(d, "text").to_string(),
+        link: |_| "/standing".into(),
+    },
+    KindSpec {
+        kind: "moderation.restriction_ended",
+        singular: "notice about your account",
+        plural: "notices about your account",
+        describe: |_, d| field(d, "text").to_string(),
+        link: |_| "/standing".into(),
+    },
+    KindSpec {
+        kind: "moderation.appeal_decided",
+        singular: "decision on your appeal",
+        plural: "decisions on your appeals",
+        describe: |_, d| field(d, "text").to_string(),
+        link: |_| "/standing".into(),
+    },
+    KindSpec {
+        kind: "moderation.content_removed",
+        singular: "removed post",
+        plural: "removed posts",
+        describe: |_, d| field(d, "text").to_string(),
+        link: |_| "/standing".into(),
+    },
+    KindSpec {
+        kind: "moderation.book_handed_over",
+        singular: "book handed to you",
+        plural: "books handed to you",
+        describe: |_, d| field(d, "text").to_string(),
+        link: |d| format!("/works/{}", field(d, "workId")),
+    },
     // Proves the point of the registry: a kind nothing else knows about is
     // listed, counted and summed up by this entry alone.
     #[cfg(test)]
@@ -144,6 +180,7 @@ mod tests {
         let detail = json!({
             "day": "2026-10-12", "entryId": "e1", "critiqueId": "c1",
             "promptExcerpt": "A door", "role": "parent",
+            "text": "A notice from the site's staff.", "workId": "w1",
         });
         for k in KINDS {
             assert!(!(k.describe)("Ada", &detail).is_empty(), "{}", k.kind);

@@ -164,6 +164,14 @@ api_enum!(TaskState {
 api_enum!(ReportReason {
     /// Abusive or harassing.
     Abuse => "abuse",
+    Harassment => "harassment",
+    /// Hateful towards a group of people.
+    Hate => "hate",
+    SexualContent => "sexual_content",
+    /// Talk of hurting oneself. Goes to the top of the queue.
+    SelfHarm => "self_harm",
+    Impersonation => "impersonation",
+    Illegal => "illegal",
     /// Advertising, or not feedback at all.
     Spam => "spam",
     /// Gives away something later in the book.
@@ -307,6 +315,32 @@ api_enum!(AuditAction {
     AdminGranted => "admin_granted",
     AdminRevoked => "admin_revoked",
     PromptEdited => "prompt_edited",
+    AccountCreatedByStaff => "account_created_by_staff",
+    AccountEdited => "account_edited",
+    PasswordResetSent => "password_reset_sent",
+    SessionsRevokedByStaff => "sessions_revoked_by_staff",
+    AccountDeactivated => "account_deactivated",
+    AccountReactivated => "account_reactivated",
+    AccountDeletedByStaff => "account_deleted_by_staff",
+    ModeratorGranted => "moderator_granted",
+    ModeratorRevoked => "moderator_revoked",
+    RestrictionAdded => "restriction_added",
+    RestrictionChanged => "restriction_changed",
+    RestrictionLifted => "restriction_lifted",
+    AppealDecided => "appeal_decided",
+    PermanentBanListed => "permanent_ban_listed",
+    PermanentBanRemoved => "permanent_ban_removed",
+    AccountPurged => "account_purged",
+    ContentRemoved => "content_removed",
+    ContentRestored => "content_restored",
+    ContentHeld => "content_held",
+    ReportDismissed => "report_dismissed",
+    WordFilterChanged => "word_filter_changed",
+    ExternalModerationChanged => "external_moderation_changed",
+    StaffNoteAdded => "staff_note_added",
+    BlockedDomainChanged => "blocked_domain_changed",
+    AccountContentRemoved => "account_content_removed",
+    WorkHandedOver => "work_handed_over",
 });
 
 api_enum!(AnnotationKind {

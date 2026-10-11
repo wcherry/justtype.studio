@@ -33,7 +33,7 @@ use super::support;
 
 /// Raise this with any change of substance to `backend/terms.md`; everyone is
 /// asked to agree again.
-pub const TERMS_VERSION: i32 = 3;
+pub const TERMS_VERSION: i32 = 4;
 // Compiled in, so the server never reads it from disk. It lives in backend/
 // because the crate is built on its own (the Docker image copies backend/
 // alone), and a file outside it is not there to read.
@@ -165,15 +165,32 @@ pub fn record_terms(conn: &mut Conn, user_id: &str) -> ApiResult<()> {
     )
 )]
 pub async fn export(State(state): State<AppState>, user: AuthUser) -> ApiResult<impl IntoResponse> {
+    let bytes = export_zip(&state, &user.id).await?;
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("application/zip"),
+    );
+    headers.insert(
+        header::CONTENT_DISPOSITION,
+        HeaderValue::from_static("attachment; filename=\"justtype-export.zip\""),
+    );
+    Ok((StatusCode::OK, headers, bytes))
+}
+
+/// The zip itself: the code behind `/api/me/export`, and behind the copy
+/// emailed to someone who can't sign in to ask for it.
+pub async fn export_zip(state: &AppState, user_id: &str) -> ApiResult<Vec<u8>> {
+    let uid = user_id.to_string();
     let (records, owned) = blocking(&state.pool, move |conn| {
-        let records = gather(conn, &user.id)?;
+        let records = gather(conn, &uid)?;
         let owned: Vec<(String, String)> = works::table
-            .filter(works::owner_id.eq(&user.id))
+            .filter(works::owner_id.eq(&uid))
             .select((works::id, works::title))
             .load(conn)?;
         super::audit::record(
             conn,
-            Some(&user.id),
+            Some(&uid),
             None,
             AuditAction::AccountExported,
             &format!("{} work(s)", owned.len()),
@@ -207,18 +224,57 @@ pub async fn export(State(state): State<AppState>, user: AuthUser) -> ApiResult<
             zip.write_all(&bytes)?;
         }
     }
-    let bytes = zip.finish().map_err(zipped)?.into_inner();
+    Ok(zip.finish().map_err(zipped)?.into_inner())
+}
 
-    let mut headers = HeaderMap::new();
-    headers.insert(
-        header::CONTENT_TYPE,
-        HeaderValue::from_static("application/zip"),
-    );
-    headers.insert(
-        header::CONTENT_DISPOSITION,
-        HeaderValue::from_static("attachment; filename=\"justtype-export.zip\""),
-    );
-    Ok((StatusCode::OK, headers, bytes))
+/// Builds `user_id`'s export, keeps it for `days`, and queues an email with a
+/// link to it that works without signing in. For someone who can't sign in
+/// (banned) or whose account is about to go (deleted by staff).
+pub async fn email_export(
+    state: &AppState,
+    user_id: &str,
+    to: &str,
+    name: &str,
+    days: i64,
+) -> ApiResult<()> {
+    let bytes = export_zip(state, user_id).await?;
+    let id = crate::domain::new_id();
+    let dir = state.config.data_dir.join("emailed-exports");
+    std::fs::create_dir_all(&dir)?;
+    let path = dir.join(format!("{id}.zip"));
+    std::fs::write(&path, bytes)?;
+    let token = auth::generate_link_token();
+    let (to, name) = (to.to_string(), name.to_string());
+    let public_url = state.config.public_url.clone();
+    let stored = path.to_string_lossy().to_string();
+    blocking(&state.pool, move |conn| {
+        diesel::insert_into(emailed_exports::table)
+            .values((
+                emailed_exports::id.eq(&id),
+                emailed_exports::token_hash.eq(auth::hash_refresh_token(&token)),
+                emailed_exports::email.eq(&to),
+                emailed_exports::path.eq(&stored),
+                emailed_exports::expires_at.eq((crate::clock::now()
+                    + chrono::Duration::days(days))
+                .to_rfc3339_opts(chrono::SecondsFormat::Millis, true)),
+                emailed_exports::created_at.eq(crate::clock::now_iso()),
+            ))
+            .execute(conn)?;
+        crate::mail::enqueue(
+            conn,
+            &crate::mail::Message {
+                to: to.clone(),
+                subject: "A copy of your Just Type Studio work".into(),
+                body: format!(
+                    "Hello {name},\n\nHere is everything we hold for your account, as one zip you can open without us:\n\n{public_url}/api/ban/export/{token}\n\nThe link works for {days} days.\n"
+                ),
+                html: None,
+                headers: Vec::new(),
+            },
+            crate::clock::now() + chrono::Duration::days(3),
+        )
+    })
+    .await
 }
 
 const README: &str = "Everything Just Type Studio holds about you, as of the moment this was made.
@@ -622,17 +678,15 @@ pub async fn delete_account(
         }
 
         conn.transaction::<_, ApiError, _>(|conn| {
-            seed_former_member(conn, &now_iso())?;
-            hand_over(conn, &found, &owned_ids)?;
-            diesel::delete(users::table.find(&found.id)).execute(conn)?;
+            let removed = remove_account(conn, &found, false)?;
             super::audit::record(
                 conn,
                 Some(&found.id),
                 None,
                 AuditAction::AccountDeleted,
-                &format!("{} work(s) and their files deleted", owned.len()),
+                &format!("{} work(s) and their files deleted", removed.deleted.len()),
             )?;
-            for (work_id, title) in &owned {
+            for (work_id, title) in &removed.deleted {
                 super::audit::record(
                     conn,
                     Some(&found.id),
@@ -658,6 +712,82 @@ pub async fn delete_account(
     Ok(Json(DeletedAccount {
         works_deleted: count,
     }))
+}
+
+/// What deleting an account removed and passed on.
+pub struct Removed {
+    /// Works deleted with the account: `(id, title)`.
+    pub deleted: Vec<(String, String)>,
+    /// Co-written works that passed to a collaborator: `(id, title, new owner)`.
+    pub handed_over: Vec<(String, String, String)>,
+}
+
+/// Titles of the works this account owns that other people are working on.
+pub fn shared_titles(conn: &mut Conn, user_id: &str) -> ApiResult<Vec<String>> {
+    Ok(work_collaborators::table
+        .inner_join(works::table)
+        .filter(works::owner_id.eq(user_id))
+        .select(works::title)
+        .distinct()
+        .load(conn)?)
+}
+
+/// Deletes the account and everything that belongs to it, inside the caller's
+/// transaction. The one code path behind self-service deletion, deletion by
+/// staff, and the purge that follows a closing restriction.
+///
+/// With `hand_shared`, a book the account owns that has other collaborators
+/// passes to the one who joined it first instead of being deleted; the
+/// account's own contributions inside it stay, credited as `hand_over` credits
+/// them. Without it, those books go with the account (the caller has already
+/// asked whether that is what was meant).
+pub fn remove_account(conn: &mut Conn, found: &User, hand_shared: bool) -> ApiResult<Removed> {
+    seed_former_member(conn, &now_iso())?;
+    let owned: Vec<(String, String)> = works::table
+        .filter(works::owner_id.eq(&found.id))
+        .select((works::id, works::title))
+        .load(conn)?;
+    let mut handed_over = Vec::new();
+    let mut deleted = Vec::new();
+    for (work_id, title) in owned {
+        let heir: Option<(String, String)> = if hand_shared {
+            work_collaborators::table
+                .filter(work_collaborators::work_id.eq(&work_id))
+                .filter(work_collaborators::user_id.is_not_null())
+                .filter(work_collaborators::user_id.ne(&found.id))
+                .filter(work_collaborators::accepted_at.is_not_null())
+                .order((
+                    work_collaborators::accepted_at.asc(),
+                    work_collaborators::created_at.asc(),
+                ))
+                .select((
+                    work_collaborators::id,
+                    work_collaborators::user_id.assume_not_null(),
+                ))
+                .first(conn)
+                .optional()?
+        } else {
+            None
+        };
+        match heir {
+            Some((row_id, heir_id)) => {
+                diesel::update(works::table.find(&work_id))
+                    .set(works::owner_id.eq(&heir_id))
+                    .execute(conn)?;
+                // The owner is the owner; they don't also need a seat.
+                diesel::delete(work_collaborators::table.find(&row_id)).execute(conn)?;
+                handed_over.push((work_id, title, heir_id));
+            }
+            None => deleted.push((work_id, title)),
+        }
+    }
+    let deleted_ids: Vec<String> = deleted.iter().map(|w| w.0.clone()).collect();
+    hand_over(conn, found, &deleted_ids)?;
+    diesel::delete(users::table.find(&found.id)).execute(conn)?;
+    Ok(Removed {
+        deleted,
+        handed_over,
+    })
 }
 
 /// Moves what the departing account made inside other people's books to

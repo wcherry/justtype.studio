@@ -73,7 +73,7 @@ pub(crate) fn check_password(password: &str) -> ApiResult<()> {
 }
 
 /// Opens a new signed-in session for this device and mints its first tokens.
-fn start_session(
+pub(crate) fn start_session(
     state: &AppState,
     conn: &mut Conn,
     user: User,
@@ -161,10 +161,21 @@ pub async fn register(
             "an account needs agreement to the terms — they say your writing stays yours".into(),
         ));
     }
+    // A display name is public text: the word filter and the platform see it
+    // when it is chosen, as they do when it is changed.
+    let new_user_id = new_id();
+    let screen = crate::domain::moderation::screen(
+        &state,
+        crate::domain::filter::Surface::DisplayName,
+        &new_user_id,
+        &display_name,
+    )
+    .await?;
+    let display_name = screen.text.clone();
     let password_hash = auth::password::hash(&body.password)?;
     let now = now_iso();
     let new_user = NewUser {
-        id: new_id(),
+        id: new_user_id,
         email: email.clone(),
         display_name,
         password_hash,
@@ -193,7 +204,9 @@ pub async fn register(
             .select(users::id)
             .first(conn)
             .optional()?;
-        if existing.is_some() {
+        // A banned address or a throwaway domain gets the answer any taken
+        // address gets, so the list cannot be probed.
+        if existing.is_some() || crate::domain::bans::refused(conn, &new_user.email)? {
             return Err(ApiError::Conflict(
                 "that email is already registered".into(),
             ));
@@ -205,6 +218,12 @@ pub async fn register(
             .find(&new_user.id)
             .select(User::as_select())
             .first(conn)?;
+        // A held name can't be held back (the account has to exist); it is
+        // flagged for a person to look at.
+        let mut screen = screen;
+        screen.hold = false;
+        let provider = crate::domain::moderation::provider_name(conn)?;
+        crate::domain::moderation::record(conn, &screen, "profile", &user.id, &user.id, &provider)?;
         super::audit::record(
             conn,
             Some(&user.id),
@@ -264,6 +283,9 @@ pub async fn login(
         if !auth::password::verify(&password, &user.password_hash) {
             return Err(wrong());
         }
+        // Only once the password is right, so this says nothing to someone
+        // guessing: a banned writer is told why, instead of a generic error.
+        crate::domain::restrictions::sign_in_refusal(conn, &user.id)?;
         // Asked only once the password is right, so the refusal reveals
         // nothing to someone who does not already have it.
         if user.totp_enabled_at.is_some() {
@@ -340,6 +362,7 @@ pub async fn refresh(
             .find(&row.user_id)
             .select(User::as_select())
             .first(conn)?;
+        crate::domain::restrictions::sign_in_refusal(conn, &user.id)?;
         match &row.session_id {
             Some(session_id) => {
                 // A revoked session cannot be revived by a token it issued.

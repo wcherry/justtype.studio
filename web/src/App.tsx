@@ -11,6 +11,19 @@ import { SettingsPage } from './pages/SettingsPage'
 import { StatusPage } from './pages/StatusPage'
 import { ReviewPage } from './pages/ReviewPage'
 import { AdminPromptsPage } from './pages/AdminPromptsPage'
+import { AdminShell } from './pages/admin/AdminShell'
+import { AdminHomePage } from './pages/admin/AdminHomePage'
+import { AdminUsersPage } from './pages/admin/AdminUsersPage'
+import { AdminUserPage } from './pages/admin/AdminUserPage'
+import { AdminQueuePage } from './pages/admin/AdminQueuePage'
+import { AdminAppealsPage } from './pages/admin/AdminAppealsPage'
+import { AdminBansPage } from './pages/admin/AdminBansPage'
+import { AdminWordsPage } from './pages/admin/AdminWordsPage'
+import { AdminExternalPage } from './pages/admin/AdminExternalPage'
+import { AdminLogPage } from './pages/admin/AdminLogPage'
+import { AdminJobsPage } from './pages/admin/AdminJobsPage'
+import { BanAppealPage, BanExportPage, SetupPage, StandingPage } from './pages/StandingPages'
+import { RestrictionBanner } from './components/RestrictionBanner'
 import { InboxPage } from './pages/InboxPage'
 import { PromptDayPage, PromptsPage } from './pages/PromptsPage'
 import { PromptEntryPage } from './pages/PromptEntryPage'
@@ -58,13 +71,16 @@ function Chrome({ children }: { children: React.ReactNode }) {
             </Link>
             <InviteButton />
             <Link to={`/people/${user.id}`} className="shell__user">{user.displayName}</Link>
-            {user.isAdmin && <Link to="/admin/prompts" className="shell__user">Admin</Link>}
+            {(user.isAdmin || user.isModerator) && (
+              <Link to={user.isAdmin ? '/admin' : '/admin/queue'} className="shell__user">Admin</Link>
+            )}
             <Link to="/settings" className="shell__user">Account</Link>
             <button type="button" className="linklike" onClick={() => void logout()}>Sign out</button>
           </>
         )}
       </nav>
       <AccountBanners />
+      <RestrictionBanner />
       {children}
     </div>
   )
@@ -131,6 +147,13 @@ export function App() {
       <Route path="/verify" element={<VerifyPage />} />
       <Route path="/terms" element={<TermsPage />} />
       <Route path="/status" element={<StatusPage />} />
+      <Route path="/setup" element={<SetupPage />} />
+      <Route path="/ban/appeal" element={<BanAppealPage />} />
+      <Route path="/ban/export" element={<BanExportPage />} />
+      <Route
+        path="/standing"
+        element={<RequireAuth><Chrome><StandingPage /></Chrome></RequireAuth>}
+      />
       <Route path="/prompts/unsubscribe" element={<UnsubscribePage />} />
       <Route path="/settings" element={<Navigate to="/settings/account" replace />} />
       <Route
@@ -157,10 +180,19 @@ export function App() {
         path="/inbox"
         element={<RequireAuth><Chrome><InboxPage /></Chrome></RequireAuth>}
       />
-      <Route
-        path="/admin/prompts"
-        element={<RequireAuth><Chrome><AdminPromptsPage /></Chrome></RequireAuth>}
-      />
+      <Route path="/admin" element={<RequireAuth><Chrome><AdminShell /></Chrome></RequireAuth>}>
+        <Route index element={<AdminHomePage />} />
+        <Route path="queue" element={<AdminQueuePage />} />
+        <Route path="accounts" element={<AdminUsersPage />} />
+        <Route path="accounts/:userId" element={<Keyed><AdminUserPage /></Keyed>} />
+        <Route path="appeals" element={<AdminAppealsPage />} />
+        <Route path="bans" element={<AdminBansPage />} />
+        <Route path="words" element={<AdminWordsPage />} />
+        <Route path="external" element={<AdminExternalPage />} />
+        <Route path="log" element={<AdminLogPage />} />
+        <Route path="prompts" element={<AdminPromptsPage />} />
+        <Route path="jobs" element={<AdminJobsPage />} />
+      </Route>
       <Route
         path="/"
         element={<RequireAuth><Chrome><LibraryPage /></Chrome></RequireAuth>}

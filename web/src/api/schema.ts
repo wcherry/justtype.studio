@@ -12,6 +12,48 @@ export interface AcceptTermsRequest {
   version: number
 }
 
+export interface AccountStanding {
+  // In force now (warnings excepted).
+  active: MyRestriction[]
+  closing?: Closing | null
+  // Everything before, newest first, warnings included.
+  history: MyRestriction[]
+}
+
+export interface AccountSummary {
+  aboutAuthor?: string | null
+  bio?: string | null
+  closingAt?: string | null
+  createdAt: string
+  deactivatedAt?: string | null
+  displayName: string
+  // Administrators only, as are the next four.
+  email?: string | null
+  emailVerified?: boolean | null
+  id: string
+  lastSeenAt?: string | null
+  legalName?: string | null
+  mailingAddress?: string | null
+  phone?: string | null
+  purgeAt?: string | null
+  role?: StaffRole | null
+  // Made by staff and not yet set up by the person (administrators only).
+  setupPending?: boolean | null
+  status: string
+  statusEnds?: string | null
+  termsVersion?: number | null
+  twoFactor: boolean
+}
+
+export interface Activity {
+  comments: number
+  critiques: number
+  invitesSent: number
+  publications: number
+  submissions: number
+  works: number
+}
+
 export type ActivityKind = 'scene_edited' | 'scene_added' | 'scene_removed' | 'chapter_added' | 'chapter_removed' | 'change_proposed' | 'change_accepted' | 'change_rejected' | 'task_added' | 'task_done' | 'version_saved' | 'version_published' | 'publication_opened' | 'collaborator_added' | 'collaborator_changed' | 'collaborator_removed'
 
 export interface ActivityView {
@@ -27,6 +69,13 @@ export interface ActivityView {
   updatedAt: string
   workId: string
   actor: AuthorCard
+}
+
+export interface AddBanRequest {
+  displayName?: string | null
+  email: string
+  reasonCode: string
+  reasonText?: string | null
 }
 
 export interface AddCollaboratorRequest {
@@ -61,6 +110,10 @@ export interface AdminPrompts {
 }
 
 export type Align = 'left' | 'justify'
+
+export interface AllowRequest {
+  word: string
+}
 
 export interface Anchor {
   from: number
@@ -99,11 +152,38 @@ export interface AnswerView {
   chapterId: string
   createdAt: string
   id: string
+  moderationState: string
   questionId: string
   rating?: number | null
   updatedAt: string
   userId: string
   reader: AuthorCard
+}
+
+export interface Appeal {
+  body: string
+  createdAt: string
+  decidedAt?: string | null
+  decidedBy?: string | null
+  decisionText?: string | null
+  id: string
+  restrictionId: string
+  // `open`, `upheld` or `overturned`.
+  state: string
+}
+
+export interface AppealRequest {
+  body: string
+}
+
+export interface AppealRow {
+  appeal: Appeal
+  // Days until the account is deleted, for an appeal on a closing
+  // restriction. The purge waits for the decision.
+  daysLeft?: number | null
+  displayName: string
+  restriction: Restriction
+  userId: string
 }
 
 export interface ArchivePage {
@@ -134,7 +214,7 @@ export interface AssistView {
   text: string
 }
 
-export type AuditAction = 'password_reset' | 'password_changed' | 'two_factor_enabled' | 'two_factor_disabled' | 'session_revoked' | 'sessions_revoked' | 'account_exported' | 'account_deleted' | 'work_deleted' | 'publication_created' | 'publication_changed' | 'publication_withdrawn' | 'collaborator_added' | 'collaborator_changed' | 'collaborator_removed' | 'reader_invited' | 'reader_uninvited' | 'reader_blocked' | 'reader_unblocked' | 'terms_accepted' | 'share_link_made' | 'share_links_revoked' | 'summaries_allowed' | 'summaries_withdrawn' | 'assistant_allowed' | 'assistant_withdrawn' | 'admin_granted' | 'admin_revoked' | 'prompt_edited'
+export type AuditAction = 'password_reset' | 'password_changed' | 'two_factor_enabled' | 'two_factor_disabled' | 'session_revoked' | 'sessions_revoked' | 'account_exported' | 'account_deleted' | 'work_deleted' | 'publication_created' | 'publication_changed' | 'publication_withdrawn' | 'collaborator_added' | 'collaborator_changed' | 'collaborator_removed' | 'reader_invited' | 'reader_uninvited' | 'reader_blocked' | 'reader_unblocked' | 'terms_accepted' | 'share_link_made' | 'share_links_revoked' | 'summaries_allowed' | 'summaries_withdrawn' | 'assistant_allowed' | 'assistant_withdrawn' | 'admin_granted' | 'admin_revoked' | 'prompt_edited' | 'account_created_by_staff' | 'account_edited' | 'password_reset_sent' | 'sessions_revoked_by_staff' | 'account_deactivated' | 'account_reactivated' | 'account_deleted_by_staff' | 'moderator_granted' | 'moderator_revoked' | 'restriction_added' | 'restriction_changed' | 'restriction_lifted' | 'appeal_decided' | 'permanent_ban_listed' | 'permanent_ban_removed' | 'account_purged' | 'content_removed' | 'content_restored' | 'content_held' | 'report_dismissed' | 'word_filter_changed' | 'external_moderation_changed' | 'staff_note_added' | 'blocked_domain_changed' | 'account_content_removed' | 'work_handed_over'
 
 export interface AuditEvent {
   action: AuditAction
@@ -146,10 +226,23 @@ export interface AuditEvent {
   workId?: string | null
 }
 
+export interface AuditRow {
+  action: string
+  actor?: AuthorCard | null
+  createdAt: string
+  detail: string
+  id: string
+  reason?: string | null
+}
+
 // Author cards attached to comments so the clients need no second round trip.
 export interface AuthorCard {
   displayName: string
   id: string
+}
+
+export interface BanExportRequest {
+  email: string
 }
 
 // One paragraph's fate between two versions.
@@ -191,11 +284,26 @@ export interface BlockView {
   reader: AuthorCard
 }
 
+export interface BlockedDomain {
+  createdAt: string
+  createdBy: string
+  domain: string
+  note: string
+}
+
 export interface BlockedReader {
   createdAt: string
   id: string
   ownerId: string
   userId: string
+}
+
+export interface BulkDismiss {
+  itemIds: string[]
+  reason?: string | null
+  // The one source they all share: bulk dismissal is for a flood from the
+  // same place, not for sweeping the queue.
+  source: string
 }
 
 export interface BulkResolveRequest {
@@ -243,6 +351,15 @@ export interface ChangePasswordRequest {
   newPassword: string
 }
 
+export interface ChangeRequest {
+  // The new length in days (3, 7 or 30), or `null` for permanent. Left out,
+  // the length stays.
+  days?: number | null
+  // Why it is being changed.
+  reason?: string | null
+  reasonText?: string | null
+}
+
 export type ChangeState = 'pending' | 'accepted' | 'rejected'
 
 export interface Chapter {
@@ -281,6 +398,15 @@ export interface CircleView {
   members: CircleMember[]
 }
 
+export interface Closing {
+  // Waiting on an appeal: the deletion happens only once it is decided.
+  appealOpen: boolean
+  daysLeft: number
+  // `read_only` or `ban`.
+  kind: string
+  purgeAt: string
+}
+
 export interface CodeRequest {
   code: string
 }
@@ -309,6 +435,9 @@ export interface Comment {
   category: CommentCategory
   createdAt: string
   id: string
+  // `visible`, `held` or `removed`: what site moderation has done with it,
+  // apart from the author's own delete.
+  moderationState: string
   parentId?: string | null
   publicationId: string
   sceneId?: string | null
@@ -339,6 +468,9 @@ export interface CommentView {
   category: CommentCategory
   createdAt: string
   id: string
+  // `visible`, `held` or `removed`: what site moderation has done with it,
+  // apart from the author's own delete.
+  moderationState: string
   parentId?: string | null
   publicationId: string
   sceneId?: string | null
@@ -493,6 +625,12 @@ export interface CreateTaskRequest {
   sceneId?: string | null
 }
 
+export interface CreateUserRequest {
+  displayName: string
+  email: string
+  moderator?: boolean
+}
+
 export interface CreateVersionRequest {
   label?: string | null
   notes?: string | null
@@ -509,6 +647,12 @@ export interface CreateWorkRequest {
   // Omit for a single empty chapter and scene.
   templateId?: string | null
   title: string
+}
+
+export interface Created {
+  displayName: string
+  email: string
+  id: string
 }
 
 export interface CritiqueReportView {
@@ -539,6 +683,9 @@ export interface CritiqueView {
   entryId: string
   id: string
   mine: boolean
+  // `removed` (by a moderator; shown as a placeholder) or `held` (awaiting
+  // review; only its writer and staff see it).
+  moderated?: string | null
   parentId?: string | null
   removed: boolean
 }
@@ -557,6 +704,19 @@ export interface DailyPrompt {
   updatedAt: string
 }
 
+export interface DecideRequest {
+  // `upheld` (the restriction stands) or `overturned`.
+  decision: string
+  // What the writer is told.
+  message?: string | null
+  // On `overturned`: bring back what was removed alongside it.
+  restoreContent?: boolean
+}
+
+export interface DecisionRequest {
+  reason?: string | null
+}
+
 export interface DeleteAccountRequest {
   // From the authenticator, when two-factor sign-in is on.
   code?: string | null
@@ -564,6 +724,17 @@ export interface DeleteAccountRequest {
   // have been told which.
   deleteSharedWorks?: boolean
   password: string
+}
+
+export interface DeleteUserRequest {
+  // The account's display name, typed to confirm.
+  confirmName: string
+  // Go ahead although other people are working on books this account owns.
+  deleteSharedWorks?: boolean
+  reason?: string | null
+  // Don't email the person a copy of their data first. Needs the reason
+  // above to say why (a spam account, say).
+  skipExport?: boolean
 }
 
 export interface DeletedAccount {
@@ -631,12 +802,28 @@ export interface DocNode {
   type: string
 }
 
+export interface DomainRequest {
+  domain: string
+  note?: string | null
+}
+
 export interface Done {
   ok: boolean
 }
 
 export interface EditCritiqueRequest {
   body: string
+}
+
+export interface EditUserRequest {
+  aboutAuthor?: string | null
+  bio?: string | null
+  displayName?: string | null
+  email?: string | null
+  markVerified?: boolean | null
+  // Required for every change.
+  reason?: string | null
+  resetTwoFactor?: boolean | null
 }
 
 export interface EnrollmentView {
@@ -663,6 +850,8 @@ export interface EntryCard {
   id: string
   late: boolean
   mine: boolean
+  // `held` (awaiting review) or `removed`, on the writer's own answer.
+  moderated?: string | null
   submittedAt?: string | null
   wordCount: number
 }
@@ -700,7 +889,8 @@ export interface EpubOptions {
 
 export interface ErrorBody {
   // `bad_request`, `unauthorized`, `two_factor_required`, `forbidden`,
-  // `not_found`, `conflict`, `too_many_requests`, `internal`.
+  // `account_banned`, `account_restricted`, `not_found`, `conflict`,
+  // `too_many_requests`, `internal`.
   code: string
   // Present when the client is expected to act on it — see a scene save conflict.
   details?: JsonValue
@@ -728,6 +918,49 @@ export interface ExportOptions {
   // The profile these options came from, for the export history.
   profile?: string | null
   style?: StyleOptions
+}
+
+// What `/admin/external` saves, in `moderation_settings` under `external`.
+// The two secrets are stored sealed (see `secrets`) and never sent back.
+export interface ExternalConfig {
+  // The scope a temporary ban or suspension from the platform is given:
+  // `discussion` (the default) or `site`.
+  banScope?: string
+  baseUrl?: string
+  // `none`, `stream` or `stub`.
+  provider: string
+  // What the platform's *remove* does here: `hold` (the default) or `block`.
+  removeAs?: string
+  surfaces?: string[]
+}
+
+export interface ExternalTestResult {
+  labels: string[]
+  recommended: string
+}
+
+export interface ExternalUpdate {
+  // Set only when given; stored encrypted and never shown again.
+  apiKey?: string | null
+  banScope?: string | null
+  baseUrl?: string | null
+  provider: string
+  removeAs?: string | null
+  surfaces?: string[]
+  webhookSecret?: string | null
+}
+
+export interface ExternalView {
+  // The secrets are never sent back; only whether they are set.
+  apiKeySet: boolean
+  // Checks waiting for the platform to come back.
+  backlog: number
+  config: ExternalConfig
+  providers: string[]
+  surfaces: string[]
+  webhookSecretSet: boolean
+  // Where the platform should send its webhooks.
+  webhookUrl: string
 }
 
 export interface Features {
@@ -799,6 +1032,11 @@ export interface ImportProfileRequest {
   options: JsonValue
 }
 
+export interface ImportRequest {
+  // `term,match,action,applies_to,note` — `applies_to` separated by `;`.
+  csv: string
+}
+
 export interface InboxItemView {
   actor?: AuthorCard | null
   createdAt: string
@@ -868,6 +1106,10 @@ export interface JobRun {
 }
 
 export interface JobsReport {
+  // Public posts waiting for the moderation platform to come back.
+  externalBacklog: number
+  // Events from the platform that were stored and not applied.
+  externalUnapplied: string[]
   health: JobHealth
   mailFailed: number
   mailWaiting: number
@@ -896,7 +1138,16 @@ export interface LastUsedResponse {
 
 export type LengthBand = 'short' | 'novelette' | 'novella' | 'novel'
 
+export interface LiftRequest {
+  reason?: string | null
+}
+
 export type LineSpacing = 'single' | '1.15' | '1.5' | 'double'
+
+export interface LinkAppealRequest {
+  body: string
+  token: string
+}
 
 export interface LinkRequest {
   sceneId: string
@@ -910,6 +1161,23 @@ export interface LiveTicket {
 export interface Location {
   chapterId: string
   sceneId?: string | null
+}
+
+export interface LogLine {
+  action: string
+  actor?: AuthorCard | null
+  createdAt: string
+  detail: string
+  id: string
+  // `scheduled deletion` for a purge; `external` for the platform.
+  origin: string
+  reason?: string | null
+  subject?: AuthorCard | null
+}
+
+export interface LogPage {
+  lines: LogLine[]
+  nextCursor?: string | null
 }
 
 export interface LoginRequest {
@@ -965,6 +1233,62 @@ export interface MetadataResponse {
   updatedAt?: string | null
 }
 
+export interface ModerationItem {
+  claimedBy?: string | null
+  claimedUntil?: string | null
+  decidedAt?: string | null
+  decidedBy?: string | null
+  decision?: string | null
+  firstFlaggedAt: string
+  id: string
+  labels?: string | null
+  lastFlaggedAt: string
+  reportCount: number
+  severity: number
+  // JSON array: `report`, `word_filter`, `external`, `threshold`.
+  sources: string
+  // `open`, `held`, `actioned` or `dismissed`.
+  state: string
+  subjectAuthorId: string
+  subjectId: string
+  subjectType: string
+  topReason?: string | null
+}
+
+export interface ModerationSettings {
+  // `warning`, `kind:scope:days` or `kind:scope:permanent`.
+  ladder: string[]
+  thresholds: Thresholds
+}
+
+export interface ModeratorRequest {
+  moderator: boolean
+  reason?: string | null
+}
+
+export interface MyAppeal {
+  createdAt: string
+  decisionText?: string | null
+  // `open`, `upheld` or `overturned`.
+  state: string
+}
+
+export interface MyRestriction {
+  appeal?: MyAppeal | null
+  // Ends in the account being deleted.
+  closing: boolean
+  // Absent when permanent.
+  endsAt?: string | null
+  id: string
+  inForce: boolean
+  kind: string
+  lifted: boolean
+  reasonCode: string
+  reasonText: string
+  scope: string
+  startsAt: string
+}
+
 export interface NewPromptRequest {
   body: string
   // Pin it to this future day instead of queueing it.
@@ -996,8 +1320,19 @@ export interface NoteFate {
 
 export type NotePlacement = 'chapter' | 'book'
 
+export interface NoteRequest {
+  body: string
+}
+
 // What became of the text a note was attached to.
 export type NoteStatus = 'untouched' | 'edited' | 'gone' | 'unanchored'
+
+export interface NoteView {
+  author: AuthorCard
+  body: string
+  createdAt: string
+  id: string
+}
 
 export interface NotebookEntry {
   body?: string | null
@@ -1066,6 +1401,19 @@ export interface OutlineResponse {
   place?: WritingPlace | null
 }
 
+export interface Overview {
+  appealsOpen: number
+  // Restrictions ending in the next 24 hours.
+  endingSoon: number
+  queueHeld: number
+  queueOpen: number
+  reportsToday: number
+  role: StaffRole
+  signupsToday: number
+  // Closing accounts whose deletion is waiting on an open appeal.
+  waitingOnAppeal: number
+}
+
 export type PageSize = 'letter' | 'a4' | 'trade5x8' | 'trade5_5x8_5' | 'trade6x9'
 
 export type PartOfSpeech = 'noun' | 'verb' | 'adjective' | 'adverb'
@@ -1093,6 +1441,22 @@ export interface Percentiles {
   p50: number
   p95: number
   p99: number
+}
+
+export interface PermanentBan {
+  bannedBy: string
+  createdAt: string
+  displayName: string
+  email: string
+  emailCanonical: string
+  formerUserId?: string | null
+  id: string
+  reasonCode: string
+  reasonText: string
+  removedAt?: string | null
+  removedBy?: string | null
+  removedReason?: string | null
+  restrictionId?: string | null
 }
 
 export interface PreflightReport {
@@ -1162,6 +1526,8 @@ export interface PromptEntry {
   // The last change made after submitting.
   editedAt?: string | null
   id: string
+  // `visible`, `held` or `removed`, apart from the author's own state.
+  moderationState: string
   promptId: string
   // `draft`, `submitted` or `withdrawn`.
   state: EntryState
@@ -1179,6 +1545,8 @@ export interface PromptEntryView {
   // The last change made after submitting.
   editedAt?: string | null
   id: string
+  // `visible`, `held` or `removed`, apart from the author's own state.
+  moderationState: string
   promptId: string
   // `draft`, `submitted` or `withdrawn`.
   state: EntryState
@@ -1306,6 +1674,48 @@ export type QuestionKind = 'rating' | 'text'
 
 export type QuestionScope = 'work' | 'chapter'
 
+export interface QueueItem {
+  claimedBy?: string | null
+  claimedUntil?: string | null
+  decidedAt?: string | null
+  decidedBy?: string | null
+  decision?: string | null
+  firstFlaggedAt: string
+  id: string
+  labels?: string | null
+  lastFlaggedAt: string
+  reportCount: number
+  severity: number
+  // JSON array: `report`, `word_filter`, `external`, `threshold`.
+  sources: string
+  // `open`, `held`, `actioned` or `dismissed`.
+  state: string
+  subjectAuthorId: string
+  subjectId: string
+  subjectType: string
+  topReason?: string | null
+  author: AuthorCard
+  // Administrators only.
+  authorEmail?: string | null
+  claimedByName?: string | null
+  // Where it sits: the publication, the prompt, what it replies to.
+  context: string
+  reports: ReportDetail[]
+  sourcesList: string[]
+  // What moderation has done with it: `visible`, `held` or `removed`.
+  subjectState: string
+  surface?: string | null
+  // What was said, as text. Empty for an account.
+  text: string
+}
+
+export interface QueuePage {
+  items: QueueItem[]
+  // Open items, for the menu badge.
+  openCount: number
+  total: number
+}
+
 export interface ReactRequest {
   // Index of the paragraph in the snapshot scene.
   blockIndex: number
@@ -1362,6 +1772,10 @@ export interface ReadingProgress {
   userId: string
 }
 
+export interface ReasonRequest {
+  reason?: string | null
+}
+
 export interface RecoveryCodes {
   // Shown once. Each gets someone in once if the authenticator is lost.
   codes: string[]
@@ -1379,6 +1793,10 @@ export interface RegisterRequest {
   password: string
 }
 
+export interface RemoveBanRequest {
+  reason?: string | null
+}
+
 export interface ReorderPromptsRequest {
   // Every queued prompt's id, in the new order.
   ids: string[]
@@ -1389,11 +1807,41 @@ export interface ReorderRequest {
   ids: string[]
 }
 
-export type ReportReason = 'abuse' | 'spam' | 'spoiler' | 'off_topic' | 'other'
+export interface ReportAbout {
+  itemId: string
+  lastFlaggedAt: string
+  reportCount: number
+  state: string
+  subjectType: string
+  topReason?: string | null
+}
+
+export interface ReportBy {
+  createdAt: string
+  kind: string
+  reason: string
+}
+
+export interface ReportDetail {
+  createdAt: string
+  detail?: string | null
+  reason: string
+  reporter: AuthorCard
+}
+
+export type ReportReason = 'abuse' | 'harassment' | 'hate' | 'sexual_content' | 'self_harm' | 'impersonation' | 'illegal' | 'spam' | 'spoiler' | 'off_topic' | 'other'
 
 export interface ReportRequest {
   detail?: string | null
   reason: ReportReason
+}
+
+export interface ReportSubject {
+  detail?: string | null
+  reason: ReportReason
+  subjectId: string
+  // `entry`, `question`, `answer`, `profile` or `publication`.
+  subjectType: string
 }
 
 export interface ReportView {
@@ -1408,6 +1856,12 @@ export interface ReportView {
   commentBody: string
   publicationId: string
   reporter: AuthorCard
+}
+
+export interface Reported {
+  reported: boolean
+  // Present for a self-harm report: where to find help.
+  support?: string | null
 }
 
 export interface ResetRequest {
@@ -1431,12 +1885,86 @@ export interface RestoreResponse {
   scenesRestored: number
 }
 
+export interface RestrictRequest {
+  // For a restriction that ends in deletion: the account's display name,
+  // typed to confirm.
+  confirmName?: string | null
+  // 3, 7 or 30. Absent: permanent. Ignored for a site-wide read-only
+  // restriction, which is always the 30 days before deletion.
+  days?: number | null
+  internalNote?: string | null
+  // Queue items that prompted it.
+  itemIds?: string[]
+  // `warning`, `ban`, `suspend` or `read_only`.
+  kind: string
+  // A section of the community guidelines.
+  reasonCode?: string | null
+  // The message the writer is shown.
+  reasonText?: string | null
+  // `site` or `discussion`.
+  scope: string
+}
+
+export interface Restriction {
+  createdAt: string
+  createdBy: string
+  endedNotifiedAt?: string | null
+  // Absent for a permanent restriction.
+  endsAt?: string | null
+  id: string
+  internalNote?: string | null
+  // `warning`, `ban`, `suspend` or `read_only`.
+  kind: string
+  liftReason?: string | null
+  liftedAt?: string | null
+  liftedBy?: string | null
+  // JSON array of the queue items that prompted it.
+  linkedItems?: string | null
+  // A section of the community guidelines.
+  reasonCode: string
+  // The message the writer is shown.
+  reasonText: string
+  // `site` or `discussion`.
+  scope: string
+  startsAt: string
+  userId: string
+}
+
+export interface RestrictionView {
+  createdAt: string
+  createdBy: string
+  endedNotifiedAt?: string | null
+  // Absent for a permanent restriction.
+  endsAt?: string | null
+  id: string
+  internalNote?: string | null
+  // `warning`, `ban`, `suspend` or `read_only`.
+  kind: string
+  liftReason?: string | null
+  liftedAt?: string | null
+  liftedBy?: string | null
+  // JSON array of the queue items that prompted it.
+  linkedItems?: string | null
+  // A section of the community guidelines.
+  reasonCode: string
+  // The message the writer is shown.
+  reasonText: string
+  // `site` or `discussion`.
+  scope: string
+  startsAt: string
+  userId: string
+  appeal?: Appeal | null
+  createdByName?: string | null
+  inForce: boolean
+}
+
 export interface ReviewAnswer {
   body?: string | null
   // Empty for a work-scoped question.
   chapterId: string
   createdAt: string
   id: string
+  moderationState: string
   questionId: string
   rating?: number | null
   updatedAt: string
@@ -1458,6 +1986,7 @@ export interface ReviewQuestion {
   createdAt: string
   id: string
   kind: string
+  moderationState: string
   position: number
   prompt: string
   publicationId: string
@@ -1641,6 +2170,14 @@ export interface SessionResponse {
   user: User
 }
 
+export interface SessionRow {
+  createdAt: string
+  id: string
+  ip?: string | null
+  lastSeenAt: string
+  userAgent?: string | null
+}
+
 export interface SessionView {
   createdAt: string
   id: string
@@ -1652,6 +2189,12 @@ export interface SessionView {
   userId: string
   // The session this request came from.
   current: boolean
+}
+
+export interface SetupRequest {
+  acceptTerms?: boolean
+  password: string
+  token: string
 }
 
 export type Severity = 'error' | 'warning' | 'info'
@@ -1713,6 +2256,13 @@ export interface SplitSceneResponse {
   // The new scene, holding the rest.
   second: Scene
 }
+
+export interface StaffResetRequest {
+  // Also sign out every device now.
+  signOut?: boolean
+}
+
+export type StaffRole = 'moderator' | 'admin'
 
 // Why a change could not be applied, for a client that has to explain it.
 export interface StaleChange {
@@ -1850,10 +2400,48 @@ export interface TemplateView {
   structure: TemplateStructure
 }
 
+export interface TermPatch {
+  action?: string | null
+  appliesTo?: string[] | null
+  matchKind?: string | null
+  note?: string | null
+  term?: string | null
+}
+
+export interface TermRequest {
+  // `block`, `hold`, `flag` or `mask`.
+  action: string
+  // Where it applies. Never private writing.
+  appliesTo: string[]
+  // `word` (default) or `substring`.
+  matchKind?: string | null
+  note?: string | null
+  term: string
+}
+
 export interface Terms {
   // Markdown.
   text: string
   version: number
+}
+
+export interface TestMatch {
+  action: string
+  note: string
+  term: string
+}
+
+export interface TestRequest {
+  // A surface, to see what would happen there. Default `comment`.
+  surface?: string | null
+  text: string
+}
+
+export interface TestResult {
+  // What would happen: `block`, `hold`, `flag`, `mask`, or none.
+  action?: string | null
+  masked?: string | null
+  matches: TestMatch[]
 }
 
 export interface TextChange {
@@ -1872,6 +2460,15 @@ export interface ThesaurusEntry {
   senses: Sense[]
   // The word as asked for.
   word: string
+}
+
+// The numbers `auto_flag_accounts` compares against.
+export interface Thresholds {
+  commentsFirstHour: number
+  removalDays: number
+  removals: number
+  reporterDays: number
+  reporters: number
 }
 
 export interface ToWorkPreview {
@@ -2119,6 +2716,9 @@ export interface User {
   // A site administrator: curates the daily prompts. Set from the command
   // line only; no request body can change it.
   isAdmin: boolean
+  // A site moderator: works the queue and sets short restrictions. Granted
+  // from the admin dashboard, never from a request body of the account's own.
+  isModerator: boolean
   // Contact details for a submission's first page. Kept on the writer rather
   // than the work, since they are the same for every submission.
   legalName?: string | null
@@ -2137,6 +2737,43 @@ export interface User {
   updatedAt: string
   // The writer's weekly target in words, when they have set one.
   weeklyWordGoal?: number | null
+}
+
+export interface UserDetail {
+  // What the viewer may do here, so the page shows only those buttons.
+  actions: string[]
+  activity: Activity
+  audit: AuditRow[]
+  // The suggested next step on the escalation ladder.
+  ladder: string[]
+  notes: NoteView[]
+  reportsAbout: ReportAbout[]
+  reportsBy: ReportBy[]
+  restrictions: RestrictionView[]
+  // Administrators only.
+  sessions?: SessionRow[] | null
+  summary: AccountSummary
+}
+
+export interface UserList {
+  nextCursor?: string | null
+  users: UserRow[]
+}
+
+export interface UserRow {
+  createdAt: string
+  displayName: string
+  // Administrators only.
+  email?: string | null
+  emailVerified: boolean
+  id: string
+  lastSeenAt?: string | null
+  openReports: number
+  role?: StaffRole | null
+  status: string
+  // When the restriction behind the status ends. Absent when permanent.
+  statusEnds?: string | null
+  twoFactor: boolean
 }
 
 export interface Version {
@@ -2267,6 +2904,28 @@ export interface WindowSummary {
   writeMs: Percentiles
   // Requests that changed something.
   writeRequestsPerSecond: number
+}
+
+export interface WordFilterTerm {
+  // `block`, `hold`, `flag` or `mask`.
+  action: string
+  // JSON array of surfaces.
+  appliesTo: string
+  createdAt: string
+  createdBy: string
+  id: string
+  // `word` or `substring`.
+  matchKind: string
+  normalized: string
+  note: string
+  term: string
+  updatedAt: string
+}
+
+export interface WordList {
+  allow: string[]
+  surfaces: string[]
+  terms: WordFilterTerm[]
 }
 
 export interface Work {

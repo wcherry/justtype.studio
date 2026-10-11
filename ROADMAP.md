@@ -877,7 +877,65 @@ its row rather than a file; on the web, writing an answer is its own page
 built from the editor's parts (the same extensions, goals bar, writing room
 and type settings) rather than a mode of the book editor, and `--` typed at
 the start of a line stays `--` there instead of becoming an em dash. Still to
-come, as planned: moderation, blocking, live inbox notices, and push.
+come, as planned: blocking, live inbox notices, and push. (Site moderation
+is Phase 10.)
+
+## Phase 10 — Site administration and moderation
+
+The people who run the site get tools for it, in the **Admin** area of the web
+app, without a database shell: find an account and fix what is wrong with it,
+restrict someone who is causing harm, and deal with what readers report or the
+filters catch. Tracked by the epic *Site administration: managing accounts,
+restrictions and moderation*. Private writing is never moderated: only what
+other people can see is.
+
+### 10.1 Groundwork · **Done**
+- A second staff role, **moderator**, beside admin, with one permission table
+  (`auth::StaffRole::allows`). Moderators don't see addresses or other personal
+  details. `/admin` is a dashboard with a side menu; the list of accounts is
+  searchable and filterable, and an account's page shows its status, activity
+  counts, sessions, reports, restrictions, notes and log.
+
+### 10.2 Managing accounts · **Done**
+- Staff create an account (the person sets their own password from a mailed
+  link), edit its name, bio, address, verification and second factor, send a
+  password reset, sign every device out, deactivate it, delete it, or remove
+  all its public posts. Staff never see or set a password or a token.
+
+### 10.3 Restrictions · **Done**
+- Ban, suspend or read-only, for 3, 7 or 30 days or permanently, across the
+  site or only in discussions. One middleware over a table of every write
+  route enforces them (`domain::restrictions::GATES`); a test fails when a new
+  route is missing from it. The writer is told by email and in the inbox, and
+  can appeal once. A permanent ban list keeps the address forever. Read-only
+  on the whole site and a permanent ban end 30 days later in the account being
+  deleted, with a co-written book passing to its earliest collaborator.
+
+### 10.4 Moderation · **Done**
+- Reports on everything public, reaching staff as well as the author. One
+  queue of flagged content and accounts from reports, the word filter, the
+  external platform and thresholds. A word filter (block, hold, flag, mask)
+  with normalization against evasions. An append-only moderation log.
+
+### 10.5 External moderation · **Done, against a stub** (a vendor account is needed to go live)
+- A hosted platform behind a `ModerationProvider` trait: checks of public text
+  with a one-second timeout and a retry backlog, an opaque author reference,
+  signed webhooks applied by the same code as staff decisions, and our
+  decisions reported back. Turning it on in production needs the platform's
+  account, its API key and webhook secret, and a signed data processing
+  agreement.
+
+### 10.6 iOS · **Not started**
+- The app shows the generic message for a refusal today. See the follow-up
+  ticket; the new schema types are already generated into `Schemas.swift`.
+
+Built as described, with these choices worth knowing: restrictions are checked
+against `clock::now()` so none needs a job to end (a job only sends the notice);
+a held, removed or hidden-author post is filtered in each public read rather than
+by a view; `moderation_state` is separate from the author's own delete; staff
+audit lines carry the account they were about and the reason, in two new
+columns of `audit_events`; and a closing read-only restriction has no end date
+of its own, because the account is deleted at `purge_at` instead.
 
 ---
 

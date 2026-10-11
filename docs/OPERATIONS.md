@@ -192,6 +192,12 @@ missed while the server was down happens on the first tick back.
 | `prepare_prompt` | from noon Pacific | gives tomorrow its prompt (pinned, queued, or the model's), so admins can see and change it; a model failure is retried after 5 minutes |
 | `build_digests` | from midnight Pacific | yesterday's inbox summary for each writer with activity |
 | prompt emails | every tick | queues today's prompt for each writer whose chosen time has come, once per day |
+| `expire_restrictions` | every tick | sends *your restriction has ended* once (nothing needs to run for it to stop applying) |
+| `apply_external_events` | every tick | applies stored webhook events from the moderation platform |
+| `external_checks` | every tick | retries public posts the platform missed, with back-off, and tells it what staff decided |
+| `auto_flag_accounts` | every tick | flags accounts that cross a report / removal / burst threshold |
+| `closing_reminders` | every tick | 7-day and 1-day reminders to read-only accounts that will be deleted |
+| `purge_accounts` | daily | deletes closed accounts whose 30 days are up, unless lifted or an appeal is open; co-written books pass to the earliest collaborator |
 | mail delivery | every tick | sends `mail_queue`, retrying with backoff (1 minute, doubling, at most an hour) until the message's day is over |
 
 Settings:
@@ -216,6 +222,21 @@ cargo xtask admin revoke ada@example.com
 
 Run against the same environment (or `.env`) as the server. Both are recorded
 in the audit log. No request body can change who is an admin.
+
+## Moderation
+
+Staff work in `/admin` (see `docs/API.md`). Moderators are made by an admin on
+an account's page. The external moderation platform is off until an admin picks
+one on `/admin/external`; its API key and webhook secret are stored encrypted
+under a key derived from `JUSTTYPE_JWT_SECRET`, so **changing that secret
+makes the stored keys unreadable** and they have to be entered again. Point the
+platform's webhook at `…/api/webhooks/moderation/<provider>`. Before turning it
+on in production: a signed data processing agreement, and the terms version
+(bumped to 4 for this feature).
+
+The Jobs page shows the platform's backlog (posts waiting for it to come back)
+and any events it stored but could not apply. Emailed exports for banned
+accounts live in `<data dir>/emailed-exports/` for 7 days.
 
 ## Not built here
 

@@ -13,6 +13,7 @@ import { MAX_MARK_QUOTE } from '../editor/annotations'
 import type { AnnotationSpec } from '../editor/annotations'
 import { useAnnotations } from '../editor/useAnnotations'
 import { QuestionCard } from '../components/QuestionCard'
+import { ReportButton } from '../components/ReportButton'
 import { ReaderScene } from '../components/ReaderScene'
 import type { Selection } from '../components/ReaderScene'
 import type { AnchorSpec } from '../editor/commentAnchors'
@@ -260,6 +261,7 @@ export function ReviewPage() {
             {card.wordCount.toLocaleString()} words
             <span className={`badge badge--${card.visibility}`}>{card.visibility}</span>
             {readers > 1 && <span className="reader__live">{readers} reading now</span>}
+            {user && card.author.id !== user.id && <ReportButton subjectType="publication" subjectId={card.id} />}
           </p>
           {user && myMarks.list.length > 0 && (
             <button

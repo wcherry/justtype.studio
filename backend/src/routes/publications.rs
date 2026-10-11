@@ -17,6 +17,8 @@ use crate::domain::enums::{
     ActivityKind, AuditAction, FeedSort, Genre, LengthBand, PublicationScope, Visibility,
     WindowFilter, WorkKind,
 };
+use crate::domain::filter::Surface;
+use crate::domain::moderation;
 use crate::domain::{new_id, now_iso};
 use crate::error::{ApiError, ApiResult, ErrorEnvelope};
 use crate::state::AppState;
@@ -135,6 +137,16 @@ pub async fn create(
         ));
     }
 
+    // The title, the blurb and the reader's prompt become public here, so they
+    // are screened here; the manuscript itself never is.
+    let screen = screen_publication(
+        &state,
+        &user,
+        Some(&version_id),
+        None,
+        body.review_prompt.as_deref(),
+    )
+    .await?;
     let card = blocking(&state.pool, move |conn| {
         let (version, work) = support::version_for_owner(conn, &version_id, &user)?;
         if version.state == "draft" {
@@ -165,6 +177,8 @@ pub async fn create(
         diesel::insert_into(publications::table)
             .values(&row)
             .execute(conn)?;
+        let provider = moderation::provider_name(conn)?;
+        moderation::record(conn, &screen, "publication", &row.id, &user.id, &provider)?;
         super::audit::record(
             conn,
             Some(&user.id),
@@ -186,6 +200,71 @@ pub async fn create(
     let mut card = card;
     attach_excerpt(&state, &mut card).await;
     Ok(Json(card))
+}
+
+/// Screens what a publication makes public: the work's title and blurb, and
+/// the prompt for readers. Refused if any of it is blocked; a hold on a
+/// publication is a flag, because it is already offered.
+async fn screen_publication(
+    state: &AppState,
+    user: &AuthUser,
+    version_id: Option<&str>,
+    publication_id: Option<&str>,
+    prompt: Option<&str>,
+) -> ApiResult<moderation::Screen> {
+    let (version_id, publication_id) = (
+        version_id.map(str::to_string),
+        publication_id.map(str::to_string),
+    );
+    let uid = user.id.clone();
+    let (title, blurb) = blocking(&state.pool, move |conn| {
+        let work: Work = match (&version_id, &publication_id) {
+            (Some(v), _) => {
+                let version: Version = versions::table
+                    .find(v)
+                    .select(Version::as_select())
+                    .first(conn)
+                    .optional()?
+                    .ok_or_else(|| ApiError::NotFound("version not found".into()))?;
+                works::table
+                    .find(&version.work_id)
+                    .select(Work::as_select())
+                    .first(conn)?
+            }
+            (_, Some(p)) => {
+                let publication: Publication = publications::table
+                    .find(p)
+                    .select(Publication::as_select())
+                    .first(conn)
+                    .optional()?
+                    .ok_or_else(|| ApiError::NotFound("publication not found".into()))?;
+                works::table
+                    .find(&publication.work_id)
+                    .select(Work::as_select())
+                    .first(conn)?
+            }
+            _ => return Ok((String::new(), String::new())),
+        };
+        // Someone else's work isn't ours to read for them; the handler's own
+        // owner check refuses it right after.
+        if work.owner_id != uid {
+            return Ok((String::new(), String::new()));
+        }
+        Ok((work.title, work.synopsis.unwrap_or_default()))
+    })
+    .await?;
+    let mut merged = moderation::Screen::default();
+    for (surface, text) in [
+        (Surface::PublicationTitle, title.as_str()),
+        (Surface::Blurb, blurb.as_str()),
+        (Surface::Blurb, prompt.unwrap_or("")),
+    ] {
+        if !text.trim().is_empty() {
+            merged = merged.merge(moderation::screen(state, surface, &user.id, text).await?);
+        }
+    }
+    merged.hold = false;
+    Ok(merged)
 }
 
 fn load_card(conn: &mut crate::db::Conn, publication_id: &str) -> ApiResult<PublicationCard> {
@@ -467,6 +546,10 @@ pub async fn feed_cards(
             }
             (None, _) => q = q.filter(publications::visibility.eq("public")),
         }
+        // Accounts that are deactivated or permanently banned are not on the
+        // site: nothing of theirs is in anyone's feed.
+        let hidden = crate::domain::restrictions::hidden_users(conn)?;
+        q = q.filter(works::owner_id.ne_all(hidden));
         if let Some(kind) = &query.kind {
             q = q.filter(works::kind.eq(kind.clone()));
         }
@@ -754,9 +837,34 @@ pub async fn update(
             )));
         }
     }
+    let screen = if body.review_prompt.is_some() {
+        Some(
+            screen_publication(
+                &state,
+                &user,
+                None,
+                Some(&publication_id),
+                body.review_prompt.as_deref(),
+            )
+            .await?,
+        )
+    } else {
+        None
+    };
     let card = blocking(&state.pool, move |conn| {
         let (_, work) = support::publication_for_owner(conn, &publication_id, &user)?;
         let now = now_iso();
+        if let Some(screen) = &screen {
+            let provider = moderation::provider_name(conn)?;
+            moderation::record(
+                conn,
+                screen,
+                "publication",
+                &publication_id,
+                &user.id,
+                &provider,
+            )?;
+        }
         // What changed, in words, for the record: visibility and dates decide
         // who can read a manuscript, which is what an audit is for.
         let mut changed: Vec<String> = Vec::new();

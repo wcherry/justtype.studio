@@ -14,6 +14,8 @@ use crate::auth::{AuthUser, MaybeAuthUser};
 use crate::db::blocking;
 use crate::db::models::*;
 use crate::db::schema::{comments, follows, publications, users, works};
+use crate::domain::filter::Surface;
+use crate::domain::moderation;
 use crate::domain::{new_id, now_iso};
 use crate::error::{ApiError, ApiResult, ErrorEnvelope};
 use crate::state::AppState;
@@ -101,6 +103,12 @@ pub async fn profile(
         let user_id = user_id.clone();
         move |conn| {
             let user = support::find_user(conn, &user_id)?;
+            // A deactivated or permanently banned account is not on the site.
+            if viewer_id.as_deref() != Some(user.id.as_str())
+                && crate::domain::restrictions::hidden_users(conn)?.contains(&user.id)
+            {
+                return Err(ApiError::NotFound("user not found".into()));
+            }
             let followers = followers(conn, &user.id)?;
             let following: i64 = follows::table
                 .filter(follows::follower_id.eq(&user.id))
@@ -284,6 +292,25 @@ pub async fn update_profile(
         )));
     }
 
+    // Public text on a profile is screened like anything else public. A
+    // profile can't be held back (it is already there), so a hold is a flag.
+    let mut display_name = display_name;
+    let mut bio = bio;
+    let mut about_author = about_author;
+    let mut merged = moderation::Screen::default();
+    for (surface, field) in [
+        (Surface::DisplayName, &mut display_name),
+        (Surface::Bio, &mut bio),
+        (Surface::AboutAuthor, &mut about_author),
+    ] {
+        if let Some(text) = field.as_deref().filter(|t| !t.is_empty()) {
+            let screen = moderation::screen(&state, surface, &user.id, text).await?;
+            *field = Some(screen.text.clone());
+            merged = merged.merge(screen);
+        }
+    }
+    merged.hold = false;
+
     let updated = blocking(&state.pool, move |conn| {
         let now = now_iso();
         if let Some(about) = &about_author {
@@ -304,6 +331,8 @@ pub async fn update_profile(
         diesel::update(users::table.find(&user.id))
             .set(users::updated_at.eq(&now))
             .execute(conn)?;
+        let provider = moderation::provider_name(conn)?;
+        moderation::record(conn, &merged, "profile", &user.id, &user.id, &provider)?;
         support::find_user(conn, &user.id)
     })
     .await?;
@@ -405,8 +434,13 @@ pub async fn following(
             .order(follows::created_at.desc())
             .select(follows::followee_id)
             .load(conn)?;
+        let hidden = crate::domain::restrictions::hidden_users(conn)?;
         let mut cards = support::author_cards(conn, &ids)?;
-        Ok(ids.iter().filter_map(|id| cards.remove(id)).collect())
+        Ok(ids
+            .iter()
+            .filter(|id| !hidden.contains(id))
+            .filter_map(|id| cards.remove(id))
+            .collect())
     })
     .await?;
     Ok(Json(cards))

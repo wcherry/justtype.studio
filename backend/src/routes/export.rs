@@ -635,9 +635,13 @@ pub async fn export_feedback(
                 .first(conn)?;
             let detail = versions::load_detail(conn, &publication.version_id)?;
 
+            // What moderation has hidden is not in anyone's export of a thread.
+            let hidden = crate::domain::restrictions::hidden_users(conn)?;
             let rows: Vec<crate::db::models::Comment> = comments::table
                 .filter(comments::publication_id.eq(&publication.id))
                 .filter(comments::state.ne("deleted"))
+                .filter(comments::moderation_state.eq("visible"))
+                .filter(comments::author_id.ne_all(&hidden))
                 .order(comments::created_at.asc())
                 .select(crate::db::models::Comment::as_select())
                 .load(conn)?;

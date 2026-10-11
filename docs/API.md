@@ -891,6 +891,48 @@ and links to is in `domain/inbox.rs`; adding a kind is a registry entry.
 | `POST` | `/admin/prompts/reorder` | `{ ids }`, every queued id |
 | `GET` | `/admin/jobs` | the job runner's health, recent runs and the mail queue |
 
-Every `/admin/*` route is 403 for anyone who is not a site administrator.
-Admins are made with `cargo xtask admin grant <email>` (and `revoke`), never
-through the API.
+Every `/admin/*` route is 403 for anyone who is not site staff, and each asks
+for the one permission it needs (`auth::Permission`). Admins are made with
+`cargo xtask admin grant <email>` (and `revoke`), never through the API;
+moderators are made by an admin from the account page.
+
+### Site administration and moderation
+
+Staff routes (`routes/admin_users.rs`, `admin_restrictions.rs`,
+`admin_moderation.rs`). A moderator gets the content half; an admin everything.
+A moderator's responses never carry an address, legal name, phone number, IP or
+session.
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/admin/overview` | the landing page's counts |
+| `GET` / `POST` | `/admin/users` | `GET ?q&status&role&verified&sort&cursor`, 50 a page, keyset-paged; `POST { email, displayName, moderator? }` makes an account and mails a setup link (admins) |
+| `GET` / `PATCH` / `DELETE` | `/admin/users/{id}` | the whole account; `PATCH { displayName?, bio?, aboutAuthor?, email?, markVerified?, resetTwoFactor?, reason }`; `DELETE { confirmName, reason, deleteSharedWorks?, skipExport? }` |
+| `POST` | `/admin/users/{id}/password-reset` `/setup-email` `/sessions/revoke-all` `/deactivate` `/reactivate` `/delete-content` `/notes` `/moderator` | one action each; `DELETE /admin/users/{id}/sessions/{session}` signs one device out |
+| `POST` | `/admin/users/{id}/restrictions` | `{ kind, scope, days?, reasonCode, reasonText, internalNote?, itemIds?, confirmName? }` |
+| `PATCH` / `POST` | `/admin/restrictions/{id}` · `/lift` | change the length or message · lift |
+| `GET` / `POST` | `/admin/appeals` · `/admin/appeals/{id}/decide` | `{ decision: upheld\|overturned, message, restoreContent? }` |
+| `GET` / `POST` | `/admin/permanent-bans` · `/{id}/remove` | the list that outlives accounts; `/admin/blocked-domains` for throwaway domains |
+| `GET` | `/admin/queue` | `?tab=content\|accounts\|held\|done&source&reason&surface&mine` |
+| `POST` | `/admin/queue/{id}/claim` `/dismiss` `/remove` `/restore` `/hold` `/release` | decisions take `{ reason }`; `/admin/queue/dismiss` is the bulk dismiss |
+| `GET` / `POST` / `PATCH` / `DELETE` | `/admin/words` … | the word filter, its allowlist, `/test`, `/import`, `/export`, `/rescan` |
+| `GET` / `PUT` / `POST` | `/admin/external` · `/test` · `/admin/moderation-settings` | the platform's settings (secrets are write-only), thresholds, the ladder |
+| `GET` | `/admin/log` · `/admin/log.csv` | the moderation log, read from `audit_events`; no route changes a line |
+
+Writer-facing:
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/me/restrictions` | where the account stands, with `closing: { purgeAt, daysLeft }` when it will be deleted |
+| `POST` | `/me/restrictions/{id}/appeal` | `{ body }`, once per restriction |
+| `GET` / `POST` | `/ban/appeal/{token}` · `/ban/appeal` | for someone who can't sign in: the link in the ban email |
+| `POST` / `GET` | `/ban/export` · `/ban/export/{token}` | a copy of the work, mailed to a permanently banned account until it is purged |
+| `POST` | `/auth/setup` | `{ token, password, acceptTerms }`: following a staff-made account's link |
+| `POST` | `/reports` | `{ subjectType: entry\|question\|answer\|profile\|publication, subjectId, reason, detail? }`; comments and critiques keep their own routes and also reach staff |
+| `POST` | `/webhooks/moderation/{provider}` | the external platform's events; signed (`x-signature`, HMAC-SHA256 of the body), stored, applied by a job |
+
+Refusals have their own codes, both 403 with `details`:
+`account_banned` (at sign-in and on every request: `until`, `reason`,
+`reasonCode`) and `account_restricted` (`capability`, `until`, `reason`). Posts
+that are held, removed by a moderator, or awaiting review carry
+`moderationState` (`visible`, `held`, `removed`).
