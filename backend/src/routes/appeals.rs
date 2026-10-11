@@ -67,7 +67,7 @@ pub struct Closing {
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct Standing {
+pub struct AccountStanding {
     /// In force now (warnings excepted).
     pub active: Vec<MyRestriction>,
     /// Everything before, newest first, warnings included.
@@ -76,7 +76,7 @@ pub struct Standing {
     pub closing: Option<Closing>,
 }
 
-fn mine(conn: &mut Conn, user_id: &str) -> ApiResult<Standing> {
+fn mine(conn: &mut Conn, user_id: &str) -> ApiResult<AccountStanding> {
     let rows: Vec<Restriction> = restrictions::table
         .filter(restrictions::user_id.eq(user_id))
         .order(restrictions::created_at.desc())
@@ -136,7 +136,7 @@ fn mine(conn: &mut Conn, user_id: &str) -> ApiResult<Standing> {
         })
     });
     let (active, history): (Vec<_>, Vec<_>) = all.into_iter().partition(|r| r.in_force);
-    Ok(Standing {
+    Ok(AccountStanding {
         active,
         history,
         closing,
@@ -148,14 +148,14 @@ fn mine(conn: &mut Conn, user_id: &str) -> ApiResult<Standing> {
     path = "/api/me/restrictions",
     tag = "account",
     responses(
-        (status = 200, description = "Where the account stands", body = Standing),
+        (status = 200, description = "Where the account stands", body = AccountStanding),
         (status = 4XX, description = "Refused", body = ErrorEnvelope),
     )
 )]
 pub async fn my_standing(
     State(state): State<AppState>,
     user: AuthUser,
-) -> ApiResult<Json<Standing>> {
+) -> ApiResult<Json<AccountStanding>> {
     let standing = blocking(&state.pool, move |conn| mine(conn, &user.id)).await?;
     Ok(Json(standing))
 }

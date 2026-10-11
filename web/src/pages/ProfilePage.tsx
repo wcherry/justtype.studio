@@ -3,11 +3,14 @@ import { Link, useParams } from 'react-router-dom'
 import { api } from '../api/client'
 import type { Profile } from '../api/types'
 import { PublicationTile } from '../components/PublicationTile'
+import { ReportButton } from '../components/ReportButton'
 import { useAuth } from '../state/auth'
+import { useStanding } from '../state/standing'
 
 export function ProfilePage() {
   const { userId = '' } = useParams()
   const { user } = useAuth()
+  const { blocked } = useStanding()
   const [profile, setProfile] = useState<Profile | null>(null)
   const [editing, setEditing] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -57,13 +60,18 @@ export function ProfilePage() {
               {editing ? 'Done' : 'Edit profile'}
             </button>
           ) : (
-            <button
-              type="button"
-              className={profile.viewerFollows ? 'is-active' : undefined}
-              onClick={() => void toggleFollow()}
-            >
-              {profile.viewerFollows ? 'Following' : 'Follow'}
-            </button>
+            <>
+              <button
+                type="button"
+                className={profile.viewerFollows ? 'is-active' : undefined}
+                disabled={!!blocked('follow')}
+                title={blocked('follow') ?? undefined}
+                onClick={() => void toggleFollow()}
+              >
+                {profile.viewerFollows ? 'Following' : 'Follow'}
+              </button>
+              <ReportButton subjectType="profile" subjectId={profile.id} />
+            </>
           )}
         </div>
       </header>

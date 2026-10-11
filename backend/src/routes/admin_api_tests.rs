@@ -126,71 +126,186 @@ fn guideline(extra: Value) -> Value {
 
 // --- staff roles ---------------------------------------------------------------
 
+/// Every `/api/admin/*` route and whether a moderator is let in. A route that
+/// is not here fails `every_admin_route_is_in_the_role_table`.
+const ROLE_TABLE: &[(&str, &str, bool)] = &[
+    ("get", "/api/admin/overview", true),
+    ("get", "/api/admin/users", true),
+    ("post", "/api/admin/users", false),
+    ("get", "/api/admin/users/{user_id}", true),
+    ("patch", "/api/admin/users/{user_id}", true), // text fixes only; the rest is checked in the handler
+    ("delete", "/api/admin/users/{user_id}", false),
+    ("post", "/api/admin/users/{user_id}/notes", true),
+    ("post", "/api/admin/users/{user_id}/moderator", false),
+    ("post", "/api/admin/users/{user_id}/setup-email", false),
+    ("post", "/api/admin/users/{user_id}/password-reset", false),
+    (
+        "post",
+        "/api/admin/users/{user_id}/sessions/revoke-all",
+        false,
+    ),
+    (
+        "delete",
+        "/api/admin/users/{user_id}/sessions/{session_id}",
+        false,
+    ),
+    ("post", "/api/admin/users/{user_id}/deactivate", false),
+    ("post", "/api/admin/users/{user_id}/reactivate", false),
+    ("post", "/api/admin/users/{user_id}/delete-content", false),
+    ("post", "/api/admin/users/{user_id}/restrictions", true),
+    ("patch", "/api/admin/restrictions/{restriction_id}", true),
+    (
+        "post",
+        "/api/admin/restrictions/{restriction_id}/lift",
+        true,
+    ),
+    ("get", "/api/admin/appeals", true),
+    ("post", "/api/admin/appeals/{appeal_id}/decide", true),
+    ("get", "/api/admin/permanent-bans", false),
+    ("post", "/api/admin/permanent-bans", false),
+    ("post", "/api/admin/permanent-bans/{ban_id}/remove", false),
+    ("get", "/api/admin/blocked-domains", false),
+    ("post", "/api/admin/blocked-domains", false),
+    ("delete", "/api/admin/blocked-domains/{domain}", false),
+    ("get", "/api/admin/queue", true),
+    ("post", "/api/admin/queue/dismiss", true),
+    ("post", "/api/admin/queue/{item_id}/claim", true),
+    ("post", "/api/admin/queue/{item_id}/dismiss", true),
+    ("post", "/api/admin/queue/{item_id}/remove", true),
+    ("post", "/api/admin/queue/{item_id}/restore", true),
+    ("post", "/api/admin/queue/{item_id}/hold", true),
+    ("post", "/api/admin/queue/{item_id}/release", true),
+    ("get", "/api/admin/words", false),
+    ("post", "/api/admin/words", false),
+    ("patch", "/api/admin/words/{term_id}", false),
+    ("delete", "/api/admin/words/{term_id}", false),
+    ("post", "/api/admin/words/test", false),
+    ("post", "/api/admin/words/import", false),
+    ("get", "/api/admin/words/export", false),
+    ("post", "/api/admin/words/rescan", false),
+    ("post", "/api/admin/words/allow", false),
+    ("delete", "/api/admin/words/allow/{word}", false),
+    ("get", "/api/admin/external", false),
+    ("put", "/api/admin/external", false),
+    ("post", "/api/admin/external/test", false),
+    ("get", "/api/admin/moderation-settings", false),
+    ("put", "/api/admin/moderation-settings", false),
+    ("get", "/api/admin/log", true),
+    ("get", "/api/admin/log.csv", false),
+    // The Daily Prompts pages are the administrators' alone.
+    ("get", "/api/admin/prompts", false),
+    ("post", "/api/admin/prompts", false),
+    ("patch", "/api/admin/prompts/{prompt_id}", false),
+    ("delete", "/api/admin/prompts/{prompt_id}", false),
+    ("post", "/api/admin/prompts/reorder", false),
+    ("get", "/api/admin/jobs", false),
+];
+
+#[test]
+fn every_admin_route_is_in_the_role_table() {
+    let doc = crate::routes::openapi_document();
+    let mut real = std::collections::BTreeSet::new();
+    for (path, item) in &doc.paths.paths {
+        if !path.starts_with("/api/admin/") {
+            continue;
+        }
+        for (method, present) in [
+            ("get", item.get.is_some()),
+            ("post", item.post.is_some()),
+            ("put", item.put.is_some()),
+            ("patch", item.patch.is_some()),
+            ("delete", item.delete.is_some()),
+        ] {
+            if present {
+                real.insert((method.to_string(), path.clone()));
+            }
+        }
+    }
+    let table: std::collections::BTreeSet<(String, String)> = ROLE_TABLE
+        .iter()
+        .map(|(m, p, _)| (m.to_string(), p.to_string()))
+        .collect();
+    assert_eq!(
+        real, table,
+        "the role table and the admin routes have drifted"
+    );
+}
+
 #[tokio::test]
 async fn each_staff_route_answers_to_the_role_table() {
     let s = Server::start().await;
     let writer = s.writer("wren").await;
     let moderator = s.moderator("mo").await;
     let admin = s.admin("ada").await;
-    let target = s.writer("target").await;
-
-    // (method, path, body, what a moderator gets: allowed?)
-    let routes: Vec<(&str, String, Option<Value>, bool)> = vec![
-        ("GET", "/admin/overview".into(), None, true),
-        ("GET", "/admin/users".into(), None, true),
-        ("GET", format!("/admin/users/{}", target.id), None, true),
-        ("GET", "/admin/queue".into(), None, true),
-        ("GET", "/admin/appeals".into(), None, true),
-        ("GET", "/admin/log".into(), None, true),
-        ("GET", "/admin/permanent-bans".into(), None, false),
-        ("GET", "/admin/blocked-domains".into(), None, false),
-        ("GET", "/admin/words".into(), None, false),
-        ("GET", "/admin/external".into(), None, false),
-        ("GET", "/admin/moderation-settings".into(), None, false),
-        ("GET", "/admin/log.csv".into(), None, false),
-        (
-            "POST",
-            "/admin/users".into(),
-            Some(json!({ "email": "new@example.com", "displayName": "New" })),
-            false,
-        ),
-        (
-            "POST",
-            format!("/admin/users/{}/password-reset", target.id),
-            Some(json!({})),
-            false,
-        ),
-        (
-            "POST",
-            format!("/admin/users/{}/moderator", target.id),
-            Some(json!({ "moderator": true, "reason": "x" })),
-            false,
-        ),
-        (
-            "POST",
-            format!("/admin/users/{}/notes", target.id),
-            Some(json!({ "body": "hello" })),
-            true,
-        ),
-    ];
-    for (method, path, body, moderator_allowed) in routes {
+    for (method, path, moderator_allowed) in ROLE_TABLE {
+        let url = path
+            .trim_start_matches("/api")
+            .replace("{user_id}", &writer.id);
+        let url = concrete_path(&url);
         for (who, name, allowed) in [
             (None, "signed out", false),
             (Some(&writer), "a writer", false),
-            (Some(&moderator), "a moderator", moderator_allowed),
+            (Some(&moderator), "a moderator", *moderator_allowed),
             (Some(&admin), "an admin", true),
         ] {
-            let status = s.status(who, method, &path, body.clone()).await;
+            let body = if *method == "get" {
+                None
+            } else if *method == "patch" && *path == "/api/admin/users/{user_id}" {
+                // A mixed route: a moderator may fix text, nothing else.
+                Some(json!({ "displayName": "x", "reason": "r" }))
+            } else {
+                Some(universal_body())
+            };
+            let (status, text) = s.call(who, &method.to_uppercase(), &url, body).await;
             if allowed {
                 assert!(
                     status != 403 && status != 401,
-                    "{name} should be let into {method} {path}, got {status}"
+                    "{name} should be let into {method} {path}, got {status}: {text}"
                 );
             } else {
-                assert_eq!(status, 403, "{name} should be refused {method} {path}");
+                assert_eq!(
+                    status, 403,
+                    "{name} should be refused {method} {path}: {text}"
+                );
             }
         }
     }
+}
+
+/// One JSON body that satisfies every staff route's request type, so that a
+/// refusal in the table is the permission check and not a malformed body.
+fn universal_body() -> Value {
+    json!({
+        "email": "someone@example.com", "displayName": "x", "reason": "r", "moderator": true,
+        "body": "x", "term": "x", "action": "flag", "appliesTo": ["comment"], "word": "x",
+        "domain": "x.example", "reasonCode": "1", "reasonText": "x", "kind": "warning",
+        "scope": "site", "text": "x", "csv": "", "provider": "none", "surfaces": [],
+        "confirmName": "x", "decision": "upheld", "message": "x", "ids": [], "itemIds": [],
+        "source": "x", "signOut": false,
+        "thresholds": {
+            "reporters": 3, "reporterDays": 7, "removals": 2, "removalDays": 30,
+            "commentsFirstHour": 5
+        },
+        "ladder": ["warning"],
+    })
+}
+
+/// `{param}` segments become `x`.
+fn concrete_path(path: &str) -> String {
+    let mut out = String::new();
+    let mut inside = false;
+    for c in path.chars() {
+        match c {
+            '{' => {
+                inside = true;
+                out.push('x');
+            }
+            '}' => inside = false,
+            c if !inside => out.push(c),
+            _ => {}
+        }
+    }
+    out
 }
 
 #[tokio::test]
@@ -238,6 +353,27 @@ async fn staff_cannot_act_on_themselves_or_each_other() {
             403
         );
     }
+    // Nor edit or delete themselves.
+    assert_eq!(
+        s.status(
+            Some(&admin),
+            "PATCH",
+            &format!("/admin/users/{}", admin.id),
+            Some(json!({ "displayName": "Me", "reason": "x" }))
+        )
+        .await,
+        403
+    );
+    assert_eq!(
+        s.status(
+            Some(&admin),
+            "DELETE",
+            &format!("/admin/users/{}", admin.id),
+            Some(json!({ "confirmName": "ada", "reason": "x" }))
+        )
+        .await,
+        403
+    );
     // Not another admin; and a moderator can't touch a moderator.
     assert_eq!(
         s.status(

@@ -14,6 +14,201 @@
         ],
         "type": "object"
       },
+      "AccountStanding": {
+        "properties": {
+          "active": {
+            "description": "In force now (warnings excepted).",
+            "items": {
+              "$ref": "#/components/schemas/MyRestriction"
+            },
+            "type": "array"
+          },
+          "closing": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Closing",
+                "description": "Present when the account is counting down to deletion."
+              }
+            ]
+          },
+          "history": {
+            "description": "Everything before, newest first, warnings included.",
+            "items": {
+              "$ref": "#/components/schemas/MyRestriction"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "active",
+          "history"
+        ],
+        "type": "object"
+      },
+      "AccountSummary": {
+        "properties": {
+          "aboutAuthor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "bio": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "closingAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "deactivatedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "email": {
+            "description": "Administrators only, as are the next four.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "emailVerified": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "lastSeenAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "legalName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "mailingAddress": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "phone": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "purgeAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "role": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/StaffRole"
+              }
+            ]
+          },
+          "setupPending": {
+            "description": "Made by staff and not yet set up by the person (administrators only).",
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "statusEnds": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "termsVersion": {
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "twoFactor": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "displayName",
+          "createdAt",
+          "twoFactor",
+          "status"
+        ],
+        "type": "object"
+      },
+      "Activity": {
+        "properties": {
+          "comments": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "critiques": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "invitesSent": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "publications": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "submissions": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "works": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "works",
+          "publications",
+          "comments",
+          "critiques",
+          "submissions",
+          "invitesSent"
+        ],
+        "type": "object"
+      },
       "ActivityKind": {
         "enum": [
           "scene_edited",
@@ -52,6 +247,33 @@
             "type": "object"
           }
         ]
+      },
+      "AddBanRequest": {
+        "properties": {
+          "displayName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "email": {
+            "type": "string"
+          },
+          "reasonCode": {
+            "type": "string"
+          },
+          "reasonText": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "email",
+          "reasonCode"
+        ],
+        "type": "object"
       },
       "AddCollaboratorRequest": {
         "properties": {
@@ -167,6 +389,17 @@
           "justify"
         ],
         "type": "string"
+      },
+      "AllowRequest": {
+        "properties": {
+          "word": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "word"
+        ],
+        "type": "object"
       },
       "Anchor": {
         "properties": {
@@ -299,6 +532,94 @@
           }
         ]
       },
+      "Appeal": {
+        "properties": {
+          "body": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "decidedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "decidedBy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "decisionText": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "restrictionId": {
+            "type": "string"
+          },
+          "state": {
+            "description": "`open`, `upheld` or `overturned`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "restrictionId",
+          "body",
+          "state",
+          "createdAt"
+        ],
+        "type": "object"
+      },
+      "AppealRequest": {
+        "properties": {
+          "body": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "body"
+        ],
+        "type": "object"
+      },
+      "AppealRow": {
+        "properties": {
+          "appeal": {
+            "$ref": "#/components/schemas/Appeal"
+          },
+          "daysLeft": {
+            "description": "Days until the account is deleted, for an appeal on a closing\nrestriction. The purge waits for the decision.",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "restriction": {
+            "$ref": "#/components/schemas/Restriction"
+          },
+          "userId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "appeal",
+          "restriction",
+          "userId",
+          "displayName"
+        ],
+        "type": "object"
+      },
       "ArchivePage": {
         "properties": {
           "nextBefore": {
@@ -406,7 +727,33 @@
           "assistant_withdrawn",
           "admin_granted",
           "admin_revoked",
-          "prompt_edited"
+          "prompt_edited",
+          "account_created_by_staff",
+          "account_edited",
+          "password_reset_sent",
+          "sessions_revoked_by_staff",
+          "account_deactivated",
+          "account_reactivated",
+          "account_deleted_by_staff",
+          "moderator_granted",
+          "moderator_revoked",
+          "restriction_added",
+          "restriction_changed",
+          "restriction_lifted",
+          "appeal_decided",
+          "permanent_ban_listed",
+          "permanent_ban_removed",
+          "account_purged",
+          "content_removed",
+          "content_restored",
+          "content_held",
+          "report_dismissed",
+          "word_filter_changed",
+          "external_moderation_changed",
+          "staff_note_added",
+          "blocked_domain_changed",
+          "account_content_removed",
+          "work_handed_over"
         ],
         "type": "string"
       },
@@ -446,6 +793,45 @@
         ],
         "type": "object"
       },
+      "AuditRow": {
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "actor": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AuthorCard"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "action",
+          "detail",
+          "createdAt"
+        ],
+        "type": "object"
+      },
       "AuthorCard": {
         "description": "Author cards attached to comments so the clients need no second round trip.",
         "properties": {
@@ -459,6 +845,17 @@
         "required": [
           "id",
           "displayName"
+        ],
+        "type": "object"
+      },
+      "BanExportRequest": {
+        "properties": {
+          "email": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "email"
         ],
         "type": "object"
       },
@@ -584,6 +981,29 @@
           }
         ]
       },
+      "BlockedDomain": {
+        "properties": {
+          "createdAt": {
+            "type": "string"
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "domain": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "domain",
+          "note",
+          "createdBy",
+          "createdAt"
+        ],
+        "type": "object"
+      },
       "BlockedReader": {
         "properties": {
           "createdAt": {
@@ -604,6 +1024,31 @@
           "ownerId",
           "userId",
           "createdAt"
+        ],
+        "type": "object"
+      },
+      "BulkDismiss": {
+        "properties": {
+          "itemIds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source": {
+            "description": "The one source they all share: bulk dismissal is for a flood from the\nsame place, not for sweeping the queue.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "itemIds",
+          "source"
         ],
         "type": "object"
       },
@@ -751,6 +1196,32 @@
         ],
         "type": "object"
       },
+      "ChangeRequest": {
+        "properties": {
+          "days": {
+            "description": "The new length in days (3, 7 or 30), or `null` for permanent. Left out,\nthe length stays.",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "reason": {
+            "description": "Why it is being changed.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reasonText": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
       "ChangeState": {
         "enum": [
           "pending",
@@ -871,6 +1342,32 @@
           }
         ]
       },
+      "Closing": {
+        "properties": {
+          "appealOpen": {
+            "description": "Waiting on an appeal: the deletion happens only once it is decided.",
+            "type": "boolean"
+          },
+          "daysLeft": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "kind": {
+            "description": "`read_only` or `ban`.",
+            "type": "string"
+          },
+          "purgeAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "purgeAt",
+          "daysLeft",
+          "appealOpen"
+        ],
+        "type": "object"
+      },
       "CodeRequest": {
         "properties": {
           "code": {
@@ -973,6 +1470,10 @@
           "id": {
             "type": "string"
           },
+          "moderationState": {
+            "description": "`visible`, `held` or `removed`: what site moderation has done with it,\napart from the author's own delete.",
+            "type": "string"
+          },
           "parentId": {
             "type": [
               "string",
@@ -1012,7 +1513,8 @@
           "state",
           "score",
           "createdAt",
-          "updatedAt"
+          "updatedAt",
+          "moderationState"
         ],
         "type": "object"
       },
@@ -1583,6 +2085,24 @@
         ],
         "type": "object"
       },
+      "CreateUserRequest": {
+        "properties": {
+          "displayName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "moderator": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "email",
+          "displayName"
+        ],
+        "type": "object"
+      },
       "CreateVersionRequest": {
         "properties": {
           "label": {
@@ -1659,6 +2179,25 @@
         "required": [
           "title",
           "kind"
+        ],
+        "type": "object"
+      },
+      "Created": {
+        "properties": {
+          "displayName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "displayName",
+          "email"
         ],
         "type": "object"
       },
@@ -1741,6 +2280,13 @@
           "mine": {
             "type": "boolean"
           },
+          "moderated": {
+            "description": "`removed` (by a moderator; shown as a placeholder) or `held` (awaiting\nreview; only its writer and staff see it).",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "parentId": {
             "type": [
               "string",
@@ -1811,6 +2357,40 @@
         ],
         "type": "object"
       },
+      "DecideRequest": {
+        "properties": {
+          "decision": {
+            "description": "`upheld` (the restriction stands) or `overturned`.",
+            "type": "string"
+          },
+          "message": {
+            "description": "What the writer is told.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "restoreContent": {
+            "description": "On `overturned`: bring back what was removed alongside it.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "decision"
+        ],
+        "type": "object"
+      },
+      "DecisionRequest": {
+        "properties": {
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
       "DeleteAccountRequest": {
         "properties": {
           "code": {
@@ -1830,6 +2410,32 @@
         },
         "required": [
           "password"
+        ],
+        "type": "object"
+      },
+      "DeleteUserRequest": {
+        "properties": {
+          "confirmName": {
+            "description": "The account's display name, typed to confirm.",
+            "type": "string"
+          },
+          "deleteSharedWorks": {
+            "description": "Go ahead although other people are working on books this account owns.",
+            "type": "boolean"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "skipExport": {
+            "description": "Don't email the person a copy of their data first. Needs the reason\nabove to say why (a spam account, say).",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "confirmName"
         ],
         "type": "object"
       },
@@ -2046,6 +2652,23 @@
         ],
         "type": "object"
       },
+      "DomainRequest": {
+        "properties": {
+          "domain": {
+            "type": "string"
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "domain"
+        ],
+        "type": "object"
+      },
       "Done": {
         "properties": {
           "ok": {
@@ -2066,6 +2689,54 @@
         "required": [
           "body"
         ],
+        "type": "object"
+      },
+      "EditUserRequest": {
+        "properties": {
+          "aboutAuthor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "bio": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "displayName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "markVerified": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "reason": {
+            "description": "Required for every change.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "resetTwoFactor": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        },
         "type": "object"
       },
       "EnrollmentView": {
@@ -2138,6 +2809,13 @@
           },
           "mine": {
             "type": "boolean"
+          },
+          "moderated": {
+            "description": "`held` (awaiting review) or `removed`, on the writer's own answer.",
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "submittedAt": {
             "type": [
@@ -2239,7 +2917,7 @@
       "ErrorBody": {
         "properties": {
           "code": {
-            "description": "`bad_request`, `unauthorized`, `two_factor_required`, `forbidden`,\n`not_found`, `conflict`, `too_many_requests`, `internal`.",
+            "description": "`bad_request`, `unauthorized`, `two_factor_required`, `forbidden`,\n`account_banned`, `account_restricted`, `not_found`, `conflict`,\n`too_many_requests`, `internal`.",
             "type": "string"
           },
           "details": {
@@ -2395,6 +3073,147 @@
             ]
           }
         },
+        "type": "object"
+      },
+      "ExternalConfig": {
+        "description": "What `/admin/external` saves, in `moderation_settings` under `external`.\nThe two secrets are stored sealed (see `secrets`) and never sent back.",
+        "properties": {
+          "banScope": {
+            "description": "The scope a temporary ban or suspension from the platform is given:\n`discussion` (the default) or `site`.",
+            "type": "string"
+          },
+          "baseUrl": {
+            "type": "string"
+          },
+          "provider": {
+            "description": "`none`, `stream` or `stub`.",
+            "type": "string"
+          },
+          "removeAs": {
+            "description": "What the platform's *remove* does here: `hold` (the default) or `block`.",
+            "type": "string"
+          },
+          "surfaces": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "provider"
+        ],
+        "type": "object"
+      },
+      "ExternalTestResult": {
+        "properties": {
+          "labels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "recommended": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "recommended",
+          "labels"
+        ],
+        "type": "object"
+      },
+      "ExternalUpdate": {
+        "properties": {
+          "apiKey": {
+            "description": "Set only when given; stored encrypted and never shown again.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "banScope": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "baseUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "provider": {
+            "type": "string"
+          },
+          "removeAs": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "surfaces": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "webhookSecret": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "provider"
+        ],
+        "type": "object"
+      },
+      "ExternalView": {
+        "properties": {
+          "apiKeySet": {
+            "description": "The secrets are never sent back; only whether they are set.",
+            "type": "boolean"
+          },
+          "backlog": {
+            "description": "Checks waiting for the platform to come back.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "config": {
+            "$ref": "#/components/schemas/ExternalConfig"
+          },
+          "providers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "surfaces": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "webhookSecretSet": {
+            "type": "boolean"
+          },
+          "webhookUrl": {
+            "description": "Where the platform should send its webhooks.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "config",
+          "apiKeySet",
+          "webhookSecretSet",
+          "providers",
+          "surfaces",
+          "backlog",
+          "webhookUrl"
+        ],
         "type": "object"
       },
       "Features": {
@@ -2618,6 +3437,18 @@
         "required": [
           "name",
           "options"
+        ],
+        "type": "object"
+      },
+      "ImportRequest": {
+        "properties": {
+          "csv": {
+            "description": "`term,match,action,applies_to,note` — `applies_to` separated by `;`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "csv"
         ],
         "type": "object"
       },
@@ -2845,6 +3676,18 @@
       },
       "JobsReport": {
         "properties": {
+          "externalBacklog": {
+            "description": "Public posts waiting for the moderation platform to come back.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "externalUnapplied": {
+            "description": "Events from the platform that were stored and not applied.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "health": {
             "$ref": "#/components/schemas/JobHealth"
           },
@@ -2868,7 +3711,9 @@
           "health",
           "runs",
           "mailWaiting",
-          "mailFailed"
+          "mailFailed",
+          "externalBacklog",
+          "externalUnapplied"
         ],
         "type": "object"
       },
@@ -2945,6 +3790,17 @@
         ],
         "type": "string"
       },
+      "LiftRequest": {
+        "properties": {
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
       "LineSpacing": {
         "enum": [
           "single",
@@ -2953,6 +3809,21 @@
           "double"
         ],
         "type": "string"
+      },
+      "LinkAppealRequest": {
+        "properties": {
+          "body": {
+            "type": "string"
+          },
+          "token": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "token",
+          "body"
+        ],
+        "type": "object"
       },
       "LinkRequest": {
         "properties": {
@@ -2991,6 +3862,81 @@
         },
         "required": [
           "chapterId"
+        ],
+        "type": "object"
+      },
+      "LogLine": {
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "actor": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AuthorCard",
+                "description": "A staff member, or `external:<provider>:<moderator>`."
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "origin": {
+            "description": "`scheduled deletion` for a purge; `external` for the platform.",
+            "type": "string"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "subject": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AuthorCard"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "action",
+          "detail",
+          "createdAt",
+          "origin"
+        ],
+        "type": "object"
+      },
+      "LogPage": {
+        "properties": {
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/LogLine"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "lines"
         ],
         "type": "object"
       },
@@ -3208,6 +4154,218 @@
         ],
         "type": "object"
       },
+      "ModerationItem": {
+        "properties": {
+          "claimedBy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "claimedUntil": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "decidedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "decidedBy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "decision": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "firstFlaggedAt": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "labels": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lastFlaggedAt": {
+            "type": "string"
+          },
+          "reportCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "severity": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "sources": {
+            "description": "JSON array: `report`, `word_filter`, `external`, `threshold`.",
+            "type": "string"
+          },
+          "state": {
+            "description": "`open`, `held`, `actioned` or `dismissed`.",
+            "type": "string"
+          },
+          "subjectAuthorId": {
+            "type": "string"
+          },
+          "subjectId": {
+            "type": "string"
+          },
+          "subjectType": {
+            "type": "string"
+          },
+          "topReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "subjectType",
+          "subjectId",
+          "subjectAuthorId",
+          "state",
+          "sources",
+          "reportCount",
+          "severity",
+          "firstFlaggedAt",
+          "lastFlaggedAt"
+        ],
+        "type": "object"
+      },
+      "ModerationSettings": {
+        "properties": {
+          "ladder": {
+            "description": "`warning`, `kind:scope:days` or `kind:scope:permanent`.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "thresholds": {
+            "$ref": "#/components/schemas/Thresholds"
+          }
+        },
+        "required": [
+          "thresholds",
+          "ladder"
+        ],
+        "type": "object"
+      },
+      "ModeratorRequest": {
+        "properties": {
+          "moderator": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "moderator"
+        ],
+        "type": "object"
+      },
+      "MyAppeal": {
+        "properties": {
+          "createdAt": {
+            "type": "string"
+          },
+          "decisionText": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "description": "`open`, `upheld` or `overturned`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "createdAt"
+        ],
+        "type": "object"
+      },
+      "MyRestriction": {
+        "properties": {
+          "appeal": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MyAppeal"
+              }
+            ]
+          },
+          "closing": {
+            "description": "Ends in the account being deleted.",
+            "type": "boolean"
+          },
+          "endsAt": {
+            "description": "Absent when permanent.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "inForce": {
+            "type": "boolean"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "lifted": {
+            "type": "boolean"
+          },
+          "reasonCode": {
+            "type": "string"
+          },
+          "reasonText": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "startsAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "scope",
+          "startsAt",
+          "reasonCode",
+          "reasonText",
+          "inForce",
+          "lifted",
+          "closing"
+        ],
+        "type": "object"
+      },
       "NewPromptRequest": {
         "properties": {
           "body": {
@@ -3321,6 +4479,17 @@
         ],
         "type": "string"
       },
+      "NoteRequest": {
+        "properties": {
+          "body": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "body"
+        ],
+        "type": "object"
+      },
       "NoteStatus": {
         "description": "What became of the text a note was attached to.",
         "enum": [
@@ -3330,6 +4499,29 @@
           "unanchored"
         ],
         "type": "string"
+      },
+      "NoteView": {
+        "properties": {
+          "author": {
+            "$ref": "#/components/schemas/AuthorCard"
+          },
+          "body": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "body",
+          "author",
+          "createdAt"
+        ],
+        "type": "object"
       },
       "NotebookEntry": {
         "properties": {
@@ -3470,6 +4662,54 @@
           }
         ]
       },
+      "Overview": {
+        "properties": {
+          "appealsOpen": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "endingSoon": {
+            "description": "Restrictions ending in the next 24 hours.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "queueHeld": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "queueOpen": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "reportsToday": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "role": {
+            "$ref": "#/components/schemas/StaffRole"
+          },
+          "signupsToday": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "waitingOnAppeal": {
+            "description": "Closing accounts whose deletion is waiting on an open appeal.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "role",
+          "queueOpen",
+          "queueHeld",
+          "appealsOpen",
+          "endingSoon",
+          "signupsToday",
+          "reportsToday",
+          "waitingOnAppeal"
+        ],
+        "type": "object"
+      },
       "PageSize": {
         "enum": [
           "letter",
@@ -3594,6 +4834,75 @@
           "p95",
           "p99",
           "max"
+        ],
+        "type": "object"
+      },
+      "PermanentBan": {
+        "properties": {
+          "bannedBy": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "emailCanonical": {
+            "type": "string"
+          },
+          "formerUserId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "reasonCode": {
+            "type": "string"
+          },
+          "reasonText": {
+            "type": "string"
+          },
+          "removedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "removedBy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "removedReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "restrictionId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "emailCanonical",
+          "displayName",
+          "reasonCode",
+          "reasonText",
+          "bannedBy",
+          "createdAt"
         ],
         "type": "object"
       },
@@ -3822,6 +5131,10 @@
           "id": {
             "type": "string"
           },
+          "moderationState": {
+            "description": "`visible`, `held` or `removed`, apart from the author's own state.",
+            "type": "string"
+          },
           "promptId": {
             "type": "string"
           },
@@ -3852,7 +5165,8 @@
           "wordCount",
           "state",
           "createdAt",
-          "updatedAt"
+          "updatedAt",
+          "moderationState"
         ],
         "type": "object"
       },
@@ -4190,6 +5504,97 @@
         ],
         "type": "string"
       },
+      "QueueItem": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ModerationItem"
+          },
+          {
+            "properties": {
+              "author": {
+                "$ref": "#/components/schemas/AuthorCard"
+              },
+              "authorEmail": {
+                "description": "Administrators only.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "claimedByName": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "context": {
+                "description": "Where it sits: the publication, the prompt, what it replies to.",
+                "type": "string"
+              },
+              "reports": {
+                "items": {
+                  "$ref": "#/components/schemas/ReportDetail"
+                },
+                "type": "array"
+              },
+              "sourcesList": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "subjectState": {
+                "description": "What moderation has done with it: `visible`, `held` or `removed`.",
+                "type": "string"
+              },
+              "surface": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "text": {
+                "description": "What was said, as text. Empty for an account.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "text",
+              "context",
+              "subjectState",
+              "author",
+              "sourcesList",
+              "reports"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "QueuePage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/QueueItem"
+            },
+            "type": "array"
+          },
+          "openCount": {
+            "description": "Open items, for the menu badge.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "total": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "openCount"
+        ],
+        "type": "object"
+      },
       "ReactRequest": {
         "properties": {
           "blockIndex": {
@@ -4335,6 +5740,17 @@
         ],
         "type": "object"
       },
+      "ReasonRequest": {
+        "properties": {
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
       "RecoveryCodes": {
         "properties": {
           "codes": {
@@ -4384,6 +5800,17 @@
         ],
         "type": "object"
       },
+      "RemoveBanRequest": {
+        "properties": {
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
       "ReorderPromptsRequest": {
         "properties": {
           "ids": {
@@ -4414,9 +5841,93 @@
         ],
         "type": "object"
       },
+      "ReportAbout": {
+        "properties": {
+          "itemId": {
+            "type": "string"
+          },
+          "lastFlaggedAt": {
+            "type": "string"
+          },
+          "reportCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "state": {
+            "type": "string"
+          },
+          "subjectType": {
+            "type": "string"
+          },
+          "topReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "itemId",
+          "subjectType",
+          "state",
+          "reportCount",
+          "lastFlaggedAt"
+        ],
+        "type": "object"
+      },
+      "ReportBy": {
+        "properties": {
+          "createdAt": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "reason",
+          "createdAt"
+        ],
+        "type": "object"
+      },
+      "ReportDetail": {
+        "properties": {
+          "createdAt": {
+            "type": "string"
+          },
+          "detail": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "reporter": {
+            "$ref": "#/components/schemas/AuthorCard"
+          }
+        },
+        "required": [
+          "reporter",
+          "reason",
+          "createdAt"
+        ],
+        "type": "object"
+      },
       "ReportReason": {
         "enum": [
           "abuse",
+          "harassment",
+          "hate",
+          "sexual_content",
+          "self_harm",
+          "impersonation",
+          "illegal",
           "spam",
           "spoiler",
           "off_topic",
@@ -4437,6 +5948,32 @@
           }
         },
         "required": [
+          "reason"
+        ],
+        "type": "object"
+      },
+      "ReportSubject": {
+        "properties": {
+          "detail": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reason": {
+            "$ref": "#/components/schemas/ReportReason"
+          },
+          "subjectId": {
+            "type": "string"
+          },
+          "subjectType": {
+            "description": "`entry`, `question`, `answer`, `profile` or `publication`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "subjectType",
+          "subjectId",
           "reason"
         ],
         "type": "object"
@@ -4471,6 +6008,24 @@
             "type": "object"
           }
         ]
+      },
+      "Reported": {
+        "properties": {
+          "reported": {
+            "type": "boolean"
+          },
+          "support": {
+            "description": "Present for a self-harm report: where to find help.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "reported"
+        ],
+        "type": "object"
       },
       "ResetRequest": {
         "properties": {
@@ -4537,6 +6092,190 @@
         ],
         "type": "object"
       },
+      "RestrictRequest": {
+        "properties": {
+          "confirmName": {
+            "description": "For a restriction that ends in deletion: the account's display name,\ntyped to confirm.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "days": {
+            "description": "3, 7 or 30. Absent: permanent. Ignored for a site-wide read-only\nrestriction, which is always the 30 days before deletion.",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "internalNote": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "itemIds": {
+            "description": "Queue items that prompted it.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "kind": {
+            "description": "`warning`, `ban`, `suspend` or `read_only`.",
+            "type": "string"
+          },
+          "reasonCode": {
+            "description": "A section of the community guidelines.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reasonText": {
+            "description": "The message the writer is shown.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "scope": {
+            "description": "`site` or `discussion`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "scope"
+        ],
+        "type": "object"
+      },
+      "Restriction": {
+        "properties": {
+          "createdAt": {
+            "type": "string"
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "endedNotifiedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "endsAt": {
+            "description": "Absent for a permanent restriction.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "internalNote": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "kind": {
+            "description": "`warning`, `ban`, `suspend` or `read_only`.",
+            "type": "string"
+          },
+          "liftReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "liftedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "liftedBy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "linkedItems": {
+            "description": "JSON array of the queue items that prompted it.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reasonCode": {
+            "description": "A section of the community guidelines.",
+            "type": "string"
+          },
+          "reasonText": {
+            "description": "The message the writer is shown.",
+            "type": "string"
+          },
+          "scope": {
+            "description": "`site` or `discussion`.",
+            "type": "string"
+          },
+          "startsAt": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "userId",
+          "kind",
+          "scope",
+          "startsAt",
+          "reasonCode",
+          "reasonText",
+          "createdBy",
+          "createdAt"
+        ],
+        "type": "object"
+      },
+      "RestrictionView": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Restriction"
+          },
+          {
+            "properties": {
+              "appeal": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/Appeal"
+                  }
+                ]
+              },
+              "createdByName": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "inForce": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "inForce"
+            ],
+            "type": "object"
+          }
+        ]
+      },
       "ReviewAnswer": {
         "properties": {
           "body": {
@@ -4553,6 +6292,9 @@
             "type": "string"
           },
           "id": {
+            "type": "string"
+          },
+          "moderationState": {
             "type": "string"
           },
           "questionId": {
@@ -4578,7 +6320,8 @@
           "userId",
           "chapterId",
           "createdAt",
-          "updatedAt"
+          "updatedAt",
+          "moderationState"
         ],
         "type": "object"
       },
@@ -4628,6 +6371,9 @@
           "kind": {
             "type": "string"
           },
+          "moderationState": {
+            "type": "string"
+          },
           "position": {
             "format": "int32",
             "type": "integer"
@@ -4653,7 +6399,8 @@
           "scope",
           "position",
           "createdAt",
-          "updatedAt"
+          "updatedAt",
+          "moderationState"
         ],
         "type": "object"
       },
@@ -5181,6 +6928,37 @@
         ],
         "type": "object"
       },
+      "SessionRow": {
+        "properties": {
+          "createdAt": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "ip": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lastSeenAt": {
+            "type": "string"
+          },
+          "userAgent": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "createdAt",
+          "lastSeenAt"
+        ],
+        "type": "object"
+      },
       "SessionView": {
         "allOf": [
           {
@@ -5199,6 +6977,24 @@
             "type": "object"
           }
         ]
+      },
+      "SetupRequest": {
+        "properties": {
+          "acceptTerms": {
+            "type": "boolean"
+          },
+          "password": {
+            "type": "string"
+          },
+          "token": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "token",
+          "password"
+        ],
+        "type": "object"
       },
       "Severity": {
         "enum": [
@@ -5368,6 +7164,22 @@
           "second"
         ],
         "type": "object"
+      },
+      "StaffResetRequest": {
+        "properties": {
+          "signOut": {
+            "description": "Also sign out every device now.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "StaffRole": {
+        "enum": [
+          "moderator",
+          "admin"
+        ],
+        "type": "string"
       },
       "StaleChange": {
         "description": "Why a change could not be applied, for a client that has to explain it.",
@@ -5800,6 +7612,81 @@
         ],
         "type": "object"
       },
+      "TermPatch": {
+        "properties": {
+          "action": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "appliesTo": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "matchKind": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "term": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "TermRequest": {
+        "properties": {
+          "action": {
+            "description": "`block`, `hold`, `flag` or `mask`.",
+            "type": "string"
+          },
+          "appliesTo": {
+            "description": "Where it applies. Never private writing.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "matchKind": {
+            "description": "`word` (default) or `substring`.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "term": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "term",
+          "action",
+          "appliesTo"
+        ],
+        "type": "object"
+      },
       "Terms": {
         "properties": {
           "text": {
@@ -5814,6 +7701,70 @@
         "required": [
           "version",
           "text"
+        ],
+        "type": "object"
+      },
+      "TestMatch": {
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          },
+          "term": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "term",
+          "action",
+          "note"
+        ],
+        "type": "object"
+      },
+      "TestRequest": {
+        "properties": {
+          "surface": {
+            "description": "A surface, to see what would happen there. Default `comment`.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "type": "object"
+      },
+      "TestResult": {
+        "properties": {
+          "action": {
+            "description": "What would happen: `block`, `hold`, `flag`, `mask`, or none.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "masked": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "matches": {
+            "items": {
+              "$ref": "#/components/schemas/TestMatch"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "matches"
         ],
         "type": "object"
       },
@@ -5864,6 +7815,39 @@
           "word",
           "base",
           "senses"
+        ],
+        "type": "object"
+      },
+      "Thresholds": {
+        "description": "The numbers `auto_flag_accounts` compares against.",
+        "properties": {
+          "commentsFirstHour": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "removalDays": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "removals": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "reporterDays": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "reporters": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "reporters",
+          "reporterDays",
+          "removals",
+          "removalDays",
+          "commentsFirstHour"
         ],
         "type": "object"
       },
@@ -6702,6 +8686,10 @@
             "description": "A site administrator: curates the daily prompts. Set from the command\nline only; no request body can change it.",
             "type": "boolean"
           },
+          "isModerator": {
+            "description": "A site moderator: works the queue and sets short restrictions. Granted\nfrom the admin dashboard, never from a request body of the account's own.",
+            "type": "boolean"
+          },
           "legalName": {
             "description": "Contact details for a submission's first page. Kept on the writer rather\nthan the work, since they are the same for every submission.",
             "type": [
@@ -6773,7 +8761,170 @@
           "updatedAt",
           "isAdmin",
           "doubleEnterSplitsScenes",
-          "theme"
+          "theme",
+          "isModerator"
+        ],
+        "type": "object"
+      },
+      "UserDetail": {
+        "properties": {
+          "actions": {
+            "description": "What the viewer may do here, so the page shows only those buttons.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "activity": {
+            "$ref": "#/components/schemas/Activity"
+          },
+          "audit": {
+            "items": {
+              "$ref": "#/components/schemas/AuditRow"
+            },
+            "type": "array"
+          },
+          "ladder": {
+            "description": "The suggested next step on the escalation ladder.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "notes": {
+            "items": {
+              "$ref": "#/components/schemas/NoteView"
+            },
+            "type": "array"
+          },
+          "reportsAbout": {
+            "items": {
+              "$ref": "#/components/schemas/ReportAbout"
+            },
+            "type": "array"
+          },
+          "reportsBy": {
+            "items": {
+              "$ref": "#/components/schemas/ReportBy"
+            },
+            "type": "array"
+          },
+          "restrictions": {
+            "items": {
+              "$ref": "#/components/schemas/RestrictionView"
+            },
+            "type": "array"
+          },
+          "sessions": {
+            "description": "Administrators only.",
+            "items": {
+              "$ref": "#/components/schemas/SessionRow"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "summary": {
+            "$ref": "#/components/schemas/AccountSummary"
+          }
+        },
+        "required": [
+          "summary",
+          "activity",
+          "reportsAbout",
+          "reportsBy",
+          "restrictions",
+          "notes",
+          "audit",
+          "actions",
+          "ladder"
+        ],
+        "type": "object"
+      },
+      "UserList": {
+        "properties": {
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "users": {
+            "items": {
+              "$ref": "#/components/schemas/UserRow"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "users"
+        ],
+        "type": "object"
+      },
+      "UserRow": {
+        "properties": {
+          "createdAt": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "email": {
+            "description": "Administrators only.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "emailVerified": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "lastSeenAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "openReports": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "role": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/StaffRole"
+              }
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "statusEnds": {
+            "description": "When the restriction behind the status ends. Absent when permanent.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "twoFactor": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "displayName",
+          "createdAt",
+          "emailVerified",
+          "twoFactor",
+          "status",
+          "openReports"
         ],
         "type": "object"
       },
@@ -7098,6 +9249,84 @@
           "writeMs",
           "lockWaitMs",
           "lockSamples"
+        ],
+        "type": "object"
+      },
+      "WordFilterTerm": {
+        "properties": {
+          "action": {
+            "description": "`block`, `hold`, `flag` or `mask`.",
+            "type": "string"
+          },
+          "appliesTo": {
+            "description": "JSON array of surfaces.",
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "matchKind": {
+            "description": "`word` or `substring`.",
+            "type": "string"
+          },
+          "normalized": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          },
+          "term": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "term",
+          "normalized",
+          "matchKind",
+          "action",
+          "appliesTo",
+          "note",
+          "createdBy",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "WordList": {
+        "properties": {
+          "allow": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "surfaces": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "terms": {
+            "items": {
+              "$ref": "#/components/schemas/WordFilterTerm"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "terms",
+          "allow",
+          "surfaces"
         ],
         "type": "object"
       },
@@ -7484,6 +9713,322 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/admin/appeals": {
+      "get": {
+        "operationId": "list_appeals",
+        "parameters": [
+          {
+            "description": "`open` (default) or `all`.",
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AppealRow"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Appeals, closing ones first"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/appeals/{appeal_id}/decide": {
+      "post": {
+        "operationId": "decide",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "appeal_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecideRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Appeal"
+                }
+              }
+            },
+            "description": "Decided; the writer is told"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/blocked-domains": {
+      "get": {
+        "operationId": "list_domains",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/BlockedDomain"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Throwaway-mail domains"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "operationId": "add_domain",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DomainRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BlockedDomain"
+                }
+              }
+            },
+            "description": "Blocked"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/blocked-domains/{domain}": {
+      "delete": {
+        "operationId": "remove_domain",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "domain",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Done"
+                }
+              }
+            },
+            "description": "Unblocked"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/external": {
+      "get": {
+        "operationId": "get_external",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalView"
+                }
+              }
+            },
+            "description": "The platform's settings"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      },
+      "put": {
+        "operationId": "put_external",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExternalUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalView"
+                }
+              }
+            },
+            "description": "Saved"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/external/test": {
+      "post": {
+        "operationId": "test_external",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TestRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalTestResult"
+                }
+              }
+            },
+            "description": "What the platform says"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/admin/jobs": {
       "get": {
         "operationId": "jobs",
@@ -7507,6 +10052,447 @@
               }
             },
             "description": "Not an admin"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/log": {
+      "get": {
+        "operationId": "log",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "actor",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "description": "The account it was about.",
+            "in": "query",
+            "name": "subject",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "action",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "description": "ISO dates.",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogPage"
+                }
+              }
+            },
+            "description": "What staff did, newest first"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/log.csv": {
+      "get": {
+        "operationId": "log_csv",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "actor",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "description": "The account it was about.",
+            "in": "query",
+            "name": "subject",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "action",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "description": "ISO dates.",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/csv": {}
+            },
+            "description": "The log as CSV"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/moderation-settings": {
+      "get": {
+        "operationId": "get_settings",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModerationSettings"
+                }
+              }
+            },
+            "description": "Thresholds and the escalation ladder"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      },
+      "put": {
+        "operationId": "put_settings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModerationSettings"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModerationSettings"
+                }
+              }
+            },
+            "description": "Saved"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/overview": {
+      "get": {
+        "operationId": "overview",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Overview"
+                }
+              }
+            },
+            "description": "Counts for the landing page"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/permanent-bans": {
+      "get": {
+        "operationId": "list_bans",
+        "parameters": [
+          {
+            "description": "An address or a name.",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "description": "Include rows that have been removed.",
+            "in": "query",
+            "name": "includeRemoved",
+            "required": false,
+            "schema": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PermanentBan"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "The list"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "operationId": "add_ban",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddBanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermanentBan"
+                }
+              }
+            },
+            "description": "Listed"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/permanent-bans/{ban_id}/remove": {
+      "post": {
+        "operationId": "remove_ban",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ban_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemoveBanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermanentBan"
+                }
+              }
+            },
+            "description": "Removed; the address can register again"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
           }
         },
         "tags": [
@@ -7703,6 +10689,1677 @@
               }
             },
             "description": "Saved"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/queue": {
+      "get": {
+        "operationId": "queue",
+        "parameters": [
+          {
+            "description": "`content` (default), `accounts`, `held` or `done`.",
+            "in": "query",
+            "name": "tab",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "description": "`report`, `word_filter`, `external` or `threshold`.",
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "reason",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "description": "A subject type: `comment`, `entry`, `critique`, …",
+            "in": "query",
+            "name": "surface",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "description": "Only items claimed by me.",
+            "in": "query",
+            "name": "mine",
+            "required": false,
+            "schema": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueuePage"
+                }
+              }
+            },
+            "description": "Flagged content and accounts, worst first"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/queue/dismiss": {
+      "post": {
+        "operationId": "bulk_dismiss",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkDismiss"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "How many were dismissed"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/queue/{item_id}/claim": {
+      "post": {
+        "operationId": "claim",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueueItem"
+                }
+              }
+            },
+            "description": "Yours for ten minutes"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Someone else has it"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/queue/{item_id}/dismiss": {
+      "post": {
+        "operationId": "dismiss",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueueItem"
+                }
+              }
+            },
+            "description": "Dismissed"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/queue/{item_id}/hold": {
+      "post": {
+        "operationId": "hold",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueueItem"
+                }
+              }
+            },
+            "description": "Held for review"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/queue/{item_id}/release": {
+      "post": {
+        "operationId": "release",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueueItem"
+                }
+              }
+            },
+            "description": "Released"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/queue/{item_id}/remove": {
+      "post": {
+        "operationId": "remove",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueueItem"
+                }
+              }
+            },
+            "description": "Removed; its author is told"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/queue/{item_id}/restore": {
+      "post": {
+        "operationId": "restore",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueueItem"
+                }
+              }
+            },
+            "description": "Restored"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/restrictions/{restriction_id}": {
+      "patch": {
+        "operationId": "change",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "restriction_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RestrictionView"
+                }
+              }
+            },
+            "description": "Changed; the writer is told"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/restrictions/{restriction_id}/lift": {
+      "post": {
+        "operationId": "lift_one",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "restriction_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LiftRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RestrictionView"
+                }
+              }
+            },
+            "description": "Lifted; the writer is told"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/users": {
+      "get": {
+        "operationId": "list_users",
+        "parameters": [
+          {
+            "description": "Part of a display name; for administrators also a whole email or an id.",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "description": "`active`, `unverified`, `restricted`, `banned` or `deactivated`.",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "description": "`moderator`, `admin` or `none`.",
+            "in": "query",
+            "name": "role",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "verified",
+            "required": false,
+            "schema": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          {
+            "description": "`joined` (default), `last_seen` or `reports`.",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserList"
+                }
+              }
+            },
+            "description": "A page of accounts"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "operationId": "create_user",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUserRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Created"
+                }
+              }
+            },
+            "description": "Created; the person is emailed a link"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/users/{user_id}": {
+      "delete": {
+        "operationId": "delete_user",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteUserRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeletedAccount"
+                }
+              }
+            },
+            "description": "Gone"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Books with co-authors would go too"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      },
+      "get": {
+        "operationId": "get_user",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserDetail"
+                }
+              }
+            },
+            "description": "The account, whole"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      },
+      "patch": {
+        "operationId": "edit_user",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EditUserRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserDetail"
+                }
+              }
+            },
+            "description": "Changed"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/users/{user_id}/deactivate": {
+      "post": {
+        "operationId": "deactivate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReasonRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Done"
+                }
+              }
+            },
+            "description": "Deactivated"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/users/{user_id}/delete-content": {
+      "post": {
+        "operationId": "delete_content",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReasonRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Removed, with how many"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/users/{user_id}/moderator": {
+      "post": {
+        "operationId": "set_moderator",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModeratorRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Done"
+                }
+              }
+            },
+            "description": "Done"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/users/{user_id}/notes": {
+      "post": {
+        "operationId": "add_note",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoteView"
+                }
+              }
+            },
+            "description": "Added"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/users/{user_id}/password-reset": {
+      "post": {
+        "operationId": "send_reset",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaffResetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Done"
+                }
+              }
+            },
+            "description": "The reset email was sent"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/users/{user_id}/reactivate": {
+      "post": {
+        "operationId": "reactivate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReasonRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Done"
+                }
+              }
+            },
+            "description": "Reactivated"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/users/{user_id}/restrictions": {
+      "post": {
+        "operationId": "restrict",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestrictRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RestrictionView"
+                }
+              }
+            },
+            "description": "Set; the writer is told"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/users/{user_id}/sessions/revoke-all": {
+      "post": {
+        "operationId": "revoke_all",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Done"
+                }
+              }
+            },
+            "description": "Every device signed out"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/users/{user_id}/sessions/{session_id}": {
+      "delete": {
+        "operationId": "revoke_one",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Done"
+                }
+              }
+            },
+            "description": "Signed out"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/users/{user_id}/setup-email": {
+      "post": {
+        "operationId": "resend_setup",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Done"
+                }
+              }
+            },
+            "description": "Sent again"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/words": {
+      "get": {
+        "operationId": "words",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WordList"
+                }
+              }
+            },
+            "description": "The list"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "operationId": "add_term",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TermRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WordFilterTerm"
+                }
+              }
+            },
+            "description": "Added"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/words/allow": {
+      "post": {
+        "operationId": "add_allowed",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AllowRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Done"
+                }
+              }
+            },
+            "description": "Allowed"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/words/allow/{word}": {
+      "delete": {
+        "operationId": "remove_allowed",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "word",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Done"
+                }
+              }
+            },
+            "description": "No longer allowed"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/words/export": {
+      "get": {
+        "operationId": "export_words",
+        "responses": {
+          "200": {
+            "content": {
+              "text/csv": {}
+            },
+            "description": "The list as CSV"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/words/import": {
+      "post": {
+        "operationId": "import_words",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "How many were added"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/words/rescan": {
+      "post": {
+        "operationId": "rescan",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "What the last 30 days turned up"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/words/test": {
+      "post": {
+        "operationId": "test_words",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TestRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestResult"
+                }
+              }
+            },
+            "description": "What would match"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/words/{term_id}": {
+      "delete": {
+        "operationId": "delete_term",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "term_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Done"
+                }
+              }
+            },
+            "description": "Removed"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      },
+      "patch": {
+        "operationId": "update_term",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "term_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TermPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WordFilterTerm"
+                }
+              }
+            },
+            "description": "Changed"
           },
           "4": {
             "content": {
@@ -8064,6 +12721,47 @@
         ]
       }
     },
+    "/api/auth/setup": {
+      "post": {
+        "operationId": "setup",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetupRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            },
+            "description": "Set up and signed in"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "Following the setup link: the person chooses a password, agrees to the\nterms, and is signed in. Choosing it also proves the address, because they\nread the mail.",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/api/auth/verify": {
       "post": {
         "operationId": "verify",
@@ -8087,6 +12785,163 @@
               }
             },
             "description": "Address confirmed"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "account"
+        ]
+      }
+    },
+    "/api/ban/appeal": {
+      "post": {
+        "operationId": "appeal_from_link",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkAppealRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyAppeal"
+                }
+              }
+            },
+            "description": "Filed"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "account"
+        ]
+      }
+    },
+    "/api/ban/appeal/{token}": {
+      "get": {
+        "operationId": "appeal_link",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyRestriction"
+                }
+              }
+            },
+            "description": "What the link is for"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "account"
+        ]
+      }
+    },
+    "/api/ban/export": {
+      "post": {
+        "operationId": "ban_export",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BanExportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Done"
+                }
+              }
+            },
+            "description": "Sent if there is such an account"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "Asks for a copy of the work of a permanently banned account to be emailed\nto the account's address, until the account is purged. The answer is the\nsame whatever the address is, so this can't be used to find out who is\nbanned.",
+        "tags": [
+          "account"
+        ]
+      }
+    },
+    "/api/ban/export/{token}": {
+      "get": {
+        "operationId": "download_export",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/zip": {}
+            },
+            "description": "The zip"
           },
           "4": {
             "content": {
@@ -9885,6 +14740,86 @@
         },
         "tags": [
           "profiles"
+        ]
+      }
+    },
+    "/api/me/restrictions": {
+      "get": {
+        "operationId": "my_standing",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountStanding"
+                }
+              }
+            },
+            "description": "Where the account stands"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "account"
+        ]
+      }
+    },
+    "/api/me/restrictions/{restriction_id}/appeal": {
+      "post": {
+        "operationId": "appeal",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "restriction_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppealRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyAppeal"
+                }
+              }
+            },
+            "description": "Filed"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "account"
         ]
       }
     },
@@ -12770,6 +17705,46 @@
         ]
       }
     },
+    "/api/reports": {
+      "post": {
+        "operationId": "report",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportSubject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Reported"
+                }
+              }
+            },
+            "description": "Reported"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "moderation"
+        ]
+      }
+    },
     "/api/scenes/{scene_id}": {
       "delete": {
         "operationId": "delete_scene",
@@ -14501,6 +19476,54 @@
         },
         "tags": [
           "versions"
+        ]
+      }
+    },
+    "/api/webhooks/moderation/{provider}": {
+      "post": {
+        "operationId": "receive",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "provider",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Done"
+                }
+              }
+            },
+            "description": "Stored"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "moderation"
         ]
       }
     },

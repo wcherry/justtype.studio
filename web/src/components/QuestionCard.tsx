@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { ReportButton } from './ReportButton'
 import { api } from '../api/client'
 import type { AnswerView, ReviewQuestion } from '../api/types'
 
@@ -42,7 +43,9 @@ export function QuestionCard({ question, chapterId, existing, onAnswered }: Prop
 
   return (
     <div className="question">
-      <p className="question__prompt">{question.prompt}</p>
+      <p className="question__prompt">
+        {question.prompt} <ReportButton subjectType="question" subjectId={question.id} />
+      </p>
 
       {question.kind === 'rating' ? (
         <div className="question__scale">

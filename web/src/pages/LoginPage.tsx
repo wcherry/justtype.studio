@@ -3,6 +3,32 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import { useAuth } from '../state/auth'
 
+interface BanDetails {
+  until?: string | null
+  reason?: string
+  reasonCode?: string
+}
+
+/** Why a banned account can't come in — shown in place of a generic error. */
+function BanNotice({ ban }: { ban: BanDetails }) {
+  return (
+    <div className="banner banner--restriction" role="alert">
+      <p>
+        <strong>This account is banned{ban.until ? ` until ${new Date(ban.until).toLocaleDateString()}` : ''}.</strong>
+      </p>
+      {ban.reason && (
+        <p>
+          Community guidelines, section {ban.reasonCode}: {ban.reason}
+        </p>
+      )}
+      <p>
+        The email we sent has a link to appeal. If it will be deleted, you can also{' '}
+        <Link to="/ban/export">have a copy of your work emailed to you</Link>.
+      </p>
+    </div>
+  )
+}
+
 export function LoginPage() {
   const { login, register } = useAuth()
   const navigate = useNavigate()
@@ -26,12 +52,14 @@ export function LoginPage() {
   const [needsCode, setNeedsCode] = useState(false)
   const [code, setCode] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [ban, setBan] = useState<BanDetails | null>(null)
   const [busy, setBusy] = useState(false)
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
     setBusy(true)
     setError(null)
+    setBan(null)
     try {
       if (mode === 'login') await login(email, password, needsCode ? code : undefined)
       else await register(email, password, displayName, acceptTerms)
@@ -39,6 +67,8 @@ export function LoginPage() {
     } catch (e) {
       if (e instanceof ApiError && e.code === 'two_factor_required') {
         setNeedsCode(true)
+      } else if (e instanceof ApiError && e.code === 'account_banned') {
+        setBan(e.details as BanDetails)
       } else {
         setError(e instanceof Error ? e.message : 'Could not sign you in')
       }
@@ -101,6 +131,7 @@ export function LoginPage() {
               </span>
             </label>
           )}
+          {ban && <BanNotice ban={ban} />}
           {error && <p className="error">{error}</p>}
           <button type="submit" disabled={busy || (mode === 'register' && !acceptTerms)}>
             {mode === 'login' ? 'Sign in' : 'Create account'}

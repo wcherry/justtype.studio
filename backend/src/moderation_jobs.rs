@@ -56,6 +56,27 @@ pub fn expire_restrictions(conn: &mut Conn) -> ApiResult<usize> {
     Ok(n)
 }
 
+/// Deletes emailed copies of people's data once their link has expired, rows
+/// and files both. A copy of someone's whole account should not outlive the
+/// week it was made for.
+pub fn sweep_exports(conn: &mut Conn) -> ApiResult<usize> {
+    let now = clock::now_iso();
+    let expired: Vec<(String, String)> = emailed_exports::table
+        .filter(emailed_exports::expires_at.le(&now))
+        .select((emailed_exports::id, emailed_exports::path))
+        .load(conn)?;
+    for (id, path) in &expired {
+        if let Err(e) = std::fs::remove_file(path) {
+            if e.kind() != std::io::ErrorKind::NotFound {
+                tracing::warn!(error = %e, %path, "could not remove an expired export");
+                continue;
+            }
+        }
+        diesel::delete(emailed_exports::table.find(id)).execute(conn)?;
+    }
+    Ok(expired.len())
+}
+
 /// Flags accounts that cross a threshold: distinct reporters, recent
 /// removals, or a burst of comments in the first hour.
 pub fn auto_flag_accounts(conn: &mut Conn) -> ApiResult<usize> {

@@ -17,6 +17,10 @@ import type {
   AdminPrompts, ArchivePage, CritiqueReportView, CritiqueView, EnrollmentView, EntryPage,
   InboxPage, JobsReport, PromptEntryView, PromptView, TodayResponse, ToWorkPreview, UnreadCount,
   UpdateEnrollmentRequest, UpdateSettingsRequest, WritingPlace, InviteResponse,
+  AccountStanding, AppealRow, BlockedDomain, ExternalTestResult, ExternalView,
+  LogPage, ModerationSettings, MyAppeal, MyRestriction, NoteView, Overview, PermanentBan,
+  QueueItem, QueuePage, Reported, RestrictionView, TestResult, UserDetail, UserList,
+  WordFilterTerm, WordList, Appeal,
 } from './types'
 
 const BASE = '/api'
@@ -813,6 +817,121 @@ export const inbox = {
   read: (id: string) => post<UnreadCount>(`/inbox/${id}/read`),
   readDigest: (day: string) => post<UnreadCount>(`/inbox/digests/${day}/read`),
   readAll: () => post<UnreadCount>('/inbox/read-all'),
+}
+
+const qs = (params: Record<string, string | number | boolean | null | undefined>) => {
+  const q = new URLSearchParams()
+  for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== null && v !== '') q.set(k, String(v))
+  const text = q.toString()
+  return text ? `?${text}` : ''
+}
+
+/** What a restriction form sends. */
+export interface RestrictInput {
+  kind: 'warning' | 'ban' | 'suspend' | 'read_only'
+  scope: 'site' | 'discussion'
+  /** 3, 7 or 30; absent for permanent. */
+  days?: number | null
+  reasonCode: string
+  reasonText: string
+  internalNote?: string
+  itemIds?: string[]
+  confirmName?: string
+}
+
+export const staff = {
+  overview: () => get<Overview>('/admin/overview'),
+  users: (params: { q?: string; status?: string; role?: string; verified?: string; sort?: string; cursor?: string }) =>
+    get<UserList>(`/admin/users${qs(params)}`),
+  user: (id: string) => get<UserDetail>(`/admin/users/${id}`),
+  createUser: (input: { email: string; displayName: string; moderator?: boolean }) =>
+    post<{ id: string }>('/admin/users', input),
+  editUser: (id: string, input: {
+    displayName?: string; bio?: string; aboutAuthor?: string; email?: string
+    markVerified?: boolean; resetTwoFactor?: boolean; reason: string
+  }) => patch<UserDetail>(`/admin/users/${id}`, input),
+  deleteUser: (id: string, input: { confirmName: string; reason: string; deleteSharedWorks?: boolean; skipExport?: boolean }) =>
+    request<{ worksDeleted: number }>('DELETE', `/admin/users/${id}`, input),
+  addNote: (id: string, body: string) => post<NoteView>(`/admin/users/${id}/notes`, { body }),
+  setModerator: (id: string, moderator: boolean, reason: string) =>
+    post<{ ok: boolean }>(`/admin/users/${id}/moderator`, { moderator, reason }),
+  sendReset: (id: string, signOut: boolean) => post<{ ok: boolean }>(`/admin/users/${id}/password-reset`, { signOut }),
+  resendSetup: (id: string) => post<{ ok: boolean }>(`/admin/users/${id}/setup-email`),
+  revokeAll: (id: string) => post<{ ok: boolean }>(`/admin/users/${id}/sessions/revoke-all`),
+  revokeOne: (id: string, sessionId: string) => del<{ ok: boolean }>(`/admin/users/${id}/sessions/${sessionId}`),
+  deactivate: (id: string, reason: string) => post<{ ok: boolean }>(`/admin/users/${id}/deactivate`, { reason }),
+  reactivate: (id: string, reason: string) => post<{ ok: boolean }>(`/admin/users/${id}/reactivate`, { reason }),
+  deleteContent: (id: string, reason: string) => post<{ removed: number }>(`/admin/users/${id}/delete-content`, { reason }),
+  restrict: (id: string, input: RestrictInput) => post<RestrictionView>(`/admin/users/${id}/restrictions`, input),
+  changeRestriction: (id: string, input: { days?: number | null; reasonText?: string; reason: string }) =>
+    patch<RestrictionView>(`/admin/restrictions/${id}`, input),
+  lift: (id: string, reason: string) => post<RestrictionView>(`/admin/restrictions/${id}/lift`, { reason }),
+  appeals: (state: 'open' | 'all') => get<AppealRow[]>(`/admin/appeals${qs({ state })}`),
+  decideAppeal: (id: string, input: { decision: 'upheld' | 'overturned'; message: string; restoreContent?: boolean }) =>
+    post<Appeal>(`/admin/appeals/${id}/decide`, input),
+  bans: (params: { q?: string; includeRemoved?: boolean }) => get<PermanentBan[]>(`/admin/permanent-bans${qs(params)}`),
+  addBan: (input: { email: string; displayName?: string; reasonCode: string; reasonText: string }) =>
+    post<PermanentBan>('/admin/permanent-bans', input),
+  removeBan: (id: string, reason: string) => post<PermanentBan>(`/admin/permanent-bans/${id}/remove`, { reason }),
+  domains: () => get<BlockedDomain[]>('/admin/blocked-domains'),
+  addDomain: (domain: string, note: string) => post<BlockedDomain>('/admin/blocked-domains', { domain, note }),
+  removeDomain: (domain: string) => del<{ ok: boolean }>(`/admin/blocked-domains/${encodeURIComponent(domain)}`),
+  queue: (params: { tab?: string; source?: string; reason?: string; surface?: string; mine?: boolean; offset?: number }) =>
+    get<QueuePage>(`/admin/queue${qs(params)}`),
+  claim: (id: string) => post<QueueItem>(`/admin/queue/${id}/claim`),
+  decide: (id: string, action: 'dismiss' | 'remove' | 'restore' | 'hold' | 'release', reason: string) =>
+    post<QueueItem>(`/admin/queue/${id}/${action}`, { reason }),
+  bulkDismiss: (itemIds: string[], source: string, reason: string) =>
+    post<{ dismissed: number }>('/admin/queue/dismiss', { itemIds, source, reason }),
+  words: () => get<WordList>('/admin/words'),
+  addTerm: (input: { term: string; matchKind: string; action: string; appliesTo: string[]; note?: string }) =>
+    post<WordFilterTerm>('/admin/words', input),
+  updateTerm: (id: string, input: { term?: string; matchKind?: string; action?: string; appliesTo?: string[]; note?: string }) =>
+    patch<WordFilterTerm>(`/admin/words/${id}`, input),
+  deleteTerm: (id: string) => del<{ ok: boolean }>(`/admin/words/${id}`),
+  testWords: (text: string, surface?: string) => post<TestResult>('/admin/words/test', { text, surface }),
+  importWords: (csv: string) => post<{ added: number }>('/admin/words/import', { csv }),
+  allowWord: (word: string) => post<{ ok: boolean }>('/admin/words/allow', { word }),
+  unallowWord: (word: string) => del<{ ok: boolean }>(`/admin/words/allow/${encodeURIComponent(word)}`),
+  rescan: () => post<{ checked: number; flagged: number }>('/admin/words/rescan'),
+  /** The list as CSV text. */
+  async exportWords(): Promise<string> {
+    const res = await fetch(`${BASE}/admin/words/export`, { headers: { authorization: `Bearer ${tokens.access() ?? ''}` } })
+    if (!res.ok) throw new ApiError(res.status, 'unknown', res.statusText)
+    return res.text()
+  },
+  external: () => get<ExternalView>('/admin/external'),
+  saveExternal: (input: {
+    provider: string; baseUrl?: string; surfaces: string[]; removeAs: string; banScope: string
+    apiKey?: string; webhookSecret?: string
+  }) => put<ExternalView>('/admin/external', input),
+  testExternal: (text: string, surface?: string) => post<ExternalTestResult>('/admin/external/test', { text, surface }),
+  settings: () => get<ModerationSettings>('/admin/moderation-settings'),
+  saveSettings: (input: ModerationSettings) => put<ModerationSettings>('/admin/moderation-settings', input),
+  log: (params: { actor?: string; subject?: string; action?: string; from?: string; to?: string; cursor?: string }) =>
+    get<LogPage>(`/admin/log${qs(params)}`),
+  /** The log as CSV text, for administrators. */
+  async logCsv(): Promise<string> {
+    const res = await fetch(`${BASE}/admin/log.csv`, { headers: { authorization: `Bearer ${tokens.access() ?? ''}` } })
+    if (!res.ok) throw new ApiError(res.status, 'unknown', res.statusText)
+    return res.text()
+  },
+}
+
+/** Where the signed-in writer stands, and what they can do about it. */
+export const standing = {
+  mine: () => get<AccountStanding>('/me/restrictions'),
+  appeal: (restrictionId: string, body: string) =>
+    post<MyAppeal>(`/me/restrictions/${restrictionId}/appeal`, { body }),
+  /** The restriction an emailed link is for — no sign-in needed. */
+  peek: (token: string) => get<MyRestriction>(`/ban/appeal/${encodeURIComponent(token)}`),
+  appealFromLink: (token: string, body: string) => post<MyAppeal>('/ban/appeal', { token, body }),
+  emailMyWork: (email: string) => post<{ ok: boolean }>('/ban/export', { email }),
+  /** Choosing a password from the link a staff-made account was sent. */
+  setup: (token: string, password: string, acceptTerms: boolean) =>
+    request<Session>('POST', '/auth/setup', { token, password, acceptTerms }),
+  report: (input: { subjectType: string; subjectId: string; reason: ReportReason; detail?: string }) =>
+    post<Reported>('/reports', input),
 }
 
 export const admin = {

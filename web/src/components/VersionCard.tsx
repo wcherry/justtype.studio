@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { api } from '../api/client'
+import { useStanding } from '../state/standing'
 import type { VersionSummary } from '../api/types'
 
 interface Props {
@@ -31,6 +32,7 @@ export function VersionCard({
   const [renaming, setRenaming] = useState(false)
   const [tagging, setTagging] = useState(false)
   const [confirmRestore, setConfirmRestore] = useState(false)
+  const { blocked } = useStanding()
 
   const run = async (work: () => Promise<unknown>) => {
     try {
@@ -91,13 +93,18 @@ export function VersionCard({
 
       <div className="versions__actions">
         {version.state === 'draft' && (
-          <button type="button" disabled={busy} onClick={() => run(() => api.versions.publish(version.id))}>
+          <button
+            type="button"
+            disabled={busy || !!blocked('publish')}
+            title={blocked('publish') ?? undefined}
+            onClick={() => run(() => api.versions.publish(version.id))}
+          >
             Publish
           </button>
         )}
         {version.state === 'published' && (
           <>
-            <button type="button" disabled={busy} onClick={onOffer}>Offer for review</button>
+            <button type="button" disabled={busy || !!blocked('publish')} title={blocked('publish') ?? undefined} onClick={onOffer}>Offer for review</button>
             <button type="button" disabled={busy} onClick={() => run(() => api.versions.finalize(version.id))}>
               Mark final
             </button>

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ApiError, critiques } from '../api/client'
 import type { CritiqueView, ReportReason } from '../api/types'
+import { useStanding } from '../state/standing'
 
 /** How far replies indent: six levels, three on a phone. Deeper ones carry
  *  on at that depth, saying who they answer. */
@@ -22,6 +23,12 @@ function useIndentCap(): number {
 }
 
 const REASONS: { value: ReportReason; label: string }[] = [
+  { value: 'harassment', label: 'Harassment or bullying' },
+  { value: 'hate', label: 'Hateful towards a group' },
+  { value: 'sexual_content', label: 'Sexual content' },
+  { value: 'self_harm', label: 'Talk of self-harm' },
+  { value: 'impersonation', label: 'Pretending to be someone' },
+  { value: 'illegal', label: 'Illegal' },
   { value: 'abuse', label: 'Abusive' },
   { value: 'spam', label: 'Spam' },
   { value: 'off_topic', label: 'Not about the writing' },
@@ -82,6 +89,8 @@ export function CritiqueThread({
   const [reason, setReason] = useState<ReportReason>('off_topic')
   const [notice, setNotice] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const { blocked } = useStanding()
+  const cantDiscuss = blocked('discuss')
 
   const load = useCallback(async () => {
     try {
@@ -139,6 +148,8 @@ export function CritiqueThread({
           >
             {c.removed ? (
               <p className="comment__removed">Removed</p>
+            ) : c.moderated === 'removed' ? (
+              <p className="comment__removed comment__moderated">Removed by a moderator.</p>
             ) : (
               <>
                 <p className="comment__meta">
@@ -149,6 +160,7 @@ export function CritiqueThread({
                     {new Date(c.createdAt).toLocaleString()}
                   </time>
                   {c.editedAt && <span className="field__hint" title={new Date(c.editedAt).toLocaleString()}> · edited</span>}
+                  {c.moderated === 'held' && <span className="badge" title="A person is checking it before others see it"> awaiting review</span>}
                 </p>
                 {editing === c.id ? (
                   <form
@@ -169,7 +181,7 @@ export function CritiqueThread({
                 )}
                 <div className="comment__actions">
                   {open && (
-                    <button type="button" onClick={() => { setReplyTo(c.id); setReply('') }}>Reply</button>
+                    <button type="button" disabled={!!cantDiscuss} title={cantDiscuss ?? undefined} onClick={() => { setReplyTo(c.id); setReply('') }}>Reply</button>
                   )}
                   {c.mine && editing !== c.id && (
                     <button type="button" onClick={() => { setEditing(c.id); setEdit(c.body) }}>Edit</button>
@@ -187,7 +199,7 @@ export function CritiqueThread({
                     </button>
                   )}
                   {!c.mine && !isAuthor && (
-                    <button type="button" onClick={() => setReporting(reporting === c.id ? null : c.id)}>Report</button>
+                    <button type="button" disabled={!!blocked('report')} title={blocked('report') ?? undefined} onClick={() => setReporting(reporting === c.id ? null : c.id)}>Report</button>
                   )}
                 </div>
                 {reporting === c.id && (
@@ -201,7 +213,11 @@ export function CritiqueThread({
                       onClick={() =>
                         void act(() => critiques.report(c.id, reason), () => {
                           setReporting(null)
-                          setNotice('Reported. The writer of this answer has been told.')
+                          setNotice(
+                            reason === 'off_topic'
+                              ? 'Reported. The writer of this answer has been told.'
+                              : 'Reported. The writer of this answer and the site’s staff have been told.',
+                          )
                         })
                       }
                     >
@@ -248,7 +264,8 @@ export function CritiqueThread({
             <textarea rows={4} value={draft} onChange={(e) => setDraft(e.target.value)} />
           </label>
           <p className="field__hint">Your name is shown with it. Everyone in Daily Prompts can read it.</p>
-          <button type="submit" disabled={busy || !draft.trim()}>Post</button>
+          {cantDiscuss && <p className="field__hint">{cantDiscuss} <Link to="/standing">Why?</Link></p>}
+          <button type="submit" disabled={busy || !draft.trim() || !!cantDiscuss}>Post</button>
         </form>
       )}
     </section>

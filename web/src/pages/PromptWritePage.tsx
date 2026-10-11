@@ -26,6 +26,7 @@ import { useSessionGoals } from '../editor/useSessionGoals'
 import { entryKey, pendingFor, startQueueReplay } from '../offline/queue'
 import { dayName, localTime } from '../prompts/days'
 import { ToWorkDialog } from '../prompts/ToWorkDialog'
+import { useStanding } from '../state/standing'
 
 const SAVE_LABEL: Record<string, string> = {
   idle: '',
@@ -64,6 +65,7 @@ const words = (doc: DocNode | null | undefined): number => {
 export function PromptWritePage() {
   const { day = '' } = useParams()
   const navigate = useNavigate()
+  const { blocked } = useStanding()
   const [prompt, setPrompt] = useState<PromptView | null>(null)
   const [entry, setEntry] = useState<PromptEntryView | null>(null)
   const [enrolled, setEnrolled] = useState<boolean | null>(null)
@@ -244,8 +246,8 @@ export function PromptWritePage() {
             {enrolled && (state === 'none' || state === 'draft' || state === 'withdrawn') && (
               <button
                 type="button"
-                disabled={busy || liveWords === 0 || !online}
-                title={!online ? 'Back online, then submit' : undefined}
+                disabled={busy || liveWords === 0 || !online || !!blocked('discuss')}
+                title={!online ? 'Back online, then submit' : blocked('discuss') ?? undefined}
                 onClick={() => void act(() => prompts.submit(day))}
               >
                 {state === 'withdrawn' ? 'Submit again' : 'Submit'}

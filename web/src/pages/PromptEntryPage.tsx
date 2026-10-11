@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { ApiError, critiques, prompts } from '../api/client'
 import type { CritiqueReportView, PromptEntryView } from '../api/types'
 import { EntryText } from '../prompts/EntryText'
+import { ReportButton } from '../components/ReportButton'
 import { CritiqueThread } from '../prompts/CritiqueThread'
 import { ToWorkDialog } from '../prompts/ToWorkDialog'
 import { dayName } from '../prompts/days'
@@ -59,6 +60,11 @@ export function PromptEntryPage() {
             {entry.late && <span className="badge badge--late">late</span>}
             {entry.editedAt && <span className="badge" title={new Date(entry.editedAt).toLocaleString()}>edited</span>}
             {entry.mine && entry.state !== 'submitted' && <span className="badge">{entry.state}</span>}
+            {entry.mine && entry.moderationState === 'held' && (
+              <span className="badge" title="A person is checking it before others see it">awaiting review</span>
+            )}
+            {entry.mine && entry.moderationState === 'removed' && <span className="badge">removed by a moderator</span>}
+            {!entry.mine && <ReportButton subjectType="entry" subjectId={entry.id} />}
           </p>
           {entry.mine && (
             <p className="prompt-entry__mine">

@@ -100,6 +100,13 @@ pub async fn tick(state: &AppState) {
                 .map(|_| ()),
         ),
         (
+            "sweep_exports",
+            blocking(&state.pool, |conn| {
+                crate::moderation_jobs::sweep_exports(conn).map(|_| ())
+            })
+            .await,
+        ),
+        (
             "auto_flag_accounts",
             blocking(&state.pool, |conn| {
                 crate::moderation_jobs::auto_flag_accounts(conn).map(|_| ())

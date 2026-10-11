@@ -465,7 +465,7 @@ pub async fn list_users(
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct Summary {
+pub struct AccountSummary {
     pub id: String,
     pub display_name: String,
     pub bio: Option<String>,
@@ -563,7 +563,7 @@ pub struct AuditRow {
 #[derive(Debug, Serialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct UserDetail {
-    pub summary: Summary,
+    pub summary: AccountSummary,
     pub activity: Activity,
     /// Administrators only.
     pub sessions: Option<Vec<SessionRow>>,
@@ -713,7 +713,7 @@ fn user_detail(conn: &mut Conn, staff: &StaffUser, user_id: &str) -> ApiResult<U
         .select(users::password_hash)
         .first(conn)?;
 
-    let summary = Summary {
+    let summary = AccountSummary {
         id: id.clone(),
         display_name,
         bio,
@@ -1566,7 +1566,7 @@ pub async fn edit_user(
 
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct ResetRequest {
+pub struct StaffResetRequest {
     /// Also sign out every device now.
     #[serde(default)]
     pub sign_out: bool,
@@ -1577,7 +1577,7 @@ pub struct ResetRequest {
     path = "/api/admin/users/{user_id}/password-reset",
     tag = "admin",
     params(("user_id" = String, Path)),
-    request_body = ResetRequest,
+    request_body = StaffResetRequest,
     responses(
         (status = 200, description = "The reset email was sent", body = crate::routes::account::Done),
         (status = 4XX, description = "Refused", body = ErrorEnvelope),
@@ -1587,7 +1587,7 @@ pub async fn send_reset(
     State(state): State<AppState>,
     staff: StaffUser,
     Path(user_id): Path<String>,
-    Json(body): Json<ResetRequest>,
+    Json(body): Json<StaffResetRequest>,
 ) -> ApiResult<Json<super::account::Done>> {
     staff.require(Permission::ManageAccounts)?;
     let public_url = state.config.public_url.clone();

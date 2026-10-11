@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { ReportButton } from './ReportButton'
 import { api, downloadFeedback } from '../api/client'
 import { REACTIONS } from '../editor/reactionGutter'
 import type {
@@ -247,6 +248,7 @@ function Answers({
               <span className="field__hint">on {chapterTitle(answer.chapterId)}</span>
             )}
             <p>{answer.body}</p>
+            <ReportButton subjectType="answer" subjectId={answer.id} />
           </li>
         ))}
       </ul>

@@ -1,5 +1,5 @@
 <!--
-  Version 3. The backend serves this file as written (`GET /api/terms`) and
+  Version 4. The backend serves this file as written (`GET /api/terms`) and
   asks everyone to agree again when TERMS_VERSION in routes/privacy.rs goes up.
   Bump that constant with any change of substance.
 
@@ -65,7 +65,8 @@ take part:
   (which makes it private again) or delete it at any time.
 - Critiques you write on other people's answers carry your name and can be
   read by everyone who has joined. There are no anonymous critiques. A
-  critique can be reported to the writer of the answer, who can remove it.
+  critique can be reported to the writer of the answer, who can remove it,
+  and to the site's staff (see *Keeping the place safe*).
 - If you leave, your submitted answers and your critiques stay where they are
   for the others, and you can still open your own answers. Deleting your
   account deletes your answers; your critiques are blanked, as notes are.
@@ -86,11 +87,57 @@ and be kind: you can disagree with a book without attacking the person who
 wrote it. An author can block a reader from their own work, and we may remove
 an account that is used to harass people.
 
+## Keeping the place safe
+
+Just Type Studio has a small staff, and some of them are moderators. They
+look after what other people can see: comments, reader questions and answers,
+Daily Prompts answers and critiques, display names, bios, the about-the-author
+text, and publication titles and blurbs. **They never look at your private
+writing** — manuscripts, drafts, notebooks, annotations and answers you have
+not submitted are not scanned, filtered or shown to them.
+
+- Anything public can be reported. Staff see the reports, and so does the
+  author, as before.
+- A list of words and phrases is checked against public text when it is
+  posted. Depending on the word, a post is refused, held for a person to read,
+  flagged, or published with the word masked. Staff may remove or hold a post
+  that breaks the community guidelines, and the person who wrote it is told
+  which part.
+- We use a hosted moderation service to check public text with automated
+  tools and to let outside moderators help. What is sent to it is the text
+  being checked, what kind of thing it is, and a reference that stands for
+  you but is not your name or address. We never send an email address, your
+  name (except a display name or bio that is itself being checked) or any
+  private writing. If the service cannot be reached, your post still goes
+  through and is checked later.
+- Staff can restrict an account: a warning, a suspension (you can read, but
+  not publish or take part in discussions), a read-only restriction, or a ban
+  (you cannot sign in). A restriction can last 3, 7 or 30 days or be
+  permanent, and can cover the whole site or only discussions. You are told
+  what happened, which part of the guidelines it was under, and until when,
+  by email and in the inbox, and you can appeal each one once; a different
+  member of staff reads it.
+- Two restrictions end in deletion: a read-only restriction on the whole site,
+  and a permanent ban. Thirty days after one begins, the account, all of its
+  writing and all of its comments are deleted. A read-only account can export
+  its work during those days; a permanently banned account can ask for a copy
+  to be emailed to it. A book you share with a co-author passes to the
+  co-author who joined it first instead of being deleted. Lifting the
+  restriction, or winning an appeal, before the thirty days are up cancels the
+  deletion, and an appeal still waiting holds the deletion until it is decided.
+- When a permanent ban begins, everything you have made public is hidden at
+  once. After the deletion we keep one thing: your email address and the
+  reason for the ban, so that the address cannot sign up again. That record is
+  kept for as long as the ban stands.
+- Staff actions are recorded, with who, what, when and why, and staff never
+  see or set your password.
+
 ## Leaving
 
 You can download everything you have here at any time, as files you can open
 without us. You can delete your account at any time. Deleting it removes your
-account, the works you started and their files. Notes you left on other
+account, the works you started and their files (a backup may hold a copy for
+as long as backups are kept). Notes you left on other
 people's books are blanked rather than torn out, so the replies under them
 still make sense; they no longer carry your name or your words.
 

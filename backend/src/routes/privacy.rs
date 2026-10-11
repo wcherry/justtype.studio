@@ -33,7 +33,7 @@ use super::support;
 
 /// Raise this with any change of substance to `backend/terms.md`; everyone is
 /// asked to agree again.
-pub const TERMS_VERSION: i32 = 3;
+pub const TERMS_VERSION: i32 = 4;
 // Compiled in, so the server never reads it from disk. It lives in backend/
 // because the crate is built on its own (the Docker image copies backend/
 // alone), and a file outside it is not there to read.

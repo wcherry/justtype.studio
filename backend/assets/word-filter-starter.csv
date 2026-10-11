@@ -1,0 +1,16 @@
+# A starter list for the word filter, for an admin to choose from.
+#
+# It ships empty on purpose: what is unacceptable here is a decision for the
+# people who run the site, not a default. Add terms below, or on /admin/words,
+# and import this file there ("Import CSV"). Lines starting with # are ignored.
+#
+#   term         the word or phrase (no regular expressions)
+#   match        word (a whole word, the default) or substring
+#   action       block (refuse the post), hold (keep it for review),
+#                flag (publish it and queue it) or mask (publish with •••)
+#   applies_to   comment;question;answer;entry;critique;display_name;bio;
+#                about_author;publication_title;blurb   (never private writing)
+#   note         for staff
+#
+term,match,action,applies_to,note
+# example,word,flag,comment;critique,"an example row, delete me"
