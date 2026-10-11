@@ -1,0 +1,142 @@
+# Common banned words and terms, in the word filter's CSV import format.
+#
+# This is an OPTIONAL list for the site owner to review and import
+# (Admin > Word filter > Import CSV, or POST /api/admin/words/import).
+# Nothing here is on by default. Delete rows you disagree with before importing.
+#
+# Choices made in this list:
+#   - match is "word" everywhere, so "class" and "assistant" are never caught.
+#     The filter already sees through leet-speak (f*ck, sh1t, @ss) and stretched
+#     letters (fuuuck), so variants are not listed separately.
+#   - Slurs are "block" on every public surface.
+#   - Strong profanity is "hold" in names and bios (where nobody asked for it),
+#     and "flag" in discussion, so writers can swear in an essay or a critique
+#     and a human decides. Mild words are "flag" in discussion only.
+#   - Scam and spam phrases are "hold" in discussion and profile text.
+#   - Writing in "entry" is only checked for slurs, since fiction needs a voice.
+#   - If a word catches something it should not, add it to the allowlist
+#     (Admin > Word filter > Allowed) rather than deleting the term.
+#
+# Surfaces: comment;question;answer;entry;critique;display_name;bio;
+#           about_author;publication_title;blurb
+#
+term,match,action,applies_to,note
+# --- Slurs: block everywhere public ---
+nigger,word,block,comment;question;answer;entry;critique;display_name;bio;about_author;publication_title;blurb,racial slur
+nigga,word,block,comment;question;answer;entry;critique;display_name;bio;about_author;publication_title;blurb,racial slur
+niggers,word,block,comment;question;answer;entry;critique;display_name;bio;about_author;publication_title;blurb,racial slur
+coon,word,block,comment;question;answer;entry;critique;display_name;bio;about_author;publication_title;blurb,racial slur
+spic,word,block,comment;question;answer;entry;critique;display_name;bio;about_author;publication_title;blurb,racial slur
+wetback,word,block,comment;question;answer;entry;critique;display_name;bio;about_author;publication_title;blurb,racial slur
+chink,word,block,comment;question;answer;entry;critique;display_name;bio;about_author;publication_title;blurb,racial slur
+gook,word,block,comment;question;answer;entry;critique;display_name;bio;about_author;publication_title;blurb,racial slur
+kike,word,block,comment;question;answer;entry;critique;display_name;bio;about_author;publication_title;blurb,antisemitic slur
+sandnigger,word,block,comment;question;answer;entry;critique;display_name;bio;about_author;publication_title;blurb,racial slur
+towelhead,word,block,comment;question;answer;entry;critique;display_name;bio;about_author;publication_title;blurb,slur
+raghead,word,block,comment;question;answer;entry;critique;display_name;bio;about_author;publication_title;blurb,slur
+paki,word,block,comment;question;answer;entry;critique;display_name;bio;about_author;publication_title;blurb,slur
+beaner,word,block,comment;question;answer;entry;critique;display_name;bio;about_author;publication_title;blurb,slur
+redskin,word,block,comment;question;answer;entry;critique;display_name;bio;about_author;publication_title;blurb,slur
+faggot,word,block,comment;question;answer;entry;critique;display_name;bio;about_author;publication_title;blurb,homophobic slur
+fag,word,block,comment;question;answer;entry;critique;display_name;bio;about_author;publication_title;blurb,homophobic slur
+dyke,word,hold,comment;question;answer;critique;display_name;bio;about_author;publication_title;blurb,slur but also reclaimed and a surname; held for a person to judge
+tranny,word,block,comment;question;answer;entry;critique;display_name;bio;about_author;publication_title;blurb,transphobic slur
+shemale,word,block,comment;question;answer;entry;critique;display_name;bio;about_author;publication_title;blurb,transphobic slur
+retard,word,block,comment;question;answer;critique;display_name;bio;about_author;publication_title;blurb,ableist slur
+retarded,word,block,comment;question;answer;critique;display_name;bio;about_author;publication_title;blurb,ableist slur
+# --- Hate and harassment phrases ---
+kill yourself,word,block,comment;question;answer;critique;display_name;bio;about_author,telling someone to self-harm
+kys,word,block,comment;question;answer;critique;display_name;bio;about_author,"abbreviation of ""kill yourself"""
+go die,word,hold,comment;question;answer;critique,telling someone to die
+hope you die,word,block,comment;question;answer;critique,wishing death
+white power,word,block,comment;question;answer;critique;display_name;bio;about_author;publication_title;blurb,hate slogan
+heil hitler,word,block,comment;question;answer;critique;display_name;bio;about_author;publication_title;blurb,hate slogan
+sieg heil,word,block,comment;question;answer;critique;display_name;bio;about_author;publication_title;blurb,hate slogan
+gas the jews,word,block,comment;question;answer;critique;display_name;bio;about_author;publication_title;blurb,hate speech
+# --- Strong profanity: hold in names and bios, flag in discussion ---
+fuck,word,flag,comment;question;answer;critique,strong profanity
+fuck,word,hold,display_name;bio;about_author;publication_title;blurb,strong profanity in a public name or bio
+fucking,word,flag,comment;question;answer;critique,strong profanity
+fucking,word,hold,display_name;bio;about_author;publication_title;blurb,strong profanity in a public name or bio
+fucker,word,flag,comment;question;answer;critique,strong profanity
+fucker,word,hold,display_name;bio;about_author;publication_title;blurb,strong profanity in a public name or bio
+motherfucker,word,flag,comment;question;answer;critique,strong profanity
+motherfucker,word,hold,display_name;bio;about_author;publication_title;blurb,strong profanity in a public name or bio
+shit,word,flag,comment;question;answer;critique,profanity
+shit,word,hold,display_name;bio;about_author;publication_title;blurb,profanity in a public name or bio
+shitty,word,flag,comment;question;answer;critique,profanity
+bullshit,word,flag,comment;question;answer;critique,profanity
+asshole,word,flag,comment;question;answer;critique,insult
+asshole,word,hold,display_name;bio;about_author;publication_title;blurb,insult in a public name or bio
+bitch,word,flag,comment;question;answer;critique,insult
+bitch,word,hold,display_name;bio;about_author;publication_title;blurb,insult in a public name or bio
+bastard,word,flag,comment;question;answer;critique,insult
+cunt,word,flag,comment;question;answer;critique,strong profanity
+cunt,word,hold,display_name;bio;about_author;publication_title;blurb,strong profanity in a public name or bio
+dickhead,word,flag,comment;question;answer;critique,insult
+dick,word,hold,display_name;bio;about_author;publication_title;blurb,"also a first name; names are held, not blocked"
+cock,word,hold,display_name;bio;about_author;publication_title;blurb,also a bird; held in names and bios only
+pussy,word,hold,display_name;bio;about_author;publication_title;blurb,sexual term; also an insult
+twat,word,flag,comment;question;answer;critique,insult
+wanker,word,flag,comment;question;answer;critique,insult
+prick,word,flag,comment;question;answer;critique,insult
+douchebag,word,flag,comment;question;answer;critique,insult
+slut,word,hold,comment;question;answer;critique;display_name;bio;about_author;publication_title;blurb,harassing insult
+whore,word,hold,comment;question;answer;critique;display_name;bio;about_author;publication_title;blurb,harassing insult
+# --- Mild words: flag in discussion only ---
+damn,word,flag,comment;critique,mild profanity; raise or remove if you do not mind it
+crap,word,flag,comment;critique,mild profanity; raise or remove if you do not mind it
+piss,word,flag,comment;critique,mild profanity
+pissed off,word,flag,comment;critique,mild profanity
+jerk,word,flag,comment;critique,mild insult
+idiot,word,flag,comment;critique,insult; common in feedback so only flagged
+moron,word,flag,comment;critique,insult
+stupid,word,flag,comment;critique,insult; very common in honest critique so consider removing
+# --- Sexual content terms (not for names, bios or titles) ---
+porn,word,hold,display_name;bio;about_author;publication_title;blurb,sexual content
+porno,word,hold,display_name;bio;about_author;publication_title;blurb,sexual content
+xxx,word,hold,display_name;bio;about_author;publication_title;blurb,sexual content
+nude,word,hold,display_name;bio;about_author;publication_title;blurb,sexual content
+nudes,word,hold,comment;display_name;bio;about_author;publication_title;blurb,sexual content or solicitation
+blowjob,word,hold,comment;question;answer;critique;display_name;bio;about_author;publication_title;blurb,explicit sexual term
+handjob,word,hold,comment;question;answer;critique;display_name;bio;about_author;publication_title;blurb,explicit sexual term
+cumshot,word,hold,comment;question;answer;critique;display_name;bio;about_author;publication_title;blurb,explicit sexual term
+milf,word,hold,display_name;bio;about_author;publication_title;blurb,sexual content
+onlyfans,word,hold,comment;display_name;bio;about_author;publication_title;blurb,adult-content promotion
+camgirl,word,hold,comment;display_name;bio;about_author;publication_title;blurb,adult-content promotion
+escort service,word,hold,comment;display_name;bio;about_author;publication_title;blurb,solicitation
+# --- Scams and spam: hold in discussion and profile text ---
+free money,word,hold,comment;question;answer;critique;display_name;bio;about_author;publication_title;blurb,scam phrase
+make money fast,word,hold,comment;question;answer;critique;display_name;bio;about_author;publication_title;blurb,scam phrase
+work from home,word,hold,comment;question;answer;critique;display_name;bio;about_author;publication_title;blurb,scam phrase
+earn money online,word,hold,comment;question;answer;critique;display_name;bio;about_author;publication_title;blurb,scam phrase
+passive income,word,hold,comment;display_name;bio;about_author;publication_title;blurb,scam phrase; remove if your writers discuss money
+get rich quick,word,hold,comment;question;answer;critique;display_name;bio;about_author;publication_title;blurb,scam phrase
+guaranteed returns,word,hold,comment;question;answer;critique;display_name;bio;about_author;publication_title;blurb,investment scam
+double your bitcoin,word,hold,comment;question;answer;critique;display_name;bio;about_author;publication_title;blurb,crypto scam
+crypto giveaway,word,hold,comment;question;answer;critique;display_name;bio;about_author;publication_title;blurb,crypto scam
+forex trading,word,hold,comment;display_name;bio;about_author;publication_title;blurb,investment spam
+binary options,word,hold,comment;display_name;bio;about_author;publication_title;blurb,investment spam
+casino,word,hold,comment;display_name;bio;about_author;publication_title;blurb,gambling spam
+online casino,word,hold,comment;display_name;bio;about_author;publication_title;blurb,gambling spam
+sports betting,word,hold,comment;display_name;bio;about_author;publication_title;blurb,gambling spam
+slot gacor,word,hold,comment;display_name;bio;about_author;publication_title;blurb,gambling spam
+buy followers,word,hold,comment;display_name;bio;about_author;publication_title;blurb,engagement spam
+buy likes,word,hold,comment;display_name;bio;about_author;publication_title;blurb,engagement spam
+cheap viagra,word,hold,comment;display_name;bio;about_author;publication_title;blurb,pharma spam
+viagra,word,hold,comment;display_name;bio;about_author;publication_title;blurb,pharma spam
+cialis,word,hold,comment;display_name;bio;about_author;publication_title;blurb,pharma spam
+buy cheap,word,hold,comment;display_name;bio;about_author;publication_title;blurb,commerce spam
+click here,word,hold,comment;display_name;bio;about_author;publication_title;blurb,spam phrase
+limited time offer,word,hold,comment;display_name;bio;about_author;publication_title;blurb,spam phrase
+act now,word,hold,comment;display_name;bio;about_author;publication_title;blurb,spam phrase
+dm me for,word,hold,comment;display_name;bio;about_author;publication_title;blurb,solicitation
+whatsapp me,word,hold,comment;display_name;bio;about_author;publication_title;blurb,off-site contact spam
+telegram me,word,hold,comment;display_name;bio;about_author;publication_title;blurb,off-site contact spam
+contact me on telegram,word,hold,comment;display_name;bio;about_author;publication_title;blurb,off-site contact spam
+seo services,word,hold,comment;display_name;bio;about_author;publication_title;blurb,marketing spam
+backlinks,word,hold,comment;display_name;bio;about_author;publication_title;blurb,SEO spam
+essay writing service,word,hold,comment;display_name;bio;about_author;publication_title;blurb,academic-fraud spam
+write my essay,word,hold,comment;display_name;bio;about_author;publication_title;blurb,academic-fraud spam
+bit.ly,substring,hold,comment;question;answer;critique;display_name;bio;about_author;publication_title;blurb,link shortener often used by spam
+tinyurl,substring,hold,comment;question;answer;critique;display_name;bio;about_author;publication_title;blurb,link shortener often used by spam
