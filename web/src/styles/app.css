@@ -1456,6 +1456,7 @@ dialog.dialog label { display: flex; flex-direction: column; gap: 4px; margin: 1
 dialog.dialog select, dialog.dialog input[type='file'] { width: 100%; }
 .dialog__actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 .library__actions { display: flex; gap: 8px; }
+dialog.dialog[data-dragging] { outline: 2px dashed var(--accent); outline-offset: -6px; }
 
 /* --- export: roles, the dialog's groups, the report ---------------------- */
 

@@ -65,7 +65,7 @@ chapter nine.
 |---|---|---|
 | `GET` | `/versions/{id}/export?format=&style=` | the version as a file |
 | `GET` | `/works/{id}/export?format=&style=` | the working draft as a file, or `format=project` for the whole book as a zip (owner) |
-| `POST` | `/works/import?name=` | a project zip, or a `.md`/`.txt` document, in the body → a new book |
+| `POST` | `/works/import?name=` | a project zip, a zipped Scrivener project, or a `.md`/`.txt` document, in the body → a new book |
 | `POST` | `/works/{id}/import?name=&chapterId=` | a `.md`/`.txt` document in the body → a new scene |
 
 `format` is `docx`, `epub`, `pdf`, `html` or `txt`. `style` is `manuscript` (the
@@ -126,7 +126,15 @@ Markdown file per scene under `manuscript/NN-chapter/NN-scene.md`. `project.json
 details of the book, its chapters and scenes with every setting and each scene's
 exact document, and the notebook with its links — so importing it makes the same
 book. A zip with only Markdown files imports too: a chapter per folder, a scene
-per file. Imports always make new rows with new ids, start as a draft, and leave
+per file. So does a zipped Scrivener project (2 or 3) — any zip with a `.scrivx`
+in it, which is what the web client makes of a `.scriv` folder: the Draft's
+top-level items become chapters (a folder with everything under it flattened
+into scenes, a lone document a chapter of one scene), synopses become summaries,
+Scrivener's stock statuses map to ours, and the binder's other folders become
+the notebook (Characters and Places by name, everything else notes). The Trash,
+template sheets, front and back matter, snapshots, document notes and media are
+left behind; formatting comes through as bold, italic, underline and strike.
+Imports always make new rows with new ids, start as a draft, and leave
 behind what is not part of the writing: versions, readers, comments, to-dos and
 collaborators. Import bodies are limited to 64 MB, and a zip to 20,000 files and
 256 MB once unpacked.

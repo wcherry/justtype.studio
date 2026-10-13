@@ -35,6 +35,8 @@ mod place_api_tests;
 pub mod privacy;
 pub mod profiles;
 pub mod project;
+#[cfg(test)]
+mod project_api_tests;
 pub mod prompts;
 #[cfg(test)]
 mod prompts_api_tests;

@@ -222,21 +222,25 @@ enum FileKind {
 
 fn kind_of(name: &str, body: &[u8]) -> ApiResult<FileKind> {
     let lower = name.to_ascii_lowercase();
-    if lower.ends_with(".zip") || body.starts_with(b"PK") {
+    // A Scrivener project arrives zipped: the browser cannot send a folder.
+    if lower.ends_with(".zip") || lower.ends_with(".scriv") || body.starts_with(b"PK") {
         Ok(FileKind::Project)
     } else if lower.ends_with(".md") || lower.ends_with(".markdown") || lower.ends_with(".txt") {
         Ok(FileKind::Document)
     } else {
         Err(ApiError::BadRequest(
-            "import a project (.zip) or a document (.md, .markdown or .txt)".into(),
+            "import a project (.zip), a Scrivener project (.scriv) or a document (.md, .markdown or .txt)"
+                .into(),
         ))
     }
 }
 
-/// "The Long Way Home.md" → "The Long Way Home".
+/// "The Long Way Home.md" → "The Long Way Home", and "Novel.scriv.zip" →
+/// "Novel".
 fn stem(name: &str) -> String {
     let leaf = name.rsplit(['/', '\\']).next().unwrap_or(name);
     let base = leaf.rsplit_once('.').map(|(s, _)| s).unwrap_or(leaf);
+    let base = base.strip_suffix(".scriv").unwrap_or(base);
     project::clean_name(base)
 }
 
@@ -252,7 +256,8 @@ fn clean(value: Option<String>) -> Option<String> {
         .filter(|v| !v.is_empty())
 }
 
-/// A zip becomes a book, a document becomes a book of one scene.
+/// A zip (a project, or a Scrivener project) becomes a book, a document
+/// becomes a book of one scene.
 #[utoipa::path(
     post,
     path = "/api/works/import",

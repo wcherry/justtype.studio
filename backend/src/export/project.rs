@@ -11,7 +11,8 @@
 //! structure, every scene's exact document and settings, and the notebook, so
 //! importing it reproduces the book. The Markdown files are the same scenes in
 //! a form any editor opens; a zip with only those (no `project.json`) imports
-//! too, one chapter per folder and one scene per file.
+//! too, one chapter per folder and one scene per file. A zipped Scrivener
+//! project imports through the same door; see `scrivener`.
 use std::io::{Cursor, Read, Write};
 
 use serde::{Deserialize, Serialize};
@@ -275,7 +276,7 @@ manuscript/    Each scene as a Markdown file, one folder per chapter, for\n\
                it is present; edit the scene text there, or import the\n\
                Markdown files on their own.\n";
 
-fn read_capped(file: &mut impl Read, remaining: &mut u64) -> Result<Vec<u8>, String> {
+pub(super) fn read_capped(file: &mut impl Read, remaining: &mut u64) -> Result<Vec<u8>, String> {
     let limit = MAX_ENTRY_BYTES.min(*remaining);
     let mut bytes = Vec::new();
     file.take(limit + 1)
@@ -288,8 +289,8 @@ fn read_capped(file: &mut impl Read, remaining: &mut u64) -> Result<Vec<u8>, Str
     Ok(bytes)
 }
 
-/// Reads a project from a zip: `project.json` if it has one, else its
-/// Markdown files.
+/// Reads a project from a zip: `project.json` if it has one, else the
+/// Scrivener project in it, else its Markdown files.
 pub fn read(bytes: &[u8]) -> Result<Project, String> {
     let mut archive =
         ZipArchive::new(Cursor::new(bytes)).map_err(|_| "that is not a zip file".to_string())?;
@@ -345,6 +346,10 @@ pub fn read(bytes: &[u8]) -> Result<Project, String> {
             }
         }
         return Ok(project);
+    }
+
+    if super::scrivener::is_scrivener(&names) {
+        return super::scrivener::read(&mut archive, &names, &mut remaining);
     }
 
     // No project.json: Markdown and text files, a chapter per folder.

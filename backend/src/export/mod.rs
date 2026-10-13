@@ -16,6 +16,8 @@ pub mod pdf;
 pub mod pdf_book;
 pub mod pipeline;
 pub mod project;
+pub mod rtf;
+pub mod scrivener;
 pub mod text;
 pub mod web;
 

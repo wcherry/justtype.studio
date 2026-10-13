@@ -50,3 +50,5 @@ aho-corasick = "1"
 unicode-normalization = "0.1"
 aes-gcm = "0.10"
 base64 = "0.22"
+# Scrivener projects (.scrivx) on import.
+roxmltree = "0.21"

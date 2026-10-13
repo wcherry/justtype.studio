@@ -151,6 +151,25 @@ impl Server {
         value
     }
 
+    /// Sends `bytes` as a file upload, the way the client's `upload` does.
+    pub(super) async fn upload(&self, who: &Writer, path: &str, bytes: Vec<u8>) -> (u16, Value) {
+        let res = self
+            .http
+            .post(format!("{}{path}", self.base))
+            .bearer_auth(&who.token)
+            .header("content-type", "application/octet-stream")
+            .body(bytes)
+            .send()
+            .await
+            .unwrap();
+        let status = res.status().as_u16();
+        let text = res.text().await.unwrap();
+        (
+            status,
+            serde_json::from_str(&text).unwrap_or(Value::String(text)),
+        )
+    }
+
     pub(super) async fn status(
         &self,
         who: Option<&Writer>,
