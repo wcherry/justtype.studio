@@ -94,6 +94,16 @@ pub fn epub_type(chapter: &ChapterContent) -> &'static str {
         Role::Chapter => "chapter",
         Role::Front => "frontmatter",
         Role::Back => "backmatter",
+        Role::Part => "part",
+    }
+}
+
+/// The class a heading takes: a part's title sits lower and alone on its page.
+pub fn heading_class(chapter: &ChapterContent) -> &'static str {
+    if chapter.role == Role::Part {
+        " class=\"part-title\""
+    } else {
+        ""
     }
 }
 

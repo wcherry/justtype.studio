@@ -209,6 +209,17 @@ a { color: inherit; text-decoration: none; }
   padding: 16px 18px;
 }
 .library__card:hover, .feed__card:hover { border-color: var(--accent); }
+/* Each book's ⋯ sits in its card's corner, beside the link rather than in it. */
+.library__item { position: relative; }
+.library__item .library__card { padding-right: 52px; }
+.library__item > .menu { position: absolute; top: 10px; right: 10px; z-index: 2; }
+.library__menu.menu__button {
+  padding: 2px 8px; font-size: 18px; line-height: 1; color: var(--ink-faint);
+  border-color: transparent; background: none;
+}
+.library__menu.menu__button:hover, .library__menu.menu__button[aria-expanded='true'] {
+  color: var(--ink); border-color: var(--line);
+}
 .library__card h2, .feed__card h2 { font-family: var(--serif); font-weight: 500; margin: 0 0 6px; font-size: 19px; }
 .library__meta, .feed__meta { color: var(--ink-faint); font-size: 13px; margin: 0; }
 .library__synopsis, .feed__excerpt { color: var(--ink-soft); margin: 8px 0 0; }
@@ -549,9 +560,24 @@ body.writing-page .room-outline .outline { display: block; border: none; max-hei
 .outline__dot { color: var(--accent); font-size: 11px; }
 .outline__title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .outline__words { color: var(--ink-faint); font-size: 11px; }
-.outline__move { display: none; gap: 2px; padding-right: 4px; }
-.outline__scene:hover .outline__move { display: flex; }
-.outline__move button { padding: 0 4px; border: none; background: none; color: var(--ink-faint); }
+/* Moving: the dragged row dims, and a line shows where it will land. */
+.outline__scene.is-dragging, .outline__chapter.is-dragging { opacity: 0.4; }
+.outline__scene.is-drop-before { box-shadow: inset 0 2px 0 var(--accent); }
+.outline__scene.is-drop-after { box-shadow: inset 0 -2px 0 var(--accent); }
+.outline__chapter.is-drop-before { box-shadow: 0 -2px 0 var(--accent); }
+.outline__chapter.is-drop-after { box-shadow: 0 2px 0 var(--accent); }
+.outline__chapter h3.is-drop-into { background: var(--accent-soft); border-radius: 4px; }
+.outline__chapter h3[draggable='true'] { cursor: grab; }
+.outline__chapter h3[draggable='true']:active { cursor: grabbing; }
+.outline__scene-btn { cursor: pointer; user-select: none; -webkit-user-select: none; }
+.outline__scene-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+/* Left out of the book: still here, plainly set apart. */
+.outline__scene.is-excluded .outline__title, .outline__scene.is-excluded .outline__words { color: var(--ink-faint); }
+.outline__scene.is-excluded .outline__title { text-decoration: line-through; text-decoration-color: var(--line); }
+.outline__left-out {
+  flex: none; margin-left: 6px; padding: 0 5px; font-size: 10px; color: var(--ink-faint);
+  border: 1px dashed var(--line); border-radius: 999px; white-space: nowrap;
+}
 .outline__add-btn {
   border: none; background: none; color: var(--ink-faint);
   font-size: 12px; padding: 4px 8px;
@@ -585,6 +611,17 @@ body.writing-page .room-outline .outline { display: block; border: none; max-hei
 .editor__header-actions button { white-space: nowrap; }
 
 .menu { position: relative; }
+/* A menu opened where the pointer is, rather than under a button. */
+.context-menu { position: fixed; z-index: 70; }
+/* A word on what just happened, at the foot of the page, gone in a moment. */
+.toast {
+  position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 80;
+  max-width: min(520px, calc(100vw - 32px)); padding: 8px 14px; font-size: 13px;
+  background: var(--ink); color: var(--paper, var(--surface)); border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+.context-menu .context-menu__list { position: static; }
+.context-menu .menu__sub { top: -5px; left: calc(100% + 4px); right: auto; }
 .menu__button { display: inline-flex; align-items: center; gap: 6px; }
 .menu__button.is-active { border-color: var(--accent); color: var(--accent); }
 .menu__caret { font-size: 10px; color: var(--ink-faint); }
@@ -977,6 +1014,18 @@ body.writing-page .room-outline .outline { display: block; border: none; max-hei
   width: 100%; border: none; background: none; padding: 0; text-align: left;
 }
 .notebook__name { font-size: 14px; }
+/* The row is the handle: click to open, drag to move, double-click to edit. */
+.notebook__row { cursor: pointer; user-select: none; -webkit-user-select: none; border-radius: 4px; }
+.notebook__row.is-arrangeable:active { cursor: grabbing; }
+.notebook__row:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.notebook__entry.is-dragging { opacity: 0.4; }
+/* Where it will land: a line on the edge it will land against. */
+.notebook__entry.is-drop-before { box-shadow: inset 0 2px 0 var(--accent); }
+.notebook__entry.is-drop-after { box-shadow: inset 0 -2px 0 var(--accent); }
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+}
 .notebook__count {
   font-size: 11px; color: var(--ink-faint);
   background: var(--accent-soft); padding: 1px 6px; border-radius: 99px;
@@ -1380,6 +1429,7 @@ body.writing-page .room-outline .outline { display: block; border: none; max-hei
 
 .selection-menu {
   position: fixed; z-index: 60; min-width: 190px; max-width: 320px; padding: 4px;
+  max-height: calc(100vh - 16px); overflow-y: auto;
   display: flex; flex-direction: column;
   background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
@@ -1456,6 +1506,7 @@ dialog.dialog label { display: flex; flex-direction: column; gap: 4px; margin: 1
 dialog.dialog select, dialog.dialog input[type='file'] { width: 100%; }
 .dialog__actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 .library__actions { display: flex; gap: 8px; }
+dialog.dialog[data-dragging] { outline: 2px dashed var(--accent); outline-offset: -6px; }
 
 /* --- export: roles, the dialog's groups, the report ---------------------- */
 
@@ -1463,12 +1514,42 @@ dialog.dialog select, dialog.dialog input[type='file'] { width: 100%; }
   margin-left: 6px; padding: 0 6px; font-size: 10px; font-weight: 400; letter-spacing: 0.03em;
   color: var(--ink-soft); border: 1px solid var(--line); border-radius: 999px; white-space: nowrap;
 }
+/*
+ * The heading keeps to one line whatever is shown beside it: a long title
+ * ends in an ellipsis rather than wrapping, and the role picker floats over
+ * the end of the line on hover instead of taking room from the title, so the
+ * outline never shifts under the pointer.
+ */
+.outline__chapter h3 { position: relative; display: flex; align-items: baseline; flex-wrap: nowrap; min-width: 0; }
+.outline__chapter-title { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.outline__badge, .outline__lock { flex: none; }
 .outline__role {
-  margin-left: auto; max-width: 28px; opacity: 0; font-size: 11px; color: var(--ink-soft);
-  border: 0; background: transparent; cursor: pointer;
+  position: absolute; right: 0; top: 50%; transform: translateY(-50%);
+  opacity: 0; pointer-events: none; font-size: 11px; color: var(--ink-soft); cursor: pointer;
+  width: auto; max-width: 9em; padding: 1px 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px;
+  text-transform: none; letter-spacing: 0;
 }
-.outline__chapter h3 { display: flex; align-items: baseline; flex-wrap: nowrap; }
-.outline__chapter:hover .outline__role, .outline__role:focus { opacity: 1; max-width: 120px; }
+.outline__chapter h3:hover .outline__role, .outline__role:focus { opacity: 1; pointer-events: auto; }
+/* A part opens the chapters after it: a rule above, and a heading a step up. */
+.outline__chapter--part { border-top: 1px solid var(--line); margin-top: 22px; }
+.outline__chapter--part h3 { color: var(--ink-soft); font-weight: 600; letter-spacing: 0.12em; margin-top: 12px; }
+/* Folding: a chevron before each chapter and part; folded, its words to the right. */
+.outline__fold {
+  flex: none; width: 18px; margin: 0 2px 0 -5px; padding: 0; border: 0; background: transparent;
+  color: var(--ink-faint); font-size: 13px; line-height: 1; cursor: pointer; text-align: center;
+}
+.outline__fold:hover, .outline__fold:focus-visible { color: var(--ink); }
+.outline__fold--none { cursor: default; }
+.outline__folded-count {
+  margin-left: auto; padding-left: 8px; font-size: 10px; font-weight: 400; letter-spacing: 0;
+  text-transform: none; color: var(--ink-faint); white-space: nowrap;
+}
+.outline__chapter.is-folded .outline__role { display: none; }
+.outline__fold-all {
+  margin-left: 8px; padding: 0; border: 0; background: transparent; font-size: 11px;
+  color: var(--ink-faint); text-decoration: underline; text-underline-offset: 2px; cursor: pointer;
+}
+.outline__fold-all:hover { color: var(--ink); }
 
 dialog.dialog--export {
   width: min(640px, calc(100vw - 32px)); max-width: none; max-height: calc(100vh - 48px); overflow-y: auto;

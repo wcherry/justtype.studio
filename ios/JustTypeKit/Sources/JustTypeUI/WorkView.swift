@@ -72,9 +72,10 @@ struct WorkView: View {
     /// A scene's title, or "Scene 2" for where it sits in its chapter.
     private func name(of scene: API.Scene) -> String {
         guard Naming.isUntitled(scene.title) else { return scene.title }
-        let siblings = outline?.chapters.first(where: { $0.id == scene.chapterId })?.scenes ?? []
+        let chapter = outline?.chapters.first(where: { $0.id == scene.chapterId })
+        let siblings = chapter?.scenes ?? []
         let number = (siblings.firstIndex(where: { $0.id == scene.id }) ?? siblings.count) + 1
-        return Naming.scene(scene.title, number: number)
+        return Naming.scene(scene.title, number: number, role: chapter?.role ?? "chapter")
     }
 
     private var outlineList: some View {
@@ -88,7 +89,7 @@ struct WorkView: View {
                                 selected = scene
                             } label: {
                                 HStack {
-                                    Text(Naming.scene(scene.title, number: sceneIndex + 1))
+                                    Text(Naming.scene(scene.title, number: sceneIndex + 1, role: chapter.role))
                                         .foregroundStyle(Naming.isUntitled(scene.title) ? .secondary : .primary)
                                         .italic(Naming.isUntitled(scene.title))
                                     Spacer()

@@ -970,8 +970,9 @@ public enum API {
         public var createdAt: String
         public var id: String
         public var position: Int
-        /// `chapter`, `front` or `back`. Front and back matter are not numbered and
-        /// are included or left out of an export on their own.
+        /// `chapter`, `front`, `back` or `part`. Front and back matter are not
+        /// numbered and are included or left out of an export on their own; a
+        /// part is a divider before its chapters and is not numbered as one.
         public var role: String
         public var summary: String?
         public var title: String
@@ -2214,6 +2215,9 @@ public enum API {
         public var id: String
         public var kind: NotebookKind
         public var name: String
+        /// Where it sits among the entries of its kind, as the writer arranged
+        /// them; 0 first. Absent from an entry cached before it existed.
+        public var position: Int?
         public var summary: String?
         /// The sketch template it was started from, if any.
         public var templateId: String?
@@ -2230,6 +2234,7 @@ public enum API {
             id: String,
             kind: NotebookKind,
             name: String,
+            position: Int? = nil,
             summary: String? = nil,
             templateId: String? = nil,
             updatedAt: String,
@@ -2242,6 +2247,7 @@ public enum API {
             self.id = id
             self.kind = kind
             self.name = name
+            self.position = position
             self.summary = summary
             self.templateId = templateId
             self.updatedAt = updatedAt
@@ -3386,6 +3392,9 @@ public enum API {
         public var id: String
         public var kind: NotebookKind
         public var name: String
+        /// Where it sits among the entries of its kind, as the writer arranged
+        /// them; 0 first. Absent from an entry cached before it existed.
+        public var position: Int?
         public var summary: String?
         /// The sketch template it was started from, if any.
         public var templateId: String?
@@ -3398,6 +3407,7 @@ public enum API {
             id: String,
             kind: NotebookKind,
             name: String,
+            position: Int? = nil,
             summary: String? = nil,
             templateId: String? = nil,
             updatedAt: String,
@@ -3408,6 +3418,7 @@ public enum API {
             self.id = id
             self.kind = kind
             self.name = name
+            self.position = position
             self.summary = summary
             self.templateId = templateId
             self.updatedAt = updatedAt
@@ -3438,8 +3449,9 @@ public enum API {
         public var createdAt: String
         public var id: String
         public var position: Int
-        /// `chapter`, `front` or `back`. Front and back matter are not numbered and
-        /// are included or left out of an export on their own.
+        /// `chapter`, `front`, `back` or `part`. Front and back matter are not
+        /// numbered and are included or left out of an export on their own; a
+        /// part is a divider before its chapters and is not numbered as one.
         public var role: String
         public var summary: String?
         public var title: String
@@ -4533,6 +4545,22 @@ public enum API {
         }
     }
 
+    public struct ReorderEntriesRequest: Codable, Hashable, Sendable {
+        /// The entries of that kind, in their new order. Any left out keep their
+        /// order among themselves, after the ones listed.
+        public var ids: [String]
+        /// The kind being arranged: entries are ordered within their kind.
+        public var kind: NotebookKind
+
+        public init(
+            ids: [String],
+            kind: NotebookKind
+        ) {
+            self.ids = ids
+            self.kind = kind
+        }
+    }
+
     public struct ReorderPromptsRequest: Codable, Hashable, Sendable {
         /// Every queued prompt's id, in the new order.
         public var ids: [String]
@@ -5159,6 +5187,10 @@ public enum API {
         public var chapterId: String
         public var contentHash: String
         public var createdAt: String
+        /// Kept in the outline but not part of the book: not exported, not in a
+        /// version, not in the book's word count. New scenes are part of it, and
+        /// so is one a client cached before this existed: absent means `false`.
+        public var excluded: Bool?
         public var id: String
         public var location: String?
         public var position: Int
@@ -5178,6 +5210,7 @@ public enum API {
             chapterId: String,
             contentHash: String,
             createdAt: String,
+            excluded: Bool? = nil,
             id: String,
             location: String? = nil,
             position: Int,
@@ -5194,6 +5227,7 @@ public enum API {
             self.chapterId = chapterId
             self.contentHash = contentHash
             self.createdAt = createdAt
+            self.excluded = excluded
             self.id = id
             self.location = location
             self.position = position
@@ -5319,6 +5353,10 @@ public enum API {
         public var chapterId: String
         public var contentHash: String
         public var createdAt: String
+        /// Kept in the outline but not part of the book: not exported, not in a
+        /// version, not in the book's word count. New scenes are part of it, and
+        /// so is one a client cached before this existed: absent means `false`.
+        public var excluded: Bool?
         public var id: String
         public var location: String?
         public var position: Int
@@ -5339,6 +5377,7 @@ public enum API {
             chapterId: String,
             contentHash: String,
             createdAt: String,
+            excluded: Bool? = nil,
             id: String,
             location: String? = nil,
             position: Int,
@@ -5356,6 +5395,7 @@ public enum API {
             self.chapterId = chapterId
             self.contentHash = contentHash
             self.createdAt = createdAt
+            self.excluded = excluded
             self.id = id
             self.location = location
             self.position = position
@@ -6371,8 +6411,11 @@ public enum API {
     }
 
     public struct UpdateChapterRequest: Codable, Hashable, Sendable {
-        /// `chapter`, `front` (preface, foreword) or `back` (acknowledgments,
-        /// afterword, appendix). Front and back matter are not numbered.
+        /// `chapter`, `front` (preface, foreword), `back` (acknowledgments,
+        /// afterword, appendix) or `part` (a divider that opens a run of
+        /// chapters). Front and back matter and parts are not numbered as
+        /// chapters. A chapter made a part is given an empty scene if it has none:
+        /// its part page, which keeps it in a version even with nothing on it.
         public var role: String?
         public var summary: String?
         public var title: String?
@@ -6587,6 +6630,9 @@ public enum API {
     public struct UpdateSceneRequest: Codable, Hashable, Sendable {
         /// Move the scene into a different chapter of the same work.
         public var chapterId: String?
+        /// Leave the scene out of the book (`true`) or put it back: an excluded
+        /// scene is not exported, not in a version, and not in the word count.
+        public var excluded: Bool?
         public var location: String?
         public var pov: String?
         public var status: SceneStatus?
@@ -6601,6 +6647,7 @@ public enum API {
 
         public init(
             chapterId: String? = nil,
+            excluded: Bool? = nil,
             location: String? = nil,
             pov: String? = nil,
             status: SceneStatus? = nil,
@@ -6610,6 +6657,7 @@ public enum API {
             title: String? = nil
         ) {
             self.chapterId = chapterId
+            self.excluded = excluded
             self.location = location
             self.pov = pov
             self.status = status

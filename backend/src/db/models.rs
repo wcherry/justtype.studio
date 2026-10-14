@@ -229,8 +229,9 @@ row!(Chapter, chapters, {
     position: i32,
     created_at: String,
     updated_at: String,
-    /// `chapter`, `front` or `back`. Front and back matter are not numbered and
-    /// are included or left out of an export on their own.
+    /// `chapter`, `front`, `back` or `part`. Front and back matter are not
+    /// numbered and are included or left out of an export on their own; a
+    /// part is a divider before its chapters and is not numbered as one.
     role: String,
 });
 
@@ -253,6 +254,11 @@ row!(Scene, scenes, {
     location: Option<String>,
     /// Free text: fiction rarely runs on the Gregorian calendar.
     story_date: Option<String>,
+    /// Kept in the outline but not part of the book: not exported, not in a
+    /// version, not in the book's word count. New scenes are part of it, and
+    /// so is one a client cached before this existed: absent means `false`.
+    #[serde(default)]
+    excluded: bool,
 });
 
 row!(NotebookEntry, notebook_entries, {
@@ -270,6 +276,10 @@ row!(NotebookEntry, notebook_entries, {
     fields: Option<String>,
     /// The sketch template it was started from, if any.
     template_id: Option<String>,
+    /// Where it sits among the entries of its kind, as the writer arranged
+    /// them; 0 first. Absent from an entry cached before it existed.
+    #[serde(default)]
+    position: i32,
 });
 
 row!(SceneNotebookLink, scene_notebook_links, {
@@ -689,7 +699,7 @@ new_row!(NewNotebookEntry, notebook_entries, {
     id: String, work_id: String, kind: String, name: String,
     summary: Option<String>, body: Option<String>,
     created_at: String, updated_at: String,
-    fields: Option<String>, template_id: Option<String>,
+    fields: Option<String>, template_id: Option<String>, position: i32,
 });
 
 new_row!(NewSceneNotebookLink, scene_notebook_links, {

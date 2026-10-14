@@ -29,12 +29,18 @@ pub mod moderation;
 mod moderation_api_tests;
 pub mod moderation_webhooks;
 pub mod notebook;
+#[cfg(test)]
+mod notebook_order_api_tests;
 pub mod openapi;
+#[cfg(test)]
+mod parts_api_tests;
 #[cfg(test)]
 mod place_api_tests;
 pub mod privacy;
 pub mod profiles;
 pub mod project;
+#[cfg(test)]
+mod project_api_tests;
 pub mod prompts;
 #[cfg(test)]
 mod prompts_api_tests;
@@ -43,6 +49,8 @@ pub mod readers;
 pub mod reports;
 #[cfg(test)]
 mod restriction_api_tests;
+#[cfg(test)]
+mod scene_actions_api_tests;
 pub mod scenes;
 pub mod search;
 pub mod share;
@@ -111,6 +119,7 @@ fn api_router() -> OpenApiRouter<AppState> {
         .routes(routes!(works::put_place))
         .routes(routes!(notebook::templates))
         .routes(routes!(notebook::list, notebook::create))
+        .routes(routes!(notebook::reorder))
         .routes(routes!(notebook::update, notebook::delete_entry))
         .routes(routes!(notebook::link))
         .routes(routes!(notebook::unlink))
@@ -119,6 +128,7 @@ fn api_router() -> OpenApiRouter<AppState> {
         .routes(routes!(works::update_chapter, works::delete_chapter))
         .routes(routes!(scenes::create))
         .routes(routes!(scenes::reorder))
+        .routes(routes!(scenes::duplicate))
         .routes(routes!(
             scenes::get_one,
             scenes::update,
@@ -167,6 +177,7 @@ fn api_router() -> OpenApiRouter<AppState> {
         .merge(
             OpenApiRouter::new()
                 .routes(routes!(project::import_work))
+                .routes(routes!(project::duplicate_work))
                 .routes(routes!(project::import_document))
                 .layer(axum::extract::DefaultBodyLimit::max(
                     project::MAX_IMPORT_BYTES,

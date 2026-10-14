@@ -22,6 +22,7 @@ import type {
   QueueItem, QueuePage, Reported, RestrictionView, TestResult, UserDetail, UserList,
   WordFilterTerm, WordList, Appeal,
 } from './types'
+import type { ChapterRole } from '../naming'
 
 const BASE = '/api'
 const ACCESS_KEY = 'justtype.access'
@@ -240,6 +241,70 @@ export function downloadFeedback(publicationId: string, format: string): Promise
  * in a URL: a query string is logged, kept in history, and handed to whatever
  * the page links to next.
  */
+/**
+ * The working draft, laid out as a book, sent to a printer: the system's print
+ * dialog opens on the PDF, where the printer, copies and pages are chosen.
+ * Nothing to set here — that is what Export is for — and, like the quick
+ * download, it leaves no line in the export history.
+ */
+export async function printDraft(workId: string): Promise<'printing' | 'saved'> {
+  const params = new URLSearchParams({ format: 'pdf', style: 'book' })
+  const send = () => {
+    const headers: Record<string, string> = {}
+    const access = tokens.access()
+    if (access) headers.authorization = `Bearer ${access}`
+    return fetch(`${BASE}/works/${workId}/export?${params}`, { headers })
+  }
+  let res = await send()
+  if (res.status === 401 && (await tryRefresh())) res = await send()
+  if (!res.ok) {
+    const payload = await res.json().catch(() => null)
+    throw new ApiError(res.status, payload?.error?.code ?? 'unknown', payload?.error?.message ?? res.statusText)
+  }
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const done = () => setTimeout(() => URL.revokeObjectURL(url), 60_000)
+
+  // Safari prints a blank page from a frame, and blocks a tab opened this
+  // late; it gets the PDF as a file to print from its own viewer instead.
+  const safari = /^((?!chrome|chromium|android|crios|fxios).)*safari/i.test(navigator.userAgent)
+  if (safari) {
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'book.pdf'
+    link.click()
+    done()
+    return 'saved'
+  }
+
+  const frame = document.createElement('iframe')
+  frame.title = 'Printing'
+  frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden'
+  await new Promise<void>((resolve) => {
+    // A PDF viewer can report itself loaded more than once; print once.
+    let printed = false
+    frame.onload = () => {
+      if (printed) return
+      printed = true
+      try {
+        frame.contentWindow?.focus()
+        frame.contentWindow?.print()
+      } catch {
+        // A browser that will not print a PDF from a frame: give it the PDF
+        // in a tab of its own, where its viewer has a print button.
+        window.open(url, '_blank', 'noopener')
+      }
+      // Gone a while after the dialog closes; printing has its own copy by then.
+      setTimeout(() => frame.remove(), 60_000)
+      done()
+      resolve()
+    }
+    frame.src = url
+    document.body.appendChild(frame)
+  })
+  return 'printing'
+}
+
 async function download(path: string, format: string, style: string): Promise<void> {
   const params = new URLSearchParams({ format, style })
   const headers: Record<string, string> = {}
@@ -327,6 +392,8 @@ export const api = {
     outline: (workId: string) => get<Outline>(`/works/${workId}/outline`),
     /** Where the writer is in the book, so opening it again — anywhere — goes back there. */
     putPlace: (workId: string, place: WritingPlace) => put<WritingPlace>(`/works/${workId}/place`, place),
+    /** A copy of the whole book, as a new draft of the caller's. */
+    duplicate: (workId: string) => post<Outline>(`/works/${workId}/duplicate`),
     create: (input: {
       title: string; kind: WorkKind; templateId?: string; synopsis?: string; genre?: Genre
     }) => post<Outline>('/works', input),
@@ -356,7 +423,7 @@ export const api = {
   chapters: {
     create: (workId: string, title: string) =>
       post<Outline['chapters'][number]>(`/works/${workId}/chapters`, { title }),
-    update: (chapterId: string, input: { title?: string; summary?: string; role?: 'chapter' | 'front' | 'back' }) =>
+    update: (chapterId: string, input: { title?: string; summary?: string; role?: ChapterRole }) =>
       patch<Outline['chapters'][number]>(`/chapters/${chapterId}`, input),
     remove: (chapterId: string) => del<{ ok: boolean }>(`/chapters/${chapterId}`),
     reorder: (workId: string, ids: string[]) =>
@@ -374,7 +441,7 @@ export const api = {
       post<Scene>(`/scenes/${sceneId}/merge`, { with: withId, baseHash, withBaseHash }),
     update: (
       sceneId: string,
-      input: Partial<Pick<Scene, 'title' | 'summary' | 'pov' | 'status' | 'chapterId'>> & {
+      input: Partial<Pick<Scene, 'title' | 'summary' | 'pov' | 'status' | 'chapterId' | 'excluded'>> & {
         /** `null` clears the target; omitting leaves it alone. */
         targetWords?: number | null
         location?: string
@@ -393,6 +460,8 @@ export const api = {
     restoreRevision: (sceneId: string, revisionId: string) =>
       post<SaveResult>(`/scenes/${sceneId}/revisions/${revisionId}/restore`),
     remove: (sceneId: string) => del<{ ok: boolean }>(`/scenes/${sceneId}`),
+    /** A copy just after it: text, details and notebook links. */
+    duplicate: (sceneId: string) => post<Scene>(`/scenes/${sceneId}/duplicate`),
     reorder: (chapterId: string, ids: string[]) =>
       post<Scene[]>(`/chapters/${chapterId}/scenes/reorder`, { ids }),
     revisions: (sceneId: string) => get<SceneRevision[]>(`/scenes/${sceneId}/revisions`),
@@ -556,6 +625,9 @@ export const api = {
       name?: string; summary?: string; body?: string; fields?: SketchField[]
     }) => patch<EntryView>(`/notebook/${entryId}`, input),
     remove: (entryId: string) => del<{ ok: boolean }>(`/notebook/${entryId}`),
+    /** Puts one kind's entries in this order; any left out follow, as they were. */
+    reorder: (workId: string, kind: NotebookKind, ids: string[]) =>
+      post<EntryView[]>(`/works/${workId}/notebook/reorder`, { kind, ids }),
     link: (entryId: string, sceneId: string) =>
       post<EntryView>(`/notebook/${entryId}/links`, { sceneId }),
     unlink: (entryId: string, sceneId: string) =>

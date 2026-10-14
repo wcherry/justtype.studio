@@ -561,8 +561,10 @@ pub fn publication_for_owner(
 
 /// Keeps `works.word_count` honest after any scene write.
 pub fn recount_work(conn: &mut Conn, work_id: &str, now: &str) -> ApiResult<i32> {
+    // A scene left out of the book is left out of its count.
     let total: i64 = scenes::table
         .filter(scenes::work_id.eq(work_id))
+        .filter(scenes::excluded.eq(false))
         .select(diesel::dsl::sum(scenes::word_count))
         .first::<Option<i64>>(conn)?
         .unwrap_or(0);
@@ -664,11 +666,16 @@ pub fn author_cards(
 }
 
 /// What to call a scene in an activity line or a message: its title, or
-/// "Scene 2" for where it sits in its chapter when it has none.
+/// "Scene 2" for where it sits in its chapter when it has none ("Part page"
+/// in a part).
 pub fn scene_label(conn: &mut Conn, scene: &Scene) -> QueryResult<String> {
     if !scene.title.trim().is_empty() {
         return Ok(scene.title.trim().to_string());
     }
+    let role: String = chapters::table
+        .find(&scene.chapter_id)
+        .select(chapters::role)
+        .first(conn)?;
     let order: Vec<String> = scenes::table
         .filter(scenes::chapter_id.eq(&scene.chapter_id))
         .order(scenes::position.asc())
@@ -678,24 +685,31 @@ pub fn scene_label(conn: &mut Conn, scene: &Scene) -> QueryResult<String> {
         .iter()
         .position(|id| id == &scene.id)
         .map_or(order.len() + 1, |i| i + 1);
-    Ok(crate::domain::naming::scene_name(&scene.title, number))
+    Ok(crate::domain::naming::scene_name_in(
+        &role,
+        &scene.title,
+        number,
+    ))
 }
 
-/// What to call a chapter: its title, or "Chapter 3" for where it sits.
+/// What to call a chapter: its title, or "Chapter 3" ("Part 2", "Front
+/// matter") for where it sits, named as the outline names it.
 pub fn chapter_label(conn: &mut Conn, chapter: &Chapter) -> QueryResult<String> {
     if !chapter.title.trim().is_empty() {
         return Ok(chapter.title.trim().to_string());
     }
-    let order: Vec<String> = chapters::table
+    let book: Vec<(String, String, String)> = chapters::table
         .filter(chapters::work_id.eq(&chapter.work_id))
         .order(chapters::position.asc())
-        .select(chapters::id)
+        .select((chapters::id, chapters::title, chapters::role))
         .load(conn)?;
-    let number = order
+    let names =
+        crate::domain::naming::chapter_names(book.iter().map(|(_, t, r)| (t.as_str(), r.as_str())));
+    Ok(book
         .iter()
-        .position(|id| id == &chapter.id)
-        .map_or(order.len() + 1, |i| i + 1);
-    Ok(crate::domain::naming::chapter_name(&chapter.title, number))
+        .position(|(id, ..)| id == &chapter.id)
+        .and_then(|i| names.get(i).cloned())
+        .unwrap_or_else(|| crate::domain::naming::chapter_name("", book.len() + 1)))
 }
 
 #[cfg(test)]

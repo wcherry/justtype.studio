@@ -115,6 +115,7 @@ diesel::table! {
         target_words -> Nullable<Integer>,
         location -> Nullable<Text>,
         story_date -> Nullable<Text>,
+        excluded -> Bool,
     }
 }
 
@@ -142,6 +143,7 @@ diesel::table! {
         updated_at -> Text,
         fields -> Nullable<Text>,
         template_id -> Nullable<Text>,
+        position -> Integer,
     }
 }
 

@@ -1243,7 +1243,7 @@
             "type": "integer"
           },
           "role": {
-            "description": "`chapter`, `front` or `back`. Front and back matter are not numbered and\nare included or left out of an export on their own.",
+            "description": "`chapter`, `front`, `back` or `part`. Front and back matter are not\nnumbered and are included or left out of an export on their own; a\npart is a divider before its chapters and is not numbered as one.",
             "type": "string"
           },
           "summary": {
@@ -4543,6 +4543,11 @@
           "name": {
             "type": "string"
           },
+          "position": {
+            "description": "Where it sits among the entries of its kind, as the writer arranged\nthem; 0 first. Absent from an entry cached before it existed.",
+            "format": "int32",
+            "type": "integer"
+          },
           "summary": {
             "type": [
               "string",
@@ -5811,6 +5816,26 @@
         },
         "type": "object"
       },
+      "ReorderEntriesRequest": {
+        "properties": {
+          "ids": {
+            "description": "The entries of that kind, in their new order. Any left out keep their\norder among themselves, after the ones listed.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/NotebookKind",
+            "description": "The kind being arranged: entries are ordered within their kind."
+          }
+        },
+        "required": [
+          "kind",
+          "ids"
+        ],
+        "type": "object"
+      },
       "ReorderPromptsRequest": {
         "properties": {
           "ids": {
@@ -6559,6 +6584,10 @@
           },
           "createdAt": {
             "type": "string"
+          },
+          "excluded": {
+            "description": "Kept in the outline but not part of the book: not exported, not in a\nversion, not in the book's word count. New scenes are part of it, and\nso is one a client cached before this existed: absent means `false`.",
+            "type": "boolean"
           },
           "id": {
             "type": "string"
@@ -8088,7 +8117,7 @@
       "UpdateChapterRequest": {
         "properties": {
           "role": {
-            "description": "`chapter`, `front` (preface, foreword) or `back` (acknowledgments,\nafterword, appendix). Front and back matter are not numbered.",
+            "description": "`chapter`, `front` (preface, foreword), `back` (acknowledgments,\nafterword, appendix) or `part` (a divider that opens a run of\nchapters). Front and back matter and parts are not numbered as\nchapters. A chapter made a part is given an empty scene if it has none:\nits part page, which keeps it in a version even with nothing on it.",
             "type": [
               "string",
               "null"
@@ -8414,6 +8443,13 @@
             "description": "Move the scene into a different chapter of the same work.",
             "type": [
               "string",
+              "null"
+            ]
+          },
+          "excluded": {
+            "description": "Leave the scene out of the book (`true`) or put it back: an excluded\nscene is not exported, not in a version, and not in the word count.",
+            "type": [
+              "boolean",
               "null"
             ]
           },
@@ -18108,6 +18144,47 @@
         ]
       }
     },
+    "/api/scenes/{scene_id}/duplicate": {
+      "post": {
+        "operationId": "duplicate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scene_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Scene"
+                }
+              }
+            },
+            "description": "The copy"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "A copy of a scene, just after it: its text, details and notebook links,\nunder the same name with \"(copy)\" after it. Its history and comments stay\nwith the original.",
+        "tags": [
+          "scenes"
+        ]
+      }
+    },
     "/api/scenes/{scene_id}/merge": {
       "post": {
         "description": "The inverse of `split`: the absorbed scene's blocks follow this one's, in\norder, and nothing is dropped at the seam.",
@@ -19661,7 +19738,7 @@
             "description": "Refused"
           }
         },
-        "summary": "A zip becomes a book, a document becomes a book of one scene.",
+        "summary": "A zip (a project, or a Scrivener project) becomes a book, a document\nbecomes a book of one scene.",
         "tags": [
           "works"
         ]
@@ -20359,6 +20436,47 @@
         ]
       }
     },
+    "/api/works/{work_id}/duplicate": {
+      "post": {
+        "operationId": "duplicate_work",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutlineResponse"
+                }
+              }
+            },
+            "description": "The copy"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "A copy of a whole book, as a new book of the caller's: everything a\nproject carries — details, chapters, scenes, notebook and cover — under\nthe same title with \"(copy)\" after it. Like an import, it starts as a\ndraft, without the original's versions, readers or collaborators.",
+        "tags": [
+          "works"
+        ]
+      }
+    },
     "/api/works/{work_id}/export": {
       "get": {
         "operationId": "export_draft",
@@ -21008,6 +21126,60 @@
             "description": "Refused"
           }
         },
+        "tags": [
+          "notebook"
+        ]
+      }
+    },
+    "/api/works/{work_id}/notebook/reorder": {
+      "post": {
+        "operationId": "reorder",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReorderEntriesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/EntryView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "That kind's entries, in their new order"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "Puts one kind of entry in the writer's order, as a drag in the notebook\nleaves it.",
         "tags": [
           "notebook"
         ]

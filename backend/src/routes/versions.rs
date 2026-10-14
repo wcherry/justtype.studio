@@ -266,7 +266,8 @@ pub async fn create(
 
     for chapter in &outline.chapters {
         let mut manifest_scenes = Vec::new();
-        for scene in &chapter.scenes {
+        // A version is the book as it would be sent: no scene left out of it.
+        for scene in chapter.scenes.iter().filter(|s| !s.excluded) {
             let content = state.store.read_working_scene(&work_id, &scene.id).await?;
             state
                 .store

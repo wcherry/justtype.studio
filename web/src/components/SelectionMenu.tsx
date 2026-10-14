@@ -123,14 +123,25 @@ export function SelectionMenu({
   const [error, setError] = useState<string | null>(null)
   const [place, setPlace] = useState({ left: target.x, top: target.y })
 
+  // Placed again whenever it changes size: corrections and synonyms arrive
+  // after it opens, and would otherwise push it off the bottom of the window.
+  // Without room below the pointer it opens above it, as the browser's does.
   useLayoutEffect(() => {
     const el = ref.current
     if (!el) return
-    const { width, height } = el.getBoundingClientRect()
-    setPlace({
-      left: Math.max(8, Math.min(target.x, window.innerWidth - width - 8)),
-      top: Math.max(8, Math.min(target.y, window.innerHeight - height - 8)),
-    })
+    const fit = () => {
+      const { width, height } = el.getBoundingClientRect()
+      const below = target.y + height <= window.innerHeight - 8
+      const top = below || target.y - height < 8 ? target.y : target.y - height
+      setPlace({
+        left: Math.max(8, Math.min(target.x, window.innerWidth - width - 8)),
+        top: Math.max(8, Math.min(top, window.innerHeight - height - 8)),
+      })
+    }
+    fit()
+    const observer = new ResizeObserver(fit)
+    observer.observe(el)
+    return () => observer.disconnect()
   }, [target, composing])
 
   useEffect(() => {

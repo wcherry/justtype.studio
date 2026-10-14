@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { api } from '../api/client'
+import { api, downloadDraftExport, printDraft } from '../api/client'
 import type { Genre, Template, Work, WorkKind } from '../api/types'
 import { GENRES } from '../components/labels'
+import { ConfirmDialog, RenameDialog } from '../components/Dialogs'
+import { ExportDialog } from '../components/ExportDialog'
 import { ImportDialog } from '../components/ImportDialog'
+import { ContextMenu, Menu, type MenuItem } from '../components/Menu'
 import { useAuth } from '../state/auth'
 
 const KINDS: { value: WorkKind; label: string }[] = [
@@ -19,8 +22,61 @@ export function LibraryPage() {
   const [creating, setCreating] = useState(false)
   const [importing, setImporting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  /** What a book's menu has open: a dialog about it, or a menu at the pointer. */
+  const [dialog, setDialog] = useState<{ kind: 'rename' | 'delete' | 'export'; work: Work } | null>(null)
+  const [pointerMenu, setPointerMenu] = useState<{ x: number; y: number; work: Work } | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const navigate = useNavigate()
   const { user } = useAuth()
+
+  useEffect(() => {
+    if (!notice) return
+    const timer = setTimeout(() => setNotice(null), 4000)
+    return () => clearTimeout(timer)
+  }, [notice])
+
+  /**
+   * What can be done with a whole book from the desk. Exporting, printing and
+   * copying are the owner's; deleting is only for the person who started it.
+   */
+  const bookMenu = (work: Work): MenuItem[] => {
+    const mine = !!user && work.ownerId === user.id
+    const tryTo = (what: string, run: () => Promise<unknown>) => () => {
+      run().catch((e) => setNotice(e instanceof Error ? e.message : `Could not ${what}`))
+    }
+    return [
+      { key: 'open', label: 'Open', onSelect: () => navigate(`/works/${work.id}`) },
+      { key: 'rename', label: 'Rename…', disabled: !mine, onSelect: () => setDialog({ kind: 'rename', work }) },
+      {
+        key: 'duplicate',
+        label: 'Duplicate',
+        disabled: !mine,
+        onSelect: tryTo('duplicate it', async () => {
+          const copy = await api.works.duplicate(work.id)
+          load()
+          setNotice(`Made “${copy.title}”: the whole book, as a new draft.`)
+        }),
+      },
+      { key: 'export', label: 'Export…', divider: true, disabled: !mine, onSelect: () => setDialog({ kind: 'export', work }) },
+      {
+        key: 'print',
+        label: 'Print…',
+        disabled: !mine,
+        onSelect: tryTo('print it', async () => {
+          setNotice(`Laying out “${work.title}” for the printer…`)
+          const how = await printDraft(work.id)
+          setNotice(how === 'saved' ? `Saved “${work.title}” as a PDF: open it to print.` : null)
+        }),
+      },
+      {
+        key: 'backup',
+        label: 'Download a backup (.zip)',
+        disabled: !mine,
+        onSelect: tryTo('download it', () => downloadDraftExport(work.id, 'project', 'manuscript')),
+      },
+      { key: 'delete', label: 'Delete…', divider: true, disabled: !mine, onSelect: () => setDialog({ kind: 'delete', work }) },
+    ]
+  }
 
   const load = () => {
     api.works.list().then(setWorks).catch((e) => setError(e.message))
@@ -65,7 +121,23 @@ export function LibraryPage() {
 
       <ul className="library__list">
         {works.map((work) => (
-          <li key={work.id}>
+          <li
+            key={work.id}
+            className="library__item"
+            onContextMenu={(e) => {
+              e.preventDefault()
+              setPointerMenu({ x: e.clientX, y: e.clientY, work })
+            }}
+          >
+            {/* Beside the card rather than in it: a menu cannot sit inside a link. */}
+            <Menu
+              className="library__menu"
+              label={<span aria-hidden="true">⋯</span>}
+              ariaLabel={`Actions for ${work.title}`}
+              title="Actions"
+              caret={false}
+              items={bookMenu(work)}
+            />
             <Link to={`/works/${work.id}`} className="library__card">
               <h2>{work.title}</h2>
               <p className="library__meta">
@@ -79,6 +151,48 @@ export function LibraryPage() {
           </li>
         ))}
       </ul>
+
+      {pointerMenu && (
+        <ContextMenu
+          x={pointerMenu.x}
+          y={pointerMenu.y}
+          label={`Actions for ${pointerMenu.work.title}`}
+          items={bookMenu(pointerMenu.work)}
+          onClose={() => setPointerMenu(null)}
+        />
+      )}
+      {dialog?.kind === 'rename' && (
+        <RenameDialog
+          title="Rename the book"
+          initial={dialog.work.title}
+          onSave={async (title) => {
+            await api.works.update(dialog.work.id, { title })
+            load()
+          }}
+          onClose={() => setDialog(null)}
+        />
+      )}
+      {dialog?.kind === 'export' && <ExportDialog workId={dialog.work.id} onClose={() => setDialog(null)} />}
+      {dialog?.kind === 'delete' && (
+        <ConfirmDialog
+          title={`Delete “${dialog.work.title}”?`}
+          action="Delete book"
+          confirmWord={dialog.work.title}
+          onConfirm={async () => {
+            await api.works.remove(dialog.work.id)
+            setNotice(`Deleted “${dialog.work.title}”.`)
+            load()
+          }}
+          onClose={() => setDialog(null)}
+        >
+          <p>
+            The whole book goes, for good: its {dialog.work.wordCount.toLocaleString()} words, its chapters and
+            notebook, every version, and anything published from it. It cannot be brought back.
+          </p>
+          <p>A backup first is one click: “Download a backup (.zip)” in this menu.</p>
+        </ConfirmDialog>
+      )}
+      {notice && <div className="toast" role="status">{notice}</div>}
     </main>
   )
 }

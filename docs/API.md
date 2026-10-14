@@ -47,8 +47,9 @@ edited would be much worse than refusing.
 
 | Method | Path | Notes |
 |---|---|---|
-| `GET` | `/works/{id}/notebook?kind=&sceneId=` | entries, with the scenes each appears in |
-| `POST` | `/works/{id}/notebook` | `kind` (`character`/`place`/`note`), `name`, `summary`, `body` |
+| `GET` | `/works/{id}/notebook?kind=&sceneId=` | entries, with the scenes each appears in; each kind in the writer's order (`position`) |
+| `POST` | `/works/{id}/notebook` | `kind` (`character`/`place`/`note`), `name`, `summary`, `body`; added at the end of its kind |
+| `POST` | `/works/{id}/notebook/reorder` | `kind`, `ids` in their new order (any left out follow, as they were) → that kind's entries |
 | `PATCH` | `/notebook/{entryId}` | `name`, `summary`, `body` |
 | `DELETE` | `/notebook/{entryId}` | |
 | `POST` | `/notebook/{entryId}/links` | `sceneId`; idempotent |
@@ -65,7 +66,7 @@ chapter nine.
 |---|---|---|
 | `GET` | `/versions/{id}/export?format=&style=` | the version as a file |
 | `GET` | `/works/{id}/export?format=&style=` | the working draft as a file, or `format=project` for the whole book as a zip (owner) |
-| `POST` | `/works/import?name=` | a project zip, or a `.md`/`.txt` document, in the body → a new book |
+| `POST` | `/works/import?name=` | a project zip, a zipped Scrivener project, or a `.md`/`.txt` document, in the body → a new book |
 | `POST` | `/works/{id}/import?name=&chapterId=` | a `.md`/`.txt` document in the body → a new scene |
 
 `format` is `docx`, `epub`, `pdf`, `html` or `txt`. `style` is `manuscript` (the
@@ -110,8 +111,14 @@ typography overrides, which the manuscript preset ignores), `metadata`
 exported. PDF footnotes are set as notes at the end of each chapter; Word has
 real footnotes and endnotes.
 
-Chapters take a `role` on `PATCH /chapters/{id}`; `PATCH /me/profile` takes
-`aboutAuthor`. The project zip round-trips roles, details and the cover.
+Chapters take a `role` on `PATCH /chapters/{id}`: `chapter`, `front`, `back`
+or `part`. A part is a divider that opens the chapters after it: it prints on a
+page of its own, takes no chapter number (untitled parts are "Part 1", "Part 2",
+counted on their own, and chapters number straight through them), and is never
+skipped for having no text. A chapter made a part is given an empty scene if it
+has none, its part page, since a version keeps a chapter by its scenes; what is
+written there (an epigraph, a few lines) prints under the part's title.
+`PATCH /me/profile` takes `aboutAuthor`. The project zip round-trips roles, details and the cover.
 
 A version is the export to send: a file you send an agent has to be a thing that
 stays the same. The working draft exports too, as it reads now. Scenes with no text are skipped, so
@@ -126,7 +133,16 @@ Markdown file per scene under `manuscript/NN-chapter/NN-scene.md`. `project.json
 details of the book, its chapters and scenes with every setting and each scene's
 exact document, and the notebook with its links — so importing it makes the same
 book. A zip with only Markdown files imports too: a chapter per folder, a scene
-per file. Imports always make new rows with new ids, start as a draft, and leave
+per file. So does a zipped Scrivener project (2 or 3) — any zip with a `.scrivx`
+in it, which is what the web client makes of a `.scriv` folder: the Draft's
+top-level items become chapters (a folder with everything under it flattened
+into scenes, a lone document a chapter of one scene), a folder of only folders
+becomes a part with its folders as the chapters after it, synopses become summaries,
+Scrivener's stock statuses map to ours, and the binder's other folders become
+the notebook (Characters and Places by name, everything else notes). The Trash,
+template sheets, front and back matter, snapshots, document notes and media are
+left behind; formatting comes through as bold, italic, underline and strike.
+Imports always make new rows with new ids, start as a draft, and leave
 behind what is not part of the writing: versions, readers, comments, to-dos and
 collaborators. Import bodies are limited to 64 MB, and a zip to 20,000 files and
 256 MB once unpacked.
@@ -173,6 +189,7 @@ recovering, not writing.
 | `PUT` | `/works/{id}/place` | `sceneId`, `from`, `to`: remember where the caller is, for any device; anyone who can read the work |
 | `PATCH` | `/works/{id}` | `title`, `subtitle`, `synopsis`, `status` (`draft`/`archived` only), front matter |
 | `DELETE` | `/works/{id}` | removes the manuscript tree too |
+| `POST` | `/works/{id}/duplicate` | a copy of the whole book (what a project carries), as a new draft of the caller's titled “… (copy)” |
 | `POST` | `/works/{id}/chapters` | `title` |
 | `POST` | `/works/{id}/chapters/reorder` | `ids` in the order you want |
 | `PATCH` | `/chapters/{id}` | `title`, `summary` |
@@ -180,7 +197,8 @@ recovering, not writing.
 | `POST` | `/chapters/{id}/scenes` | `title`, optional `content` |
 | `POST` | `/chapters/{id}/scenes/reorder` | `ids` |
 | `GET` | `/scenes/{id}` | scene plus its content |
-| `PATCH` | `/scenes/{id}` | `title`, `summary`, `pov`, `status`, `chapterId` (to move it), `targetWords`, `location`, `storyDate` |
+| `PATCH` | `/scenes/{id}` | `title`, `summary`, `pov`, `status`, `chapterId` (to move it; it goes to the end, then reorder), `targetWords`, `location`, `storyDate`, `excluded` (left out of the book: not exported, not in a version, not in the word count) |
+| `POST` | `/scenes/{id}/duplicate` | a copy just after it: text, details and notebook links, titled “… (copy)” |
 | `POST` | `/scenes/{id}/split` | `atBlock`, `baseHash`, `title` |
 | `POST` | `/scenes/{id}/merge` | `with`, `baseHash`, `withBaseHash` |
 | `PUT` | `/scenes/{id}/content` | `content` (a TipTap doc), `createRevision`, `baseHash`, `localDay` |

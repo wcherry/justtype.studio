@@ -366,8 +366,9 @@ export interface Chapter {
   createdAt: string
   id: string
   position: number
-  // `chapter`, `front` or `back`. Front and back matter are not numbered and
-  // are included or left out of an export on their own.
+  // `chapter`, `front`, `back` or `part`. Front and back matter are not
+  // numbered and are included or left out of an export on their own; a
+  // part is a divider before its chapters and is not numbered as one.
   role: string
   summary?: string | null
   title: string
@@ -869,6 +870,9 @@ export interface EntryView {
   id: string
   kind: NotebookKind
   name: string
+  // Where it sits among the entries of its kind, as the writer arranged
+  // them; 0 first. Absent from an entry cached before it existed.
+  position?: number
   summary?: string | null
   // The sketch template it was started from, if any.
   templateId?: string | null
@@ -1340,6 +1344,9 @@ export interface NotebookEntry {
   id: string
   kind: NotebookKind
   name: string
+  // Where it sits among the entries of its kind, as the writer arranged
+  // them; 0 first. Absent from an entry cached before it existed.
+  position?: number
   summary?: string | null
   // The sketch template it was started from, if any.
   templateId?: string | null
@@ -1357,8 +1364,9 @@ export interface OutlineChapter {
   createdAt: string
   id: string
   position: number
-  // `chapter`, `front` or `back`. Front and back matter are not numbered and
-  // are included or left out of an export on their own.
+  // `chapter`, `front`, `back` or `part`. Front and back matter are not
+  // numbered and are included or left out of an export on their own; a
+  // part is a divider before its chapters and is not numbered as one.
   role: string
   summary?: string | null
   title: string
@@ -1797,6 +1805,14 @@ export interface RemoveBanRequest {
   reason?: string | null
 }
 
+export interface ReorderEntriesRequest {
+  // The entries of that kind, in their new order. Any left out keep their
+  // order among themselves, after the ones listed.
+  ids: string[]
+  // The kind being arranged: entries are ordered within their kind.
+  kind: NotebookKind
+}
+
 export interface ReorderPromptsRequest {
   // Every queued prompt's id, in the new order.
   ids: string[]
@@ -2049,6 +2065,10 @@ export interface Scene {
   chapterId: string
   contentHash: string
   createdAt: string
+  // Kept in the outline but not part of the book: not exported, not in a
+  // version, not in the book's word count. New scenes are part of it, and
+  // so is one a client cached before this existed: absent means `false`.
+  excluded?: boolean
   id: string
   location?: string | null
   position: number
@@ -2108,6 +2128,10 @@ export interface SceneWithContent {
   chapterId: string
   contentHash: string
   createdAt: string
+  // Kept in the outline but not part of the book: not exported, not in a
+  // version, not in the book's word count. New scenes are part of it, and
+  // so is one a client cached before this existed: absent means `false`.
+  excluded?: boolean
   id: string
   location?: string | null
   position: number
@@ -2544,8 +2568,11 @@ export interface UpdateAnnotationRequest {
 }
 
 export interface UpdateChapterRequest {
-  // `chapter`, `front` (preface, foreword) or `back` (acknowledgments,
-  // afterword, appendix). Front and back matter are not numbered.
+  // `chapter`, `front` (preface, foreword), `back` (acknowledgments,
+  // afterword, appendix) or `part` (a divider that opens a run of
+  // chapters). Front and back matter and parts are not numbered as
+  // chapters. A chapter made a part is given an empty scene if it has none:
+  // its part page, which keeps it in a version even with nothing on it.
   role?: string | null
   summary?: string | null
   title?: string | null
@@ -2640,6 +2667,9 @@ export interface UpdateQuestionRequest {
 export interface UpdateSceneRequest {
   // Move the scene into a different chapter of the same work.
   chapterId?: string | null
+  // Leave the scene out of the book (`true`) or put it back: an excluded
+  // scene is not exported, not in a version, and not in the word count.
+  excluded?: boolean | null
   location?: string | null
   pov?: string | null
   status?: SceneStatus | null

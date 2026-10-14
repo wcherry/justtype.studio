@@ -466,8 +466,13 @@ fn body(ctx: &Ctx) -> String {
         } else {
             out.push_str(&page_break());
         }
-        if style == Style::Book {
-            for _ in 0..4 {
+        if style == Style::Book || chapter.role == super::Role::Part {
+            let lines = if chapter.role == super::Role::Part {
+                10
+            } else {
+                4
+            };
+            for _ in 0..lines {
                 out.push_str(&blank());
             }
         }

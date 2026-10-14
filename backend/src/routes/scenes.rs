@@ -59,6 +59,10 @@ pub struct UpdateSceneRequest {
     /// Move the scene into a different chapter of the same work.
     #[serde(default)]
     pub chapter_id: Option<String>,
+    /// Leave the scene out of the book (`true`) or put it back: an excluded
+    /// scene is not exported, not in a version, and not in the word count.
+    #[serde(default)]
+    pub excluded: Option<bool>,
 }
 
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
@@ -288,6 +292,12 @@ pub async fn update(
                 .set(scenes::target_words.eq(target))
                 .execute(conn)?;
         }
+        if let Some(excluded) = body.excluded {
+            diesel::update(scenes::table.find(&scene.id))
+                .set(scenes::excluded.eq(excluded))
+                .execute(conn)?;
+            support::recount_work(conn, &work.id, &now)?;
+        }
         if let Some(target_chapter) = &body.chapter_id {
             let (chapter, _) = support::chapter_for(conn, target_chapter, &user, Ability::Write)?;
             if chapter.work_id != work.id {
@@ -479,6 +489,109 @@ pub async fn delete_scene(
     .await?;
     state.store.delete_scene(&work_id, &scene_id).await?;
     Ok(Json(serde_json::json!({ "ok": true })))
+}
+
+/// A copy of a scene, just after it: its text, details and notebook links,
+/// under the same name with "(copy)" after it. Its history and comments stay
+/// with the original.
+#[utoipa::path(
+    post,
+    path = "/api/scenes/{scene_id}/duplicate",
+    tag = "scenes",
+    params(("scene_id" = String, Path)),
+    responses(
+        (status = 200, description = "The copy", body = Scene),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
+pub async fn duplicate(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(scene_id): Path<String>,
+) -> ApiResult<Json<Scene>> {
+    let (original, copy) = blocking(&state.pool, move |conn| {
+        let (scene, work) = support::scene_for(conn, &scene_id, &user, Ability::Write)?;
+        let now = now_iso();
+        let id = new_id();
+        conn.transaction::<_, ApiError, _>(|conn| {
+            // Room for it just after the original.
+            diesel::update(
+                scenes::table
+                    .filter(scenes::chapter_id.eq(&scene.chapter_id))
+                    .filter(scenes::position.gt(scene.position)),
+            )
+            .set(scenes::position.eq(scenes::position + 1))
+            .execute(conn)?;
+            let title = if scene.title.trim().is_empty() {
+                String::new()
+            } else {
+                format!("{} (copy)", scene.title.trim())
+            };
+            diesel::insert_into(scenes::table)
+                .values(&NewScene {
+                    id: id.clone(),
+                    work_id: work.id.clone(),
+                    chapter_id: scene.chapter_id.clone(),
+                    title,
+                    summary: scene.summary.clone(),
+                    pov: scene.pov.clone(),
+                    status: scene.status.clone(),
+                    position: scene.position + 1,
+                    word_count: scene.word_count,
+                    content_hash: scene.content_hash.clone(),
+                    created_at: now.clone(),
+                    updated_at: now.clone(),
+                    target_words: scene.target_words,
+                    location: scene.location.clone(),
+                    story_date: scene.story_date.clone(),
+                })
+                .execute(conn)?;
+            diesel::update(scenes::table.find(&id))
+                .set(scenes::excluded.eq(scene.excluded))
+                .execute(conn)?;
+            let links: Vec<String> = crate::db::schema::scene_notebook_links::table
+                .filter(crate::db::schema::scene_notebook_links::scene_id.eq(&scene.id))
+                .select(crate::db::schema::scene_notebook_links::entry_id)
+                .load(conn)?;
+            for entry_id in links {
+                diesel::insert_into(crate::db::schema::scene_notebook_links::table)
+                    .values(&NewSceneNotebookLink {
+                        id: new_id(),
+                        scene_id: id.clone(),
+                        entry_id,
+                        created_at: now.clone(),
+                    })
+                    .execute(conn)?;
+            }
+            support::recount_work(conn, &work.id, &now)?;
+            Ok(())
+        })?;
+        let copy: Scene = scenes::table
+            .find(&id)
+            .select(Scene::as_select())
+            .first(conn)?;
+        let label = support::scene_label(conn, &copy)?;
+        record(
+            conn,
+            &work.id,
+            &user.id,
+            ActivityKind::SceneAdded,
+            Some(&copy.id),
+            &label,
+        )?;
+        Ok((scene, copy))
+    })
+    .await?;
+    let content = state
+        .store
+        .read_working_scene(&original.work_id, &original.id)
+        .await
+        .unwrap_or_else(|_| doc::empty_doc());
+    state
+        .store
+        .write_working_scene(&copy.work_id, &copy.id, &content)
+        .await?;
+    Ok(Json(copy))
 }
 
 #[utoipa::path(

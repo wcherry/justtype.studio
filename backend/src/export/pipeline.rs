@@ -111,7 +111,7 @@ pub fn select(chapters: Vec<SourceChapter>, options: &ExportOptions) -> Vec<Sour
         .filter(|chapter| match chapter.role {
             Role::Front => front,
             Role::Back => back,
-            Role::Chapter => true,
+            Role::Chapter | Role::Part => true,
         })
         .filter_map(|mut chapter| {
             let scope = &options.content.scope;
@@ -391,6 +391,17 @@ pub fn build(
             });
         }
 
+        // A part is its title page, with or without words on it.
+        if scenes.is_empty() && chapter.role == Role::Part {
+            out.push(ChapterContent {
+                id: chapter.id,
+                title: chapter.title,
+                role: chapter.role,
+                scenes,
+                notes: Vec::new(),
+            });
+            continue;
+        }
         if scenes.is_empty() {
             if !chapter.scenes.is_empty() || chapter.role == Role::Chapter {
                 issues.push(
@@ -438,7 +449,9 @@ pub fn build(
             }
         }
 
-        summary.chapters += 1;
+        if chapter.role != Role::Part {
+            summary.chapters += 1;
+        }
         summary.scenes += scenes.len();
         summary.comments += notes.len();
         summary.words += scenes.iter().map(|s| word_count(&s.blocks)).sum::<usize>();

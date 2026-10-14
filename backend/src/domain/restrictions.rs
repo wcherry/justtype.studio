@@ -410,6 +410,13 @@ pub const GATES: &[(&str, &str, Gate)] = &[
     ("post", "/api/me/blocks", Needs(Write)),
     ("delete", "/api/me/blocks/{user_id}", Needs(Write)),
     ("post", "/api/works/{work_id}/notebook", Needs(Write)),
+    ("post", "/api/scenes/{scene_id}/duplicate", Needs(Write)),
+    ("post", "/api/works/{work_id}/duplicate", Needs(Write)),
+    (
+        "post",
+        "/api/works/{work_id}/notebook/reorder",
+        Needs(Write),
+    ),
     ("patch", "/api/notebook/{entry_id}", Needs(Write)),
     ("delete", "/api/notebook/{entry_id}", Needs(Write)),
     ("post", "/api/notebook/{entry_id}/links", Needs(Write)),

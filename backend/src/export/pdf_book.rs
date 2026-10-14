@@ -906,7 +906,12 @@ fn lay_out(plan: &Plan) -> (Layout, Vec<String>) {
         }
         layout.page().starts = Some(ci);
         layout.chapter_pages.push(layout.pages.len() - 1);
-        layout.page().used = layout.capacity / 6.0;
+        layout.page().used = layout.capacity
+            / if chapter.role == super::Role::Part {
+                3.0
+            } else {
+                6.0
+            };
 
         let title = match (plan.r.heading_style, chapter.role) {
             (HeadingStyle::SmallCaps, _) => chapter.title.to_uppercase(),
