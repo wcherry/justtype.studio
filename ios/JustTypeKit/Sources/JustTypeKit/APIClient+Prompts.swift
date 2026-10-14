@@ -174,6 +174,20 @@ public extension APIClient {
         struct Body: Encodable { let theme: API.Theme }
         return try await send("PATCH", "me/settings", body: Body(theme: theme))
     }
+
+    /// How often the summary email goes: none, daily or weekly.
+    func summaryEmail() async throws -> API.SummaryEmailView {
+        try await send("GET", "me/summary-email")
+    }
+
+    /// Chooses how often, with the device's timezone so it arrives in the
+    /// writer's morning and counts their days as they do.
+    func setSummaryEmail(_ often: API.SummaryEmail, timezone: String) async throws -> API.SummaryEmailView {
+        try await send(
+            "PATCH", "me/summary-email",
+            body: API.UpdateSummaryEmailRequest(often: often, timezone: timezone)
+        )
+    }
 }
 
 public extension API.PromptEntryView {
