@@ -361,6 +361,10 @@ export interface AnnotationInput {
 }
 
 export const api = {
+  live: {
+    /** A single-use ticket for the live channel; see `live.ts`. */
+    ticket: () => post<{ ticket: string }>('/live/ticket'),
+  },
   goals: {
     /** `today` is the writer's local date; only the client knows it. */
     writing: (today: string, days?: number) =>

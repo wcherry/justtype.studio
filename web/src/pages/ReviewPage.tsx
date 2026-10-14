@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { api, shareKeys } from '../api/client'
 import type { CommentFilters } from '../api/client'
@@ -91,9 +91,17 @@ export function ReviewPage() {
 
   // Notes arrive as they are written. The channel only says that something
   // changed; the list is fetched again, through the same filters and rules.
+  // Joining again after a dropped connection fetches too: whatever was said
+  // while the tab was away was never announced to it.
   const [readers, setReaders] = useState(0)
+  const joinedOnce = useRef(false)
+  useEffect(() => { joinedOnce.current = false }, [publicationId])
   useLive(`publication:${publicationId}`, (notice) => {
     if (notice.type === 'comments') loadComments()
+    if (notice.type === 'joined') {
+      if (joinedOnce.current) loadComments()
+      joinedOnce.current = true
+    }
     if (notice.type === 'presence' && typeof notice.readers === 'number') setReaders(notice.readers)
   })
 

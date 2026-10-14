@@ -53,6 +53,8 @@ const TICKET_LIFE: Duration = Duration::from_secs(30);
 const MAX_ROOMS: usize = 16;
 /// Notices queued for one slow connection before it is dropped.
 const QUEUE: usize = 64;
+/// How often a quiet socket is pinged, so a proxy does not close it as idle.
+const PING_EVERY: Duration = Duration::from_secs(25);
 
 struct Member {
     tx: mpsc::Sender<String>,
@@ -222,12 +224,19 @@ pub async fn ticket(
     State(state): State<AppState>,
     MaybeAuthUser(user): MaybeAuthUser,
     headers: axum::http::HeaderMap,
-) -> Json<LiveTicket> {
-    Json(LiveTicket {
+) -> ApiResult<Json<LiveTicket>> {
+    // A lapsed token is refused rather than read as nobody: an anonymous
+    // ticket would be turned away from a private review's room without a
+    // word, and the tab would never hear another note. Refused, the client
+    // refreshes its token and asks again.
+    if user.is_none() && headers.contains_key(axum::http::header::AUTHORIZATION) {
+        return Err(ApiError::Unauthorized("that token has lapsed".into()));
+    }
+    Ok(Json(LiveTicket {
         ticket: state
             .hub
             .issue(user, crate::routes::share::keys_from(&headers)),
-    })
+    }))
 }
 
 #[derive(Deserialize)]
@@ -286,9 +295,16 @@ async fn serve(state: AppState, grant: Grant, mut socket: WebSocket) {
         None => None,
     };
     let mut joined: Vec<String> = Vec::new();
+    let mut ping = tokio::time::interval(PING_EVERY);
+    ping.tick().await;
 
     loop {
         tokio::select! {
+            _ = ping.tick() => {
+                if socket.send(Message::Ping(Vec::new().into())).await.is_err() {
+                    break;
+                }
+            }
             outgoing = rx.recv() => {
                 let Some(text) = outgoing else { break };
                 if socket.send(Message::Text(text.into())).await.is_err() {
