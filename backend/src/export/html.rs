@@ -23,6 +23,9 @@ section.chapter{margin-top:4em}p{margin:0;text-indent:1.5em}p.first{text-indent:
 hr.scene{border:0;text-align:center;margin:1.5em 0}hr.scene::after{content:\"* * *\"}\
 blockquote{margin:1em 2em;font-style:italic}";
 
+/// A part's title, set alone on its page; added only to a book with parts.
+const PART_STYLE: &str = "h2.part-title{text-align:center;font-size:1.8em;margin:4em 0 2em}";
+
 /// Footnotes and a stylesheet for printing them, added only when there are
 /// notes, so a book without any is the file it always was.
 const NOTES_STYLE: &str = "section.footnotes{margin-top:2em;border-top:1px solid #999;\
@@ -134,6 +137,7 @@ fn chapter_section(
         match chapter.role {
             Role::Front => classes.push_str(" front"),
             Role::Back => classes.push_str(" back"),
+            Role::Part => classes.push_str(" part"),
             Role::Chapter => {}
         }
     }
@@ -148,7 +152,8 @@ fn chapter_section(
         String::new()
     };
     let mut out = format!(
-        "<section{class_attr}{id_attr}>\n<h2>{}</h2>\n",
+        "<section{class_attr}{id_attr}>\n<h2{}>{}</h2>\n",
+        super::web::heading_class(chapter),
         xml_escape(&chapter.title)
     );
     for (scene_index, scene) in chapter.scenes.iter().enumerate() {
@@ -284,6 +289,9 @@ fn stylesheet(m: &Manuscript, options: &ExportOptions, extra: &str) -> String {
     let mut css = STYLE.to_string();
     if has_notes(m) {
         css.push_str(NOTES_STYLE);
+    }
+    if m.chapters.iter().any(|c| c.role == Role::Part) {
+        css.push_str(PART_STYLE);
     }
     css.push_str(extra);
     let overrides = style_overrides(&options.style.resolve(), "h2", false);

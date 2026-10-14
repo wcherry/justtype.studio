@@ -78,6 +78,12 @@ pub fn write(manuscript: &Manuscript, options: &ExportOptions) -> std::io::Resul
     if m.chapters.iter().any(|c| !c.notes.is_empty()) {
         css.push_str(NOTES_STYLE);
     }
+    if m.chapters
+        .iter()
+        .any(|c| c.role == crate::export::Role::Part)
+    {
+        css.push_str(PART_STYLE);
+    }
     css.push_str(&overrides);
     parts.push(Part::text("OEBPS/style.css", "css", "text/css", css));
 
@@ -300,7 +306,11 @@ fn chapter_markup(
     } else {
         String::new()
     };
-    body.push_str(&format!("<h1>{}</h1>\n", xml_escape(&chapter.title)));
+    body.push_str(&format!(
+        "<h1{}>{}</h1>\n",
+        super::web::heading_class(chapter),
+        xml_escape(&chapter.title)
+    ));
     for (scene_index, scene) in chapter.scenes.iter().enumerate() {
         if scene_index > 0 {
             body.push_str("<hr class=\"scene\"/>\n");
@@ -627,6 +637,9 @@ blockquote { margin: 1.5em 2em; font-style: italic; }
 .cover { text-align: center; }
 .cover img { max-width: 100%; height: auto; }
 "#;
+
+/// A part's title, set alone on its page; added only to a book with parts.
+const PART_STYLE: &str = "h1.part-title { margin-top: 30%; font-size: 1.8em; }\n";
 
 const NOTES_STYLE: &str = r#"section.footnotes { margin-top: 2em; font-size: 0.9em; }
 section.footnotes h2 { font-size: 1em; text-align: left; }

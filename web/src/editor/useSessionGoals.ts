@@ -93,10 +93,30 @@ export function useSessionGoals(workWordCount: number | null, workId: string | n
     [refresh],
   )
 
+  /**
+   * The book's total moved without any writing: a scene left out, put back,
+   * copied or deleted. The baseline moves with it, so the sitting counts only
+   * the words written in it.
+   */
+  const [, setShifts] = useState(0)
+  const shiftBaseline = useCallback(
+    (by: number) => {
+      if (!by || workId === null || sessionStart.current === null) return
+      sessionStart.current += by
+      try {
+        sessionStorage.setItem(`justtype.sessionStart.${workId}`, String(sessionStart.current))
+      } catch {
+        // Kept for this render only; see `baselineFor`.
+      }
+      setShifts((n) => n + 1)
+    },
+    [workId],
+  )
+
   const sessionWords =
     workWordCount !== null && sessionStart.current !== null
       ? workWordCount - sessionStart.current
       : 0
 
-  return { summary, sessionWords, refresh, setDailyGoal, setWeeklyGoal, day }
+  return { summary, sessionWords, refresh, setDailyGoal, setWeeklyGoal, shiftBaseline, day }
 }

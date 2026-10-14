@@ -657,22 +657,17 @@ pub async fn put_place(
 /// The outline with every untitled chapter and scene called by where it
 /// falls — "Chapter 3", "Scene 2" — as a version freezes them.
 pub(crate) fn with_placeholder_names(mut outline: OutlineResponse) -> OutlineResponse {
-    use crate::domain::naming::{chapter_name, scene_name};
-    // Front and back matter are not numbered, and do not take a number from
-    // the chapters around them: "Chapter 4" is the fourth chapter.
-    let mut numbered = 0;
-    for chapter in outline.chapters.iter_mut() {
-        chapter.chapter.title = match chapter.chapter.role.as_str() {
-            "front" if chapter.chapter.title.trim().is_empty() => "Front matter".to_string(),
-            "back" if chapter.chapter.title.trim().is_empty() => "Back matter".to_string(),
-            "front" | "back" => chapter.chapter.title.clone(),
-            _ => {
-                numbered += 1;
-                chapter_name(&chapter.chapter.title, numbered)
-            }
-        };
+    use crate::domain::naming::{chapter_names, scene_name_in};
+    let names = chapter_names(
+        outline
+            .chapters
+            .iter()
+            .map(|c| (c.chapter.title.as_str(), c.chapter.role.as_str())),
+    );
+    for (chapter, name) in outline.chapters.iter_mut().zip(names) {
+        chapter.chapter.title = name;
         for (s, scene) in chapter.scenes.iter_mut().enumerate() {
-            scene.title = scene_name(&scene.title, s + 1);
+            scene.title = scene_name_in(&chapter.chapter.role, &scene.title, s + 1);
         }
     }
     outline
@@ -737,8 +732,11 @@ pub struct UpdateChapterRequest {
     pub title: Option<String>,
     #[serde(default)]
     pub summary: Option<String>,
-    /// `chapter`, `front` (preface, foreword) or `back` (acknowledgments,
-    /// afterword, appendix). Front and back matter are not numbered.
+    /// `chapter`, `front` (preface, foreword), `back` (acknowledgments,
+    /// afterword, appendix) or `part` (a divider that opens a run of
+    /// chapters). Front and back matter and parts are not numbered as
+    /// chapters. A chapter made a part is given an empty scene if it has none:
+    /// its part page, which keeps it in a version even with nothing on it.
     #[serde(default)]
     pub role: Option<String>,
 }
@@ -819,9 +817,10 @@ pub async fn update_chapter(
     Path(chapter_id): Path<String>,
     Json(body): Json<UpdateChapterRequest>,
 ) -> ApiResult<Json<Chapter>> {
-    let chapter = blocking(&state.pool, move |conn| {
-        support::chapter_for(conn, &chapter_id, &user, Ability::Write)?;
+    let (chapter, part_page) = blocking(&state.pool, move |conn| {
+        let (_, work) = support::chapter_for(conn, &chapter_id, &user, Ability::Write)?;
         let now = now_iso();
+        let mut part_page = None;
         if let Some(title) = &body.title {
             diesel::update(chapters::table.find(&chapter_id))
                 .set(chapters::title.eq(title.trim()))
@@ -833,25 +832,76 @@ pub async fn update_chapter(
                 .execute(conn)?;
         }
         if let Some(role) = &body.role {
-            if !matches!(role.as_str(), "chapter" | "front" | "back") {
+            if !matches!(role.as_str(), "chapter" | "front" | "back" | "part") {
                 return Err(ApiError::BadRequest(
-                    "role must be `chapter`, `front` or `back`".into(),
+                    "role must be `chapter`, `front`, `back` or `part`".into(),
                 ));
             }
             diesel::update(chapters::table.find(&chapter_id))
                 .set(chapters::role.eq(role))
                 .execute(conn)?;
+            if role == "part" {
+                part_page = ensure_part_page(conn, &work.id, &chapter_id, &now)?;
+            }
         }
         diesel::update(chapters::table.find(&chapter_id))
             .set(chapters::updated_at.eq(&now))
             .execute(conn)?;
-        Ok(chapters::table
+        let chapter = chapters::table
             .find(&chapter_id)
             .select(Chapter::as_select())
-            .first(conn)?)
+            .first(conn)?;
+        Ok((chapter, part_page))
     })
     .await?;
+    if let Some(scene_id) = part_page {
+        state
+            .store
+            .write_working_scene(&chapter.work_id, &scene_id, &doc::empty_doc())
+            .await?;
+    }
     Ok(Json(chapter))
+}
+
+/// A part with no scene gets an empty one, its part page: a version keeps a
+/// chapter only by its scenes, and a part should not vanish from one for
+/// having nothing on its page. The id of the scene made, if one was.
+fn ensure_part_page(
+    conn: &mut crate::db::Conn,
+    work_id: &str,
+    chapter_id: &str,
+    now: &str,
+) -> ApiResult<Option<String>> {
+    let has_scene: Option<String> = scenes::table
+        .filter(scenes::chapter_id.eq(chapter_id))
+        .select(scenes::id)
+        .first(conn)
+        .optional()?;
+    if has_scene.is_some() {
+        return Ok(None);
+    }
+    let empty = doc::empty_doc();
+    let id = new_id();
+    diesel::insert_into(scenes::table)
+        .values(&NewScene {
+            id: id.clone(),
+            work_id: work_id.to_string(),
+            chapter_id: chapter_id.to_string(),
+            title: String::new(),
+            summary: None,
+            pov: None,
+            status: "drafting".into(),
+            position: 0,
+            word_count: 0,
+            content_hash: doc::content_hash(&empty),
+            created_at: now.to_string(),
+            updated_at: now.to_string(),
+            target_words: None,
+            location: None,
+            story_date: None,
+        })
+        .execute(conn)?;
+    Ok(Some(id))
 }
 
 #[utoipa::path(

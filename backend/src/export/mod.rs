@@ -67,6 +67,10 @@ pub enum Role {
     Chapter,
     Front,
     Back,
+    /// A divider that opens a run of chapters ("Part One") and takes no
+    /// chapter number. Its scenes, usually one and often empty, are the part
+    /// page: an epigraph, a few lines to set it up.
+    Part,
 }
 
 impl Role {
@@ -74,6 +78,7 @@ impl Role {
         match value {
             "front" => Self::Front,
             "back" => Self::Back,
+            "part" => Self::Part,
             _ => Self::Chapter,
         }
     }
@@ -668,6 +673,42 @@ mod golden {
 
     fn opt(style: Style) -> options::ExportOptions {
         options::ExportOptions::shorthand(options::Format::Docx, style)
+    }
+
+    /// A part with nothing on its page still gets one, in every format, and
+    /// the chapters after it are where they were.
+    #[test]
+    fn an_empty_part_is_a_page_of_its_own_in_every_format() {
+        let mut m = fixture();
+        m.chapters.insert(
+            0,
+            ChapterContent {
+                id: "part".into(),
+                title: "Part One".into(),
+                role: Role::Part,
+                ..Default::default()
+            },
+        );
+        let book = opt(Style::Book);
+        let html = html::write(&m, &book);
+        assert!(
+            html.contains("<h2 class=\"part-title\">Part One</h2>"),
+            "{html}"
+        );
+        assert!(html.contains("h2.part-title{"));
+        assert!(html.find("Part One").unwrap() < html.find(&m.chapters[1].title).unwrap());
+
+        let txt = text::write(&m, &book);
+        assert!(txt.find("Part One").unwrap() < txt.find(&m.chapters[1].title).unwrap());
+
+        let epub = String::from_utf8(normalise_epub(&epub::write(&m, &book).unwrap())).unwrap();
+        assert!(epub.contains("epub:type=\"part\""), "{epub}");
+        assert!(epub.contains("h1.part-title"));
+
+        assert!(!docx::write(&m, &book).unwrap().is_empty());
+        assert!(!docx::write(&m, &opt(Style::Manuscript)).unwrap().is_empty());
+        assert!(pdf::write(&m, &opt(Style::Manuscript)).starts_with(b"%PDF"));
+        assert!(pdf::write(&m, &book).starts_with(b"%PDF"));
     }
 
     #[test]

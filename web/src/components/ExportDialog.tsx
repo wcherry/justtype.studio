@@ -8,7 +8,7 @@ import type {
   PreflightReport,
   Version,
 } from '../api/types'
-import { chapterName, sceneName } from '../naming'
+import { chapterNames, roleBadge, sceneName } from '../naming'
 import { LanguageInput } from './LanguageInput'
 
 interface Props {
@@ -18,6 +18,8 @@ interface Props {
   onClose: () => void
   /** Jumps to the place an issue is about, in the editor. */
   onGoTo?: (location: { chapterId: string; sceneId?: string | null }) => void
+  /** Opens with only this scene selected, as "Export this scene…" asks. */
+  onlyScene?: string
 }
 
 type Format = ExportFormat | 'project'
@@ -130,14 +132,17 @@ function forFormat(o: ExportOptions, format: ExportFormat): ExportOptions {
  * edits it, asks the server what is wrong with it as it changes, and sends the
  * same document to build the file.
  */
-export function ExportDialog({ version, workId: workIdProp, onClose, onGoTo }: Props) {
+export function ExportDialog({ version, workId: workIdProp, onClose, onGoTo, onlyScene }: Props) {
   const ref = useRef<HTMLDialogElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const workId = version?.workId ?? workIdProp
   const target: ExportTarget | null = version ? { version: version.id } : workId ? { work: workId } : null
 
-  const [options, setOptions] = useState<ExportOptions>(DEFAULTS)
-  const [project, setProject] = useState(!version)
+  const [options, setOptions] = useState<ExportOptions>(
+    onlyScene ? { ...DEFAULTS, content: { ...DEFAULTS.content, scope: { kind: 'selected' } } } : DEFAULTS,
+  )
+  // A project is the whole book; one scene goes out as a document.
+  const [project, setProject] = useState(!version && !onlyScene)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -163,7 +168,7 @@ export function ExportDialog({ version, workId: workIdProp, onClose, onGoTo }: P
     const done = (list: Chapter[]) => {
       if (!live) return
       setChapters(list)
-      setTicked(new Set(list.flatMap((c) => c.scenes.map((s) => s.id))))
+      setTicked(onlyScene ? new Set([onlyScene]) : new Set(list.flatMap((c) => c.scenes.map((s) => s.id))))
     }
     if (version) {
       void api.versions.get(version.id).then((detail) => {
@@ -180,13 +185,13 @@ export function ExportDialog({ version, workId: workIdProp, onClose, onGoTo }: P
       }).catch(() => undefined)
     } else if (workId) {
       void api.works.outline(workId).then((outline) => {
-        let numbered = 0
+        const names = chapterNames(outline.chapters)
         done(
-          outline.chapters.map((c) => ({
+          outline.chapters.map((c, i) => ({
             id: c.id,
             role: c.role,
-            title: c.role === 'chapter' ? chapterName(c.title, ++numbered) : c.title || (c.role === 'front' ? 'Front matter' : 'Back matter'),
-            scenes: c.scenes.map((s, i) => ({ id: s.id, title: sceneName(s.title, i + 1) })),
+            title: names[i],
+            scenes: c.scenes.map((s, i) => ({ id: s.id, title: sceneName(s.title, i + 1, c.role) })),
           })),
         )
       }).catch(() => undefined)
@@ -212,7 +217,7 @@ export function ExportDialog({ version, workId: workIdProp, onClose, onGoTo }: P
           const o = last.latest.options
           setOptions({
             ...o,
-            content: { ...o.content, scope: { kind: 'all' } },
+            content: { ...o.content, scope: { kind: onlyScene ? 'selected' : 'all' } },
             metadata: o.metadata,
           })
           setProfileId('')
@@ -712,7 +717,7 @@ export function ExportDialog({ version, workId: workIdProp, onClose, onGoTo }: P
                             onChange={(e) => tickChapter(chapter, e.target.checked)}
                           />
                           {chapter.title}
-                          {chapter.role !== 'chapter' && <span className="outline__badge">{chapter.role === 'front' ? 'front matter' : 'back matter'}</span>}
+                          {roleBadge(chapter.role) && <span className="outline__badge">{roleBadge(chapter.role)}</span>}
                         </label>
                         <ul>
                           {chapter.scenes.map((scene) => (

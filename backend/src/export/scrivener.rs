@@ -12,8 +12,11 @@
 //! The Draft (Manuscript) folder becomes the book. Each item at its top level
 //! is a chapter: a folder (or a document with documents under it) is a chapter
 //! of its own text and everything beneath it, flattened in binder order; a lone
-//! document is a chapter of one scene. Synopses become summaries, and a status
-//! Scrivener's default list knows becomes the scene's status.
+//! document is a chapter of one scene. A folder holding only folders is a part
+//! (Part 1 → Chapter 1 → scenes): it becomes a part, its own text the part
+//! page, and the folders in it the chapters that follow.
+//! Synopses become summaries, and a status Scrivener's default list knows
+//! becomes the scene's status.
 //!
 //! The other folders become the notebook, a document per entry: those under a
 //! folder called Characters are characters, Places (or Settings, Locations)
@@ -75,6 +78,8 @@ struct Item {
     uuid: Option<String>,
     id: Option<String>,
     status: Option<String>,
+    /// Scrivener's "Include in Compile" unticked: in the outline, not the book.
+    excluded: bool,
     children: Vec<Item>,
 }
 
@@ -95,6 +100,10 @@ fn item(node: Node) -> Item {
             .and_then(|m| m.children().find(|c| c.has_tag_name("StatusID")))
             .and_then(|s| s.text())
             .map(|s| s.trim().to_string()),
+        excluded: meta
+            .and_then(|m| m.children().find(|c| c.has_tag_name("IncludeInCompile")))
+            .and_then(|s| s.text())
+            .is_some_and(|s| s.trim().eq_ignore_ascii_case("no")),
         children: node
             .children()
             .find(|c| c.has_tag_name("Children"))
@@ -117,6 +126,17 @@ impl Item {
     /// and web pages do not.
     fn holds_text(&self) -> bool {
         self.is_folder() || self.kind == "Text"
+    }
+
+    fn is_container(&self) -> bool {
+        self.is_folder() || !self.children.is_empty()
+    }
+
+    /// A folder whose writing is all in folders under it, as a part's is in
+    /// its chapters.
+    fn is_part(&self) -> bool {
+        let mut writing = self.children.iter().filter(|c| c.holds_text()).peekable();
+        self.holds_text() && writing.peek().is_some() && writing.all(Item::is_container)
     }
 }
 
@@ -190,6 +210,7 @@ impl<R: Read + std::io::Seek> Reader<'_, '_, R> {
                 .and_then(|s| self.statuses.get(s))
                 .map(|s| s.to_string()),
             content: texts.content.unwrap_or_else(doc::empty_doc),
+            excluded: item.excluded,
             ..Default::default()
         }
     }
@@ -206,6 +227,30 @@ impl<R: Read + std::io::Seek> Reader<'_, '_, R> {
         }
         for child in &item.children {
             self.flatten(child, out)?;
+        }
+        Ok(())
+    }
+
+    /// The chapters an item at the top of the Draft, or in a part, makes.
+    fn chapters(&mut self, item: &Item, out: &mut Vec<ProjectChapter>) -> Result<(), String> {
+        if !item.is_part() {
+            if let Some(chapter) = self.chapter(item)? {
+                out.push(chapter);
+            }
+            return Ok(());
+        }
+        // The part page is there even when empty, as one made in the app is.
+        let texts = texts(self.files, &self.root, item)?;
+        let summary = texts.synopsis.clone();
+        out.push(ProjectChapter {
+            title: item.title.clone(),
+            summary,
+            role: Some("part".into()),
+            scenes: vec![self.scene(item, "", texts)],
+            ..Default::default()
+        });
+        for child in &item.children {
+            self.chapters(child, out)?;
         }
         Ok(())
     }
@@ -374,9 +419,7 @@ pub fn read<R: Read + std::io::Seek>(
         })?;
     let mut chapters = Vec::new();
     for item in &draft.children {
-        if let Some(chapter) = reader.chapter(item)? {
-            chapters.push(chapter);
-        }
+        reader.chapters(item, &mut chapters)?;
     }
 
     let mut notebook = Vec::new();
@@ -525,6 +568,66 @@ mod tests {
             p.notebook[0].body.as_deref(),
             Some("Clinker-built.\n\nOars.")
         );
+    }
+
+    #[test]
+    fn a_part_folder_becomes_a_part_before_its_chapters() {
+        let binder = r#"<ScrivenerProject Version="2.0"><Binder>
+          <BinderItem UUID="D" Type="DraftFolder"><Title>Manuscript</Title><Children>
+            <BinderItem UUID="P1" Type="Folder"><Title>Part 1</Title><Children>
+              <BinderItem UUID="C1" Type="Folder"><Title>Chapter 1</Title><Children>
+                <BinderItem UUID="S1" Type="Text"><Title>One</Title></BinderItem>
+                <BinderItem UUID="S2" Type="Text"><Title>Two</Title>
+                  <MetaData><IncludeInCompile>No</IncludeInCompile></MetaData></BinderItem>
+              </Children></BinderItem>
+              <BinderItem UUID="C2" Type="Folder"><Title>Chapter 2</Title><Children>
+                <BinderItem UUID="S3" Type="Text"><Title>Three</Title></BinderItem>
+              </Children></BinderItem>
+            </Children></BinderItem>
+            <BinderItem UUID="P2" Type="Folder"><Title>Part 2</Title><Children>
+              <BinderItem UUID="C3" Type="Folder"><Title>Chapter 3</Title></BinderItem>
+              <BinderItem UUID="C4" Type="Folder"><Title>Chapter 4</Title></BinderItem>
+            </Children></BinderItem>
+          </Children></BinderItem>
+        </Binder></ScrivenerProject>"#;
+        let data = |uuid: &str| format!("Book.scriv/Files/Data/{uuid}/content.rtf");
+        let bytes = zip(&[
+            ("Book.scriv/Book.scrivx", binder.into()),
+            (&data("P2"), rtf("Part two begins.")),
+            (&data("S1"), rtf("One.")),
+            (&data("S2"), rtf("Two.")),
+            (&data("S3"), rtf("Three.")),
+        ]);
+        let p = project::read(&bytes).unwrap();
+        let shape: Vec<(&str, &str, Vec<&str>)> = p
+            .chapters
+            .iter()
+            .map(|c| {
+                (
+                    c.role.as_deref().unwrap_or("chapter"),
+                    c.title.as_str(),
+                    c.scenes.iter().map(|s| s.title.as_str()).collect(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            shape,
+            [
+                ("part", "Part 1", vec![""]),
+                ("chapter", "Chapter 1", vec!["One", "Two"]),
+                ("chapter", "Chapter 2", vec!["Three"]),
+                ("part", "Part 2", vec![""]),
+                ("chapter", "Chapter 3", vec![]),
+                ("chapter", "Chapter 4", vec![]),
+            ]
+        );
+        // "Include in Compile" unticked leaves a scene out of the book.
+        assert!(p.chapters[1].scenes[1].excluded);
+        assert!(!p.chapters[1].scenes[0].excluded);
+        // A part page keeps the part's own words, and is empty without them.
+        let page = |i: usize| super::doc::plain_text(&p.chapters[i].scenes[0].content);
+        assert_eq!(page(0), "");
+        assert_eq!(page(3), "Part two begins.");
     }
 
     #[test]

@@ -205,9 +205,13 @@ pub async fn list(
                 if let Some(kind) = &query.kind {
                     q = q.filter(notebook_entries::kind.eq(kind.clone()));
                 }
-                q.order((notebook_entries::kind.asc(), notebook_entries::name.asc()))
-                    .select(notebook_entries::id)
-                    .load(conn)?
+                q.order((
+                    notebook_entries::kind.asc(),
+                    notebook_entries::position.asc(),
+                    notebook_entries::name.asc(),
+                ))
+                .select(notebook_entries::id)
+                .load(conn)?
             }
         };
 
@@ -278,6 +282,12 @@ pub async fn create(
     let entry = blocking(&state.pool, move |conn| {
         support::work_for(conn, &work_id, &user, Ability::Write)?;
         let now = now_iso();
+        // A new entry goes at the end of its kind.
+        let last: Option<i32> = notebook_entries::table
+            .filter(notebook_entries::work_id.eq(&work_id))
+            .filter(notebook_entries::kind.eq(&body.kind))
+            .select(diesel::dsl::max(notebook_entries::position))
+            .first(conn)?;
         let row = NewNotebookEntry {
             id: new_id(),
             work_id,
@@ -289,6 +299,7 @@ pub async fn create(
             updated_at: now,
             fields,
             template_id: template.map(|t| t.id.to_string()),
+            position: last.map_or(0, |p| p + 1),
         };
         diesel::insert_into(notebook_entries::table)
             .values(&row)
@@ -372,6 +383,79 @@ pub async fn delete_entry(
     })
     .await?;
     Ok(Json(serde_json::json!({ "ok": true })))
+}
+
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ReorderEntriesRequest {
+    /// The kind being arranged: entries are ordered within their kind.
+    #[schema(value_type = crate::domain::enums::NotebookKind)]
+    pub kind: String,
+    /// The entries of that kind, in their new order. Any left out keep their
+    /// order among themselves, after the ones listed.
+    pub ids: Vec<String>,
+}
+
+/// Puts one kind of entry in the writer's order, as a drag in the notebook
+/// leaves it.
+#[utoipa::path(
+    post,
+    path = "/api/works/{work_id}/notebook/reorder",
+    tag = "notebook",
+    params(("work_id" = String, Path)),
+    request_body = ReorderEntriesRequest,
+    responses(
+        (status = 200, description = "That kind's entries, in their new order", body = Vec<EntryView>),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
+pub async fn reorder(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(work_id): Path<String>,
+    Json(body): Json<ReorderEntriesRequest>,
+) -> ApiResult<Json<Vec<EntryView>>> {
+    if !NotebookKind::accepts(&body.kind) {
+        return Err(ApiError::BadRequest(format!(
+            "kind must be one of {}",
+            NotebookKind::options()
+        )));
+    }
+    let entries = blocking(&state.pool, move |conn| {
+        support::work_for(conn, &work_id, &user, Ability::Write)?;
+        let current: Vec<String> = notebook_entries::table
+            .filter(notebook_entries::work_id.eq(&work_id))
+            .filter(notebook_entries::kind.eq(&body.kind))
+            .order((
+                notebook_entries::position.asc(),
+                notebook_entries::name.asc(),
+            ))
+            .select(notebook_entries::id)
+            .load(conn)?;
+        if let Some(stray) = body.ids.iter().find(|id| !current.contains(id)) {
+            return Err(ApiError::BadRequest(format!(
+                "`{stray}` is not one of this book's {} entries",
+                body.kind
+            )));
+        }
+        let mut order: Vec<&String> = Vec::with_capacity(current.len());
+        for id in body.ids.iter().chain(current.iter()) {
+            if !order.contains(&id) {
+                order.push(id);
+            }
+        }
+        conn.transaction::<_, ApiError, _>(|conn| {
+            for (index, id) in order.iter().enumerate() {
+                diesel::update(notebook_entries::table.find(*id))
+                    .set(notebook_entries::position.eq(index as i32))
+                    .execute(conn)?;
+            }
+            Ok(())
+        })?;
+        order.iter().map(|id| load_entry(conn, id)).collect()
+    })
+    .await?;
+    Ok(Json(entries))
 }
 
 #[derive(Debug, Deserialize, utoipa::ToSchema)]

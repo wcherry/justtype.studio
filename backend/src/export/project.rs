@@ -167,6 +167,9 @@ pub struct ProjectScene {
     /// Ids of the notebook entries this scene is linked to.
     #[serde(default)]
     pub notebook: Vec<String>,
+    /// Kept in the outline but left out of the book. Absent means part of it.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub excluded: bool,
     /// The scene's exact document.
     #[serde(default)]
     pub content: Value,

@@ -31,6 +31,7 @@ import { Menu } from '../components/Menu'
 import type { MenuItem } from '../components/Menu'
 import { AboutDialog } from '../components/AboutDialog'
 import { ExportDialog } from '../components/ExportDialog'
+import { ConfirmDialog, NameVersionDialog } from '../components/Dialogs'
 import { ExportHistory } from '../components/ExportHistory'
 import { ImportDialog } from '../components/ImportDialog'
 import { GoalsPanel } from '../components/GoalsPanel'
@@ -164,6 +165,18 @@ export function EditorPage() {
   const [outline, setOutline] = useState<OutlineType | null>(null)
   const [versions, setVersions] = useState<VersionSummary[]>([])
   const [scene, setScene] = useState<Scene | null>(null)
+  /** What the outline's scene menu has open: a dialog, or an export of one scene. */
+  const [sceneDialog, setSceneDialog] = useState<
+    { kind: 'delete' | 'version'; scene: Scene; name: string } | null
+  >(null)
+  const [exportScene, setExportScene] = useState<string | null>(null)
+  /** A short word on what just happened, gone after a few seconds. */
+  const [notice, setNotice] = useState<string | null>(null)
+  useEffect(() => {
+    if (!notice) return
+    const timer = setTimeout(() => setNotice(null), 4000)
+    return () => clearTimeout(timer)
+  }, [notice])
   const [error, setError] = useState<string | null>(null)
   /** For showing only: untitled chapters and scenes called by their place. */
   const named = useMemo(() => (outline ? withPlaceholderNames(outline) : null), [outline])
@@ -581,7 +594,7 @@ export function EditorPage() {
     state: saveState, wordCount, setWordCount, pending, conflict, schedule, flush, resolveWith,
   } = useAutosave({ scene, editor, onSaved })
 
-  const { summary, sessionWords, refresh: refreshGoals, setDailyGoal, setWeeklyGoal } = useSessionGoals(
+  const { summary, sessionWords, refresh: refreshGoals, setDailyGoal, setWeeklyGoal, shiftBaseline } = useSessionGoals(
     outline?.wordCount ?? null,
     workId,
   )
@@ -994,6 +1007,130 @@ export function EditorPage() {
   if (error) return <main className="editor"><p className="error">{error}</p></main>
   if (!outline) return <main className="editor"><p className="empty">Opening…</p></main>
 
+  /** Changes a scene's details, and the open scene with it when it is that one. */
+  const changeScene = async (sceneId: string, input: Parameters<typeof api.scenes.update>[1]) => {
+    try {
+      const before = outline?.chapters.flatMap((c) => c.scenes).find((s) => s.id === sceneId)
+      const updated = await api.scenes.update(sceneId, input)
+      // In or out of the book is not writing: the sitting's count stays put.
+      if (before && input.excluded !== undefined && !!before.excluded !== !!updated.excluded) {
+        shiftBaseline(updated.excluded ? -before.wordCount : before.wordCount)
+      }
+      setScene((s) => (s && s.id === sceneId ? { ...s, ...updated } : s))
+    } catch (e) {
+      setNotice(e instanceof Error ? e.message : 'Could not change that scene')
+    }
+    void loadOutline()
+  }
+
+  /** A scene into its place: another chapter first, if it is moving into one. */
+  const moveSceneTo = async (sceneId: string, from: string, to: string, ids: string[]) => {
+    try {
+      if (from !== to) await api.scenes.update(sceneId, { chapterId: to })
+      await api.scenes.reorder(to, ids)
+      if (from !== to) setScene((s) => (s && s.id === sceneId ? { ...s, chapterId: to } : s))
+    } catch (e) {
+      setNotice(e instanceof Error ? e.message : 'Could not move that scene')
+    }
+    void loadOutline()
+  }
+
+  const STATUSES: { value: Scene['status']; label: string }[] = [
+    { value: 'outline', label: 'Outline' },
+    { value: 'drafting', label: 'Drafting' },
+    { value: 'revised', label: 'Revised' },
+    { value: 'done', label: 'Done' },
+  ]
+
+  /** What a right-click (or Ctrl-click) on a scene in the outline offers. */
+  const sceneMenuItems = (
+    target: Scene,
+    chapterId: string,
+    move: { up?: () => void; down?: () => void },
+  ): MenuItem[] => {
+    const writable = can.canWrite(chapterId)
+    const name = nameOf(target.id) || 'this scene'
+    return [
+      { key: 'open', label: 'Open', onSelect: () => void openScene(target) },
+      {
+        key: 'status',
+        label: 'Status',
+        disabled: !writable,
+        items: STATUSES.map((s) => ({
+          key: s.value,
+          label: s.label,
+          checked: target.status === s.value,
+          onSelect: () => void changeScene(target.id, { status: s.value }),
+        })),
+      },
+      {
+        key: 'excluded',
+        label: 'Part of the book',
+        checked: !target.excluded,
+        disabled: !writable,
+        onSelect: () => {
+          void changeScene(target.id, { excluded: !target.excluded })
+          setNotice(target.excluded
+            ? `“${name}” is part of the book again.`
+            : `“${name}” is left out of the book: not exported, not in a version, not counted.`)
+        },
+      },
+      { key: 'up', label: 'Move up', hint: 'Alt+↑', divider: true, disabled: !move.up, onSelect: move.up },
+      { key: 'down', label: 'Move down', hint: 'Alt+↓', disabled: !move.down, onSelect: move.down },
+      {
+        key: 'version',
+        label: 'Save a version…',
+        divider: true,
+        disabled: !can.isOwner,
+        onSelect: () => setSceneDialog({ kind: 'version', scene: target, name }),
+      },
+      {
+        key: 'duplicate',
+        label: 'Duplicate',
+        disabled: !writable,
+        onSelect: async () => {
+          try {
+            const copy = await api.scenes.duplicate(target.id)
+            if (!copy.excluded) shiftBaseline(copy.wordCount)
+            await loadOutline()
+            void openScene(copy)
+          } catch (e) {
+            setNotice(e instanceof Error ? e.message : 'Could not duplicate that scene')
+          }
+        },
+      },
+      ...(can.isOwner
+        ? [{ key: 'export', label: 'Export this scene…', onSelect: () => setExportScene(target.id) }]
+        : []),
+      {
+        key: 'delete',
+        label: 'Delete…',
+        divider: true,
+        disabled: !writable,
+        onSelect: () => setSceneDialog({ kind: 'delete', scene: target, name }),
+      },
+    ]
+  }
+
+  /** Gone: and if it was open, the scene beside it opens instead. */
+  const deleteScene = async (target: Scene) => {
+    const all = outline.chapters.flatMap((c) => c.scenes)
+    const at = all.findIndex((s) => s.id === target.id)
+    const next = all[at + 1] ?? all[at - 1] ?? null
+    await api.scenes.remove(target.id)
+    if (!target.excluded) shiftBaseline(-target.wordCount)
+    await loadOutline()
+    if (scene?.id === target.id) {
+      if (next) void openScene(next)
+      else {
+        sceneRef.current = null
+        setScene(null)
+        editor?.commands.clearContent()
+      }
+    }
+    setNotice(`Deleted “${nameOf(target.id) || 'the scene'}”.`)
+  }
+
   /** A scene's title, or "Scene 2" for where it sits when it has none. */
   const nameOf = (sceneId: string) =>
     (named ?? outline).chapters.flatMap((c) => c.scenes).find((s) => s.id === sceneId)?.title ?? ''
@@ -1028,6 +1165,17 @@ export function EditorPage() {
       await api.chapters.update(chapterId, { role })
       void loadOutline()
     },
+    onMoveSceneTo: (sceneId, from, to, ids) => void moveSceneTo(sceneId, from, to, ids),
+    onReorderChapters: can.canShape
+      ? (ids) => {
+          // Shown in its new place at once; the server is told after.
+          setOutline((o) => o && { ...o, chapters: ids.map((id) => o.chapters.find((c) => c.id === id)!).filter(Boolean) })
+          api.chapters.reorder(workId, ids)
+            .catch((e) => setNotice(e instanceof Error ? e.message : 'Could not move that chapter'))
+            .finally(() => void loadOutline())
+        }
+      : undefined,
+    sceneMenu: (target, chapterId, move) => sceneMenuItems(target, chapterId, move),
     canWrite: can.canWrite,
     canShape: can.canShape,
   }
@@ -1466,6 +1614,38 @@ export function EditorPage() {
         />
       )}
       {panel === 'exports' && can.isOwner && <ExportHistory workId={workId} onClose={closePanel} />}
+      {exportScene && can.isOwner && (
+        <ExportDialog workId={workId} onlyScene={exportScene} onClose={() => setExportScene(null)} />
+      )}
+      {sceneDialog?.kind === 'delete' && (
+        <ConfirmDialog
+          title={`Delete “${sceneDialog.name}”?`}
+          action="Delete scene"
+          onConfirm={() => deleteScene(sceneDialog.scene)}
+          onClose={() => setSceneDialog(null)}
+        >
+          <p>
+            Its {sceneDialog.scene.wordCount.toLocaleString()} {sceneDialog.scene.wordCount === 1 ? 'word' : 'words'} and
+            its history go with it, and it cannot be brought back here. A version that already has it
+            keeps its copy.
+          </p>
+          {!sceneDialog.scene.excluded && (
+            <p>To keep it without it being part of the book, untick “Part of the book” instead.</p>
+          )}
+        </ConfirmDialog>
+      )}
+      {sceneDialog?.kind === 'version' && (
+        <NameVersionDialog
+          sceneName={sceneDialog.name}
+          onSave={async (label) => {
+            if (scene?.id === sceneDialog.scene.id && saveState === 'dirty') await flush(true)
+            await api.versions.create(workId, label, undefined, 'scene', sceneDialog.scene.id)
+            setNotice(`Saved “${label}”, a version of “${sceneDialog.name}”.`)
+          }}
+          onClose={() => setSceneDialog(null)}
+        />
+      )}
+      {notice && <div className="toast" role="status">{notice}</div>}
 
       {importing && (
         <ImportDialog

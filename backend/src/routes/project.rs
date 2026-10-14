@@ -47,6 +47,55 @@ pub async fn export_project(
     user: AuthUser,
     work_id: String,
 ) -> ApiResult<Response> {
+    let mut project = project_of(state, user, work_id).await?;
+    let title = project.work.title.clone();
+    let bytes = tokio::task::spawn_blocking(move || project::write(&mut project))
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("application/zip"),
+    );
+    headers.insert(
+        header::CONTENT_DISPOSITION,
+        HeaderValue::from_str(&format!(
+            "attachment; filename=\"{}\"",
+            safe_filename(&title, "zip")
+        ))
+        .map_err(|e| ApiError::internal(e.to_string()))?,
+    );
+    Ok((StatusCode::OK, headers, bytes).into_response())
+}
+
+/// A copy of a whole book, as a new book of the caller's: everything a
+/// project carries — details, chapters, scenes, notebook and cover — under
+/// the same title with "(copy)" after it. Like an import, it starts as a
+/// draft, without the original's versions, readers or collaborators.
+#[utoipa::path(
+    post,
+    path = "/api/works/{work_id}/duplicate",
+    tag = "works",
+    params(("work_id" = String, Path)),
+    responses(
+        (status = 200, description = "The copy", body = OutlineResponse),
+        (status = 4XX, description = "Refused", body = ErrorEnvelope),
+    )
+)]
+pub async fn duplicate_work(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(work_id): Path<String>,
+) -> ApiResult<Json<OutlineResponse>> {
+    let mut project = project_of(&state, user.clone(), work_id).await?;
+    project.work.title = format!("{} (copy)", project.work.title.trim());
+    Ok(Json(create_from(&state, user, project).await?))
+}
+
+/// The working draft as a project, in memory: what a project zip holds.
+async fn project_of(state: &AppState, user: AuthUser, work_id: String) -> ApiResult<Project> {
     let (work, outline, entries, links, meta) = blocking(&state.pool, move |conn| {
         let work = support::work_for_owner(conn, &work_id, &user)?;
         let meta = crate::db::schema::work_metadata::table
@@ -55,9 +104,14 @@ pub async fn export_project(
             .first(conn)
             .optional()?;
         let outline = load_outline(conn, &work.id)?;
+        // In the writer's order, so it comes back the same way.
         let entries: Vec<NotebookEntry> = notebook_entries::table
             .filter(notebook_entries::work_id.eq(&work.id))
-            .order(notebook_entries::created_at.asc())
+            .order((
+                notebook_entries::kind.asc(),
+                notebook_entries::position.asc(),
+                notebook_entries::created_at.asc(),
+            ))
             .select(NotebookEntry::as_select())
             .load(conn)?;
         let scene_ids: Vec<String> = outline
@@ -105,6 +159,7 @@ pub async fn export_project(
                 target_words: scene.target_words,
                 location: scene.location,
                 story_date: scene.story_date,
+                excluded: scene.excluded,
                 file: None,
                 content,
             });
@@ -118,8 +173,7 @@ pub async fn export_project(
         });
     }
 
-    let title = work.title.clone();
-    let mut project = Project {
+    let project = Project {
         format: FORMAT.into(),
         format_version: FORMAT_VERSION,
         exported_at: now_iso(),
@@ -180,25 +234,7 @@ pub async fn export_project(
             .collect(),
     };
 
-    let bytes = tokio::task::spawn_blocking(move || project::write(&mut project))
-        .await
-        .map_err(|e| ApiError::internal(e.to_string()))?
-        .map_err(|e| ApiError::internal(e.to_string()))?;
-
-    let mut headers = HeaderMap::new();
-    headers.insert(
-        header::CONTENT_TYPE,
-        HeaderValue::from_static("application/zip"),
-    );
-    headers.insert(
-        header::CONTENT_DISPOSITION,
-        HeaderValue::from_str(&format!(
-            "attachment; filename=\"{}\"",
-            safe_filename(&title, "zip")
-        ))
-        .map_err(|e| ApiError::internal(e.to_string()))?,
-    );
-    Ok((StatusCode::OK, headers, bytes).into_response())
+    Ok(project)
 }
 
 // ── Import ──────────────────────────────────────────────────────────────────
@@ -387,8 +423,10 @@ pub(crate) async fn create_from(
                 })
                 .execute(conn)?;
 
-            // The notebook first, so scenes can link to it.
+            // The notebook first, so scenes can link to it. Each kind keeps
+            // the order the project lists it in.
             let mut entry_ids: HashMap<String, String> = HashMap::new();
+            let mut positions: HashMap<&str, i32> = HashMap::new();
             for entry in &project.notebook {
                 if !NotebookKind::accepts(&entry.kind) || entry.name.trim().is_empty() {
                     continue;
@@ -410,6 +448,11 @@ pub(crate) async fn create_from(
                             .filter(|f| !f.is_null())
                             .map(|f| f.to_string()),
                         template_id: None,
+                        position: {
+                            let next = positions.entry(entry.kind.as_str()).or_insert(0);
+                            *next += 1;
+                            *next - 1
+                        },
                     })
                     .execute(conn)?;
                 entry_ids.insert(entry.id.clone(), id);
@@ -429,7 +472,7 @@ pub(crate) async fn create_from(
                         role: chapter
                             .role
                             .clone()
-                            .filter(|r| matches!(r.as_str(), "chapter" | "front" | "back"))
+                            .filter(|r| matches!(r.as_str(), "chapter" | "front" | "back" | "part"))
                             .unwrap_or_else(|| "chapter".into()),
                     })
                     .execute(conn)?;
@@ -459,6 +502,11 @@ pub(crate) async fn create_from(
                             story_date: clean(scene.story_date.clone()),
                         })
                         .execute(conn)?;
+                    if scene.excluded {
+                        diesel::update(scenes::table.find(&scene_id))
+                            .set(scenes::excluded.eq(true))
+                            .execute(conn)?;
+                    }
                     for old in &scene.notebook {
                         if let Some(entry_id) = entry_ids.get(old) {
                             diesel::insert_into(scene_notebook_links::table)

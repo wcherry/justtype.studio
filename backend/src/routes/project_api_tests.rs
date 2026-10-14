@@ -88,3 +88,54 @@ async fn a_scrivener_project_becomes_a_book() {
         .await;
     assert_eq!(status, 400);
 }
+
+#[tokio::test]
+async fn a_book_duplicates_into_a_new_one_of_the_callers() {
+    let server = Server::start().await;
+    let eve = server.writer("eve").await;
+    let (_, book) = server
+        .upload(&eve, "/works/import?name=Home.scriv.zip", scriv_zip())
+        .await;
+    let work_id = book["id"].as_str().unwrap();
+
+    let copy = server
+        .ok(&eve, "POST", &format!("/works/{work_id}/duplicate"), None)
+        .await;
+    assert_ne!(copy["id"], book["id"]);
+    assert_eq!(copy["title"], "Home (copy)");
+    assert_eq!(copy["wordCount"], book["wordCount"]);
+    assert_eq!(copy["chapters"][0]["title"], "Arrival");
+    let scene_id = copy["chapters"][0]["scenes"][1]["id"].as_str().unwrap();
+    assert_ne!(
+        scene_id,
+        book["chapters"][0]["scenes"][1]["id"].as_str().unwrap()
+    );
+    let scene = server
+        .ok(&eve, "GET", &format!("/scenes/{scene_id}"), None)
+        .await;
+    assert_eq!(
+        scene["content"]["content"][0]["content"][0]["text"],
+        "The hall was cold and dark."
+    );
+    let notebook = server
+        .ok(
+            &eve,
+            "GET",
+            &format!("/works/{}/notebook", copy["id"].as_str().unwrap()),
+            None,
+        )
+        .await;
+    assert_eq!(notebook[0]["name"], "Mara");
+
+    // Someone else's book is not theirs to copy.
+    let mallory = server.writer("mallory").await;
+    let status = server
+        .status(
+            Some(&mallory),
+            "POST",
+            &format!("/works/{work_id}/duplicate"),
+            None,
+        )
+        .await;
+    assert!(status == 403 || status == 404, "{status}");
+}

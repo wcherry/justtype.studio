@@ -200,7 +200,8 @@ pub(super) async fn resolve_draft(
     let mut words = 0;
     for chapter in outline.chapters {
         let mut scenes = Vec::new();
-        for scene in chapter.scenes {
+        // A scene left out of the book is not printed.
+        for scene in chapter.scenes.into_iter().filter(|s| !s.excluded) {
             words += scene.word_count;
             let doc = state
                 .store

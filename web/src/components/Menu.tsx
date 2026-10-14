@@ -272,3 +272,68 @@ function MenuList({
     </div>
   )
 }
+
+/**
+ * The same list of actions, opened where the pointer is: a right-click, a
+ * Ctrl-click, or the keyboard's menu key (Shift+F10) on whatever it is about.
+ * Focus starts on the first item; Escape, Tab, a choice or a click elsewhere
+ * closes it, and focus goes back to where it was.
+ */
+export function ContextMenu({
+  x, y, items, label, onClose,
+}: {
+  /** Where it opens, in viewport pixels; it is kept on screen. */
+  x: number
+  y: number
+  items: MenuItem[]
+  /** What it is a menu for, for a screen reader. */
+  label: string
+  onClose: () => void
+}) {
+  const rootRef = useRef<HTMLDivElement>(null)
+  const id = useId()
+  const [at, setAt] = useState({ x, y })
+  const returnTo = useRef<Element | null>(typeof document === 'undefined' ? null : document.activeElement)
+
+  // Kept inside the window once its size is known.
+  useEffect(() => {
+    const box = rootRef.current?.firstElementChild?.getBoundingClientRect()
+    if (!box) return
+    setAt({
+      x: Math.max(8, Math.min(x, window.innerWidth - box.width - 8)),
+      y: Math.max(8, Math.min(y, window.innerHeight - box.height - 8)),
+    })
+  }, [x, y])
+
+  useEffect(() => {
+    const away = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) onClose()
+    }
+    const gone = () => onClose()
+    document.addEventListener('pointerdown', away)
+    window.addEventListener('resize', gone)
+    window.addEventListener('blur', gone)
+    return () => {
+      document.removeEventListener('pointerdown', away)
+      window.removeEventListener('resize', gone)
+      window.removeEventListener('blur', gone)
+    }
+  }, [onClose])
+
+  return (
+    <div ref={rootRef} className="context-menu" style={{ left: at.x, top: at.y }}>
+      <span id={`${id}-label`} hidden>{label}</span>
+      <MenuList
+        id={`${id}-list`}
+        labelledBy={`${id}-label`}
+        className="menu__list context-menu__list"
+        items={items}
+        initial="first"
+        onClose={(refocus) => {
+          onClose()
+          if (refocus && returnTo.current instanceof HTMLElement) returnTo.current.focus()
+        }}
+      />
+    </div>
+  )
+}

@@ -21,6 +21,20 @@ final class BookDetailsTests: XCTestCase {
         XCTAssertNil(Naming.roleBadge("chapter"))
     }
 
+    func testPartsAreCountedOnTheirOwn() {
+        let names = Naming.chapters([
+            ("", "part"),
+            ("", "chapter"),
+            ("Interlude", "part"),
+            ("", "chapter"),
+            ("", "part"),
+        ])
+        XCTAssertEqual(names, ["Part 1", "Chapter 1", "Interlude", "Chapter 2", "Part 3"])
+        XCTAssertEqual(Naming.roleBadge("part"), "Part")
+        XCTAssertEqual(Naming.scene("", number: 1, role: "part"), "Part page")
+        XCTAssertEqual(Naming.scene("", number: 1), "Scene 1")
+    }
+
     func testMetadataDecodesFromTheServersShape() throws {
         let json = """
         {"language":"fr-CA","textDirection":null,"description":"Un roman.","publisher":"Petite Presse",
