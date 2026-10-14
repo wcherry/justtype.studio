@@ -1514,12 +1514,22 @@ dialog.dialog[data-dragging] { outline: 2px dashed var(--accent); outline-offset
   margin-left: 6px; padding: 0 6px; font-size: 10px; font-weight: 400; letter-spacing: 0.03em;
   color: var(--ink-soft); border: 1px solid var(--line); border-radius: 999px; white-space: nowrap;
 }
+/*
+ * The heading keeps to one line whatever is shown beside it: a long title
+ * ends in an ellipsis rather than wrapping, and the role picker floats over
+ * the end of the line on hover instead of taking room from the title, so the
+ * outline never shifts under the pointer.
+ */
+.outline__chapter h3 { position: relative; display: flex; align-items: baseline; flex-wrap: nowrap; min-width: 0; }
+.outline__chapter-title { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.outline__badge, .outline__lock { flex: none; }
 .outline__role {
-  margin-left: auto; max-width: 28px; opacity: 0; font-size: 11px; color: var(--ink-soft);
-  border: 0; background: transparent; cursor: pointer;
+  position: absolute; right: 0; top: 50%; transform: translateY(-50%);
+  opacity: 0; pointer-events: none; font-size: 11px; color: var(--ink-soft); cursor: pointer;
+  width: auto; max-width: 9em; padding: 1px 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px;
+  text-transform: none; letter-spacing: 0;
 }
-.outline__chapter h3 { display: flex; align-items: baseline; flex-wrap: nowrap; }
-.outline__chapter:hover .outline__role, .outline__role:focus { opacity: 1; max-width: 120px; }
+.outline__chapter h3:hover .outline__role, .outline__role:focus { opacity: 1; pointer-events: auto; }
 /* A part opens the chapters after it: a rule above, and a heading a step up. */
 .outline__chapter--part { border-top: 1px solid var(--line); margin-top: 22px; }
 .outline__chapter--part h3 { color: var(--ink-soft); font-weight: 600; letter-spacing: 0.12em; margin-top: 12px; }

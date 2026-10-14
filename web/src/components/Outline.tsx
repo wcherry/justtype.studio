@@ -404,7 +404,7 @@ export function Outline({
               renameField(chapter.id, shown, chapter.title, (t) => onRenameChapter?.(chapter.id, t))
             ) : (
               <span
-                className={isUntitled(chapter.title) ? 'is-placeholder' : undefined}
+                className={isUntitled(chapter.title) ? 'outline__chapter-title is-placeholder' : 'outline__chapter-title'}
                 title={writable && onRenameChapter ? 'Double-click to name it' : undefined}
                 onDoubleClick={() => writable && onRenameChapter && edit(chapter.id, shown)}
               >
