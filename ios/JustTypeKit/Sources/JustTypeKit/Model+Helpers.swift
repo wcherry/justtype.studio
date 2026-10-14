@@ -38,9 +38,9 @@ public extension API.Visibility {
     var label: String {
         switch self {
         case .unlisted: "Anyone with the link"
-        case .platform: "Signed-in writers"
+        case .platform: "Public"
         case .invited: "Named readers only"
-        case .public: "Everyone"
+        case .public: "Open to all"
         }
     }
 }

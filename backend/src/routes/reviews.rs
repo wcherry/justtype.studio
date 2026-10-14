@@ -836,7 +836,7 @@ pub async fn create(
     let emails = checked_people(&body.emails)?;
     if visibility == "invited" && emails.is_empty() && body.user_ids.is_empty() {
         return Err(ApiError::BadRequest(
-            "pick at least one person to review it, or offer it to everyone".into(),
+            "pick at least one person to review it, or make it public".into(),
         ));
     }
     let closes_at = match &body.closes_at {
@@ -1097,7 +1097,7 @@ pub async fn update(
                 .get_result(conn)?;
             if visibility == "invited" && left == 0 {
                 return Err(ApiError::BadRequest(
-                    "pick at least one person to review it, or offer it to everyone".into(),
+                    "pick at least one person to review it, or make it public".into(),
                 ));
             }
             diesel::update(publications::table.find(&publication.id))
