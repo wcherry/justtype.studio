@@ -14,9 +14,9 @@ const KIND: Record<PublicationScope, string> = {
 function audienceOf(review: ReviewView): string {
   switch (review.visibility) {
     case 'platform':
-      return 'Everyone signed in'
+      return 'Public'
     case 'public':
-      return 'Anyone, signed in or not'
+      return 'Open to all, signed in or not'
     case 'unlisted':
       return 'Anyone with the link'
     default: {

@@ -160,8 +160,8 @@ export function ReviewDialog({
           <legend>Who can review it</legend>
           <label>
             <input type="radio" name="audience" checked={audience === 'everyone'} onChange={() => setAudience('everyone')} />
-            Everyone signed in
-            <span className="field__hint">Listed in the review feed for any writer on Just Type Studio.</span>
+            Public
+            <span className="field__hint">Anyone signed in to Just Type Studio. Listed in the review feed.</span>
           </label>
           <label>
             <input type="radio" name="audience" checked={audience === 'selected'} onChange={() => setAudience('selected')} />
@@ -228,7 +228,7 @@ export function ReviewDialog({
         </label>
 
         {error && <p className="error">{error}</p>}
-        {nobody && <p className="field__hint">Choose at least one person, or offer it to everyone.</p>}
+        {nobody && <p className="field__hint">Choose at least one person, or make it public.</p>}
         <div className="dialog__actions">
           <button type="submit" disabled={busy || nobody}>
             {busy ? 'Saving…' : review ? 'Save' : 'Mark for review'}

@@ -1222,18 +1222,49 @@ button.outline__review { cursor: pointer; }
   min-height: calc(100vh - 49px);
 }
 .reader { overflow-y: auto; max-height: calc(100vh - 49px); }
-.reader__header { padding: 28px 24px 0; max-width: 34em; margin: 0 auto; }
+.reader__header { padding: 28px 24px 0; max-width: var(--reader-width, 34em); margin: 0 auto; box-sizing: content-box; }
+.reader__title { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .reader__header h1 { font-family: var(--serif); font-weight: 500; margin: 0; }
 .reader__meta { color: var(--ink-faint); font-size: 13px; }
 .reader__chapter > h2 {
   font-family: var(--serif); font-weight: 500; font-size: 16px;
-  max-width: 34em; margin: 32px auto 0; padding: 0 24px;
+  max-width: var(--reader-width, 34em); margin: 32px auto 0; padding: 0 24px;
+  box-sizing: content-box;
   color: var(--ink-soft);
 }
 .reader__scene-title {
   font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
-  color: var(--ink-faint); max-width: 34em; margin: 24px auto -16px; padding: 0 24px;
+  color: var(--ink-faint); max-width: var(--reader-width, 34em); margin: 24px auto -16px; padding: 0 24px;
+  box-sizing: content-box;
 }
+/* The text column is the chosen width, with the gutter outside it, so the
+   headings above line up with it. */
+.reader__scene .prose { box-sizing: content-box; max-width: var(--measure); width: auto; }
+
+/* The reader's text controls. */
+.reader-display { position: relative; flex: none; margin-top: 4px; }
+.reader-display__btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; padding: 0;
+  border: 1px solid transparent; border-radius: 6px;
+  background: none; color: var(--ink-soft); cursor: pointer;
+}
+.reader-display__btn:hover, .reader-display__btn.is-active { color: var(--ink); border-color: var(--line); background: var(--surface); }
+.reader-display__btn.is-active::after { display: none; }
+.reader-display__panel {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 30;
+  width: min(280px, calc(100vw - 32px));
+  padding: 12px 14px; display: grid; gap: 10px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.12);
+  font-size: 13px;
+}
+.reader-display__panel label { margin: 0; }
+.reader-display__panel .linklike { justify-self: start; }
+
+/* Notes switched off: the passages keep their place, so a note chosen in the
+   sidebar still lights up, but they stop marking the text as it is read. */
+.reader--quiet-notes .anchor:not(.anchor--active) { background: none; border-bottom: none; cursor: text; }
 .reader__scene .prose { padding-block: 16px 0; }
 
 /* --- one-tap reactions -------------------------------------------------- */

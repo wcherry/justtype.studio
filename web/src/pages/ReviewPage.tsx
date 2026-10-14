@@ -13,11 +13,16 @@ import { MAX_MARK_QUOTE } from '../editor/annotations'
 import type { AnnotationSpec } from '../editor/annotations'
 import { useAnnotations } from '../editor/useAnnotations'
 import { QuestionCard } from '../components/QuestionCard'
+import { VISIBILITY_BADGE } from '../components/labels'
+import { ReaderDisplay } from '../components/ReaderDisplay'
 import { ReportButton } from '../components/ReportButton'
 import { ReaderScene } from '../components/ReaderScene'
 import type { Selection } from '../components/ReaderScene'
 import type { AnchorSpec } from '../editor/commentAnchors'
 import type { ReactionKind } from '../editor/reactionGutter'
+import { useWritingPreferences } from '../editor/preferences'
+import { Speller } from '../editor/spelling/speller'
+import { useReaderPreferences } from '../reader/readerPreferences'
 import { useReadingProgress } from '../reader/useReadingProgress'
 import { useAuth } from '../state/auth'
 import { useLive } from '../live'
@@ -57,6 +62,28 @@ export function ReviewPage() {
   const [showMarks, setShowMarks] = useState(false)
   const [composeFocus, setComposeFocus] = useState(0)
   const [jump, setJump] = useState<{ sceneId: string; from: number; to: number; key: number } | null>(null)
+  const display = useReaderPreferences()
+  const { preferences: writing } = useWritingPreferences()
+
+  // One checker for every scene on the page, built only when underlines are
+  // asked for: the dictionary is half a megabyte. It knows the reader's own
+  // dictionary, so the names they have taught it are not marked here either.
+  const [speller, setSpeller] = useState<Speller | null>(null)
+  const spellingOn = display.preferences.showSpelling
+  useEffect(() => {
+    if (!spellingOn) return
+    const created = new Speller(writing.spellingLanguage)
+    setSpeller(created)
+    if (user) {
+      api.words.dictionary()
+        .then((words) => created.add(words))
+        .catch(() => undefined)
+    }
+    return () => {
+      created.dispose()
+      setSpeller(null)
+    }
+  }, [spellingOn, writing.spellingLanguage, user])
 
   const loadComments = useCallback(() => {
     api.comments.list(publicationId, filters).then(setComments).catch(() => undefined)
@@ -265,14 +292,20 @@ export function ReviewPage() {
 
   return (
     <main className="review">
-      <section className="reader">
+      <section
+        className={`reader${display.preferences.showNotes ? '' : ' reader--quiet-notes'}`}
+        style={display.style}
+      >
         <header className="reader__header">
-          <h1>{card.workTitle}</h1>
+          <div className="reader__title">
+            <h1>{card.workTitle}</h1>
+            <ReaderDisplay preferences={display.preferences} onChange={display.update} onReset={display.reset} />
+          </div>
           <p className="reader__meta">
             <Link to={`/people/${card.author.id}`}>{card.author.displayName}</Link> ·{' '}
             {card.versionLabel} ·{' '}
             {card.wordCount.toLocaleString()} words
-            <span className={`badge badge--${card.visibility}`}>{card.visibility}</span>
+            <span className={`badge badge--${card.visibility}`}>{VISIBILITY_BADGE[card.visibility]}</span>
             {readers > 1 && <span className="reader__live">{readers} reading now</span>}
             {user && card.author.id !== user.id && <ReportButton subjectType="publication" subjectId={card.id} />}
           </p>
@@ -334,6 +367,7 @@ export function ReviewPage() {
                 menuActions={menuFor(scene.sceneId)}
                 jump={jump?.sceneId === scene.sceneId ? jump : null}
                 onUnplaced={reportUnplaced}
+                speller={speller}
               />
             ))}
 

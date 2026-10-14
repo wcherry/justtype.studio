@@ -1,4 +1,4 @@
-import type { FeedSort, Genre, LengthBand, WindowFilter } from '../api/types'
+import type { FeedSort, Genre, LengthBand, Visibility, WindowFilter } from '../api/types'
 
 /** What each closed set is called on screen. The values come from the server. */
 export const GENRES: { value: Genre; label: string }[] = [
@@ -33,3 +33,15 @@ export const SORTS: { value: FeedSort; label: string }[] = [
 
 export const genreLabel = (genre: Genre | null | undefined) =>
   GENRES.find((g) => g.value === genre)?.label ?? null
+
+/**
+ * A publication's audience, as its badge names it. "Public" is the signed-in
+ * readers here, which is what a writer means by it; the level that also lets
+ * in people who are not signed in is the wider one, and says so.
+ */
+export const VISIBILITY_BADGE: Record<Visibility, string> = {
+  invited: 'Invited',
+  unlisted: 'Unlisted',
+  platform: 'Public',
+  public: 'Open to all',
+}

@@ -189,8 +189,8 @@ function OfferForm({
         <select value={visibility} onChange={(e) => setVisibility(e.target.value as Visibility)}>
           <option value="invited">Only readers I name</option>
           <option value="unlisted">Anyone with the link</option>
-          <option value="platform">Signed-in writers</option>
-          <option value="public">Everyone</option>
+          <option value="platform">Public (anyone signed in)</option>
+          <option value="public">Open to all (signed in or not)</option>
         </select>
       </label>
       <label>

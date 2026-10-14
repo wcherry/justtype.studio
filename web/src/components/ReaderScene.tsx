@@ -5,6 +5,8 @@ import Underline from '@tiptap/extension-underline'
 import { Annotations, refreshAnnotations } from '../editor/annotations'
 import type { AnnotationSpec } from '../editor/annotations'
 import { CommentAnchors, place } from '../editor/commentAnchors'
+import { Spellcheck, refreshSpelling } from '../editor/spelling/spellcheck'
+import type { Speller } from '../editor/spelling/speller'
 import { SelectionMenu, useSelectionMenu } from './SelectionMenu'
 import type { MenuTarget, SelectionAction } from './SelectionMenu'
 import { ReactionGutter } from '../editor/reactionGutter'
@@ -40,6 +42,8 @@ interface Props {
   jump?: { from: number; to: number; key: number } | null
   /** The notes from an earlier version whose passage is no longer in this scene. */
   onUnplaced?: (sceneId: string, commentIds: string[]) => void
+  /** The checker that underlines misspelled words; none, and nothing is marked. */
+  speller?: Speller | null
 }
 
 /**
@@ -51,7 +55,7 @@ interface Props {
  */
 export function ReaderScene({
   sceneId, title, content, anchors, activeCommentId, marks, onSelect, onActivateComment, onReact,
-  annotations = NO_ANNOTATIONS, menuActions, jump, onUnplaced,
+  annotations = NO_ANNOTATIONS, menuActions, jump, onUnplaced, speller = null,
 }: Props) {
   // Each scene gets its own instances. An extension declared at module level is
   // one object, and the page mounts a dozen editors: passing the bare
@@ -65,6 +69,7 @@ export function ReaderScene({
       CommentAnchors.configure({ anchors: [], activeId: null }),
       ReactionGutter.configure({ marks: {}, onReact: () => {} }),
       Annotations.configure({ annotations: [] }),
+      Spellcheck.configure({ speller: null, enabled: false }),
     ],
     [],
   )
@@ -74,6 +79,8 @@ export function ReaderScene({
       editable: false,
       extensions,
       content: content as never,
+      // The app checks spelling itself, and only when the reader asks.
+      editorProps: { attributes: { spellcheck: 'false' } },
       onSelectionUpdate({ editor }) {
         const { from, to, empty } = editor.state.selection
         if (empty) {
@@ -119,6 +126,21 @@ export function ReaderScene({
     extension.options.annotations = annotations
     editor.view.dispatch(refreshAnnotations(editor.state))
   }, [editor, annotations])
+
+  // One checker for the whole page, handed to every scene; each repaints when
+  // it is switched or has finished loading its dictionary.
+  useEffect(() => {
+    if (!editor) return
+    const extension = editor.extensionManager.extensions.find((e) => e.name === 'spellcheck')
+    if (!extension) return
+    extension.options.speller = speller
+    extension.options.enabled = !!speller
+    const repaint = () => {
+      if (!editor.isDestroyed) editor.view.dispatch(refreshSpelling(editor.state))
+    }
+    repaint()
+    return speller?.subscribe(repaint)
+  }, [editor, speller])
 
   useEffect(() => {
     if (!editor || !jump) return

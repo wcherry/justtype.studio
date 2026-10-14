@@ -105,7 +105,9 @@ export function ReviewPanel({ publication, onChanged }: Props) {
         <h4>Readers</h4>
         {!invited && (
           <p className="field__hint">
-            This is shared with {publication.visibility === 'public' ? 'everyone' : 'signed-in writers'}.
+            This is {publication.visibility === 'public'
+              ? 'open to all, signed in or not'
+              : unlisted ? 'open to anyone with the link' : 'public: anyone signed in can read it'}.
             Invitations only gate a publication set to named readers.
           </p>
         )}
