@@ -6125,6 +6125,34 @@ public enum API {
         }
     }
 
+    public enum SummaryEmail: String, Codable, CaseIterable, Hashable, Sendable {
+        case none = "none"
+        case daily = "daily"
+        case weekly = "weekly"
+    }
+
+    public struct SummaryEmailView: Codable, Hashable, Sendable {
+        /// It can only be turned on for a confirmed address.
+        public var emailVerified: Bool
+        public var often: SummaryEmail
+        /// The local time it goes out, `HH:MM`.
+        public var sendTime: String
+        /// The IANA timezone it is counted and sent in. Unset until first chosen.
+        public var timezone: String?
+
+        public init(
+            emailVerified: Bool,
+            often: SummaryEmail,
+            sendTime: String,
+            timezone: String? = nil
+        ) {
+            self.emailVerified = emailVerified
+            self.often = often
+            self.sendTime = sendTime
+            self.timezone = timezone
+        }
+    }
+
     public struct SummaryView: Codable, Hashable, Sendable {
         /// True when this is an earlier answer for the same text, not a new call.
         public var cached: Bool
@@ -6640,6 +6668,16 @@ public enum API {
         }
     }
 
+    public struct Unsubscribed: Codable, Hashable, Sendable {
+        public var unsubscribed: Bool
+
+        public init(
+            unsubscribed: Bool
+        ) {
+            self.unsubscribed = unsubscribed
+        }
+    }
+
     public struct UpdateAnnotationRequest: Codable, Hashable, Sendable {
         /// Where the passage is now, after the draft moved it.
         public var from: Int?
@@ -6973,6 +7011,21 @@ public enum API {
         ) {
             self.color = color
             self.label = label
+        }
+    }
+
+    public struct UpdateSummaryEmailRequest: Codable, Hashable, Sendable {
+        public var often: SummaryEmail
+        /// The device's IANA timezone, such as `Europe/London`. Kept as it was
+        /// when left out.
+        public var timezone: String?
+
+        public init(
+            often: SummaryEmail,
+            timezone: String? = nil
+        ) {
+            self.often = often
+            self.timezone = timezone
         }
     }
 

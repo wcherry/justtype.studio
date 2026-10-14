@@ -625,6 +625,9 @@ their own book in `readerCount`, and notes on it are not reading for others.
 | `DELETE` | `/me/sessions/{id}` | sign one out |
 | `POST` | `/me/sessions/sign-out-others` | |
 | `PATCH` | `/me/settings` | `doubleEnterSplitsScenes`, `theme` (`system`, `light`, `dark`, `sepia`, `night`); each left out stays as it is; returns the user |
+| `GET` | `/me/summary-email` | `often` (`none`, `daily`, `weekly`), `timezone`, `sendTime`, `emailVerified` |
+| `PATCH` | `/me/summary-email` | `often`, and the device's IANA `timezone`; turning it on needs a confirmed address (403) |
+| `POST` | `/summary-email/unsubscribe?token=` | one click, no sign-in: turns the summary off. Also the email's `List-Unsubscribe-Post` target |
 | `POST` | `/invites` | `emails` (up to 10); mails each a fixed invitation from the writer, with a sign-up link. Needs a confirmed address (403); 20 addresses a day (429 for a batch that would cross it). Returns `invited` and `remainingToday`, the same whether or not an address already has an account — one that does is not mailed, and neither is one anybody invited in the last 30 days |
 
 **Invitations wait for a proved address.** A reader invitation and a seat on a
@@ -648,6 +651,14 @@ from it has been checked, so a mistyped key cannot lock anyone out.
 
 Links last 72 hours (proving an address) or an hour (a reset), work once, and a
 newer one retires the older. Mail to one address is limited to three a minute.
+
+**The summary email** goes at 07:00 in the writer's timezone: daily about the
+day before, weekly on Monday about Monday to Sunday before. It holds their net
+words (against their goals), new comments from others on reviews of their
+books, and their open revision tasks, for books they own or write or edit on.
+A period with no words, no comments and nothing ticked off is recorded and not
+sent. Only the latest period is ever due, and never one whose send time came
+before the writer chose it.
 
 **Not built: OAuth sign-in** (Apple, Google). It needs registered apps and keys.
 

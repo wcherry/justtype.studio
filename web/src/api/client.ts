@@ -17,6 +17,7 @@ import type {
   AdminPrompts, ArchivePage, CritiqueReportView, CritiqueView, EnrollmentView, EntryPage,
   InboxPage, JobsReport, PromptEntryView, PromptView, TodayResponse, ToWorkPreview, UnreadCount,
   UpdateEnrollmentRequest, UpdateSettingsRequest, WritingPlace, InviteResponse,
+  SummaryEmail, SummaryEmailView,
   AccountStanding, AppealRow, BlockedDomain, ExternalTestResult, ExternalView,
   LogPage, ModerationSettings, MyAppeal, MyRestriction, NoteView, Overview, PermanentBan,
   QueueItem, QueuePage, Reported, RestrictionView, TestResult, UserDetail, UserList,
@@ -757,6 +758,13 @@ export const api = {
     signOutOthers: () => post<{ ok: boolean }>('/me/sessions/sign-out-others'),
     /** Settings every device reads from the account. */
     updateSettings: (input: UpdateSettingsRequest) => patch<User>('/me/settings', input),
+    /** How often the summary email goes: none, daily or weekly. */
+    summaryEmail: () => get<SummaryEmailView>('/me/summary-email'),
+    setSummaryEmail: (often: SummaryEmail, timezone: string) =>
+      patch<SummaryEmailView>('/me/summary-email', { often, timezone }),
+    /** Signed out is fine: the token in the link is the proof. */
+    summaryUnsubscribe: (token: string) =>
+      post<{ unsubscribed: boolean }>(`/summary-email/unsubscribe?token=${encodeURIComponent(token)}`),
     /** Ask people to come and write here, by email. */
     invite: (emails: string[]) => post<InviteResponse>('/invites', { emails }),
   },

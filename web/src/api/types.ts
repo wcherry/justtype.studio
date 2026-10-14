@@ -183,6 +183,8 @@ export type {
   PromptEntryView,
   PromptView,
   ScenePreview,
+  SummaryEmail,
+  SummaryEmailView,
   Theme,
   TodayResponse,
   ToWorkPreview,

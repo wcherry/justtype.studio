@@ -299,10 +299,10 @@ pub(crate) async fn snapshot(
         let mut manifest_scenes = Vec::new();
         // A version is the book as it would be sent: no scene left out of it.
         for scene in chapter.scenes.iter().filter(|s| !s.excluded) {
-            let content = state.store.read_working_scene(&work_id, &scene.id).await?;
+            let content = state.store.read_working_scene(work_id, &scene.id).await?;
             state
                 .store
-                .write_version_scene(&work_id, &version_id, &scene.id, &content)
+                .write_version_scene(work_id, &version_id, &scene.id, &content)
                 .await?;
             total_words += scene.word_count;
             entries.push(NewVersionEntry {
@@ -393,7 +393,7 @@ pub(crate) async fn snapshot(
     state
         .store
         .write_version_manifest(
-            &work_id,
+            work_id,
             &version_id,
             &json!({
                 "versionId": version_id,

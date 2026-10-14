@@ -28,7 +28,7 @@ import { InboxPage } from './pages/InboxPage'
 import { PromptDayPage, PromptsPage } from './pages/PromptsPage'
 import { PromptEntryPage } from './pages/PromptEntryPage'
 import { PromptWritePage } from './pages/PromptWritePage'
-import { UnsubscribePage } from './pages/UnsubscribePage'
+import { SummaryUnsubscribePage, UnsubscribePage } from './pages/UnsubscribePage'
 import { InviteButton } from './components/InviteButton'
 import { useAuth } from './state/auth'
 import { useUnreadCount } from './state/inbox'
@@ -155,6 +155,7 @@ export function App() {
         element={<RequireAuth><Chrome><StandingPage /></Chrome></RequireAuth>}
       />
       <Route path="/prompts/unsubscribe" element={<UnsubscribePage />} />
+      <Route path="/summary-email/unsubscribe" element={<SummaryUnsubscribePage />} />
       <Route path="/settings" element={<Navigate to="/settings/account" replace />} />
       <Route
         path="/settings/:tab"

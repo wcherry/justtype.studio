@@ -17,6 +17,7 @@ mod ops;
 mod routes;
 mod state;
 mod storage;
+mod summary_email;
 mod thesaurus;
 mod web;
 

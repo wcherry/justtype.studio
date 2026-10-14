@@ -115,6 +115,8 @@ struct AccountView: View {
     @EnvironmentObject private var session: SessionStore
     @State private var section = 0
     @State private var problem: String?
+    @State private var summary: API.SummaryEmailView?
+    @State private var summaryProblem: String?
 
     var body: some View {
         NavigationStack {
@@ -166,6 +168,9 @@ struct AccountView: View {
                     } footer: {
                         Text("When turning an answer into a project, a line that is only -- always starts a new scene; this adds a blank line too. Kept with your account: on the web, a double Enter while writing a book also moves on to the next scene.")
                     }
+                    if let summary {
+                        summarySection(summary)
+                    }
                     Section("Daily Prompts") {
                         Text("Taking part and the daily email are set on the Prompts tab.")
                             .font(.footnote).foregroundStyle(.secondary)
@@ -173,7 +178,50 @@ struct AccountView: View {
                 }
             }
             .navigationTitle(section == 0 ? "Account" : "Settings")
-            .task { if let me = try? await session.client.me() { session.replaceUser(me) } }
+            .task {
+                if let me = try? await session.client.me() { session.replaceUser(me) }
+                summary = try? await session.client.summaryEmail()
+            }
+        }
+    }
+
+    /// What you wrote, your to-do lists and new review comments, by email.
+    @ViewBuilder
+    private func summarySection(_ view: API.SummaryEmailView) -> some View {
+        let here = TimeZone.current.identifier
+        Section {
+            Picker("Summary email", selection: Binding(
+                get: { view.often },
+                set: { often in Task { await setSummary(often) } }
+            )) {
+                ForEach(API.SummaryEmail.allCases, id: \.self) { often in
+                    Text(often.label).tag(often)
+                }
+            }
+            .disabled(!view.emailVerified)
+            if view.often != .none, let tz = view.timezone, tz != here {
+                Button("Use \(here) instead") { Task { await setSummary(view.often) } }
+            }
+            if let summaryProblem { Text(summaryProblem).foregroundStyle(.red).font(.footnote) }
+        } header: {
+            Text("Summary email")
+        } footer: {
+            if !view.emailVerified {
+                Text("Confirm your address first: the summary only goes to a confirmed one.")
+            } else if view.often == .none {
+                Text("What you wrote, what is still on your to-do lists, and new comments from your reviewers. Nothing is sent when nothing happened.")
+            } else {
+                Text("\(view.often.hint) Sent at \(view.sendTime), \(view.timezone ?? here) time. Nothing is sent when nothing happened.")
+            }
+        }
+    }
+
+    private func setSummary(_ often: API.SummaryEmail) async {
+        do {
+            summary = try await session.client.setSummaryEmail(often, timezone: TimeZone.current.identifier)
+            summaryProblem = nil
+        } catch {
+            summaryProblem = error.localizedDescription
         }
     }
 
@@ -214,6 +262,24 @@ extension API.Theme {
         case .dark: return "Dark"
         case .sepia: return "Sepia"
         case .night: return "Night"
+        }
+    }
+}
+
+extension API.SummaryEmail {
+    var label: String {
+        switch self {
+        case .none: return "None"
+        case .daily: return "Daily"
+        case .weekly: return "Weekly"
+        }
+    }
+
+    var hint: String {
+        switch self {
+        case .none: return "No summary email."
+        case .daily: return "Each morning, about the day before."
+        case .weekly: return "Monday mornings, about the week before."
         }
     }
 }

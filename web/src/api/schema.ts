@@ -2471,6 +2471,18 @@ export interface Summary {
   words: number
 }
 
+export type SummaryEmail = 'none' | 'daily' | 'weekly'
+
+export interface SummaryEmailView {
+  // It can only be turned on for a confirmed address.
+  emailVerified: boolean
+  often: SummaryEmail
+  // The local time it goes out, `HH:MM`.
+  sendTime: string
+  // The IANA timezone it is counted and sent in. Unset until first chosen.
+  timezone?: string | null
+}
+
 export interface SummaryView {
   // True when this is an earlier answer for the same text, not a new call.
   cached: boolean
@@ -2679,6 +2691,10 @@ export interface UnreadCount {
   count: number
 }
 
+export interface Unsubscribed {
+  unsubscribed: boolean
+}
+
 export interface UpdateAnnotationRequest {
   // Where the passage is now, after the draft moved it.
   from?: number | null
@@ -2829,6 +2845,13 @@ export interface UpdateStatusRequest {
   // `#rrggbb`.
   color?: string | null
   label?: string | null
+}
+
+export interface UpdateSummaryEmailRequest {
+  often: SummaryEmail
+  // The device's IANA timezone, such as `Europe/London`. Kept as it was
+  // when left out.
+  timezone?: string | null
 }
 
 export interface UpdateTaskRequest {

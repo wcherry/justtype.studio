@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { ApiError, api, downloadAccountExport, tokens } from '../api/client'
-import type { AuditEvent, SessionView, Theme, TwoFactorSetup } from '../api/types'
+import type { AuditEvent, SessionView, SummaryEmail, SummaryEmailView, Theme, TwoFactorSetup } from '../api/types'
 import { Tabs } from '../components/Tabs'
 import { useWritingPreferences } from '../editor/preferences'
+import { browserTimezone } from '../prompts/days'
 import { useAuth } from '../state/auth'
 import { THEMES, applyTheme, useTheme } from '../state/theme'
 
@@ -17,7 +18,7 @@ const TABS: { key: SettingsTab; label: string }[] = [
  * Two tabs, each with its own address so a link can go straight to one:
  * the account (its address, password, second factor, where it is signed in,
  * the data held about it) and the settings (how the app looks, what the
- * models may see, how writing behaves, Daily Prompts).
+ * models may see, how writing behaves, the summary email, Daily Prompts).
  */
 export function SettingsPage() {
   const { tab } = useParams()
@@ -43,6 +44,7 @@ export function SettingsPage() {
             <SummariesSection />
             <AssistantSection />
             <WritingSection />
+            <SummaryEmailSection />
             <Section title="Daily Prompts">
               <p className="field__hint">
                 Whether you take part, and the daily email, are set on <Link to="/prompts#preferences">the Daily Prompts page</Link>.
@@ -165,9 +167,83 @@ function WritingSection() {
   )
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+const SUMMARY_OPTIONS: { value: SummaryEmail; label: string; hint: string }[] = [
+  { value: 'none', label: 'None', hint: 'No summary email.' },
+  { value: 'daily', label: 'Daily', hint: 'Each morning, about the day before.' },
+  { value: 'weekly', label: 'Weekly', hint: 'Monday mornings, about the week before.' },
+]
+
+/**
+ * How often to be emailed what you wrote, what is still on your to-do lists,
+ * and what reviewers said. Choosing sends this device's timezone, so the
+ * email arrives in your morning and counts your days as you do.
+ */
+function SummaryEmailSection() {
+  const [view, setView] = useState<SummaryEmailView | null>(null)
+  const { busy, run, status } = useRun()
+  useEffect(() => {
+    api.account.summaryEmail().then(setView).catch(() => undefined)
+  }, [])
+  // The email's "change how often" link lands here; the section only exists
+  // once loaded, so the browser's own jump to it has already missed.
+  const loaded = view !== null
+  useEffect(() => {
+    if (loaded && window.location.hash === '#summary-email') {
+      document.getElementById('summary-email')?.scrollIntoView()
+    }
+  }, [loaded])
+  if (!view) return null
+  const timezone = browserTimezone()
+  const choose = (often: SummaryEmail) =>
+    run(async () => {
+      setView(await api.account.setSummaryEmail(often, timezone))
+    })
+  const locked = !view.emailVerified
   return (
-    <section className="settings__section">
+    <Section title="Summary email" id="summary-email">
+      <p className="field__hint">
+        What you wrote, what is still on your to-do lists, and new comments from your reviewers. Nothing is sent for a stretch when nothing happened.
+      </p>
+      <div role="radiogroup" aria-label="Summary email">
+        {SUMMARY_OPTIONS.map((o) => (
+          <label key={o.value} className="settings__row">
+            <input
+              type="radio"
+              name="summary-email"
+              value={o.value}
+              checked={view.often === o.value}
+              disabled={busy || (locked && o.value !== 'none')}
+              onChange={() => void choose(o.value)}
+            />
+            <span>
+              {o.label} <span className="field__hint">{o.hint}</span>
+            </span>
+          </label>
+        ))}
+      </div>
+      {locked ? (
+        <p className="field__hint">Confirm your address on the Account tab first: the summary only goes to a confirmed one.</p>
+      ) : view.often !== 'none' && (
+        <p className="field__hint">
+          Sent at {view.sendTime}, {view.timezone ?? timezone} time.
+          {view.timezone && view.timezone !== timezone && (
+            <>
+              {' '}
+              <button type="button" className="linklike" disabled={busy} onClick={() => void choose(view.often)}>
+                Use {timezone} instead
+              </button>
+            </>
+          )}
+        </p>
+      )}
+      {status}
+    </Section>
+  )
+}
+
+function Section({ title, id, children }: { title: string; id?: string; children: React.ReactNode }) {
+  return (
+    <section className="settings__section" id={id}>
       <h2>{title}</h2>
       {children}
     </section>

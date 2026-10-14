@@ -795,6 +795,25 @@ diesel::table! {
     }
 }
 
+diesel::table! {
+    summary_email_settings (user_id) {
+        user_id -> Text,
+        often -> Text,
+        timezone -> Text,
+        token -> Text,
+        updated_at -> Text,
+    }
+}
+
+diesel::table! {
+    summary_email_sends (user_id, period) {
+        user_id -> Text,
+        period -> Text,
+        sent_at -> Text,
+        queued -> Bool,
+    }
+}
+
 diesel::joinable!(prompt_entries -> daily_prompts (prompt_id));
 diesel::joinable!(prompt_entries -> users (author_id));
 diesel::joinable!(prompt_critiques -> prompt_entries (entry_id));
@@ -802,6 +821,8 @@ diesel::joinable!(prompt_critiques -> users (author_id));
 diesel::joinable!(prompt_critique_reports -> prompt_critiques (critique_id));
 diesel::joinable!(prompt_enrollments -> users (user_id));
 diesel::joinable!(prompt_email_sends -> users (user_id));
+diesel::joinable!(summary_email_settings -> users (user_id));
+diesel::joinable!(summary_email_sends -> users (user_id));
 
 diesel::table! {
     staff_notes (id) {
@@ -1055,6 +1076,8 @@ diesel::allow_tables_to_appear_in_same_query!(
     inbox_items,
     inbox_digests,
     prompt_email_sends,
+    summary_email_settings,
+    summary_email_sends,
     staff_notes,
     restrictions,
     appeals,
