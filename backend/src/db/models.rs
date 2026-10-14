@@ -242,7 +242,9 @@ row!(Scene, scenes, {
     title: String,
     summary: Option<String>,
     pov: Option<String>,
-    #[schema(value_type = crate::domain::enums::SceneStatus)]
+    /// One of the built-in statuses (`outline`, `drafting`, `revised`,
+    /// `done`), or the id of one of the book's own; the outline's `statuses`
+    /// lists them all with their names and colours.
     status: String,
     position: i32,
     word_count: i32,
@@ -280,6 +282,17 @@ row!(NotebookEntry, notebook_entries, {
     /// them; 0 first. Absent from an entry cached before it existed.
     #[serde(default)]
     position: i32,
+});
+
+// One of the writer's own scene statuses for a book. Read through
+// `statuses::StatusOption`, which lists it beside the built-in ones.
+row!(CustomStatus, scene_statuses, {
+    id: String,
+    work_id: String,
+    label: String,
+    color: String,
+    position: i32,
+    created_at: String,
 });
 
 row!(SceneNotebookLink, scene_notebook_links, {
@@ -397,6 +410,9 @@ row!(Publication, publications, {
     /// What share links are signed against; never sent anywhere.
     #[serde(skip)]
     link_secret: Option<String>,
+    /// When it was closed to its readers. The author keeps every comment and
+    /// can open it again.
+    revoked_at: Option<String>,
 });
 
 row!(PublicationInvite, publication_invites, {
@@ -407,6 +423,9 @@ row!(PublicationInvite, publication_invites, {
     accepted_at: Option<String>,
     accepted_by: Option<String>,
     created_at: String,
+    /// The reader, when they were picked by name; their address is then
+    /// blanked before the invitation is shown to anyone.
+    user_id: Option<String>,
 });
 
 row!(ReaderCircle, reader_circles, {
@@ -702,6 +721,11 @@ new_row!(NewNotebookEntry, notebook_entries, {
     fields: Option<String>, template_id: Option<String>, position: i32,
 });
 
+new_row!(NewCustomStatus, scene_statuses, {
+    id: String, work_id: String, label: String, color: String,
+    position: i32, created_at: String,
+});
+
 new_row!(NewSceneNotebookLink, scene_notebook_links, {
     id: String, scene_id: String, entry_id: String, created_at: String,
 });
@@ -747,6 +771,7 @@ new_row!(NewPublication, publications, {
 new_row!(NewPublicationInvite, publication_invites, {
     id: String, publication_id: String, email: String, invited_by: String,
     accepted_at: Option<String>, accepted_by: Option<String>, created_at: String,
+    user_id: Option<String>,
 });
 
 new_row!(NewReaderCircle, reader_circles, {

@@ -16,7 +16,8 @@
 //! (Part 1 → Chapter 1 → scenes): it becomes a part, its own text the part
 //! page, and the folders in it the chapters that follow.
 //! Synopses become summaries, and a status Scrivener's default list knows
-//! becomes the scene's status.
+//! becomes the scene's status; any other the writer added there becomes one of
+//! the book's own.
 //!
 //! The other folders become the notebook, a document per entry: those under a
 //! folder called Characters are characters, Places (or Settings, Locations)
@@ -30,8 +31,8 @@ use roxmltree::{Document, Node};
 use zip::ZipArchive;
 
 use super::project::{
-    read_capped, Project, ProjectChapter, ProjectEntry, ProjectScene, ProjectWork, FORMAT,
-    FORMAT_VERSION,
+    read_capped, Project, ProjectChapter, ProjectEntry, ProjectScene, ProjectStatus, ProjectWork,
+    FORMAT, FORMAT_VERSION,
 };
 use super::rtf;
 use crate::domain::doc;
@@ -196,7 +197,8 @@ fn status_for(name: &str) -> Option<&'static str> {
 struct Reader<'a, 'f, R: Read + std::io::Seek> {
     files: &'a mut Files<'f, R>,
     root: String,
-    statuses: HashMap<String, &'static str>,
+    /// Scrivener's status ID to the scene status it becomes.
+    statuses: HashMap<String, String>,
 }
 
 impl<R: Read + std::io::Seek> Reader<'_, '_, R> {
@@ -208,7 +210,7 @@ impl<R: Read + std::io::Seek> Reader<'_, '_, R> {
                 .status
                 .as_ref()
                 .and_then(|s| self.statuses.get(s))
-                .map(|s| s.to_string()),
+                .cloned(),
             content: texts.content.unwrap_or_else(doc::empty_doc),
             excluded: item.excluded,
             ..Default::default()
@@ -373,11 +375,29 @@ pub fn read<R: Read + std::io::Seek>(
                 .collect()
         })
         .unwrap_or_default();
-    let statuses: HashMap<String, &'static str> = project
-        .descendants()
-        .filter(|n| n.has_tag_name("Status"))
-        .filter_map(|n| Some((n.attribute("ID")?.to_string(), status_for(n.text()?)?)))
-        .collect();
+    let mut statuses: HashMap<String, String> = HashMap::new();
+    let mut own: Vec<ProjectStatus> = Vec::new();
+    for node in project.descendants().filter(|n| n.has_tag_name("Status")) {
+        let (Some(id), Some(name)) = (node.attribute("ID"), node.text().map(str::trim)) else {
+            continue;
+        };
+        if name.is_empty() || name.eq_ignore_ascii_case("no status") {
+            continue;
+        }
+        let status = match status_for(name) {
+            Some(built_in) => built_in.to_string(),
+            None => {
+                let key = format!("scrivener-{id}");
+                own.push(ProjectStatus {
+                    id: key.clone(),
+                    label: name.to_string(),
+                    color: None,
+                });
+                key
+            }
+        };
+        statuses.insert(id.to_string(), status);
+    }
     let title = project
         .descendants()
         .find(|n| n.has_tag_name("ProjectTitle"))
@@ -439,6 +459,7 @@ pub fn read<R: Read + std::io::Seek>(
         },
         chapters,
         notebook,
+        statuses: own,
         ..Default::default()
     })
 }
@@ -473,7 +494,8 @@ mod tests {
         <BinderItem UUID="S1" Type="Text"><Title>The Door</Title>
           <MetaData><StatusID>2</StatusID></MetaData></BinderItem>
         <BinderItem UUID="P1" Type="Folder"><Title>Part</Title><Children>
-          <BinderItem UUID="S2" Type="Text"><Title>Nested</Title></BinderItem>
+          <BinderItem UUID="S2" Type="Text"><Title>Nested</Title>
+            <MetaData><StatusID>3</StatusID></MetaData></BinderItem>
         </Children></BinderItem>
         <BinderItem UUID="IMG" Type="Image"><Title>Map</Title></BinderItem>
       </Children></BinderItem>
@@ -495,6 +517,7 @@ mod tests {
   </Binder>
   <StatusSettings><StatusItems>
     <Status ID="0">To Do</Status><Status ID="2">Revised Draft</Status>
+    <Status ID="3">Needs Research</Status>
   </StatusItems></StatusSettings>
 </ScrivenerProject>"#;
 
@@ -544,6 +567,13 @@ mod tests {
         );
         assert_eq!(one.scenes[0].summary.as_deref(), Some("She arrives."));
         assert_eq!(one.scenes[0].status.as_deref(), Some("revised"));
+        assert_eq!(one.scenes[1].status.as_deref(), Some("scrivener-3"));
+        let own: Vec<&str> = p.statuses.iter().map(|s| s.label.as_str()).collect();
+        assert_eq!(
+            own,
+            ["Needs Research"],
+            "a status of the writer's own comes along"
+        );
         assert_eq!(
             one.scenes[0].content["content"][0]["content"][1]["marks"][0]["type"],
             "italic"

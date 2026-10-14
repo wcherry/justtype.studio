@@ -42,8 +42,8 @@ pub struct UpdateSceneRequest {
     pub summary: Option<String>,
     #[serde(default)]
     pub pov: Option<String>,
+    /// A built-in status, or the key of one of the book's own.
     #[serde(default)]
-    #[schema(value_type = Option<crate::domain::enums::SceneStatus>)]
     pub status: Option<String>,
     #[serde(default)]
     pub location: Option<String>,
@@ -238,16 +238,17 @@ pub async fn update(
     Path(scene_id): Path<String>,
     Json(body): Json<UpdateSceneRequest>,
 ) -> ApiResult<Json<Scene>> {
-    if let Some(status) = &body.status {
-        if !SceneStatus::accepts(status) {
-            return Err(ApiError::BadRequest(format!(
-                "status must be one of {}",
-                SceneStatus::options()
-            )));
-        }
-    }
     let scene = blocking(&state.pool, move |conn| {
         let (scene, work) = support::scene_for(conn, &scene_id, &user, Ability::Write)?;
+        // Before anything is written, so a refused status changes nothing.
+        if let Some(status) = &body.status {
+            if !super::statuses::accepts(conn, &work.id, status)? {
+                return Err(ApiError::BadRequest(format!(
+                    "status must be one of {}, or one of the book's own",
+                    SceneStatus::options()
+                )));
+            }
+        }
         let now = now_iso();
         if let Some(title) = &body.title {
             diesel::update(scenes::table.find(&scene.id))

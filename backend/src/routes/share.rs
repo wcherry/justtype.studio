@@ -241,6 +241,7 @@ mod tests {
             max_reviewers: None,
             spoiler_safe: 0,
             link_secret: secret.map(str::to_string),
+            revoked_at: None,
         }
     }
 

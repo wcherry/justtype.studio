@@ -4,7 +4,7 @@ import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
 import { Annotations, refreshAnnotations } from '../editor/annotations'
 import type { AnnotationSpec } from '../editor/annotations'
-import { CommentAnchors } from '../editor/commentAnchors'
+import { CommentAnchors, place } from '../editor/commentAnchors'
 import { SelectionMenu, useSelectionMenu } from './SelectionMenu'
 import type { MenuTarget, SelectionAction } from './SelectionMenu'
 import { ReactionGutter } from '../editor/reactionGutter'
@@ -38,6 +38,8 @@ interface Props {
   menuActions?: (target: MenuTarget) => SelectionAction[]
   /** A passage to select and bring into view; a new `key` asks again. */
   jump?: { from: number; to: number; key: number } | null
+  /** The notes from an earlier version whose passage is no longer in this scene. */
+  onUnplaced?: (sceneId: string, commentIds: string[]) => void
 }
 
 /**
@@ -49,7 +51,7 @@ interface Props {
  */
 export function ReaderScene({
   sceneId, title, content, anchors, activeCommentId, marks, onSelect, onActivateComment, onReact,
-  annotations = NO_ANNOTATIONS, menuActions, jump,
+  annotations = NO_ANNOTATIONS, menuActions, jump, onUnplaced,
 }: Props) {
   // Each scene gets its own instances. An extension declared at module level is
   // one object, and the page mounts a dozen editors: passing the bare
@@ -94,6 +96,11 @@ export function ReaderScene({
     extension.options.activeId = activeCommentId
     editor.view.dispatch(editor.state.tr)
   }, [editor, anchors, activeCommentId])
+
+  useEffect(() => {
+    if (!editor || !onUnplaced) return
+    onUnplaced(sceneId, anchors.filter((a) => a.carried && !place(editor.state.doc, a)).map((a) => a.id))
+  }, [editor, anchors, onUnplaced, sceneId])
 
   useEffect(() => {
     if (!editor) return

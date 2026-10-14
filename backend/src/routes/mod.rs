@@ -49,12 +49,18 @@ pub mod readers;
 pub mod reports;
 #[cfg(test)]
 mod restriction_api_tests;
+pub mod reviews;
+#[cfg(test)]
+mod reviews_api_tests;
 #[cfg(test)]
 mod scene_actions_api_tests;
 pub mod scenes;
 pub mod search;
 pub mod share;
 pub mod status;
+pub mod statuses;
+#[cfg(test)]
+mod statuses_api_tests;
 pub mod summaries;
 pub mod support;
 pub mod tasks;
@@ -117,6 +123,15 @@ fn api_router() -> OpenApiRouter<AppState> {
         .routes(routes!(works::get_one, works::update, works::delete_work))
         .routes(routes!(works::outline))
         .routes(routes!(works::put_place))
+        .routes(routes!(reviews::list, reviews::create))
+        .routes(routes!(reviews::update))
+        .routes(routes!(reviews::bring_up_to_date))
+        .routes(routes!(reviews::revoke))
+        .routes(routes!(reviews::reopen))
+        .routes(routes!(reviews::people))
+        .routes(routes!(statuses::list, statuses::create))
+        .routes(routes!(statuses::reorder))
+        .routes(routes!(statuses::update, statuses::delete_status))
         .routes(routes!(notebook::templates))
         .routes(routes!(notebook::list, notebook::create))
         .routes(routes!(notebook::reorder))

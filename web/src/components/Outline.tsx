@@ -1,14 +1,18 @@
 import { useEffect, useState } from 'react'
-import type { Outline as OutlineType, Scene } from '../api/types'
-import { chapterNames, isUntitled, roleBadge, sceneName, type ChapterRole } from '../naming'
+import type { OutlineChapter, Outline as OutlineType, Scene } from '../api/types'
+import { chapterNames, isUntitled, partsOf, roleBadge, sceneName, type ChapterRole } from '../naming'
+import { statusGlyph, statusOf, statusesOf } from '../statuses'
 import { ContextMenu, type MenuItem } from './Menu'
 
 interface Props {
   outline: OutlineType
   activeSceneId: string | null
   onSelectScene: (scene: Scene) => void
-  /** Adds an untitled chapter at the end, shown as "Chapter N" until named. */
-  onAddChapter: () => void
+  /**
+   * Adds an untitled chapter, shown as "Chapter N" until named: at the end of
+   * the book, or at the end of the part `intoPart`.
+   */
+  onAddChapter: (intoPart?: string) => void
   /** Adds an untitled scene at the end of a chapter, shown as "Scene N". */
   onAddScene: (chapterId: string) => void
   onMoveScene: (chapterId: string, sceneIds: string[]) => void
@@ -28,6 +32,13 @@ interface Props {
    * key). `move` moves it one place, across into the next chapter at an end.
    */
   sceneMenu?: (scene: Scene, chapterId: string, move: { up?: () => void; down?: () => void }) => MenuItem[]
+  /**
+   * The actions on a chapter or part, for its heading's menu. `held` is, for
+   * a part, the chapters it holds; `name` is the chapter as it is shown.
+   */
+  chapterMenu?: (chapter: OutlineChapter, name: string, held: OutlineChapter[]) => MenuItem[]
+  /** Opens the book's reviews, from a badge. */
+  onOpenReviews?: () => void
   /** Whether this chapter's scenes may be added, moved or renamed. */
   canWrite?: (chapterId: string) => boolean
   /** Whether chapters may be added. */
@@ -62,22 +73,6 @@ function saveFolded(workId: string, folded: Set<string>) {
   }
 }
 
-/**
- * For each chapter, the part it falls under, if any. A part holds the chapters
- * after it, up to the next part or the back matter.
- */
-function partsOf(chapters: OutlineType['chapters']): (string | null)[] {
-  let part: string | null = null
-  return chapters.map((chapter) => {
-    if (chapter.role === 'part') {
-      part = chapter.id
-      return null
-    }
-    if (chapter.role !== 'chapter') part = null
-    return part
-  })
-}
-
 type Chapters = OutlineType['chapters']
 
 /** `block` taken out of `ids` and put back in before what is now at `at`. */
@@ -109,21 +104,17 @@ type Drop =
   | { kind: 'scene'; chapterId: string; index: number; marker: string; after: boolean }
   | { kind: 'chapter'; index: number; marker: string; after: boolean }
 
-const STATUS_DOT: Record<Scene['status'], string> = {
-  outline: '○',
-  drafting: '◐',
-  revised: '◑',
-  done: '●',
-}
 
 export function Outline({
   outline, activeSceneId, onSelectScene, onAddChapter, onAddScene, onMoveScene, onRenameScene, onRenameChapter, onSetRole,
-  onMoveSceneTo, onReorderChapters, sceneMenu,
+  onMoveSceneTo, onReorderChapters, sceneMenu, chapterMenu, onOpenReviews,
   canWrite = () => true, canShape = true, className,
 }: Props) {
   const [drag, setDrag] = useState<Drag | null>(null)
   const [drop, setDrop] = useState<Drop | null>(null)
   const [menu, setMenu] = useState<{ x: number; y: number; scene: Scene; chapterId: string } | null>(null)
+  const [chapterMenuAt, setChapterMenuAt] = useState<{ x: number; y: number; chapterId: string } | null>(null)
+  const statuses = statusesOf(outline)
   const endDrag = () => {
     setDrag(null)
     setDrop(null)
@@ -218,6 +209,10 @@ export function Outline({
     }
   }
 
+  /** Whether what is being dragged can go into this part: one chapter, not another part. */
+  const joinsPart = (target: OutlineType['chapters'][number], ids: string[]) =>
+    target.role === 'part' && ids.length === 1 && outline.chapters.find((ch) => ch.id === ids[0])?.role === 'chapter'
+
   /** Lands what is being dragged where the marker says. */
   const finishDrop = () => {
     if (drag && drop) {
@@ -245,8 +240,50 @@ export function Outline({
     setMenu({ x, y, scene, chapterId })
   }
 
+  const openChapterMenu = (e: React.MouseEvent, chapterId: string) => {
+    if (!chapterMenu || (e.target as HTMLElement).closest('select, input')) return
+    e.preventDefault()
+    let { clientX: x, clientY: y } = e
+    if (x === 0 && y === 0) {
+      const box = e.currentTarget.getBoundingClientRect()
+      x = box.left + 24
+      y = box.bottom
+    }
+    setChapterMenuAt({ x, y, chapterId })
+  }
+
   const names = chapterNames(outline.chapters)
   const owner = partsOf(outline.chapters)
+
+  /**
+   * What is up for review here, as a badge: "in review", or "review outdated"
+   * once the draft has moved past the version readers are shown. A scene row
+   * is a button already, so there the badge is only a label.
+   */
+  const reviewBadge = (scope: 'work' | 'part' | 'chapter' | 'scene', id?: string) => {
+    const open = (outline.reviews ?? []).filter((b) => b.scope === scope && (scope === 'work' || b.scopeRefId === id))
+    if (open.length === 0) return null
+    const outdated = open.some((b) => b.outdated)
+    const label = outdated ? 'review outdated' : 'in review'
+    const title = `${open.length === 1 ? 'Up for review' : `In ${open.length} reviews`}${
+      outdated ? '; the draft has changed since the version readers see' : ''
+    }`
+    const className = outdated ? 'outline__review is-outdated' : 'outline__review'
+    if (scope === 'scene' || !onOpenReviews) return <span className={className} title={title}>{label}</span>
+    return (
+      <button
+        type="button"
+        className={className}
+        title={`${title}. Open the book's reviews`}
+        onClick={(e) => {
+          e.stopPropagation()
+          onOpenReviews()
+        }}
+      >
+        {label}
+      </button>
+    )
+  }
 
   const [folded, setFolded] = useState<Set<string>>(() => loadFolded(outline.id))
   useEffect(() => setFolded(loadFolded(outline.id)), [outline.id])
@@ -285,6 +322,7 @@ export function Outline({
         <h2>{outline.title}</h2>
         <p className="outline__meta">
           {outline.wordCount.toLocaleString()} words · {outline.status}
+          {reviewBadge('work')}
           {foldable.length > 1 && (
             <button
               type="button"
@@ -318,6 +356,11 @@ export function Outline({
         const movable = canShape && !!onReorderChapters && editing !== chapter.id
         const chapterDrop = drop?.kind === 'chapter' && drop.marker === chapter.id ? drop : null
         const intoDrop = drop?.kind === 'scene' && drop.marker === `into:${chapter.id}`
+        const intoPartDrop = drop?.kind === 'chapter' && drop.marker === `into:${chapter.id}`
+        // The last place in a part: where its "+ Chapter" goes.
+        const partHere = chapter.role === 'part' ? chapter.id : part
+        const endsPart = !!partHere && canShape && !(chapter.role === 'part' && isFolded)
+          && (c === outline.chapters.length - 1 || owner[c + 1] !== partHere)
         const bodyId = `outline-${chapter.id}`
         return (
         <section
@@ -325,6 +368,7 @@ export function Outline({
           className={[
             'outline__chapter',
             chapter.role === 'part' && 'outline__chapter--part',
+            part && 'is-in-part',
             isFolded && 'is-folded',
             !writable && 'is-read-only',
             drag?.kind === 'chapter' && drag.ids.includes(chapter.id) && 'is-dragging',
@@ -349,7 +393,7 @@ export function Outline({
           }}
         >
           <h3
-            className={intoDrop ? 'is-drop-into' : undefined}
+            className={intoDrop || intoPartDrop ? 'is-drop-into' : undefined}
             draggable={movable}
             title={movable ? 'Drag to move' + (chapter.role === 'part' ? ' this part and its chapters' : '') : undefined}
             onDragStart={movable ? (e) => {
@@ -362,6 +406,7 @@ export function Outline({
               setDrag({ kind: 'chapter', ids: blockOf(outline.chapters, owner, c) })
             } : undefined}
             onDragEnd={movable ? endDrag : undefined}
+            onContextMenu={(e) => openChapterMenu(e, chapter.id)}
             onKeyDown={movable ? (e) => {
               if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
                 e.preventDefault()
@@ -371,6 +416,18 @@ export function Outline({
             // A scene dropped on a chapter's heading goes to its end: the way
             // into a folded or empty chapter.
             onDragOver={(e) => {
+              // A chapter dropped on a part's heading goes to the end of the part.
+              if (drag?.kind === 'chapter') {
+                if (!joinsPart(chapter, drag.ids)) return
+                e.preventDefault()
+                e.stopPropagation()
+                e.dataTransfer.dropEffect = 'move'
+                const index = c + held.length + 1
+                if (!intoPartDrop || drop?.index !== index) {
+                  setDrop({ kind: 'chapter', index, marker: `into:${chapter.id}`, after: true })
+                }
+                return
+              }
               if (drag?.kind !== 'scene' || !writable || !onMoveSceneTo && drag.from !== chapter.id) return
               e.preventDefault()
               e.stopPropagation()
@@ -379,7 +436,7 @@ export function Outline({
               }
             }}
             onDrop={(e) => {
-              if (drag?.kind !== 'scene') return
+              if (drag?.kind !== 'scene' && !(drag?.kind === 'chapter' && intoPartDrop)) return
               e.preventDefault()
               e.stopPropagation()
               finishDrop()
@@ -437,6 +494,7 @@ export function Outline({
                 <option value="back">Back matter</option>
               </select>
             )}
+            {editing !== chapter.id && reviewBadge(chapter.role === 'part' ? 'part' : 'chapter', chapter.id)}
             {!writable && <span className="outline__lock" title="You can read this chapter but not change it"> · read only</span>}
             {isFolded && (
               <span className="outline__folded-count">
@@ -519,7 +577,14 @@ export function Outline({
                   } : undefined}
                   onDragEnd={draggable ? endDrag : undefined}
                 >
-                  <span className="outline__dot" title={scene.status}>{STATUS_DOT[scene.status]}</span>
+                  {(() => {
+                    const status = statusOf(statuses, scene.status)
+                    return (
+                      <span className="outline__dot" style={{ color: status.color }} title={status.label}>
+                        {statusGlyph(status)}
+                      </span>
+                    )
+                  })()}
                   <span
                     className={isUntitled(scene.title) ? 'outline__title is-placeholder' : 'outline__title'}
                     title={writable ? 'Double-click to name it' : undefined}
@@ -532,6 +597,7 @@ export function Outline({
                       not in book
                     </span>
                   )}
+                  {reviewBadge('scene', scene.id)}
                   <span className="outline__words">{scene.wordCount}</span>
                 </div>
                 )}
@@ -550,6 +616,15 @@ export function Outline({
             </button>
           )}
           </div>
+          )}
+          {endsPart && (
+            <button
+              type="button"
+              className="outline__add-btn outline__add-btn--in-part"
+              onClick={() => onAddChapter(partHere as string)}
+            >
+              + Chapter in {names[outline.chapters.findIndex((ch) => ch.id === partHere)]}
+            </button>
           )}
         </section>
         )
@@ -571,6 +646,22 @@ export function Outline({
           onClose={() => setMenu(null)}
         />
       )}
+
+      {chapterMenuAt && chapterMenu && (() => {
+        const at = outline.chapters.findIndex((ch) => ch.id === chapterMenuAt.chapterId)
+        if (at < 0) return null
+        const chapter = outline.chapters[at]
+        const held = chapter.role === 'part' ? outline.chapters.filter((_, i) => owner[i] === chapter.id) : []
+        return (
+          <ContextMenu
+            x={chapterMenuAt.x}
+            y={chapterMenuAt.y}
+            label={`Actions for ${names[at]}`}
+            items={chapterMenu(chapter, names[at], held)}
+            onClose={() => setChapterMenuAt(null)}
+          />
+        )
+      })()}
 
       {canShape && (
       <button

@@ -17,6 +17,9 @@ use utoipa::OpenApi;
         crate::domain::enums::LengthBand,
         crate::domain::enums::WindowFilter,
         crate::domain::enums::FeedSort,
+        // A scene's status is a string, since a book can have its own; these
+        // are the ones every book has.
+        crate::domain::enums::SceneStatus,
     )),
     tags(
         (name = "auth", description = "Accounts and sessions"),
@@ -24,6 +27,8 @@ use utoipa::OpenApi;
         (name = "works", description = "Novels, novellas, short stories, serials"),
         (name = "chapters", description = "Ordered divisions of a work"),
         (name = "scenes", description = "The unit of writing"),
+        (name = "reviews", description = "A scene, chapter, part or the whole book put up for review from the outline"),
+        (name = "statuses", description = "Where a scene stands: the built-in statuses and a book's own"),
         (name = "changes", description = "Proposed edits, accepted or rejected"),
         (name = "versions", description = "Immutable snapshots"),
         (name = "publications", description = "A version offered for review"),

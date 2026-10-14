@@ -136,6 +136,17 @@ async fn project_of(state: &AppState, user: AuthUser, work_id: String) -> ApiRes
         None => None,
     };
 
+    let statuses = outline
+        .statuses
+        .iter()
+        .flatten()
+        .filter(|s| s.custom)
+        .map(|s| project::ProjectStatus {
+            id: s.key.clone(),
+            label: s.label.clone(),
+            color: Some(s.color.clone()),
+        })
+        .collect();
     let mut project_chapters = Vec::new();
     for chapter in outline.chapters {
         let mut project_scenes = Vec::new();
@@ -221,6 +232,7 @@ async fn project_of(state: &AppState, user: AuthUser, work_id: String) -> ApiRes
         },
         cover,
         chapters: project_chapters,
+        statuses,
         notebook: entries
             .into_iter()
             .map(|e| ProjectEntry {
@@ -458,6 +470,29 @@ pub(crate) async fn create_from(
                 entry_ids.insert(entry.id.clone(), id);
             }
 
+            // The book's own statuses, before the scenes that have them.
+            let mut status_ids: HashMap<String, String> = HashMap::new();
+            for (i, status) in project.statuses.iter().enumerate() {
+                let label: String = status.label.trim().chars().take(40).collect();
+                if label.is_empty()
+                    || status_ids.contains_key(&status.id)
+                    || super::statuses::BUILT_IN
+                        .iter()
+                        .any(|(_, l, _)| l.eq_ignore_ascii_case(&label))
+                {
+                    continue;
+                }
+                let color = status
+                    .color
+                    .clone()
+                    .filter(|c| super::statuses::valid_color(c))
+                    .unwrap_or_else(|| {
+                        super::statuses::PALETTE[i % super::statuses::PALETTE.len()].into()
+                    });
+                let id = super::statuses::insert(conn, &db_work_id, &label, &color)?;
+                status_ids.insert(status.id.clone(), id);
+            }
+
             for (c, chapter) in project.chapters.iter().enumerate() {
                 let chapter_id = new_id();
                 diesel::insert_into(chapters::table)
@@ -487,11 +522,14 @@ pub(crate) async fn create_from(
                             title: scene.title.trim().to_string(),
                             summary: clean(scene.summary.clone()),
                             pov: clean(scene.pov.clone()),
-                            status: scene
-                                .status
-                                .clone()
-                                .filter(|s| SceneStatus::accepts(s))
-                                .unwrap_or_else(|| "drafting".into()),
+                            status: match scene.status.as_deref() {
+                                Some(s) if SceneStatus::accepts(s) => s.to_string(),
+                                Some(s) => status_ids
+                                    .get(s)
+                                    .cloned()
+                                    .unwrap_or_else(|| super::statuses::FALLBACK.into()),
+                                None => super::statuses::FALLBACK.into(),
+                            },
                             position: s as i32,
                             word_count: doc::word_count(&scene.content),
                             content_hash: doc::content_hash(&scene.content),

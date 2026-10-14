@@ -47,6 +47,10 @@ pub struct Project {
     pub chapters: Vec<ProjectChapter>,
     #[serde(default)]
     pub notebook: Vec<ProjectEntry>,
+    /// The book's own scene statuses, in order. A scene's `status` is either a
+    /// built-in one or the `id` of one of these.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub statuses: Vec<ProjectStatus>,
     /// The cover image, kept beside `project.json` in the zip rather than
     /// inside it.
     #[serde(skip)]
@@ -173,6 +177,17 @@ pub struct ProjectScene {
     /// The scene's exact document.
     #[serde(default)]
     pub content: Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectStatus {
+    #[serde(default)]
+    pub id: String,
+    pub label: String,
+    /// `#rrggbb`; absent, the import picks one.
+    #[serde(default)]
+    pub color: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -473,6 +488,7 @@ mod tests {
                 fields: Some(json!({"age":"34"})),
                 ..Default::default()
             }],
+            statuses: vec![],
             cover: None,
         }
     }

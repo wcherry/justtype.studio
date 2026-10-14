@@ -13,6 +13,7 @@ pub mod prompts;
 pub mod restrictions;
 pub mod secrets;
 pub mod sketches;
+pub mod slice;
 pub mod split;
 pub mod templates;
 

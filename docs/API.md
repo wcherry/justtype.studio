@@ -65,7 +65,7 @@ chapter nine.
 | Method | Path | Notes |
 |---|---|---|
 | `GET` | `/versions/{id}/export?format=&style=` | the version as a file |
-| `GET` | `/works/{id}/export?format=&style=` | the working draft as a file, or `format=project` for the whole book as a zip (owner) |
+| `GET` | `/works/{id}/export?format=&style=[&chapters=&scenes=]` | the working draft as a file, or `format=project` for the whole book as a zip (owner); `chapters` and `scenes` (comma-separated ids) narrow it, as printing one scene or chapter does |
 | `POST` | `/works/import?name=` | a project zip, a zipped Scrivener project, or a `.md`/`.txt` document, in the body → a new book |
 | `POST` | `/works/{id}/import?name=&chapterId=` | a `.md`/`.txt` document in the body → a new scene |
 
@@ -208,7 +208,41 @@ recovering, not writing.
 | `POST` | `/scenes/{id}/revisions/{revisionId}/restore` | put that revision back as the working copy |
 
 `kind` is one of `novel`, `novella`, `short_story`, `serial`.
-Scene `status` is one of `outline`, `drafting`, `revised`, `done`.
+Scene `status` is one of the built-in `outline`, `drafting`, `revised`, `done`,
+or the `key` of one of the book's own statuses. The outline's `statuses` lists
+them all, the book's own first, each with a `label` and a `#rrggbb` `color`.
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/works/{id}/statuses` | the book's own, then the built-in ones |
+| `POST` | `/works/{id}/statuses` | `label`, optional `color`; names are unique in the book, built-in ones included |
+| `POST` | `/works/{id}/statuses/reorder` | `ids`, the book's own in their new order |
+| `PATCH` | `/statuses/{id}` | `label`, `color` |
+| `DELETE` | `/statuses/{id}` | its scenes go back to `drafting` |
+
+Each answers with the book's whole list.
+
+### Reviews
+
+A review puts a scene, chapter, part or the whole book in front of readers. It
+is a publication of a snapshot: marking something for review reuses the most
+recent snapshot of it if the draft has not changed since, and saves a new one
+if it has. Owners and writers may manage reviews; a writer handed some
+chapters, only of those.
+
+| Method | Path | Notes |
+|---|---|---|
+| `POST` | `/works/{id}/reviews` | `scope` (`work`, `part`, `chapter`, `scene`), `scopeRefId`, `audience` (`everyone`: anyone signed in; `selected`), `userIds`, `emails`, `prompt`, `closesAt` |
+| `GET` | `/works/{id}/reviews` | every review of the book, newest first, with `state` (`open`, `closed`, `revoked`) and `outdated` |
+| `PATCH` | `/reviews/{id}` | `audience`, `userIds` with `emails` (the whole list), `prompt`, `closesAt`; `""` clears the last two |
+| `POST` | `/reviews/{id}/update` | onto the draft as it is now; comments stay, each with `versionLabel` and `earlierVersion` |
+| `POST` | `/reviews/{id}/revoke` | closed to readers; the writers keep every comment |
+| `POST` | `/reviews/{id}/reopen` | open again to the same readers; a past closing date is cleared |
+| `GET` | `/people?q=` | up to eight people by display name, to pick; never an address |
+
+People picked get an inbox item (`review.invited`); an address gets an email.
+Bringing a review up to date tells everyone who has taken part
+(`review.updated`). The outline carries `reviews`, the open ones, for badges.
 
 ### Save conflicts
 

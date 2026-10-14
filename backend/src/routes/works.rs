@@ -105,6 +105,15 @@ pub struct OutlineResponse {
     /// back there. Absent the first time, or once that scene is gone.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub place: Option<WritingPlace>,
+    /// Every status a scene in the book can have, the book's own first, with
+    /// the colour each is shown in. Optional so an outline a client cached
+    /// before a book could have its own still decodes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub statuses: Option<Vec<super::statuses::StatusOption>>,
+    /// The book's reviews still open to readers, for a badge on what each
+    /// covers. Sent to the people writing it; absent elsewhere.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reviews: Option<Vec<super::reviews::ReviewBadge>>,
 }
 
 /// Where a writer was in a book: the scene, and the selection in it, as the
@@ -163,6 +172,7 @@ pub(crate) fn outline_for(
         .first::<(String, i32, i32)>(conn)
         .optional()?
         .map(|(scene_id, from, to)| WritingPlace { scene_id, from, to });
+    outline.reviews = Some(super::reviews::badges(conn, &outline)?);
     Ok(outline)
 }
 
@@ -709,6 +719,8 @@ pub(crate) fn load_outline(
         chapters: chapters_out,
         access: None,
         place: None,
+        statuses: Some(super::statuses::for_work(conn, work_id)?),
+        reviews: None,
     })
 }
 

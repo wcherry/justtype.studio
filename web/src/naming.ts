@@ -60,3 +60,19 @@ export function withPlaceholderNames(outline: Outline): Outline {
     })),
   }
 }
+
+/**
+ * For each chapter, the part it falls under, if any. A part holds the chapters
+ * after it, up to the next part or the back matter.
+ */
+export function partsOf(chapters: { id: string; role: string }[]): (string | null)[] {
+  let part: string | null = null
+  return chapters.map((chapter) => {
+    if (chapter.role === 'part') {
+      part = chapter.id
+      return null
+    }
+    if (chapter.role !== 'chapter') part = null
+    return part
+  })
+}

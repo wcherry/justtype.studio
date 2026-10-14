@@ -20,7 +20,8 @@ import type {
   AccountStanding, AppealRow, BlockedDomain, ExternalTestResult, ExternalView,
   LogPage, ModerationSettings, MyAppeal, MyRestriction, NoteView, Overview, PermanentBan,
   QueueItem, QueuePage, Reported, RestrictionView, TestResult, UserDetail, UserList,
-  WordFilterTerm, WordList, Appeal,
+  WordFilterTerm, WordList, Appeal, StatusOption,
+  ReviewView, CreateReviewRequest, UpdateReviewRequest,
 } from './types'
 import type { ChapterRole } from '../naming'
 
@@ -247,8 +248,14 @@ export function downloadFeedback(publicationId: string, format: string): Promise
  * Nothing to set here — that is what Export is for — and, like the quick
  * download, it leaves no line in the export history.
  */
-export async function printDraft(workId: string): Promise<'printing' | 'saved'> {
+export async function printDraft(
+  workId: string,
+  /** Only these chapters (every scene in each) and scenes; the whole book without. */
+  only?: { chapterIds?: string[]; sceneIds?: string[] },
+): Promise<'printing' | 'saved'> {
   const params = new URLSearchParams({ format: 'pdf', style: 'book' })
+  if (only?.chapterIds?.length) params.set('chapters', only.chapterIds.join(','))
+  if (only?.sceneIds?.length) params.set('scenes', only.sceneIds.join(','))
   const send = () => {
     const headers: Record<string, string> = {}
     const access = tokens.access()
@@ -428,6 +435,39 @@ export const api = {
     remove: (chapterId: string) => del<{ ok: boolean }>(`/chapters/${chapterId}`),
     reorder: (workId: string, ids: string[]) =>
       post<Outline['chapters']>(`/works/${workId}/chapters/reorder`, { ids }),
+  },
+
+  /**
+   * Reviews put up from the outline: a scene, chapter, part or the whole book
+   * in front of everyone signed in, or of the people picked.
+   */
+  reviews: {
+    list: (workId: string) => get<ReviewView[]>(`/works/${workId}/reviews`),
+    create: (workId: string, input: CreateReviewRequest) =>
+      post<ReviewView>(`/works/${workId}/reviews`, input),
+    update: (reviewId: string, input: UpdateReviewRequest) =>
+      patch<ReviewView>(`/reviews/${reviewId}`, input),
+    /** Onto the draft as it is now; its comments come along. */
+    bringUpToDate: (reviewId: string) => post<ReviewView>(`/reviews/${reviewId}/update`),
+    /** Closed to its readers; the comments stay. */
+    revoke: (reviewId: string) => post<ReviewView>(`/reviews/${reviewId}/revoke`),
+    reopen: (reviewId: string) => post<ReviewView>(`/reviews/${reviewId}/reopen`),
+  },
+
+  /** People on the site by name, to pick as reviewers. */
+  people: (q: string) => get<AuthorCard[]>(`/people?q=${encodeURIComponent(q)}`),
+
+  /** A book's scene statuses. Every change answers with the whole list. */
+  statuses: {
+    list: (workId: string) => get<StatusOption[]>(`/works/${workId}/statuses`),
+    create: (workId: string, input: { label: string; color?: string }) =>
+      post<StatusOption[]>(`/works/${workId}/statuses`, input),
+    update: (statusId: string, input: { label?: string; color?: string }) =>
+      patch<StatusOption[]>(`/statuses/${statusId}`, input),
+    /** Its scenes go back to drafting. */
+    remove: (statusId: string) => del<StatusOption[]>(`/statuses/${statusId}`),
+    reorder: (workId: string, ids: string[]) =>
+      post<StatusOption[]>(`/works/${workId}/statuses/reorder`, { ids }),
   },
 
   scenes: {

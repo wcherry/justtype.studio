@@ -14,7 +14,7 @@ use serde_json::Value;
 use crate::auth::{AuthUser, MaybeAuthUser};
 use crate::db::blocking;
 use crate::db::models::*;
-use crate::db::schema::{comment_votes, comments};
+use crate::db::schema::{comment_votes, comments, versions};
 use crate::domain::enums::CommentCategory;
 use crate::domain::filter::Surface;
 use crate::domain::moderation;
@@ -124,6 +124,11 @@ pub struct CommentView {
     /// record of being right is legible as one.
     pub author_score: i64,
     pub viewer_vote: i32,
+    /// The label of the version it was written on: "v3".
+    pub version_label: String,
+    /// Written on an earlier version than readers are shown now. Its anchor
+    /// is placed by its quote, where that text is still to be found.
+    pub earlier_version: bool,
     /// Threads nest arbitrarily deep, which makes this type self-referential.
     /// Schema generation has to be told to stop, or it recurses until the stack
     /// gives out.
@@ -239,16 +244,32 @@ pub async fn list(
             None => HashMap::new(),
         };
 
-        Ok(build_threads(
-            rows,
-            &authors,
-            &standings,
-            &votes,
-            sort_by_score,
-        ))
+        let version_ids: Vec<String> = rows.iter().map(|c| c.version_id.clone()).collect();
+        let labels: HashMap<String, String> = versions::table
+            .filter(versions::id.eq_any(&version_ids))
+            .select((versions::id, versions::label))
+            .load::<(String, String)>(conn)?
+            .into_iter()
+            .collect();
+        let mut views = build_threads(rows, &authors, &standings, &votes, sort_by_score);
+        label_versions(&mut views, &labels, &publication.version_id);
+        Ok(views)
     })
     .await?;
     Ok(Json(views))
+}
+
+/// Says which version each note was written on, and which were written on an
+/// earlier one than readers are shown now.
+fn label_versions(views: &mut [CommentView], labels: &HashMap<String, String>, current: &str) {
+    for view in views {
+        view.version_label = labels
+            .get(&view.comment.version_id)
+            .cloned()
+            .unwrap_or_default();
+        view.earlier_version = view.comment.version_id != current;
+        label_versions(&mut view.replies, labels, current);
+    }
 }
 
 /// Drops deleted notes nobody answered, and keeps the ones somebody did —
@@ -327,6 +348,8 @@ fn build_threads(
                     display_name: "Unknown".into(),
                 }),
             viewer_vote: votes.get(&comment.id).copied().unwrap_or(0),
+            version_label: String::new(),
+            earlier_version: false,
             replies,
             comment,
         }
@@ -443,6 +466,11 @@ pub async fn create(
                     display_name: "Unknown".into(),
                 }),
             viewer_vote: 0,
+            version_label: versions::table
+                .find(&comment.version_id)
+                .select(versions::label)
+                .first(conn)?,
+            earlier_version: false,
             replies: Vec::new(),
             comment,
         })

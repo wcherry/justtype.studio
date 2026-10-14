@@ -159,6 +159,8 @@ export function ReviewPage() {
             from: anchor.from,
             to: anchor.to,
             resolved: comment.state === 'resolved',
+            carried: comment.earlierVersion,
+            quote: comment.anchorQuote ?? undefined,
           })
           map.set(comment.sceneId, existing)
         }
@@ -168,6 +170,17 @@ export function ReviewPage() {
     walk(comments)
     return map
   }, [comments])
+
+  /** Notes from an earlier version whose passage is gone from this one, by scene. */
+  const [unplacedByScene, setUnplacedByScene] = useState<Record<string, string[]>>({})
+  const reportUnplaced = useCallback((sceneId: string, ids: string[]) => {
+    setUnplacedByScene((current) => {
+      const was = current[sceneId] ?? []
+      if (was.length === ids.length && was.every((id, i) => id === ids[i])) return current
+      return { ...current, [sceneId]: ids }
+    })
+  }, [])
+  const unplaced = useMemo(() => new Set(Object.values(unplacedByScene).flat()), [unplacedByScene])
 
   const annotationsByScene = useMemo(() => {
     const map = new Map<string, AnnotationSpec[]>()
@@ -320,6 +333,7 @@ export function ReviewPage() {
                 annotations={annotationsByScene.get(scene.sceneId)}
                 menuActions={menuFor(scene.sceneId)}
                 jump={jump?.sceneId === scene.sceneId ? jump : null}
+                onUnplaced={reportUnplaced}
               />
             ))}
 
@@ -388,6 +402,7 @@ export function ReviewPage() {
         onActivate={setActiveCommentId}
         onClearPending={() => setPending(null)}
         composeFocus={composeFocus}
+        unplaced={unplaced}
       />
     </main>
   )

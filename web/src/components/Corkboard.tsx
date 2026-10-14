@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
-import type { Outline, Scene, SceneStatus } from '../api/types'
+import type { Outline, Scene } from '../api/types'
+import { statusOf, statusesOf } from '../statuses'
 
 interface Props {
   outline: Outline
@@ -7,9 +8,11 @@ interface Props {
   onOpenScene: (scene: Scene) => void
   /** Reorder within a chapter, or move a scene into another one. */
   onMove: (scene: Scene, toChapterId: string, toIndex: number) => void
+  /** Only these chapters, for a chapter or part looked at on its own. */
+  only?: { chapterIds: string[]; label: string }
+  /** Back to the whole book, when showing `only`. */
+  onShowAll?: () => void
 }
-
-const STATUSES: SceneStatus[] = ['outline', 'drafting', 'revised', 'done']
 
 interface Filters {
   text: string
@@ -31,7 +34,9 @@ const EMPTY: Filters = { text: '', pov: '', location: '', status: '' }
  * is one draggable element and one drop target, and a dependency for that is
  * more code than the thing it replaces.
  */
-export function Corkboard({ outline, activeSceneId, onOpenScene, onMove }: Props) {
+export function Corkboard({ outline, activeSceneId, onOpenScene, onMove, only, onShowAll }: Props) {
+  const statuses = statusesOf(outline)
+  const chapters = only ? outline.chapters.filter((c) => only.chapterIds.includes(c.id)) : outline.chapters
   const [filters, setFilters] = useState<Filters>(EMPTY)
   // The dragged scene lives in a ref, not just state: `drop` reads it, and a
   // state value would still be the previous render's when both events land in
@@ -54,11 +59,11 @@ export function Corkboard({ outline, activeSceneId, onOpenScene, onMove }: Props
   // Offered rather than typed: the values that exist are the useful ones, and
   // a writer should not have to remember how they spelled a location.
   const { povs, locations } = useMemo(() => {
-    const scenes = outline.chapters.flatMap((c) => c.scenes)
+    const scenes = chapters.flatMap((c) => c.scenes)
     const unique = (values: (string | null | undefined)[]) =>
       [...new Set(values.filter((v): v is string => !!v && v.trim() !== ''))].sort()
     return { povs: unique(scenes.map((s) => s.pov)), locations: unique(scenes.map((s) => s.location)) }
-  }, [outline])
+  }, [outline, only]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const matches = (scene: Scene) => {
     const text = filters.text.trim().toLowerCase()
@@ -76,8 +81,8 @@ export function Corkboard({ outline, activeSceneId, onOpenScene, onMove }: Props
   }
 
   const filtering = JSON.stringify(filters) !== JSON.stringify(EMPTY)
-  const visible = outline.chapters.flatMap((c) => c.scenes).filter(matches).length
-  const total = outline.chapters.flatMap((c) => c.scenes).length
+  const visible = chapters.flatMap((c) => c.scenes).filter(matches).length
+  const total = chapters.flatMap((c) => c.scenes).length
 
   const drop = (chapterId: string, index: number) => {
     const scene = dragged.current
@@ -87,6 +92,12 @@ export function Corkboard({ outline, activeSceneId, onOpenScene, onMove }: Props
 
   return (
     <div className="corkboard">
+      {only && (
+        <p className="corkboard__only">
+          Showing {only.label}
+          {onShowAll && <button type="button" className="linklike" onClick={onShowAll}>Show the whole book</button>}
+        </p>
+      )}
       <header className="corkboard__filters">
         <input
           type="search"
@@ -104,7 +115,7 @@ export function Corkboard({ outline, activeSceneId, onOpenScene, onMove }: Props
         </select>
         <select value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}>
           <option value="">Any status</option>
-          {STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
+          {statuses.map((status) => <option key={status.key} value={status.key}>{status.label}</option>)}
         </select>
         {filtering && (
           <>
@@ -114,7 +125,7 @@ export function Corkboard({ outline, activeSceneId, onOpenScene, onMove }: Props
         )}
       </header>
 
-      {outline.chapters.map((chapter) => {
+      {chapters.map((chapter) => {
         const scenes = chapter.scenes.filter(matches)
         return (
           <section key={chapter.id} className="corkboard__chapter">
@@ -131,11 +142,12 @@ export function Corkboard({ outline, activeSceneId, onOpenScene, onMove }: Props
                   key={scene.id}
                   className={[
                     'card',
-                    `card--${scene.status}`,
                     scene.id === activeSceneId ? 'is-active' : '',
                     dragging?.id === scene.id ? 'is-dragging' : '',
                     over === scene.id ? 'is-over' : '',
                   ].filter(Boolean).join(' ')}
+                  style={{ borderLeftColor: statusOf(statuses, scene.status).color }}
+                  title={statusOf(statuses, scene.status).label}
                   draggable
                   onDragStart={() => startDrag(scene)}
                   onDragEnd={endDrag}

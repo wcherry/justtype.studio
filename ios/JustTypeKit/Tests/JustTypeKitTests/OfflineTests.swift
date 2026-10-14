@@ -188,7 +188,7 @@ final class OfflineTests: XCTestCase {
             createdAt: "2026-01-01T00:00:00Z",
             id: "scene-1",
             position: 0,
-            status: .drafting,
+            status: "drafting",
             title: "Opening Image",
             updatedAt: "2026-01-01T00:00:00Z",
             wordCount: 4,

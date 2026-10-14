@@ -77,6 +77,27 @@ pub const KINDS: &[KindSpec] = &[
         },
         link: entry_link,
     },
+    // Reviews. `subject` is what is up for review, as the author's book names
+    // it: "“The Door” in “Gull Rock”", or the book's title alone.
+    KindSpec {
+        kind: "review.invited",
+        singular: "request to review",
+        plural: "requests to review",
+        describe: |actor, d| format!("{actor} asked you to review {}", field(d, "subject")),
+        link: |d| format!("/review/{}", field(d, "publicationId")),
+    },
+    KindSpec {
+        kind: "review.updated",
+        singular: "review brought up to date",
+        plural: "reviews brought up to date",
+        describe: |actor, d| {
+            format!(
+                "{actor} put a newer version of {} up for review",
+                field(d, "subject")
+            )
+        },
+        link: |d| format!("/review/{}", field(d, "publicationId")),
+    },
     // Notices from the site's staff. They never name a moderator.
     KindSpec {
         kind: "moderation.restriction",
