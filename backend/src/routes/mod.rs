@@ -24,6 +24,8 @@ pub mod inbox;
 pub mod invites;
 #[cfg(test)]
 mod invites_api_tests;
+#[cfg(test)]
+mod live_api_tests;
 pub mod moderation;
 #[cfg(test)]
 mod moderation_api_tests;

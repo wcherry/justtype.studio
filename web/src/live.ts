@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { api, shareKeys, tokens } from './api/client'
+import { api } from './api/client'
 
 /**
  * The live channel: one WebSocket for the tab, shared by everything that
@@ -38,14 +38,10 @@ async function connect() {
   if (connecting || socket || rooms.size === 0) return
   connecting = true
   try {
-    const access = tokens.access()
-    const res = await fetch('/api/live/ticket', {
-      method: 'POST',
-      // The ticket carries any share keys, so an unlisted draft's room opens.
-      headers: { ...(access ? { authorization: `Bearer ${access}` } : {}), ...shareKeys.header() },
-    })
-    if (!res.ok) throw new Error(`ticket ${res.status}`)
-    const { ticket } = (await res.json()) as { ticket: string }
+    // Through the client, so a lapsed token is refreshed rather than turned
+    // into an anonymous ticket that a private review's room would refuse. It
+    // carries any share keys too, so an unlisted draft's room opens.
+    const { ticket } = await api.live.ticket()
     const scheme = location.protocol === 'https:' ? 'wss' : 'ws'
     const next = new WebSocket(`${scheme}://${location.host}/api/live?ticket=${ticket}`)
     socket = next
@@ -63,8 +59,6 @@ async function connect() {
       scheduleReconnect()
     })
   } catch {
-    // The token may simply have expired; a normal request refreshes it.
-    await api.auth.me().catch(() => undefined)
     scheduleReconnect()
   } finally {
     connecting = false
