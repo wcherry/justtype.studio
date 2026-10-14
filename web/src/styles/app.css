@@ -1852,7 +1852,7 @@ body.writing-page .access-note { margin-top: 56px; }
 .admin__queue p, .admin__days p { margin: 0 0 4px; }
 .admin__days li { border-bottom: 1px solid var(--line); padding-bottom: 8px; }
 .admin__days li.is-today { border-left: 3px solid var(--accent); padding-left: 10px; }
-.settings__row input[type='checkbox'] { width: auto; flex: none; margin: 0; }
+.settings__row input[type='checkbox'], .settings__row input[type='radio'] { width: auto; flex: none; margin: 0; }
 label.settings__row { display: flex; flex-wrap: nowrap; color: var(--ink); font-size: 14px; }
 
 /* --- appearance ---------------------------------------------------------- */

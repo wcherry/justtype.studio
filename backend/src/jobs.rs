@@ -12,9 +12,10 @@
 //!   whatever happened to the prepare run.
 //! - `build_digests`, from the start of each day: yesterday's inbox summary
 //!   for everyone who had any activity.
-//! - every tick: the prompt emails that have come due, and delivering the
-//!   mail queue. Those keep their own records (`prompt_email_sends`,
-//!   `mail_queue`) rather than a run per tick.
+//! - every tick: the prompt emails and summary emails that have come due, and
+//!   delivering the mail queue. Those keep their own records
+//!   (`prompt_email_sends`, `summary_email_sends`, `mail_queue`) rather than a
+//!   run per tick.
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::time::Duration as StdDuration;
 
@@ -75,6 +76,10 @@ pub async fn tick(state: &AppState) {
         (
             "send_prompt_emails",
             send_prompt_emails(state, now).await.map(|_| ()),
+        ),
+        (
+            "send_summary_emails",
+            crate::summary_email::send_due(state, now).await.map(|_| ()),
         ),
         (
             "expire_restrictions",

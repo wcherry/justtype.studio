@@ -62,6 +62,9 @@ pub mod statuses;
 #[cfg(test)]
 mod statuses_api_tests;
 pub mod summaries;
+pub mod summary_email;
+#[cfg(test)]
+mod summary_email_api_tests;
 pub mod support;
 pub mod tasks;
 pub mod templates;
@@ -276,6 +279,11 @@ fn api_router() -> OpenApiRouter<AppState> {
         .routes(routes!(privacy::export))
         .routes(routes!(privacy::delete_account))
         .routes(routes!(account::update_settings))
+        .routes(routes!(
+            summary_email::get_summary_email,
+            summary_email::update_summary_email
+        ))
+        .routes(routes!(summary_email::unsubscribe))
         // Daily Prompts. The literal paths before `{day}`, so they are not
         // taken for a day.
         .routes(routes!(prompts::today_prompt))

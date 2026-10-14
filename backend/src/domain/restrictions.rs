@@ -260,6 +260,7 @@ pub const GATES: &[(&str, &str, Gate)] = &[
     ("post", "/api/auth/password/reset", Open),
     ("post", "/api/auth/setup", Open),
     ("patch", "/api/me/settings", Open),
+    ("patch", "/api/me/summary-email", Open),
     ("post", "/api/me/password", Open),
     ("post", "/api/me/two-factor/setup", Open),
     ("post", "/api/me/two-factor/enable", Open),
@@ -276,6 +277,7 @@ pub const GATES: &[(&str, &str, Gate)] = &[
     ("post", "/api/inbox/digests/{day}/read", Open),
     ("post", "/api/inbox/read-all", Open),
     ("post", "/api/prompts/unsubscribe", Open),
+    ("post", "/api/summary-email/unsubscribe", Open),
     ("post", "/api/live/ticket", Open),
     // Exports of your own work are always allowed: a read-only writer has 30
     // days to take their work away.

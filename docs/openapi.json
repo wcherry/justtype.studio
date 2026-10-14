@@ -7761,6 +7761,42 @@
         ],
         "type": "object"
       },
+      "SummaryEmail": {
+        "enum": [
+          "none",
+          "daily",
+          "weekly"
+        ],
+        "type": "string"
+      },
+      "SummaryEmailView": {
+        "properties": {
+          "emailVerified": {
+            "description": "It can only be turned on for a confirmed address.",
+            "type": "boolean"
+          },
+          "often": {
+            "$ref": "#/components/schemas/SummaryEmail"
+          },
+          "sendTime": {
+            "description": "The local time it goes out, `HH:MM`.",
+            "type": "string"
+          },
+          "timezone": {
+            "description": "The IANA timezone it is counted and sent in. Unset until first chosen.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "often",
+          "sendTime",
+          "emailVerified"
+        ],
+        "type": "object"
+      },
       "SummaryView": {
         "properties": {
           "cached": {
@@ -8408,6 +8444,17 @@
         ],
         "type": "object"
       },
+      "Unsubscribed": {
+        "properties": {
+          "unsubscribed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "unsubscribed"
+        ],
+        "type": "object"
+      },
       "UpdateAnnotationRequest": {
         "properties": {
           "from": {
@@ -8917,6 +8964,24 @@
             ]
           }
         },
+        "type": "object"
+      },
+      "UpdateSummaryEmailRequest": {
+        "properties": {
+          "often": {
+            "$ref": "#/components/schemas/SummaryEmail"
+          },
+          "timezone": {
+            "description": "The device's IANA timezone, such as `Europe/London`. Kept as it was\nwhen left out.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "often"
+        ],
         "type": "object"
       },
       "UpdateTaskRequest": {
@@ -15454,6 +15519,65 @@
         ]
       }
     },
+    "/api/me/summary-email": {
+      "get": {
+        "operationId": "get_summary_email",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SummaryEmailView"
+                }
+              }
+            },
+            "description": "How often the summary goes"
+          }
+        },
+        "tags": [
+          "account"
+        ]
+      },
+      "patch": {
+        "operationId": "update_summary_email",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSummaryEmailRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SummaryEmailView"
+                }
+              }
+            },
+            "description": "Saved"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "Daily, weekly or none. The first one goes at the next send time after this,\nnever for a morning that has already gone.",
+        "tags": [
+          "account"
+        ]
+      }
+    },
     "/api/me/terms": {
       "post": {
         "operationId": "accept_terms",
@@ -19202,6 +19326,47 @@
         },
         "tags": [
           "statuses"
+        ]
+      }
+    },
+    "/api/summary-email/unsubscribe": {
+      "post": {
+        "operationId": "unsubscribe",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Unsubscribed"
+                }
+              }
+            },
+            "description": "The summary email is off"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "That link is not one of ours"
+          }
+        },
+        "summary": "One click, signed in or not: the link in the summary email's footer\n(through the web page) and mail clients' `List-Unsubscribe-Post` both land\nhere. Turns the summary email off and nothing else.",
+        "tags": [
+          "account"
         ]
       }
     },

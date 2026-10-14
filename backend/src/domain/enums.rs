@@ -235,6 +235,15 @@ api_enum!(Theme {
     Night => "night",
 });
 
+api_enum!(SummaryEmail {
+    /// No summary email.
+    None => "none",
+    /// Every morning: the day before.
+    Daily => "daily",
+    /// Monday mornings: the week before, Monday to Sunday.
+    Weekly => "weekly",
+});
+
 api_enum!(Genre {
     Literary => "literary",
     Fantasy => "fantasy",
