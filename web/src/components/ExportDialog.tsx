@@ -18,8 +18,11 @@ interface Props {
   onClose: () => void
   /** Jumps to the place an issue is about, in the editor. */
   onGoTo?: (location: { chapterId: string; sceneId?: string | null }) => void
-  /** Opens with only this scene selected, as "Export this scene…" asks. */
-  onlyScene?: string
+  /**
+   * Opens with only these scenes selected, as "Export this scene…" or a
+   * chapter's "Export…" asks.
+   */
+  onlyScenes?: string[]
 }
 
 type Format = ExportFormat | 'project'
@@ -132,17 +135,18 @@ function forFormat(o: ExportOptions, format: ExportFormat): ExportOptions {
  * edits it, asks the server what is wrong with it as it changes, and sends the
  * same document to build the file.
  */
-export function ExportDialog({ version, workId: workIdProp, onClose, onGoTo, onlyScene }: Props) {
+export function ExportDialog({ version, workId: workIdProp, onClose, onGoTo, onlyScenes }: Props) {
+  const selecting = !!onlyScenes?.length
   const ref = useRef<HTMLDialogElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const workId = version?.workId ?? workIdProp
   const target: ExportTarget | null = version ? { version: version.id } : workId ? { work: workId } : null
 
   const [options, setOptions] = useState<ExportOptions>(
-    onlyScene ? { ...DEFAULTS, content: { ...DEFAULTS.content, scope: { kind: 'selected' } } } : DEFAULTS,
+    selecting ? { ...DEFAULTS, content: { ...DEFAULTS.content, scope: { kind: 'selected' } } } : DEFAULTS,
   )
   // A project is the whole book; one scene goes out as a document.
-  const [project, setProject] = useState(!version && !onlyScene)
+  const [project, setProject] = useState(!version && !selecting)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -168,7 +172,7 @@ export function ExportDialog({ version, workId: workIdProp, onClose, onGoTo, onl
     const done = (list: Chapter[]) => {
       if (!live) return
       setChapters(list)
-      setTicked(onlyScene ? new Set([onlyScene]) : new Set(list.flatMap((c) => c.scenes.map((s) => s.id))))
+      setTicked(selecting ? new Set(onlyScenes) : new Set(list.flatMap((c) => c.scenes.map((s) => s.id))))
     }
     if (version) {
       void api.versions.get(version.id).then((detail) => {
@@ -217,7 +221,7 @@ export function ExportDialog({ version, workId: workIdProp, onClose, onGoTo, onl
           const o = last.latest.options
           setOptions({
             ...o,
-            content: { ...o.content, scope: { kind: onlyScene ? 'selected' : 'all' } },
+            content: { ...o.content, scope: { kind: selecting ? 'selected' : 'all' } },
             metadata: o.metadata,
           })
           setProfileId('')

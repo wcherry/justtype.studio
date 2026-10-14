@@ -248,6 +248,7 @@ diesel::table! {
         max_reviewers -> Nullable<Integer>,
         spoiler_safe -> Integer,
         link_secret -> Nullable<Text>,
+        revoked_at -> Nullable<Text>,
     }
 }
 
@@ -260,6 +261,7 @@ diesel::table! {
         accepted_at -> Nullable<Text>,
         accepted_by -> Nullable<Text>,
         created_at -> Text,
+        user_id -> Nullable<Text>,
     }
 }
 
@@ -594,6 +596,17 @@ diesel::table! {
 }
 
 diesel::table! {
+    scene_statuses (id) {
+        id -> Text,
+        work_id -> Text,
+        label -> Text,
+        color -> Text,
+        position -> Integer,
+        created_at -> Text,
+    }
+}
+
+diesel::table! {
     writing_places (user_id, work_id) {
         user_id -> Text,
         work_id -> Text,
@@ -628,6 +641,7 @@ diesel::joinable!(notebook_entries -> works (work_id));
 diesel::joinable!(scene_notebook_links -> notebook_entries (entry_id));
 diesel::joinable!(works -> users (owner_id));
 diesel::joinable!(chapters -> works (work_id));
+diesel::joinable!(scene_statuses -> works (work_id));
 diesel::joinable!(scenes -> chapters (chapter_id));
 diesel::joinable!(scene_revisions -> scenes (scene_id));
 diesel::joinable!(tracked_changes -> scenes (scene_id));
@@ -1029,6 +1043,7 @@ diesel::allow_tables_to_appear_in_same_query!(
     export_history,
     dictionary_words,
     writing_places,
+    scene_statuses,
     site_invites,
     job_runs,
     mail_queue,

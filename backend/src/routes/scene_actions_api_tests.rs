@@ -259,3 +259,100 @@ async fn a_scene_moves_into_another_chapter_where_it_is_put() {
         .collect();
     assert_eq!(shape, [vec!["b"], vec!["c", "a", "d"]]);
 }
+
+/// Printing one scene, or one chapter, is the quick export narrowed to it.
+#[tokio::test]
+async fn the_quick_export_can_be_narrowed_to_a_scene_or_a_chapter() {
+    let server = Server::start().await;
+    let eve = server.writer("eve").await;
+    let outline = server
+        .ok(
+            &eve,
+            "POST",
+            "/works",
+            Some(serde_json::json!({ "title": "Gull Rock", "kind": "novel" })),
+        )
+        .await;
+    let work_id = outline["id"].as_str().unwrap().to_string();
+    let chapter_one = outline["chapters"][0]["id"].as_str().unwrap().to_string();
+    let first = outline["chapters"][0]["scenes"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let second = server
+        .ok(
+            &eve,
+            "POST",
+            &format!("/chapters/{chapter_one}/scenes"),
+            Some(serde_json::json!({ "title": "" })),
+        )
+        .await["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let chapter_two = server
+        .ok(
+            &eve,
+            "POST",
+            &format!("/works/{work_id}/chapters"),
+            Some(serde_json::json!({ "title": "" })),
+        )
+        .await["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let third = server
+        .ok(
+            &eve,
+            "POST",
+            &format!("/chapters/{chapter_two}/scenes"),
+            Some(serde_json::json!({ "title": "" })),
+        )
+        .await["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    for (scene, text) in [(&first, "Alpha"), (&second, "Bravo"), (&third, "Charlie")] {
+        server
+            .ok(
+                &eve,
+                "PUT",
+                &format!("/scenes/{scene}/content"),
+                Some(serde_json::json!({ "content": { "type": "doc", "content": [
+                    { "type": "paragraph", "content": [{ "type": "text", "text": text }] }
+                ] } })),
+            )
+            .await;
+    }
+
+    let text = |query: String| {
+        let server = &server;
+        let eve = &eve;
+        let work_id = &work_id;
+        async move {
+            let res = server
+                .http
+                .get(format!(
+                    "{}/works/{work_id}/export?format=txt{query}",
+                    server.base
+                ))
+                .bearer_auth(&eve.token)
+                .send()
+                .await
+                .unwrap();
+            assert_eq!(res.status().as_u16(), 200);
+            res.text().await.unwrap()
+        }
+    };
+    let all = text(String::new()).await;
+    assert!(all.contains("Alpha") && all.contains("Bravo") && all.contains("Charlie"));
+    let one = text(format!("&scenes={second}")).await;
+    assert!(one.contains("Bravo"), "{one}");
+    assert!(!one.contains("Alpha") && !one.contains("Charlie"), "{one}");
+    let chapter = text(format!("&chapters={chapter_two}")).await;
+    assert!(chapter.contains("Charlie"), "{chapter}");
+    assert!(
+        !chapter.contains("Alpha") && !chapter.contains("Bravo"),
+        "{chapter}"
+    );
+}

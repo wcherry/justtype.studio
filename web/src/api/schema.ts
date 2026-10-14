@@ -484,10 +484,15 @@ export interface CommentView {
   // notes authors marked resolved. Shown beside the name so a reader with a
   // record of being right is legible as one.
   authorScore: number
+  // Written on an earlier version than readers are shown now. Its anchor
+  // is placed by its quote, where that text is still to be found.
+  earlierVersion: boolean
   // Threads nest arbitrarily deep, which makes this type self-referential.
   // Schema generation has to be told to stop, or it recurses until the stack
   // gives out.
   replies: CommentView[]
+  // The label of the version it was written on: "v3".
+  versionLabel: string
   viewerVote: number
 }
 
@@ -610,6 +615,21 @@ export interface CreateQuestionRequest {
   scope?: QuestionScope
 }
 
+export interface CreateReviewRequest {
+  audience: ReviewAudience
+  // When it closes, if it should.
+  closesAt?: string | null
+  // For `selected`: addresses, for people who may have no account yet.
+  emails?: string[]
+  // What the writer wants feedback on.
+  prompt?: string | null
+  scope: PublicationScope
+  // The part, chapter or scene; left out for the whole book.
+  scopeRefId?: string | null
+  // For `selected`: people picked by name (`GET /api/people`).
+  userIds?: string[]
+}
+
 export interface CreateSceneRequest {
   content?: DocNode | null
   pov?: string | null
@@ -617,6 +637,12 @@ export interface CreateSceneRequest {
   // Left out or empty, it is untitled and shown as "Scene 2" for where it
   // falls, until the writer names it.
   title?: string
+}
+
+export interface CreateStatusRequest {
+  // `#rrggbb`. Left out, it gets the next colour in the palette.
+  color?: string | null
+  label: string
 }
 
 export interface CreateTaskRequest {
@@ -1078,6 +1104,9 @@ export interface InviteView {
   id: string
   invitedBy: string
   publicationId: string
+  // The reader, when they were picked by name; their address is then
+  // blanked before the invitation is shown to anyone.
+  userId?: string | null
   // Whether that reader has opened it yet.
   accepted: boolean
 }
@@ -1407,6 +1436,13 @@ export interface OutlineResponse {
   access?: WorkAccess | null
   chapters: OutlineChapter[]
   place?: WritingPlace | null
+  // The book's reviews still open to readers, for a badge on what each
+  // covers. Sent to the people writing it; absent elsewhere.
+  reviews?: ReviewBadge[] | null
+  // Every status a scene in the book can have, the book's own first, with
+  // the colour each is shown in. Optional so an outline a client cached
+  // before a book could have its own still decodes.
+  statuses?: StatusOption[] | null
 }
 
 export interface Overview {
@@ -1596,6 +1632,9 @@ export interface Publication {
   maxReviewers?: number | null
   opensAt?: string | null
   reviewPrompt?: string | null
+  // When it was closed to its readers. The author keeps every comment and
+  // can open it again.
+  revokedAt?: string | null
   scope: PublicationScope
   scopeRefId?: string | null
   // Withhold notes on scenes a reader has not reached yet. Defaulted on for
@@ -1616,6 +1655,9 @@ export interface PublicationCard {
   maxReviewers?: number | null
   opensAt?: string | null
   reviewPrompt?: string | null
+  // When it was closed to its readers. The author keeps every comment and
+  // can open it again.
+  revokedAt?: string | null
   scope: PublicationScope
   scopeRefId?: string | null
   // Withhold notes on scenes a reader has not reached yet. Defaulted on for
@@ -1654,9 +1696,12 @@ export interface PublicationInvite {
   id: string
   invitedBy: string
   publicationId: string
+  // The reader, when they were picked by name; their address is then
+  // blanked before the invitation is shown to anyone.
+  userId?: string | null
 }
 
-export type PublicationScope = 'work' | 'chapter' | 'scene'
+export type PublicationScope = 'work' | 'part' | 'chapter' | 'scene'
 
 export interface PutContentRequest {
   // The `contentHash` the client believes it is editing on top of. When it
@@ -1820,6 +1865,12 @@ export interface ReorderPromptsRequest {
 
 export interface ReorderRequest {
   // Complete ordered list of ids; anything missing keeps its current slot.
+  ids: string[]
+}
+
+export interface ReorderStatusesRequest {
+  // The book's own statuses in their new order. Any left out keep their
+  // order among themselves, after the ones listed.
   ids: string[]
 }
 
@@ -1987,6 +2038,17 @@ export interface ReviewAnswer {
   userId: string
 }
 
+export type ReviewAudience = 'everyone' | 'selected'
+
+// A review still open to its readers, for the badge on what it covers.
+export interface ReviewBadge {
+  id: string
+  // The draft has moved on since the version readers are shown.
+  outdated: boolean
+  scope: PublicationScope
+  scopeRefId?: string | null
+}
+
 // One publication someone reviewed, as their profile shows it.
 export interface ReviewHistoryItem {
   author: AuthorCard
@@ -1996,6 +2058,15 @@ export interface ReviewHistoryItem {
   // Notes the author marked resolved — that they acted on it.
   resolved: number
   workTitle: string
+}
+
+// Someone a review was shared with.
+export interface ReviewPerson {
+  // Invited by address.
+  email?: string | null
+  // Whether they have opened it.
+  opened: boolean
+  user?: AuthorCard | null
 }
 
 export interface ReviewQuestion {
@@ -2008,6 +2079,38 @@ export interface ReviewQuestion {
   publicationId: string
   scope: string
   updatedAt: string
+}
+
+export type ReviewState = 'open' | 'closed' | 'revoked'
+
+export interface ReviewView {
+  closesAt?: string | null
+  // Notes left on it, on any version.
+  commentCount: number
+  createdAt: string
+  id: string
+  // The draft has moved on since the version readers are shown.
+  outdated: boolean
+  people: ReviewPerson[]
+  prompt?: string | null
+  // People who have opened it.
+  readerCount: number
+  revokedAt?: string | null
+  scope: PublicationScope
+  // The part, chapter or scene; absent for the whole book.
+  scopeRefId?: string | null
+  state: ReviewState
+  // What it is of, as the book names it now: "“The Door”".
+  title: string
+  updatedAt: string
+  // The version readers are shown.
+  versionId: string
+  versionLabel: string
+  // Who it was offered to. A review put up from the outline is `platform`
+  // (everyone signed in) or `invited` (the people picked); one offered
+  // from the versions panel may be any visibility.
+  visibility: Visibility
+  workId: string
 }
 
 export interface RevisionTask {
@@ -2073,7 +2176,10 @@ export interface Scene {
   location?: string | null
   position: number
   pov?: string | null
-  status: SceneStatus
+  // One of the built-in statuses (`outline`, `drafting`, `revised`,
+  // `done`), or the id of one of the book's own; the outline's `statuses`
+  // lists them all with their names and colours.
+  status: string
   // Free text: fiction rarely runs on the Gregorian calendar.
   storyDate?: string | null
   summary?: string | null
@@ -2136,7 +2242,10 @@ export interface SceneWithContent {
   location?: string | null
   position: number
   pov?: string | null
-  status: SceneStatus
+  // One of the built-in statuses (`outline`, `drafting`, `revised`,
+  // `done`), or the id of one of the book's own; the outline's `statuses`
+  // lists them all with their names and colours.
+  status: string
   // Free text: fiction rarely runs on the Gregorian calendar.
   storyDate?: string | null
   summary?: string | null
@@ -2306,6 +2415,19 @@ export interface Standing {
   score: number
   // Net votes across everything this reviewer has written.
   votes: number
+}
+
+// A status a scene can have.
+export interface StatusOption {
+  // `#rrggbb`.
+  color: string
+  // One of the book's own, which can be renamed, recoloured, reordered and
+  // removed; the built-in ones cannot.
+  custom: boolean
+  // What a scene's `status` holds: the name of a built-in status, or the
+  // id of one of the book's own.
+  key: string
+  label: string
 }
 
 export interface StatusReport {
@@ -2664,6 +2786,18 @@ export interface UpdateQuestionRequest {
   prompt?: string | null
 }
 
+export interface UpdateReviewRequest {
+  audience?: ReviewAudience | null
+  // An empty string clears it.
+  closesAt?: string | null
+  emails?: string[] | null
+  // An empty string clears it.
+  prompt?: string | null
+  // The people picked, in full: anyone left out is taken off it. Sent
+  // with `emails`, or neither.
+  userIds?: string[] | null
+}
+
 export interface UpdateSceneRequest {
   // Move the scene into a different chapter of the same work.
   chapterId?: string | null
@@ -2672,7 +2806,8 @@ export interface UpdateSceneRequest {
   excluded?: boolean | null
   location?: string | null
   pov?: string | null
-  status?: SceneStatus | null
+  // A built-in status, or the key of one of the book's own.
+  status?: string | null
   // Free text: fiction rarely runs on the Gregorian calendar.
   storyDate?: string | null
   summary?: string | null
@@ -2688,6 +2823,12 @@ export interface UpdateSettingsRequest {
   // and when turning text into a project.
   doubleEnterSplitsScenes?: boolean | null
   theme?: Theme | null
+}
+
+export interface UpdateStatusRequest {
+  // `#rrggbb`.
+  color?: string | null
+  label?: string | null
 }
 
 export interface UpdateTaskRequest {

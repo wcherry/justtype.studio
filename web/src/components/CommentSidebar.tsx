@@ -22,6 +22,8 @@ interface Props {
   onClearPending: () => void
   /** Bumped to put the cursor in the note for the selected passage. */
   composeFocus?: number
+  /** Notes from an earlier version whose passage is no longer in the text. */
+  unplaced?: Set<string>
 }
 
 const CATEGORIES: CommentCategory[] = [
@@ -35,7 +37,7 @@ const REPORT_REASONS: ReportReason[] = [
 
 export function CommentSidebar({
   publicationId, comments, pending, isAuthor, viewerId, activeCommentId, reviewPrompt,
-  filters, onFilter, onRefresh, onActivate, onClearPending, composeFocus = 0,
+  filters, onFilter, onRefresh, onActivate, onClearPending, composeFocus = 0, unplaced,
 }: Props) {
   const [busy, setBusy] = useState(false)
 
@@ -160,6 +162,7 @@ export function CommentSidebar({
             activeCommentId={activeCommentId}
             onActivate={onActivate}
             onRefresh={onRefresh}
+            unplaced={unplaced}
           />
         ))}
       </ul>
@@ -168,7 +171,7 @@ export function CommentSidebar({
 }
 
 function CommentThread({
-  comment, publicationId, isAuthor, viewerId, activeCommentId, onActivate, onRefresh, depth = 0,
+  comment, publicationId, isAuthor, viewerId, activeCommentId, onActivate, onRefresh, depth = 0, unplaced,
 }: {
   comment: CommentView
   publicationId: string
@@ -178,6 +181,7 @@ function CommentThread({
   onActivate: (id: string | null) => void
   onRefresh: () => void
   depth?: number
+  unplaced?: Set<string>
 }) {
   const [replying, setReplying] = useState(false)
   const [reporting, setReporting] = useState(false)
@@ -229,8 +233,14 @@ function CommentThread({
           <span className={`badge badge--${comment.category}`}>{comment.category}</span>
           {comment.state === 'resolved' && <span className="badge badge--resolved">resolved</span>}
           {comment.moderationState === 'held' && <span className="badge" title="A person is checking it before others see it">awaiting review</span>}
+          {comment.earlierVersion && (
+            <span className="badge badge--version" title="Written on an earlier version of the text">on {comment.versionLabel}</span>
+          )}
         </div>
         {comment.anchorQuote && <blockquote className="comment__quote">{comment.anchorQuote}</blockquote>}
+        {unplaced?.has(comment.id) && (
+          <p className="comment__unplaced">The passage this was about has changed since {comment.versionLabel}.</p>
+        )}
         <p>{comment.body}</p>
         <div className="comment__actions">
           <button type="button" disabled={!!cantDiscuss} title={cantDiscuss ?? undefined} onClick={() => setReplying((r) => !r)}>Reply</button>
@@ -306,6 +316,7 @@ function CommentThread({
                 onActivate={onActivate}
                 onRefresh={onRefresh}
                 depth={depth + 1}
+                unplaced={unplaced}
               />
             ))}
           </ul>

@@ -72,6 +72,21 @@ api_enum!(SceneStatus {
     Done => "done",
 });
 
+api_enum!(ReviewAudience {
+    /// Anyone signed in; it is listed in the review feed.
+    Everyone => "everyone",
+    /// Only the people picked, by name or by address.
+    Selected => "selected",
+});
+
+api_enum!(ReviewState {
+    Open => "open",
+    /// Its closing date has passed. It can be opened again.
+    Closed => "closed",
+    /// Taken back by the author. Readers lose it; the comments stay.
+    Revoked => "revoked",
+});
+
 api_enum!(VersionState {
     Draft => "draft",
     Published => "published",
@@ -88,6 +103,9 @@ api_enum!(Visibility {
 
 api_enum!(PublicationScope {
     Work => "work",
+    /// A part and the chapters it holds: those after it, up to the next part
+    /// or the back matter.
+    Part => "part",
     Chapter => "chapter",
     Scene => "scene",
 });

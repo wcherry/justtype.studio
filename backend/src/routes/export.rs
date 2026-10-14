@@ -38,6 +38,14 @@ pub struct ExportQuery {
     /// and for PDF, which is manuscript-only — see `export::pdf`.
     #[serde(default)]
     pub style: Option<String>,
+    /// Comma-separated chapter ids: only these chapters, every scene in each.
+    /// With `scenes`, both count; with neither, the whole book.
+    #[serde(default)]
+    pub chapters: Option<String>,
+    /// Comma-separated scene ids: only these scenes, under their chapters'
+    /// titles — how one scene is printed.
+    #[serde(default)]
+    pub scenes: Option<String>,
 }
 
 fn style_from(value: Option<&str>) -> ApiResult<Style> {
@@ -58,7 +66,24 @@ fn shorthand(query: &ExportQuery) -> ApiResult<ExportOptions> {
             query.format
         ))
     })?;
-    Ok(ExportOptions::shorthand(format, style))
+    let mut options = ExportOptions::shorthand(format, style);
+    let ids = |list: &Option<String>| -> Vec<String> {
+        list.iter()
+            .flat_map(|l| l.split(','))
+            .map(str::trim)
+            .filter(|id| !id.is_empty())
+            .map(String::from)
+            .collect()
+    };
+    let (chapter_ids, scene_ids) = (ids(&query.chapters), ids(&query.scenes));
+    if !chapter_ids.is_empty() || !scene_ids.is_empty() {
+        options.content.scope = crate::export::options::Scope {
+            kind: crate::export::options::ScopeKind::Selected,
+            chapter_ids,
+            scene_ids,
+        };
+    }
+    Ok(options)
 }
 
 fn shorthand_for(query: &ExportQuery) -> ApiResult<ExportOptions> {

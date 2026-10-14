@@ -360,27 +360,19 @@ async fn refresh_publications(state: &AppState) -> ApiResult<()> {
         let pid = id.clone();
         let scenes: Vec<String> = blocking(&state.pool, move |conn| {
             let publication = support::find_publication(conn, &pid)?;
-            let entries: Vec<(String, String)> = version_entries::table
+            let entries: Vec<crate::db::models::VersionEntry> = version_entries::table
                 .filter(version_entries::version_id.eq(&publication.version_id))
                 .order((
                     version_entries::chapter_position.asc(),
                     version_entries::scene_position.asc(),
                 ))
-                .select((version_entries::chapter_id, version_entries::scene_id))
+                .select(crate::db::models::VersionEntry::as_select())
                 .load(conn)?;
+            let slice = support::slice_of(&publication, &entries);
             Ok(entries
                 .into_iter()
-                .filter(|(chapter, scene)| {
-                    match (
-                        publication.scope.as_str(),
-                        publication.scope_ref_id.as_deref(),
-                    ) {
-                        ("chapter", Some(want)) => chapter == want,
-                        ("scene", Some(want)) => scene == want,
-                        _ => true,
-                    }
-                })
-                .map(|(_, scene)| scene)
+                .filter(|e| slice.holds(&e.chapter_id, &e.scene_id))
+                .map(|e| e.scene_id)
                 .collect())
         })
         .await?;

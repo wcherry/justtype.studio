@@ -1251,10 +1251,15 @@ public enum API {
         /// notes authors marked resolved. Shown beside the name so a reader with a
         /// record of being right is legible as one.
         public var authorScore: Int
+        /// Written on an earlier version than readers are shown now. Its anchor
+        /// is placed by its quote, where that text is still to be found.
+        public var earlierVersion: Bool
         /// Threads nest arbitrarily deep, which makes this type self-referential.
         /// Schema generation has to be told to stop, or it recurses until the stack
         /// gives out.
         public var replies: [CommentView]
+        /// The label of the version it was written on: "v3".
+        public var versionLabel: String
         public var viewerVote: Int
 
         public init(
@@ -1275,7 +1280,9 @@ public enum API {
             versionId: String,
             author: AuthorCard,
             authorScore: Int,
+            earlierVersion: Bool,
             replies: [CommentView],
+            versionLabel: String,
             viewerVote: Int
         ) {
             self.anchor = anchor
@@ -1295,7 +1302,9 @@ public enum API {
             self.versionId = versionId
             self.author = author
             self.authorScore = authorScore
+            self.earlierVersion = earlierVersion
             self.replies = replies
+            self.versionLabel = versionLabel
             self.viewerVote = viewerVote
         }
     }
@@ -1589,6 +1598,39 @@ public enum API {
         }
     }
 
+    public struct CreateReviewRequest: Codable, Hashable, Sendable {
+        public var audience: ReviewAudience
+        /// When it closes, if it should.
+        public var closesAt: String?
+        /// For `selected`: addresses, for people who may have no account yet.
+        public var emails: [String]?
+        /// What the writer wants feedback on.
+        public var prompt: String?
+        public var scope: PublicationScope
+        /// The part, chapter or scene; left out for the whole book.
+        public var scopeRefId: String?
+        /// For `selected`: people picked by name (`GET /api/people`).
+        public var userIds: [String]?
+
+        public init(
+            audience: ReviewAudience,
+            closesAt: String? = nil,
+            emails: [String]? = nil,
+            prompt: String? = nil,
+            scope: PublicationScope,
+            scopeRefId: String? = nil,
+            userIds: [String]? = nil
+        ) {
+            self.audience = audience
+            self.closesAt = closesAt
+            self.emails = emails
+            self.prompt = prompt
+            self.scope = scope
+            self.scopeRefId = scopeRefId
+            self.userIds = userIds
+        }
+    }
+
     public struct CreateSceneRequest: Codable, Hashable, Sendable {
         public var content: DocNode?
         public var pov: String?
@@ -1607,6 +1649,20 @@ public enum API {
             self.pov = pov
             self.summary = summary
             self.title = title
+        }
+    }
+
+    public struct CreateStatusRequest: Codable, Hashable, Sendable {
+        /// `#rrggbb`. Left out, it gets the next colour in the palette.
+        public var color: String?
+        public var label: String
+
+        public init(
+            color: String? = nil,
+            label: String
+        ) {
+            self.color = color
+            self.label = label
         }
     }
 
@@ -2714,6 +2770,9 @@ public enum API {
         public var id: String
         public var invitedBy: String
         public var publicationId: String
+        /// The reader, when they were picked by name; their address is then
+        /// blanked before the invitation is shown to anyone.
+        public var userId: String?
         /// Whether that reader has opened it yet.
         public var accepted: Bool
 
@@ -2725,6 +2784,7 @@ public enum API {
             id: String,
             invitedBy: String,
             publicationId: String,
+            userId: String? = nil,
             accepted: Bool
         ) {
             self.acceptedAt = acceptedAt
@@ -2734,6 +2794,7 @@ public enum API {
             self.id = id
             self.invitedBy = invitedBy
             self.publicationId = publicationId
+            self.userId = userId
             self.accepted = accepted
         }
     }
@@ -3514,6 +3575,13 @@ public enum API {
         public var access: WorkAccess?
         public var chapters: [OutlineChapter]
         public var place: WritingPlace?
+        /// The book's reviews still open to readers, for a badge on what each
+        /// covers. Sent to the people writing it; absent elsewhere.
+        public var reviews: [ReviewBadge]?
+        /// Every status a scene in the book can have, the book's own first, with
+        /// the colour each is shown in. Optional so an outline a client cached
+        /// before a book could have its own still decodes.
+        public var statuses: [StatusOption]?
 
         public init(
             copyrightLine: String? = nil,
@@ -3540,7 +3608,9 @@ public enum API {
             wordCount: Int,
             access: WorkAccess? = nil,
             chapters: [OutlineChapter],
-            place: WritingPlace? = nil
+            place: WritingPlace? = nil,
+            reviews: [ReviewBadge]? = nil,
+            statuses: [StatusOption]? = nil
         ) {
             self.copyrightLine = copyrightLine
             self.createdAt = createdAt
@@ -3567,6 +3637,8 @@ public enum API {
             self.access = access
             self.chapters = chapters
             self.place = place
+            self.reviews = reviews
+            self.statuses = statuses
         }
     }
 
@@ -4028,6 +4100,9 @@ public enum API {
         public var maxReviewers: Int?
         public var opensAt: String?
         public var reviewPrompt: String?
+        /// When it was closed to its readers. The author keeps every comment and
+        /// can open it again.
+        public var revokedAt: String?
         public var scope: PublicationScope
         public var scopeRefId: String?
         /// Withhold notes on scenes a reader has not reached yet. Defaulted on for
@@ -4045,6 +4120,7 @@ public enum API {
             maxReviewers: Int? = nil,
             opensAt: String? = nil,
             reviewPrompt: String? = nil,
+            revokedAt: String? = nil,
             scope: PublicationScope,
             scopeRefId: String? = nil,
             spoilerSafe: Int,
@@ -4059,6 +4135,7 @@ public enum API {
             self.maxReviewers = maxReviewers
             self.opensAt = opensAt
             self.reviewPrompt = reviewPrompt
+            self.revokedAt = revokedAt
             self.scope = scope
             self.scopeRefId = scopeRefId
             self.spoilerSafe = spoilerSafe
@@ -4078,6 +4155,9 @@ public enum API {
         public var maxReviewers: Int?
         public var opensAt: String?
         public var reviewPrompt: String?
+        /// When it was closed to its readers. The author keeps every comment and
+        /// can open it again.
+        public var revokedAt: String?
         public var scope: PublicationScope
         public var scopeRefId: String?
         /// Withhold notes on scenes a reader has not reached yet. Defaulted on for
@@ -4114,6 +4194,7 @@ public enum API {
             maxReviewers: Int? = nil,
             opensAt: String? = nil,
             reviewPrompt: String? = nil,
+            revokedAt: String? = nil,
             scope: PublicationScope,
             scopeRefId: String? = nil,
             spoilerSafe: Int,
@@ -4139,6 +4220,7 @@ public enum API {
             self.maxReviewers = maxReviewers
             self.opensAt = opensAt
             self.reviewPrompt = reviewPrompt
+            self.revokedAt = revokedAt
             self.scope = scope
             self.scopeRefId = scopeRefId
             self.spoilerSafe = spoilerSafe
@@ -4168,6 +4250,9 @@ public enum API {
         public var id: String
         public var invitedBy: String
         public var publicationId: String
+        /// The reader, when they were picked by name; their address is then
+        /// blanked before the invitation is shown to anyone.
+        public var userId: String?
 
         public init(
             acceptedAt: String? = nil,
@@ -4176,7 +4261,8 @@ public enum API {
             email: String,
             id: String,
             invitedBy: String,
-            publicationId: String
+            publicationId: String,
+            userId: String? = nil
         ) {
             self.acceptedAt = acceptedAt
             self.acceptedBy = acceptedBy
@@ -4185,11 +4271,13 @@ public enum API {
             self.id = id
             self.invitedBy = invitedBy
             self.publicationId = publicationId
+            self.userId = userId
         }
     }
 
     public enum PublicationScope: String, Codable, CaseIterable, Hashable, Sendable {
         case work = "work"
+        case part = "part"
         case chapter = "chapter"
         case scene = "scene"
     }
@@ -4574,6 +4662,18 @@ public enum API {
 
     public struct ReorderRequest: Codable, Hashable, Sendable {
         /// Complete ordered list of ids; anything missing keeps its current slot.
+        public var ids: [String]
+
+        public init(
+            ids: [String]
+        ) {
+            self.ids = ids
+        }
+    }
+
+    public struct ReorderStatusesRequest: Codable, Hashable, Sendable {
+        /// The book's own statuses in their new order. Any left out keep their
+        /// order among themselves, after the ones listed.
         public var ids: [String]
 
         public init(
@@ -4997,6 +5097,32 @@ public enum API {
         }
     }
 
+    public enum ReviewAudience: String, Codable, CaseIterable, Hashable, Sendable {
+        case everyone = "everyone"
+        case selected = "selected"
+    }
+
+    /// A review still open to its readers, for the badge on what it covers.
+    public struct ReviewBadge: Codable, Hashable, Sendable {
+        public var id: String
+        /// The draft has moved on since the version readers are shown.
+        public var outdated: Bool
+        public var scope: PublicationScope
+        public var scopeRefId: String?
+
+        public init(
+            id: String,
+            outdated: Bool,
+            scope: PublicationScope,
+            scopeRefId: String? = nil
+        ) {
+            self.id = id
+            self.outdated = outdated
+            self.scope = scope
+            self.scopeRefId = scopeRefId
+        }
+    }
+
     /// One publication someone reviewed, as their profile shows it.
     public struct ReviewHistoryItem: Codable, Hashable, Sendable {
         public var author: AuthorCard
@@ -5021,6 +5147,25 @@ public enum API {
             self.publicationId = publicationId
             self.resolved = resolved
             self.workTitle = workTitle
+        }
+    }
+
+    /// Someone a review was shared with.
+    public struct ReviewPerson: Codable, Hashable, Sendable {
+        /// Invited by address.
+        public var email: String?
+        /// Whether they have opened it.
+        public var opened: Bool
+        public var user: AuthorCard?
+
+        public init(
+            email: String? = nil,
+            opened: Bool,
+            user: AuthorCard? = nil
+        ) {
+            self.email = email
+            self.opened = opened
+            self.user = user
         }
     }
 
@@ -5055,6 +5200,82 @@ public enum API {
             self.publicationId = publicationId
             self.scope = scope
             self.updatedAt = updatedAt
+        }
+    }
+
+    public enum ReviewState: String, Codable, CaseIterable, Hashable, Sendable {
+        case open = "open"
+        case closed = "closed"
+        case revoked = "revoked"
+    }
+
+    public struct ReviewView: Codable, Hashable, Sendable {
+        public var closesAt: String?
+        /// Notes left on it, on any version.
+        public var commentCount: Int
+        public var createdAt: String
+        public var id: String
+        /// The draft has moved on since the version readers are shown.
+        public var outdated: Bool
+        public var people: [ReviewPerson]
+        public var prompt: String?
+        /// People who have opened it.
+        public var readerCount: Int
+        public var revokedAt: String?
+        public var scope: PublicationScope
+        /// The part, chapter or scene; absent for the whole book.
+        public var scopeRefId: String?
+        public var state: ReviewState
+        /// What it is of, as the book names it now: "“The Door”".
+        public var title: String
+        public var updatedAt: String
+        /// The version readers are shown.
+        public var versionId: String
+        public var versionLabel: String
+        /// Who it was offered to. A review put up from the outline is `platform`
+        /// (everyone signed in) or `invited` (the people picked); one offered
+        /// from the versions panel may be any visibility.
+        public var visibility: Visibility
+        public var workId: String
+
+        public init(
+            closesAt: String? = nil,
+            commentCount: Int,
+            createdAt: String,
+            id: String,
+            outdated: Bool,
+            people: [ReviewPerson],
+            prompt: String? = nil,
+            readerCount: Int,
+            revokedAt: String? = nil,
+            scope: PublicationScope,
+            scopeRefId: String? = nil,
+            state: ReviewState,
+            title: String,
+            updatedAt: String,
+            versionId: String,
+            versionLabel: String,
+            visibility: Visibility,
+            workId: String
+        ) {
+            self.closesAt = closesAt
+            self.commentCount = commentCount
+            self.createdAt = createdAt
+            self.id = id
+            self.outdated = outdated
+            self.people = people
+            self.prompt = prompt
+            self.readerCount = readerCount
+            self.revokedAt = revokedAt
+            self.scope = scope
+            self.scopeRefId = scopeRefId
+            self.state = state
+            self.title = title
+            self.updatedAt = updatedAt
+            self.versionId = versionId
+            self.versionLabel = versionLabel
+            self.visibility = visibility
+            self.workId = workId
         }
     }
 
@@ -5195,7 +5416,10 @@ public enum API {
         public var location: String?
         public var position: Int
         public var pov: String?
-        public var status: SceneStatus
+        /// One of the built-in statuses (`outline`, `drafting`, `revised`,
+        /// `done`), or the id of one of the book's own; the outline's `statuses`
+        /// lists them all with their names and colours.
+        public var status: String
         /// Free text: fiction rarely runs on the Gregorian calendar.
         public var storyDate: String?
         public var summary: String?
@@ -5215,7 +5439,7 @@ public enum API {
             location: String? = nil,
             position: Int,
             pov: String? = nil,
-            status: SceneStatus,
+            status: String,
             storyDate: String? = nil,
             summary: String? = nil,
             targetWords: Int? = nil,
@@ -5361,7 +5585,10 @@ public enum API {
         public var location: String?
         public var position: Int
         public var pov: String?
-        public var status: SceneStatus
+        /// One of the built-in statuses (`outline`, `drafting`, `revised`,
+        /// `done`), or the id of one of the book's own; the outline's `statuses`
+        /// lists them all with their names and colours.
+        public var status: String
         /// Free text: fiction rarely runs on the Gregorian calendar.
         public var storyDate: String?
         public var summary: String?
@@ -5382,7 +5609,7 @@ public enum API {
             location: String? = nil,
             position: Int,
             pov: String? = nil,
-            status: SceneStatus,
+            status: String,
             storyDate: String? = nil,
             summary: String? = nil,
             targetWords: Int? = nil,
@@ -5774,6 +6001,31 @@ public enum API {
             self.resolved = resolved
             self.score = score
             self.votes = votes
+        }
+    }
+
+    /// A status a scene can have.
+    public struct StatusOption: Codable, Hashable, Sendable {
+        /// `#rrggbb`.
+        public var color: String
+        /// One of the book's own, which can be renamed, recoloured, reordered and
+        /// removed; the built-in ones cannot.
+        public var custom: Bool
+        /// What a scene's `status` holds: the name of a built-in status, or the
+        /// id of one of the book's own.
+        public var key: String
+        public var label: String
+
+        public init(
+            color: String,
+            custom: Bool,
+            key: String,
+            label: String
+        ) {
+            self.color = color
+            self.custom = custom
+            self.key = key
+            self.label = label
         }
     }
 
@@ -6627,6 +6879,32 @@ public enum API {
         }
     }
 
+    public struct UpdateReviewRequest: Codable, Hashable, Sendable {
+        public var audience: ReviewAudience?
+        /// An empty string clears it.
+        public var closesAt: String?
+        public var emails: [String]?
+        /// An empty string clears it.
+        public var prompt: String?
+        /// The people picked, in full: anyone left out is taken off it. Sent
+        /// with `emails`, or neither.
+        public var userIds: [String]?
+
+        public init(
+            audience: ReviewAudience? = nil,
+            closesAt: String? = nil,
+            emails: [String]? = nil,
+            prompt: String? = nil,
+            userIds: [String]? = nil
+        ) {
+            self.audience = audience
+            self.closesAt = closesAt
+            self.emails = emails
+            self.prompt = prompt
+            self.userIds = userIds
+        }
+    }
+
     public struct UpdateSceneRequest: Codable, Hashable, Sendable {
         /// Move the scene into a different chapter of the same work.
         public var chapterId: String?
@@ -6635,7 +6913,8 @@ public enum API {
         public var excluded: Bool?
         public var location: String?
         public var pov: String?
-        public var status: SceneStatus?
+        /// A built-in status, or the key of one of the book's own.
+        public var status: String?
         /// Free text: fiction rarely runs on the Gregorian calendar.
         public var storyDate: String?
         public var summary: String?
@@ -6650,7 +6929,7 @@ public enum API {
             excluded: Bool? = nil,
             location: String? = nil,
             pov: String? = nil,
-            status: SceneStatus? = nil,
+            status: String? = nil,
             storyDate: String? = nil,
             summary: String? = nil,
             targetWords: Int? = nil,
@@ -6680,6 +6959,20 @@ public enum API {
         ) {
             self.doubleEnterSplitsScenes = doubleEnterSplitsScenes
             self.theme = theme
+        }
+    }
+
+    public struct UpdateStatusRequest: Codable, Hashable, Sendable {
+        /// `#rrggbb`.
+        public var color: String?
+        public var label: String?
+
+        public init(
+            color: String? = nil,
+            label: String? = nil
+        ) {
+            self.color = color
+            self.label = label
         }
     }
 

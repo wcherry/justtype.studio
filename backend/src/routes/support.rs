@@ -305,6 +305,24 @@ pub fn find_publication(conn: &mut Conn, publication_id: &str) -> ApiResult<Publ
         .ok_or_else(|| ApiError::NotFound("publication not found".into()))
 }
 
+/// What a publication covers of its version, given the version's entries in
+/// reading order.
+pub fn slice_of(
+    publication: &Publication,
+    entries: &[VersionEntry],
+) -> crate::domain::slice::Slice {
+    use crate::domain::slice;
+    slice::Slice::of(
+        &publication.scope,
+        publication.scope_ref_id.as_deref(),
+        slice::chapter_order(
+            entries
+                .iter()
+                .map(|e| (e.chapter_id.as_str(), e.chapter_role.as_str())),
+        ),
+    )
+}
+
 /// Reader-side access.
 ///
 /// `public` is open to all, `unlisted` is link-only, `platform` wants anyone
@@ -349,6 +367,12 @@ pub fn publication_for_reader(
         }
     }
 
+    if publication.revoked_at.is_some() {
+        return Err(ApiError::Forbidden(
+            "this is no longer open for review".into(),
+        ));
+    }
+
     let now = crate::domain::now_iso();
     if publication
         .opens_at
@@ -380,6 +404,10 @@ pub fn publication_for_reader(
                     "this manuscript was shared with named readers — sign in to open it".into(),
                 ));
             };
+            // Picked by name, the account itself was invited.
+            if invited_account(conn, &publication.id, &user.id)? {
+                return Ok((publication, work));
+            }
             // An invitation names an address; until the account has proved
             // that address, anyone could have typed it in at sign-up.
             if !user.email_verified {
@@ -414,6 +442,17 @@ pub fn invited(conn: &mut Conn, publication_id: &str, email: &str) -> ApiResult<
     Ok(count > 0)
 }
 
+/// Whether this account was picked by name for a publication.
+pub fn invited_account(conn: &mut Conn, publication_id: &str, user_id: &str) -> ApiResult<bool> {
+    use crate::db::schema::publication_invites;
+    let count: i64 = publication_invites::table
+        .filter(publication_invites::publication_id.eq(publication_id))
+        .filter(publication_invites::user_id.eq(user_id))
+        .count()
+        .get_result(conn)?;
+    Ok(count > 0)
+}
+
 /// Records that an invited reader turned up, which is how an author can tell
 /// who actually opened the thing.
 pub fn mark_invite_accepted(
@@ -422,13 +461,20 @@ pub fn mark_invite_accepted(
     user: &AuthUser,
 ) -> ApiResult<()> {
     use crate::db::schema::publication_invites;
-    if !user.email_verified {
-        return Ok(());
-    }
+    // By address only once the address is proved; by account always.
+    let email = if user.email_verified {
+        user.email.trim().to_lowercase()
+    } else {
+        String::new()
+    };
     diesel::update(
         publication_invites::table
             .filter(publication_invites::publication_id.eq(publication_id))
-            .filter(publication_invites::email.eq(user.email.trim().to_lowercase()))
+            .filter(
+                publication_invites::email
+                    .eq(email)
+                    .or(publication_invites::user_id.eq(&user.id)),
+            )
             .filter(publication_invites::accepted_at.is_null()),
     )
     .set((
@@ -521,25 +567,18 @@ pub fn scene_in_publication(
     scene_id: &str,
 ) -> ApiResult<()> {
     use crate::db::schema::version_entries;
-    let entry: Option<(String, String)> = version_entries::table
+    let entries: Vec<VersionEntry> = version_entries::table
         .filter(version_entries::version_id.eq(&publication.version_id))
-        .filter(version_entries::scene_id.eq(scene_id))
-        .select((version_entries::chapter_id, version_entries::scene_id))
-        .first(conn)
-        .optional()?;
-    let Some((chapter_id, scene_id)) = entry else {
-        return Err(ApiError::BadRequest(
-            "that scene is not in this publication".into(),
-        ));
-    };
-    let within = match (
-        publication.scope.as_str(),
-        publication.scope_ref_id.as_deref(),
-    ) {
-        ("chapter", Some(wanted)) => chapter_id == wanted,
-        ("scene", Some(wanted)) => scene_id == wanted,
-        _ => true,
-    };
+        .order((
+            version_entries::chapter_position.asc(),
+            version_entries::scene_position.asc(),
+        ))
+        .select(VersionEntry::as_select())
+        .load(conn)?;
+    let slice = slice_of(publication, &entries);
+    let within = entries
+        .iter()
+        .any(|e| e.scene_id == scene_id && slice.holds(&e.chapter_id, &e.scene_id));
     if within {
         Ok(())
     } else {

@@ -241,16 +241,47 @@ pub async fn create(
     }
     if scope != "work" && body.scope_ref_id.is_none() {
         return Err(ApiError::BadRequest(
-            "scopeRefId is required when snapshotting a chapter or a scene".into(),
+            "scopeRefId is required when snapshotting a part, a chapter or a scene".into(),
         ));
     }
 
+    let detail = snapshot(
+        &state,
+        &work_id,
+        &user.id,
+        outline,
+        &scope,
+        body.scope_ref_id.as_deref(),
+        body.label.as_deref(),
+        body.notes.as_deref(),
+    )
+    .await?;
+    Ok(Json(detail))
+}
+
+/// Freezes the working copy of `outline` — the whole book, or the part,
+/// chapter or scene `scope` names — as a new draft version. Whoever calls it
+/// has already checked that `created_by` may.
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn snapshot(
+    state: &AppState,
+    work_id: &str,
+    created_by: &str,
+    outline: super::works::OutlineResponse,
+    scope: &str,
+    scope_ref_id: Option<&str>,
+    label: Option<&str>,
+    notes: Option<&str>,
+) -> ApiResult<VersionDetail> {
+    let scope = scope.to_string();
+    let scope_ref = scope_ref_id.map(str::to_string);
+    let notes = notes.map(str::to_string);
     // Narrowed before anything is written, so a scoped snapshot contains
     // exactly what it claims to and nothing else.
     // Untitled chapters and scenes are named before the outline is narrowed,
     // so a snapshot of the third chapter alone still calls it "Chapter 3".
     let outline = super::works::with_placeholder_names(outline);
-    let outline = narrow_outline(outline, &scope, body.scope_ref_id.as_deref());
+    let outline = narrow_outline(outline, &scope, scope_ref_id);
 
     if outline.chapters.iter().all(|c| c.scenes.is_empty()) {
         return Err(ApiError::BadRequest(
@@ -303,16 +334,14 @@ pub async fn create(
         }));
     }
 
-    let label = body
-        .label
-        .as_deref()
+    let label = label
         .map(str::trim)
         .filter(|s| !s.is_empty())
         .map(str::to_string);
 
     let db_version_id = version_id.clone();
-    let db_work_id = work_id.clone();
-    let created_by = user.id.clone();
+    let db_work_id = work_id.to_string();
+    let created_by = created_by.to_string();
     let created_now = now.clone();
     let detail = blocking(&state.pool, move |conn| {
         let previous: Option<Version> = versions::table
@@ -336,7 +365,7 @@ pub async fn create(
             diesel::insert_into(versions::table)
                 .values(&NewVersion {
                     scope: scope.clone(),
-                    scope_ref_id: body.scope_ref_id.clone(),
+                    scope_ref_id: scope_ref.clone(),
                     id: db_version_id.clone(),
                     work_id: db_work_id.clone(),
                     number,
@@ -344,7 +373,7 @@ pub async fn create(
                     state: "draft".into(),
                     parent_version_id: previous.as_ref().map(|v| v.id.clone()),
                     created_by,
-                    notes: body.notes.clone(),
+                    notes: notes.clone(),
                     word_count: total_words,
                     created_at: created_now.clone(),
                     published_at: None,
@@ -378,27 +407,31 @@ pub async fn create(
         )
         .await?;
 
-    Ok(Json(detail))
+    Ok(detail)
 }
 
-/// Trims an outline down to the chapter or scene a snapshot is scoped to.
-fn narrow_outline(
+/// Trims an outline down to the part, chapter or scene a snapshot is scoped to.
+pub(crate) fn narrow_outline(
     mut outline: super::works::OutlineResponse,
     scope: &str,
     reference: Option<&str>,
 ) -> super::works::OutlineResponse {
-    match (scope, reference) {
-        ("chapter", Some(chapter_id)) => {
-            outline.chapters.retain(|c| c.chapter.id == chapter_id);
-        }
-        ("scene", Some(scene_id)) => {
-            outline.chapters.retain_mut(|chapter| {
-                chapter.scenes.retain(|scene| scene.id == scene_id);
-                !chapter.scenes.is_empty()
-            });
-        }
-        _ => {}
-    }
+    let slice = crate::domain::slice::Slice::of(
+        scope,
+        reference,
+        outline
+            .chapters
+            .iter()
+            .map(|c| (c.chapter.id.as_str(), c.chapter.role.as_str())),
+    );
+    outline.chapters.retain_mut(|chapter| {
+        chapter
+            .scenes
+            .retain(|scene| slice.holds(&chapter.chapter.id, &scene.id));
+        // A chapter named by the slice stays even when it has no scenes; one
+        // that only held the scene asked for goes once it is empty.
+        slice.holds_chapter(&chapter.chapter.id) || !chapter.scenes.is_empty()
+    });
     outline
 }
 
@@ -1463,6 +1496,13 @@ pub async fn restore(
             match (scope.as_str(), scope_ref.as_deref()) {
                 ("chapter", Some(chapter_id)) => {
                     doomed = doomed.filter(scenes::chapter_id.eq(chapter_id.to_string()));
+                }
+                // A part speaks for the chapters it held when it was frozen.
+                ("part", Some(part_id)) => {
+                    let mut held: Vec<String> =
+                        entries.iter().map(|e| e.chapter_id.clone()).collect();
+                    held.push(part_id.to_string());
+                    doomed = doomed.filter(scenes::chapter_id.eq_any(held));
                 }
                 ("scene", Some(_)) => return Ok(()),
                 _ => {}

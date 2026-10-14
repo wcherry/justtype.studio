@@ -1586,12 +1586,20 @@
                 "format": "int64",
                 "type": "integer"
               },
+              "earlierVersion": {
+                "description": "Written on an earlier version than readers are shown now. Its anchor\nis placed by its quote, where that text is still to be found.",
+                "type": "boolean"
+              },
               "replies": {
                 "description": "Threads nest arbitrarily deep, which makes this type self-referential.\nSchema generation has to be told to stop, or it recurses until the stack\ngives out.",
                 "items": {
                   "$ref": "#/components/schemas/CommentView"
                 },
                 "type": "array"
+              },
+              "versionLabel": {
+                "description": "The label of the version it was written on: \"v3\".",
+                "type": "string"
               },
               "viewerVote": {
                 "format": "int32",
@@ -1602,6 +1610,8 @@
               "author",
               "authorScore",
               "viewerVote",
+              "versionLabel",
+              "earlierVersion",
               "replies"
             ],
             "type": "object"
@@ -2030,6 +2040,56 @@
         ],
         "type": "object"
       },
+      "CreateReviewRequest": {
+        "properties": {
+          "audience": {
+            "$ref": "#/components/schemas/ReviewAudience"
+          },
+          "closesAt": {
+            "description": "When it closes, if it should.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "emails": {
+            "description": "For `selected`: addresses, for people who may have no account yet.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "prompt": {
+            "description": "What the writer wants feedback on.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "scope": {
+            "$ref": "#/components/schemas/PublicationScope"
+          },
+          "scopeRefId": {
+            "description": "The part, chapter or scene; left out for the whole book.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "userIds": {
+            "description": "For `selected`: people picked by name (`GET /api/people`).",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "scope",
+          "audience"
+        ],
+        "type": "object"
+      },
       "CreateSceneRequest": {
         "properties": {
           "content": {
@@ -2059,6 +2119,24 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "CreateStatusRequest": {
+        "properties": {
+          "color": {
+            "description": "`#rrggbb`. Left out, it gets the next colour in the palette.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "label"
+        ],
         "type": "object"
       },
       "CreateTaskRequest": {
@@ -4658,6 +4736,26 @@
                     "description": "Where the caller was when they last had the book open, to put them\nback there. Absent the first time, or once that scene is gone."
                   }
                 ]
+              },
+              "reviews": {
+                "description": "The book's reviews still open to readers, for a badge on what each\ncovers. Sent to the people writing it; absent elsewhere.",
+                "items": {
+                  "$ref": "#/components/schemas/ReviewBadge"
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
+              "statuses": {
+                "description": "Every status a scene in the book can have, the book's own first, with\nthe colour each is shown in. Optional so an outline a client cached\nbefore a book could have its own still decodes.",
+                "items": {
+                  "$ref": "#/components/schemas/StatusOption"
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
               }
             },
             "required": [
@@ -5306,6 +5404,13 @@
               "null"
             ]
           },
+          "revokedAt": {
+            "description": "When it was closed to its readers. The author keeps every comment and\ncan open it again.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "scope": {
             "$ref": "#/components/schemas/PublicationScope"
           },
@@ -5447,6 +5552,13 @@
           },
           "publicationId": {
             "type": "string"
+          },
+          "userId": {
+            "description": "The reader, when they were picked by name; their address is then\nblanked before the invitation is shown to anyone.",
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -5461,6 +5573,7 @@
       "PublicationScope": {
         "enum": [
           "work",
+          "part",
           "chapter",
           "scene"
         ],
@@ -5855,6 +5968,21 @@
         "properties": {
           "ids": {
             "description": "Complete ordered list of ids; anything missing keeps its current slot.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "ids"
+        ],
+        "type": "object"
+      },
+      "ReorderStatusesRequest": {
+        "properties": {
+          "ids": {
+            "description": "The book's own statuses in their new order. Any left out keep their\norder among themselves, after the ones listed.",
             "items": {
               "type": "string"
             },
@@ -6350,6 +6478,40 @@
         ],
         "type": "object"
       },
+      "ReviewAudience": {
+        "enum": [
+          "everyone",
+          "selected"
+        ],
+        "type": "string"
+      },
+      "ReviewBadge": {
+        "description": "A review still open to its readers, for the badge on what it covers.",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "outdated": {
+            "description": "The draft has moved on since the version readers are shown.",
+            "type": "boolean"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/PublicationScope"
+          },
+          "scopeRefId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "scope",
+          "outdated"
+        ],
+        "type": "object"
+      },
       "ReviewHistoryItem": {
         "description": "One publication someone reviewed, as their profile shows it.",
         "properties": {
@@ -6382,6 +6544,37 @@
           "notes",
           "resolved",
           "lastAt"
+        ],
+        "type": "object"
+      },
+      "ReviewPerson": {
+        "description": "Someone a review was shared with.",
+        "properties": {
+          "email": {
+            "description": "Invited by address.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "opened": {
+            "description": "Whether they have opened it.",
+            "type": "boolean"
+          },
+          "user": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AuthorCard",
+                "description": "Picked by name: who. Their address is never shown."
+              }
+            ]
+          }
+        },
+        "required": [
+          "opened"
         ],
         "type": "object"
       },
@@ -6426,6 +6619,113 @@
           "createdAt",
           "updatedAt",
           "moderationState"
+        ],
+        "type": "object"
+      },
+      "ReviewState": {
+        "enum": [
+          "open",
+          "closed",
+          "revoked"
+        ],
+        "type": "string"
+      },
+      "ReviewView": {
+        "properties": {
+          "closesAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "commentCount": {
+            "description": "Notes left on it, on any version.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "outdated": {
+            "description": "The draft has moved on since the version readers are shown.",
+            "type": "boolean"
+          },
+          "people": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewPerson"
+            },
+            "type": "array"
+          },
+          "prompt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "readerCount": {
+            "description": "People who have opened it.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "revokedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "scope": {
+            "$ref": "#/components/schemas/PublicationScope"
+          },
+          "scopeRefId": {
+            "description": "The part, chapter or scene; absent for the whole book.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "$ref": "#/components/schemas/ReviewState"
+          },
+          "title": {
+            "description": "What it is of, as the book names it now: \"“The Door”\".",
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          },
+          "versionId": {
+            "description": "The version readers are shown.",
+            "type": "string"
+          },
+          "versionLabel": {
+            "type": "string"
+          },
+          "visibility": {
+            "$ref": "#/components/schemas/Visibility",
+            "description": "Who it was offered to. A review put up from the outline is `platform`\n(everyone signed in) or `invited` (the people picked); one offered\nfrom the versions panel may be any visibility."
+          },
+          "workId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "workId",
+          "scope",
+          "title",
+          "versionId",
+          "versionLabel",
+          "visibility",
+          "state",
+          "outdated",
+          "people",
+          "commentCount",
+          "readerCount",
+          "createdAt",
+          "updatedAt"
         ],
         "type": "object"
       },
@@ -6609,7 +6909,8 @@
             ]
           },
           "status": {
-            "$ref": "#/components/schemas/SceneStatus"
+            "description": "One of the built-in statuses (`outline`, `drafting`, `revised`,\n`done`), or the id of one of the book's own; the outline's `statuses`\nlists them all with their names and colours.",
+            "type": "string"
           },
           "storyDate": {
             "description": "Free text: fiction rarely runs on the Gregorian calendar.",
@@ -7254,6 +7555,33 @@
           "resolved",
           "votes",
           "score"
+        ],
+        "type": "object"
+      },
+      "StatusOption": {
+        "description": "A status a scene can have.",
+        "properties": {
+          "color": {
+            "description": "`#rrggbb`.",
+            "type": "string"
+          },
+          "custom": {
+            "description": "One of the book's own, which can be renamed, recoloured, reordered and\nremoved; the built-in ones cannot.",
+            "type": "boolean"
+          },
+          "key": {
+            "description": "What a scene's `status` holds: the name of a built-in status, or the\nid of one of the book's own.",
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "color",
+          "custom"
         ],
         "type": "object"
       },
@@ -8437,6 +8765,54 @@
         },
         "type": "object"
       },
+      "UpdateReviewRequest": {
+        "properties": {
+          "audience": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ReviewAudience"
+              }
+            ]
+          },
+          "closesAt": {
+            "description": "An empty string clears it.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "emails": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "prompt": {
+            "description": "An empty string clears it.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "userIds": {
+            "description": "The people picked, in full: anyone left out is taken off it. Sent\nwith `emails`, or neither.",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
       "UpdateSceneRequest": {
         "properties": {
           "chapterId": {
@@ -8466,13 +8842,10 @@
             ]
           },
           "status": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/SceneStatus"
-              }
+            "description": "A built-in status, or the key of one of the book's own.",
+            "type": [
+              "string",
+              "null"
             ]
           },
           "storyDate": {
@@ -8523,6 +8896,24 @@
                 "$ref": "#/components/schemas/Theme",
                 "description": "How the app looks, on every device the writer signs in on."
               }
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "UpdateStatusRequest": {
+        "properties": {
+          "color": {
+            "description": "`#rrggbb`.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
             ]
           }
         },
@@ -15500,6 +15891,51 @@
         ]
       }
     },
+    "/api/people": {
+      "get": {
+        "operationId": "people",
+        "parameters": [
+          {
+            "description": "Part of a display name, two characters or more.",
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AuthorCard"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Up to eight people whose names match"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "People on the site by name, to pick as reviewers. Names only: an address\nis never given out.",
+        "tags": [
+          "reviews"
+        ]
+      }
+    },
     "/api/prompt-critiques/{critique_id}": {
       "delete": {
         "operationId": "delete_critique",
@@ -17781,6 +18217,180 @@
         ]
       }
     },
+    "/api/reviews/{review_id}": {
+      "patch": {
+        "operationId": "update",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "review_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateReviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewView"
+                }
+              }
+            },
+            "description": "The review"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "Changes who a review is for, its prompt, or when it closes. Anyone newly\ngiven it is told.",
+        "tags": [
+          "reviews"
+        ]
+      }
+    },
+    "/api/reviews/{review_id}/reopen": {
+      "post": {
+        "operationId": "reopen",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "review_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewView"
+                }
+              }
+            },
+            "description": "The review, open again"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "Opens a revoked or closed review again, to the same readers. A closing\ndate that has passed is cleared; set a new one to close it again.",
+        "tags": [
+          "reviews"
+        ]
+      }
+    },
+    "/api/reviews/{review_id}/revoke": {
+      "post": {
+        "operationId": "revoke",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "review_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewView"
+                }
+              }
+            },
+            "description": "The review, revoked"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "Closes a review to its readers. Every comment stays, for the writers.",
+        "tags": [
+          "reviews"
+        ]
+      }
+    },
+    "/api/reviews/{review_id}/update": {
+      "post": {
+        "operationId": "bring_up_to_date",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "review_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewView"
+                }
+              }
+            },
+            "description": "The review, on the latest version"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "Points a review at the draft as it is now: the latest snapshot if nothing\nhas changed since, or a new one. Its comments stay, each marked with the\nversion it was written on, and everyone who has taken part is told.",
+        "tags": [
+          "reviews"
+        ]
+      }
+    },
     "/api/scenes/{scene_id}": {
       "delete": {
         "operationId": "delete_scene",
@@ -18497,6 +19107,101 @@
         },
         "tags": [
           "health"
+        ]
+      }
+    },
+    "/api/statuses/{status_id}": {
+      "delete": {
+        "operationId": "delete_status",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "status_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/StatusOption"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "The book's statuses, without it"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "Removes one of the book's own statuses. Its scenes go back to drafting.",
+        "tags": [
+          "statuses"
+        ]
+      },
+      "patch": {
+        "operationId": "update",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "status_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateStatusRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/StatusOption"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "The book's statuses"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "statuses"
         ]
       }
     },
@@ -21276,6 +21981,99 @@
         ]
       }
     },
+    "/api/works/{work_id}/reviews": {
+      "get": {
+        "operationId": "list",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ReviewView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "The book's reviews"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "Every review of the book, open or not, newest first.",
+        "tags": [
+          "reviews"
+        ]
+      },
+      "post": {
+        "operationId": "create",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateReviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewView"
+                }
+              }
+            },
+            "description": "The review"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "Puts a scene, chapter, part or the whole book up for review.",
+        "tags": [
+          "reviews"
+        ]
+      }
+    },
     "/api/works/{work_id}/search": {
       "get": {
         "operationId": "search_work",
@@ -21325,6 +22123,153 @@
         "summary": "Finds words in a work's working text, best matches first.",
         "tags": [
           "works"
+        ]
+      }
+    },
+    "/api/works/{work_id}/statuses": {
+      "get": {
+        "operationId": "list",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/StatusOption"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "The book's statuses: its own, then the built-in ones"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "statuses"
+        ]
+      },
+      "post": {
+        "operationId": "create",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateStatusRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/StatusOption"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "The book's statuses, with the new one after its others"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "statuses"
+        ]
+      }
+    },
+    "/api/works/{work_id}/statuses/reorder": {
+      "post": {
+        "operationId": "reorder",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReorderStatusesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/StatusOption"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "The book's statuses, in their new order"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "statuses"
         ]
       }
     },
@@ -21614,6 +22559,14 @@
     {
       "description": "The unit of writing",
       "name": "scenes"
+    },
+    {
+      "description": "A scene, chapter, part or the whole book put up for review from the outline",
+      "name": "reviews"
+    },
+    {
+      "description": "Where a scene stands: the built-in statuses and a book's own",
+      "name": "statuses"
     },
     {
       "description": "Proposed edits, accepted or rejected",

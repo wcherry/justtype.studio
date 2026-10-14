@@ -20,7 +20,7 @@ use crate::state::AppState;
 
 use super::support;
 
-fn normalise(email: &str) -> ApiResult<String> {
+pub(super) fn normalise(email: &str) -> ApiResult<String> {
     let email = email.trim().to_lowercase();
     if !email.contains('@') || email.len() < 5 {
         return Err(ApiError::BadRequest(format!(
@@ -52,6 +52,20 @@ pub struct InviteView {
     pub accepted: bool,
 }
 
+impl InviteView {
+    /// An account picked by name is shown without its address: the author
+    /// chose a person, and their email is theirs.
+    pub fn of(mut invite: PublicationInvite) -> InviteView {
+        if invite.user_id.is_some() {
+            invite.email.clear();
+        }
+        InviteView {
+            accepted: invite.accepted_at.is_some(),
+            invite,
+        }
+    }
+}
+
 #[utoipa::path(
     get,
     path = "/api/publications/{publication_id}/invites",
@@ -74,13 +88,7 @@ pub async fn list_invites(
             .order(publication_invites::email.asc())
             .select(PublicationInvite::as_select())
             .load(conn)?;
-        Ok(rows
-            .into_iter()
-            .map(|invite| InviteView {
-                accepted: invite.accepted_at.is_some(),
-                invite,
-            })
-            .collect())
+        Ok(rows.into_iter().map(InviteView::of).collect())
     })
     .await?;
     Ok(Json(invites))
@@ -136,6 +144,7 @@ pub async fn invite(
                     accepted_at: None,
                     accepted_by: None,
                     created_at: now.clone(),
+                    user_id: None,
                 })
                 // Inviting the same person twice is what someone does when they
                 // cannot remember whether they already did.
@@ -159,13 +168,7 @@ pub async fn invite(
             .order(publication_invites::email.asc())
             .select(PublicationInvite::as_select())
             .load(conn)?;
-        Ok(rows
-            .into_iter()
-            .map(|invite| InviteView {
-                accepted: invite.accepted_at.is_some(),
-                invite,
-            })
-            .collect())
+        Ok(rows.into_iter().map(InviteView::of).collect())
     })
     .await?;
     Ok(Json(invites))

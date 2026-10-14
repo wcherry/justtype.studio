@@ -133,7 +133,7 @@ pub async fn create(
     }
     if body.scope != "work" && body.scope_ref_id.is_none() {
         return Err(ApiError::BadRequest(
-            "scopeRefId is required when publishing a chapter or a scene".into(),
+            "scopeRefId is required when publishing a part, a chapter or a scene".into(),
         ));
     }
 
@@ -205,7 +205,7 @@ pub async fn create(
 /// Screens what a publication makes public: the work's title and blurb, and
 /// the prompt for readers. Refused if any of it is blocked; a hold on a
 /// publication is a flag, because it is already offered.
-async fn screen_publication(
+pub(super) async fn screen_publication(
     state: &AppState,
     user: &AuthUser,
     version_id: Option<&str>,
@@ -325,7 +325,7 @@ async fn attach_excerpt(state: &AppState, card: &mut PublicationCard) {
     };
     let first = match scene_id {
         Some(id) => Some(id),
-        None => first_scene_id(state, &card.publication.version_id).await,
+        None => first_scene_id(state, &card.publication).await,
     };
     if let Some(scene_id) = first {
         if let Ok(content) = state
@@ -342,16 +342,22 @@ async fn attach_excerpt(state: &AppState, card: &mut PublicationCard) {
     }
 }
 
-async fn first_scene_id(state: &AppState, version_id: &str) -> Option<String> {
-    let version_id = version_id.to_string();
+/// The first scene of the slice on offer, which on a snapshot of the whole
+/// book is not always the book's first.
+async fn first_scene_id(state: &AppState, publication: &Publication) -> Option<String> {
+    let publication = publication.clone();
     crate::db::blocking(&state.pool, move |conn| {
         use crate::db::schema::version_entries as ve;
-        Ok(ve::table
-            .filter(ve::version_id.eq(&version_id))
+        let entries: Vec<VersionEntry> = ve::table
+            .filter(ve::version_id.eq(&publication.version_id))
             .order((ve::chapter_position.asc(), ve::scene_position.asc()))
-            .select(ve::scene_id)
-            .first::<String>(conn)
-            .optional()?)
+            .select(VersionEntry::as_select())
+            .load(conn)?;
+        let slice = support::slice_of(&publication, &entries);
+        Ok(entries
+            .into_iter()
+            .find(|e| slice.holds(&e.chapter_id, &e.scene_id))
+            .map(|e| e.scene_id))
     })
     .await
     .ok()
@@ -514,7 +520,11 @@ pub async fn feed_cards(
                 // out yet, so a draft invisible in the feed is a draft they can
                 // only reach if the author sends them the link by hand.
                 let invited = publication_invites::table
-                    .filter(publication_invites::email.eq(email.clone()))
+                    .filter(
+                        publication_invites::email
+                            .eq(email.clone())
+                            .or(publication_invites::user_id.eq(id.clone())),
+                    )
                     .select(publication_invites::publication_id);
                 q = q.filter(
                     publications::visibility
@@ -545,6 +555,10 @@ pub async fn feed_cards(
                 q = q.filter(diesel::dsl::not(works::owner_id.eq_any(shut_out_by)));
             }
             (None, _) => q = q.filter(publications::visibility.eq("public")),
+        }
+        // Revoked is closed to readers; the author finds it among their reviews.
+        if !query.mine.unwrap_or(false) {
+            q = q.filter(publications::revoked_at.is_null());
         }
         // Accounts that are deactivated or permanently banned are not on the
         // site: nothing of theirs is in anyone's feed.
@@ -797,18 +811,10 @@ pub async fn content(
 }
 
 fn narrow_to_scope(publication: &Publication, mut detail: VersionDetail) -> VersionDetail {
-    match (
-        publication.scope.as_str(),
-        publication.scope_ref_id.as_deref(),
-    ) {
-        ("chapter", Some(chapter_id)) => {
-            detail.entries.retain(|e| e.chapter_id == chapter_id);
-        }
-        ("scene", Some(scene_id)) => {
-            detail.entries.retain(|e| e.scene_id == scene_id);
-        }
-        _ => {}
-    }
+    let slice = support::slice_of(publication, &detail.entries);
+    detail
+        .entries
+        .retain(|e| slice.holds(&e.chapter_id, &e.scene_id));
     detail
 }
 

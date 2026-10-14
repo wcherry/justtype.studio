@@ -5,8 +5,8 @@ import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
 import Placeholder from '@tiptap/extension-placeholder'
 
-import { api, exporting } from '../api/client'
-import type { Outline as OutlineType, Scene, SceneWithContent, VersionSummary } from '../api/types'
+import { api, exporting, printDraft } from '../api/client'
+import type { Outline as OutlineType, PublicationScope, ReviewView, Scene, SceneWithContent, VersionSummary } from '../api/types'
 import { ActivityPanel } from '../components/ActivityPanel'
 import { ChangesPanel } from '../components/ChangesPanel'
 import { CollaboratorsPanel } from '../components/CollaboratorsPanel'
@@ -33,6 +33,10 @@ import { AboutDialog } from '../components/AboutDialog'
 import { ExportDialog } from '../components/ExportDialog'
 import { ConfirmDialog, NameVersionDialog } from '../components/Dialogs'
 import { ExportHistory } from '../components/ExportHistory'
+import { StatusesDialog } from '../components/StatusesDialog'
+import { ReviewDialog, type ReviewTarget } from '../components/ReviewDialog'
+import { ReviewsPanel } from '../components/ReviewsPanel'
+import { BUILT_IN_STATUSES, statusOf, statusesOf } from '../statuses'
 import { ImportDialog } from '../components/ImportDialog'
 import { GoalsPanel } from '../components/GoalsPanel'
 import { MarksPanel } from '../components/MarksPanel'
@@ -66,7 +70,7 @@ import { isOffline, pendingFor, startQueueReplay } from '../offline/queue'
 import { permissions } from '../state/permissions'
 import { useAuth } from '../state/auth'
 import { here, useLive, usePresence } from '../live'
-import { isUntitled, withPlaceholderNames } from '../naming'
+import { chapterNames, isUntitled, partsOf, withPlaceholderNames } from '../naming'
 
 const SAVE_LABEL: Record<string, string> = {
   idle: '',
@@ -100,6 +104,7 @@ type Panel =
   | 'thesaurus'
   | 'assistant'
   | 'dictionary'
+  | 'reviews'
 
 /** The panels used most while writing get a button of their own as well. */
 const TOOLBAR_PANELS: { panel: Panel; icon: IconName; label: string }[] = [
@@ -113,13 +118,6 @@ const SCENE_TABS: { key: SceneTab; label: string }[] = [
   { key: 'details', label: 'Details' },
   { key: 'changes', label: 'Proposed changes' },
   { key: 'history', label: 'History' },
-]
-
-const SCENE_STATUSES: { value: Scene['status']; label: string }[] = [
-  { value: 'outline', label: 'Outline' },
-  { value: 'drafting', label: 'Drafting' },
-  { value: 'revised', label: 'Revised' },
-  { value: 'done', label: 'Done' },
 ]
 
 /**
@@ -169,7 +167,13 @@ export function EditorPage() {
   const [sceneDialog, setSceneDialog] = useState<
     { kind: 'delete' | 'version'; scene: Scene; name: string } | null
   >(null)
-  const [exportScene, setExportScene] = useState<string | null>(null)
+  /** Scenes to export on their own: one scene, or a chapter's or part's. */
+  const [exportScenes, setExportScenes] = useState<string[] | null>(null)
+  const [editingStatuses, setEditingStatuses] = useState(false)
+  /** The book's reviews, once the panel has asked for them. */
+  const [reviews, setReviews] = useState<ReviewView[]>([])
+  /** Marking something for review, or changing a review that is up. */
+  const [reviewing, setReviewing] = useState<{ target: ReviewTarget; review?: ReviewView } | null>(null)
   /** A short word on what just happened, gone after a few seconds. */
   const [notice, setNotice] = useState<string | null>(null)
   useEffect(() => {
@@ -202,6 +206,8 @@ export function EditorPage() {
   const [about, setAbout] = useState(false)
   const [importing, setImporting] = useState(false)
   const [view, setView] = useState<'write' | 'corkboard'>('write')
+  /** The corkboard narrowed to one chapter or part, from its menu. */
+  const [boardOnly, setBoardOnly] = useState<{ chapterIds: string[]; label: string } | null>(null)
   /** What the writer has selected, in the same positions a proposal records. */
   const [selection, setSelection] = useState<{ from: number; to: number; quote: string } | null>(null)
   const [online, setOnline] = useState(() => navigator.onLine)
@@ -646,6 +652,26 @@ export function EditorPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, workId])
 
+  // A save to something under review may be what makes the review out of
+  // date: the outline is asked again, once, so its badge says so. Once a
+  // review is marked outdated, further saves need not ask.
+  useEffect(() => {
+    if (!savedAt || !outline || !scene) return
+    const owner = partsOf(outline.chapters)
+    const part = owner[outline.chapters.findIndex((c) => c.id === scene.chapterId)]
+    const covers = (outline.reviews ?? []).some((b) => !b.outdated && (
+      b.scope === 'work'
+      || (b.scope === 'scene' && b.scopeRefId === scene.id)
+      || (b.scope === 'chapter' && b.scopeRefId === scene.chapterId)
+      || (b.scope === 'part' && (b.scopeRefId === scene.chapterId || b.scopeRefId === part))
+    ))
+    if (!covers) return
+    void loadOutline()
+    if (panel === 'reviews') void loadReviews()
+    // Only on a save; the outline and scene it reads are the ones it saved.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [savedAt])
+
   const loadVersions = useCallback(async () => {
     setVersions(await api.versions.list(workId).catch(() => []))
   }, [workId])
@@ -858,6 +884,76 @@ export function EditorPage() {
     // page once it has, so typing carries on.
     setTimeout(() => editor.view.focus(), 0)
   }
+  const loadReviews = useCallback(async () => {
+    try {
+      setReviews(await api.reviews.list(workId))
+    } catch (e) {
+      setNotice(e instanceof Error ? e.message : 'Could not load the reviews')
+    }
+  }, [workId])
+  useEffect(() => {
+    if (panel === 'reviews') void loadReviews()
+  }, [panel, loadReviews])
+  /** A review as it now stands, into the list, and the outline's badges with it. */
+  const reviewChanged = (review: ReviewView) => {
+    setReviews((list) => [review, ...list.filter((r) => r.id !== review.id)]
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt)))
+    void loadOutline()
+  }
+  /**
+   * Whether this writer may put the slice up for review: an owner, or a writer
+   * handed every chapter it touches. The server checks the same.
+   */
+  const canReview = (scope: PublicationScope, ref?: string | null): boolean => {
+    if (!outline) return false
+    if (scope === 'work') return can.canShape
+    if (scope === 'scene') {
+      const chapter = outline.chapters.find((c) => c.scenes.some((s) => s.id === ref))
+      return !!chapter && can.canWrite(chapter.id)
+    }
+    if (scope === 'chapter') return !!ref && can.canWrite(ref)
+    const owner = partsOf(outline.chapters)
+    return !!ref && can.canWrite(ref) && outline.chapters.every((c, i) => owner[i] !== ref || can.canWrite(c.id))
+  }
+  /** "“The Door”" for a scene, chapter or part, as the outline shows it; the book's title for the book. */
+  const reviewTitle = (scope: PublicationScope, ref?: string | null): string => {
+    const shown = named ?? outline
+    if (!shown) return ''
+    if (scope === 'work') return `“${shown.title}”`
+    if (scope === 'scene') {
+      const found = shown.chapters.flatMap((c) => c.scenes).find((s) => s.id === ref)
+      return `“${found?.title ?? 'this scene'}”`
+    }
+    return `“${shown.chapters.find((c) => c.id === ref)?.title ?? 'this chapter'}”`
+  }
+  const markForReview = (scope: PublicationScope, ref?: string) =>
+    setReviewing({ target: { scope, scopeRefId: ref, title: reviewTitle(scope, ref) } })
+
+  const statuses = outline ? statusesOf(outline) : BUILT_IN_STATUSES
+  /** The status submenu for a scene, ending with the way to the book's own. */
+  const statusItems = (current: string | undefined, choose: (key: string) => void): MenuItem[] => [
+    ...statuses.map((s, i) => ({
+      key: s.key,
+      label: s.label,
+      checked: current === s.key,
+      // Where the book's own end and the built-in ones begin.
+      divider: i > 0 && !s.custom && statuses[i - 1].custom,
+      onSelect: () => choose(s.key),
+    })),
+    ...(can.canShape
+      ? [{ key: 'edit-statuses', label: 'Edit statuses…', divider: true, onSelect: () => setEditingStatuses(true) }]
+      : []),
+  ]
+  /** Sends the book, or some of it, to the printer as a laid-out PDF. */
+  const print = async (what: string, only?: { chapterIds?: string[]; sceneIds?: string[] }) => {
+    setNotice(`Laying out ${what} for the printer…`)
+    try {
+      const how = await printDraft(workId, only)
+      setNotice(how === 'saved' ? `Saved ${what} as a PDF: open it to print.` : null)
+    } catch (e) {
+      setNotice(e instanceof Error ? e.message : 'Could not print that')
+    }
+  }
   const mainMenu: MenuItem[] = [
     {
       key: 'scene',
@@ -876,9 +972,7 @@ export function EditorPage() {
           label: 'Status',
           divider: true,
           disabled: !scene || !writable,
-          items: SCENE_STATUSES.map((s) => ({
-            key: s.value, label: s.label, checked: scene?.status === s.value, onSelect: () => void setStatus(s.value),
-          })),
+          items: statusItems(scene?.status, (key) => void setStatus(key)),
         },
         { key: 'split', label: 'Split at the cursor', disabled: !scene || !writable, onSelect: () => void splitHere() },
         { key: 'merge', label: 'Merge with the next scene', disabled: !nextScene || !writable, onSelect: () => void mergeNext() },
@@ -899,6 +993,15 @@ export function EditorPage() {
           onSelect: () => toggleTodoTab('comments'),
         },
         panelItem('marks', 'Highlights & bookmarks'),
+        ...(can.canShape ? [{ key: 'statuses', label: 'Scene statuses…', onSelect: () => setEditingStatuses(true) }] : []),
+        {
+          key: 'mark-review',
+          label: 'Mark for review…',
+          divider: true,
+          disabled: !canReview('work'),
+          onSelect: () => markForReview('work'),
+        },
+        panelItem('reviews', 'Reviews'),
         ...(can.canShape
           ? [{ key: 'import', label: 'Import a document…', divider: true, onSelect: () => setImporting(true) }]
           : []),
@@ -907,6 +1010,7 @@ export function EditorPage() {
               panelItem('front', 'Front matter', { divider: true }),
               panelItem('versions', 'Versions'),
               panelItem('export', 'Export…'),
+              { key: 'print', label: 'Print…', onSelect: () => void print(`“${outline?.title ?? 'the book'}”`) },
               {
                 key: 'export-again',
                 label: 'Export again',
@@ -942,7 +1046,13 @@ export function EditorPage() {
       label: 'View',
       items: [
         { key: 'write', label: 'Write', checked: view === 'write', onSelect: () => setView('write') },
-        { key: 'corkboard', label: 'Corkboard', checked: view === 'corkboard', onSelect: () => setView('corkboard') },
+        {
+          key: 'corkboard', label: 'Corkboard', checked: view === 'corkboard',
+          onSelect: () => {
+            setBoardOnly(null)
+            setView('corkboard')
+          },
+        },
         { key: 'room', label: 'Writing room', hint: '⌘⇧F', divider: true, onSelect: page.enter },
         {
           key: 'focus', label: 'Focus on the paragraph', checked: preferences.focusMode,
@@ -1035,12 +1145,6 @@ export function EditorPage() {
     void loadOutline()
   }
 
-  const STATUSES: { value: Scene['status']; label: string }[] = [
-    { value: 'outline', label: 'Outline' },
-    { value: 'drafting', label: 'Drafting' },
-    { value: 'revised', label: 'Revised' },
-    { value: 'done', label: 'Done' },
-  ]
 
   /** What a right-click (or Ctrl-click) on a scene in the outline offers. */
   const sceneMenuItems = (
@@ -1056,12 +1160,7 @@ export function EditorPage() {
         key: 'status',
         label: 'Status',
         disabled: !writable,
-        items: STATUSES.map((s) => ({
-          key: s.value,
-          label: s.label,
-          checked: target.status === s.value,
-          onSelect: () => void changeScene(target.id, { status: s.value }),
-        })),
+        items: statusItems(target.status, (key) => void changeScene(target.id, { status: key })),
       },
       {
         key: 'excluded',
@@ -1074,6 +1173,12 @@ export function EditorPage() {
             ? `“${name}” is part of the book again.`
             : `“${name}” is left out of the book: not exported, not in a version, not counted.`)
         },
+      },
+      {
+        key: 'review',
+        label: 'Mark for review…',
+        disabled: !canReview('scene', target.id),
+        onSelect: () => markForReview('scene', target.id),
       },
       { key: 'up', label: 'Move up', hint: 'Alt+↑', divider: true, disabled: !move.up, onSelect: move.up },
       { key: 'down', label: 'Move down', hint: 'Alt+↓', disabled: !move.down, onSelect: move.down },
@@ -1100,7 +1205,10 @@ export function EditorPage() {
         },
       },
       ...(can.isOwner
-        ? [{ key: 'export', label: 'Export this scene…', onSelect: () => setExportScene(target.id) }]
+        ? [
+            { key: 'export', label: 'Export this scene…', onSelect: () => setExportScenes([target.id]) },
+            { key: 'print', label: 'Print this scene…', onSelect: () => void print(`“${name}”`, { sceneIds: [target.id] }) },
+          ]
         : []),
       {
         key: 'delete',
@@ -1109,6 +1217,88 @@ export function EditorPage() {
         disabled: !writable,
         onSelect: () => setSceneDialog({ kind: 'delete', scene: target, name }),
       },
+    ]
+  }
+
+  /**
+   * The book's chapters with `chapterId` moved to the end of `partId`: after
+   * the last chapter the part holds, or straight after the part if it holds
+   * none. A chapter just created is not in the outline yet and goes there too.
+   */
+  const intoPartOrder = (chapterId: string, partId: string): string[] => {
+    const ids = outline.chapters.map((c) => c.id).filter((id) => id !== chapterId)
+    const owner = partsOf(outline.chapters)
+    let at = ids.indexOf(partId) + 1
+    outline.chapters.forEach((c, i) => {
+      if (owner[i] === partId && c.id !== chapterId) at = Math.max(at, ids.indexOf(c.id) + 1)
+    })
+    ids.splice(at, 0, chapterId)
+    return ids
+  }
+
+  /** What a right-click on a chapter's or part's heading in the outline offers. */
+  const chapterMenuItems = (
+    chapter: OutlineType['chapters'][number],
+    name: string,
+    held: OutlineType['chapters'],
+  ): MenuItem[] => {
+    const all = [chapter, ...held]
+    const sceneIds = all.flatMap((c) => c.scenes.map((s) => s.id))
+    const kind = chapter.role === 'part' ? 'part' : 'chapter'
+    const parts = outline.chapters
+      .map((c, i) => ({ c, name: chapterNames(outline.chapters)[i] }))
+      .filter(({ c }) => c.role === 'part')
+    const inPart = partsOf(outline.chapters)[outline.chapters.findIndex((c) => c.id === chapter.id)]
+    return [
+      {
+        key: 'view',
+        label: 'View on the corkboard',
+        onSelect: () => {
+          setBoardOnly({ chapterIds: all.map((c) => c.id), label: `“${name}”` })
+          setView('corkboard')
+        },
+      },
+      {
+        key: 'review',
+        label: 'Mark for review…',
+        disabled: !canReview(chapter.role === 'part' ? 'part' : 'chapter', chapter.id),
+        onSelect: () => markForReview(chapter.role === 'part' ? 'part' : 'chapter', chapter.id),
+      },
+      ...(chapter.role === 'part' && can.canShape
+        ? [{
+            key: 'add-chapter',
+            label: 'Add a chapter to this part',
+            onSelect: () => void outlineProps.onAddChapter(chapter.id),
+          }]
+        : []),
+      ...(chapter.role === 'chapter' && can.canShape && parts.length > 0
+        ? [{
+            key: 'move-to-part',
+            label: 'Move to part',
+            items: parts.map(({ c, name: partName }) => ({
+              key: c.id,
+              label: partName,
+              checked: inPart === c.id,
+              onSelect: () => outlineProps.onReorderChapters?.(intoPartOrder(chapter.id, c.id)),
+            })),
+          }]
+        : []),
+      ...(can.isOwner
+        ? [
+            {
+              key: 'export',
+              label: `Export this ${kind}…`,
+              divider: true,
+              disabled: sceneIds.length === 0,
+              onSelect: () => setExportScenes(sceneIds),
+            },
+            {
+              key: 'print',
+              label: `Print this ${kind}…`,
+              onSelect: () => void print(`“${name}”`, { chapterIds: all.map((c) => c.id) }),
+            },
+          ]
+        : []),
     ]
   }
 
@@ -1140,8 +1330,13 @@ export function EditorPage() {
     outline,
     activeSceneId: scene?.id ?? null,
     onSelectScene: openScene,
-    onAddChapter: async () => {
-      await api.chapters.create(workId, '')
+    onAddChapter: async (intoPart) => {
+      try {
+        const created = await api.chapters.create(workId, '')
+        if (intoPart) await api.chapters.reorder(workId, intoPartOrder(created.id, intoPart))
+      } catch (e) {
+        setNotice(e instanceof Error ? e.message : 'Could not add a chapter')
+      }
       void loadOutline()
     },
     onAddScene: async (chapterId) => {
@@ -1176,6 +1371,8 @@ export function EditorPage() {
         }
       : undefined,
     sceneMenu: (target, chapterId, move) => sceneMenuItems(target, chapterId, move),
+    chapterMenu: (chapter, name, held) => chapterMenuItems(chapter, name, held),
+    onOpenReviews: () => setPanel('reviews'),
     canWrite: can.canWrite,
     canShape: can.canShape,
   }
@@ -1238,7 +1435,7 @@ export function EditorPage() {
               {scene ? nameOf(scene.id) : outline.title}
             </h1>
             <p className="editor__meta">
-              {scene && `${SCENE_STATUSES.find((s) => s.value === scene.status)?.label} · `}
+              {scene && `${statusOf(statuses, scene.status).label} · `}
               {wordCount.toLocaleString()} words in this scene · {outline.wordCount.toLocaleString()} in the work
             </p>
             </div>
@@ -1385,6 +1582,8 @@ export function EditorPage() {
           <div className="prose-scroll">
             <Corkboard
               outline={named ?? outline}
+              only={boardOnly ?? undefined}
+              onShowAll={() => setBoardOnly(null)}
               activeSceneId={scene?.id ?? null}
               onOpenScene={(target) => {
                 setView('write')
@@ -1614,8 +1813,50 @@ export function EditorPage() {
         />
       )}
       {panel === 'exports' && can.isOwner && <ExportHistory workId={workId} onClose={closePanel} />}
-      {exportScene && can.isOwner && (
-        <ExportDialog workId={workId} onlyScene={exportScene} onClose={() => setExportScene(null)} />
+      {exportScenes && can.isOwner && (
+        <ExportDialog workId={workId} onlyScenes={exportScenes} onClose={() => setExportScenes(null)} />
+      )}
+      {panel === 'reviews' && (
+        <SidePanel title="Reviews" onClose={closePanel}>
+          <ReviewsPanel
+            reviews={reviews}
+            canManage={(r) => canReview(r.scope, r.scopeRefId)}
+            onChanged={reviewChanged}
+            onEdit={(review) => setReviewing({ target: { scope: review.scope, scopeRefId: review.scopeRefId ?? undefined, title: review.title }, review })}
+          />
+        </SidePanel>
+      )}
+      {reviewing && (
+        <ReviewDialog
+          workId={workId}
+          target={reviewing.target}
+          review={reviewing.review}
+          onSaved={(review) => {
+            reviewChanged(review)
+            if (!reviewing.review) setNotice(`${review.title} is up for review.`)
+            setPanel('reviews')
+          }}
+          onClose={() => setReviewing(null)}
+        />
+      )}
+      {editingStatuses && (
+        <StatusesDialog
+          workId={workId}
+          statuses={statuses}
+          inUse={outline.chapters.flatMap((c) => c.scenes).reduce<Record<string, number>>((n, s) => {
+            n[s.status] = (n[s.status] ?? 0) + 1
+            return n
+          }, {})}
+          onChange={(list) => {
+            setOutline((o) => o && { ...o, statuses: list })
+            // A removed status moved its scenes: the outline has to hear it.
+            if (list.length < statuses.length) {
+              setScene((s) => (s && !list.some((x) => x.key === s.status) ? { ...s, status: 'drafting' } : s))
+              void loadOutline()
+            }
+          }}
+          onClose={() => setEditingStatuses(false)}
+        />
       )}
       {sceneDialog?.kind === 'delete' && (
         <ConfirmDialog
