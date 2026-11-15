@@ -17,7 +17,7 @@ use crate::error::{ApiError, ApiResult};
 
 /// Changes when the instructions do, so a summary written under older ones is
 /// not served as if it were current.
-pub const PROMPT_VERSION: &str = "summaries-v1";
+pub const PROMPT_VERSION: &str = "summaries-v2";
 
 /// A whole book still has to fit one request. Characters per token for English
 /// prose sit near four; three and a half errs towards refusing early rather
@@ -43,13 +43,13 @@ impl Scope {
     fn brief(self) -> &'static str {
         match self {
             Scope::Scene => {
-                "Summarise this scene in two to four sentences: what happens, to whom, and what has changed by the end of it."
+                "Summarise this scene in one to three sentences, never more: what happens, to whom, and what has changed by the end of it."
             }
             Scope::Chapter => {
-                "Summarise this chapter in one paragraph: what happens across its scenes, in order, and where it leaves the people in it."
+                "Summarise this chapter in three to five sentences, in a single paragraph: what happens across its scenes, in order, and where it leaves the people in it."
             }
             Scope::Work => {
-                "Write a synopsis of this book in three to six paragraphs: the premise, the main characters and what they want, how the story unfolds, and how it ends, if it does. Cover the whole of it, not only the beginning."
+                "Write a synopsis of this book in three to five short paragraphs, never more: the premise, the main characters and what they want, how the story unfolds, and how it ends, if it does. Cover the whole of it, not only the beginning."
             }
         }
     }
@@ -58,7 +58,8 @@ impl Scope {
 pub fn system_prompt(scope: Scope) -> String {
     format!(
         "You write summaries of fiction for the person who wrote it, to help them keep \
-         track of their own manuscript. {brief}\n\n\
+         track of their own manuscript. {brief} Keep to that length: be brief, and leave \
+         out minor events and detail rather than run over.\n\n\
          Write in the present tense and the third person, in plain prose: no headings, \
          lists, markdown or quotation of long passages. Report what is on the page; do not \
          invent events, explain themes, judge the writing or suggest changes. If the text \

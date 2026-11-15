@@ -801,9 +801,9 @@ is a `429` with `retryAfter`. Behind a reverse proxy, set
 |---|---|---|
 | `GET` | `/features` | `{ summaries, summaryProvider, assistant }` — whether this server can write them |
 | `POST` / `DELETE` | `/me/summaries` | turn summaries on or off for this account |
-| `POST` | `/scenes/{id}/summary` | two to four sentences |
-| `POST` | `/chapters/{id}/summary` | a paragraph |
-| `POST` | `/works/{id}/summary` | a synopsis of the whole book |
+| `POST` | `/scenes/{id}/summary` | one to three sentences |
+| `POST` | `/chapters/{id}/summary` | three to five sentences |
+| `POST` | `/works/{id}/summary` | a synopsis of the whole book, three to five paragraphs |
 
 Written by Claude (`claude-opus-5-5`, medium effort, server-side refusal
 fallbacks) through the Messages API. Three rules hold:
