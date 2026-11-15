@@ -15,6 +15,7 @@ mod metrics;
 mod moderation_jobs;
 mod ops;
 mod routes;
+mod signup_guard;
 mod state;
 mod storage;
 mod summary_email;
@@ -213,6 +214,8 @@ async fn main() -> anyhow::Result<()> {
     let web_dir = config.web_dir.clone();
     let cache_bytes = config.cache_mb * 1024 * 1024;
     let mailer = mail::Mailer::from_env(&config.data_dir)?;
+    tracing::info!("sign-up guard: {}", config.signup.summary());
+    let signup_guard = Arc::new(signup_guard::SignupGuard::new(config.signup.clone()));
     let state = AppState {
         mailer,
         started_at: std::time::Instant::now(),
@@ -224,6 +227,7 @@ async fn main() -> anyhow::Result<()> {
         hub: Arc::new(live::Hub::default()),
         login_guard: Arc::new(limit::LoginGuard::default()),
         moderation: Arc::new(domain::filter::FilterCache::default()),
+        signup_guard,
     };
 
     // The scheduled jobs: the day's prompt, the emails, the inbox summaries.

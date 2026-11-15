@@ -271,6 +271,8 @@ a { color: inherit; text-decoration: none; }
 .banner .linklike { font-size: 13px; }
 .auth__check { display: flex; gap: 8px; align-items: flex-start; }
 .auth__check input { width: auto; margin-top: 2px; }
+/* Turnstile draws a fixed-width box; keep the space so the form does not jump when it appears. */
+.auth__captcha { min-height: 65px; }
 .auth__links { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; }
 .settings__section { border-top: 1px solid var(--line); padding: 18px 0; }
 .settings__section h2 { font-family: var(--serif); font-weight: 500; font-size: 18px; margin: 0 0 10px; }

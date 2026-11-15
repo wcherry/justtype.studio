@@ -4,6 +4,7 @@ pub mod admin;
 mod admin_api_tests;
 pub mod admin_moderation;
 pub mod admin_restrictions;
+pub mod admin_signups;
 pub mod admin_users;
 pub mod annotations;
 pub mod appeals;
@@ -59,6 +60,8 @@ mod scene_actions_api_tests;
 pub mod scenes;
 pub mod search;
 pub mod share;
+#[cfg(test)]
+mod signup_guard_api_tests;
 pub mod status;
 pub mod statuses;
 #[cfg(test)]
@@ -116,6 +119,7 @@ fn api_router() -> OpenApiRouter<AppState> {
         // A WebSocket, so not in the OpenAPI document; see docs/API.md.
         .route("/api/live", axum::routing::get(crate::live::connect))
         .routes(routes!(auth::register))
+        .routes(routes!(auth::signup_policy))
         .routes(routes!(auth::login))
         .routes(routes!(auth::refresh))
         .routes(routes!(auth::logout))
@@ -338,6 +342,8 @@ fn api_router() -> OpenApiRouter<AppState> {
         .routes(routes!(admin_users::deactivate))
         .routes(routes!(admin_users::reactivate))
         .routes(routes!(admin_users::delete_content))
+        .routes(routes!(admin_signups::summary))
+        .routes(routes!(admin_signups::bulk_deactivate))
         .routes(routes!(admin_users::setup))
         .routes(routes!(admin_moderation::queue))
         .routes(routes!(admin_moderation::bulk_dismiss))

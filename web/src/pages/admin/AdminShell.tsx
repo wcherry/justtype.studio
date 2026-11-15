@@ -32,6 +32,7 @@ export function AdminShell() {
         {link('/admin/queue', 'Queue', overview?.queueOpen)}
         {link('/admin/accounts', 'Accounts')}
         {link('/admin/appeals', 'Appeals', overview?.appealsOpen)}
+        {isAdmin && link('/admin/signups', 'Sign-ups')}
         {isAdmin && link('/admin/bans', 'Permanent bans')}
         {isAdmin && link('/admin/words', 'Word filter')}
         {isAdmin && link('/admin/external', 'External moderation')}

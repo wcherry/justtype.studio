@@ -627,12 +627,24 @@ diesel::table! {
     }
 }
 
+diesel::table! {
+    signup_events (id) {
+        id -> Text,
+        user_id -> Nullable<Text>,
+        ip -> Text,
+        email_domain -> Text,
+        human_verified -> Bool,
+        created_at -> Text,
+    }
+}
+
 diesel::joinable!(export_last_options -> works (work_id));
 diesel::joinable!(export_history -> works (work_id));
 diesel::joinable!(export_profiles -> users (user_id));
 diesel::joinable!(work_metadata -> works (work_id));
 diesel::joinable!(refresh_tokens -> users (user_id));
 diesel::joinable!(sessions -> users (user_id));
+diesel::joinable!(signup_events -> users (user_id));
 diesel::joinable!(work_collaborators -> works (work_id));
 diesel::joinable!(collaborator_chapters -> work_collaborators (collaborator_id));
 diesel::joinable!(work_activity -> works (work_id));
@@ -1092,4 +1104,5 @@ diesel::allow_tables_to_appear_in_same_query!(
     external_events,
     external_outbox,
     emailed_exports,
+    signup_events,
 );

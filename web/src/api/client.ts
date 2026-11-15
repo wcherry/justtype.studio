@@ -23,6 +23,7 @@ import type {
   QueueItem, QueuePage, Reported, RestrictionView, TestResult, UserDetail, UserList,
   WordFilterTerm, WordList, Appeal, StatusOption,
   ReviewView, CreateReviewRequest, UpdateReviewRequest,
+  BulkDeactivateRequest, BulkDeactivateResponse, SignupPolicy, SignupSummary,
 } from './types'
 import type { ChapterRole } from '../naming'
 
@@ -375,8 +376,10 @@ export const api = {
   },
 
   auth: {
-    register: (email: string, password: string, displayName: string, acceptTerms: boolean) =>
-      post<Session>('/auth/register', { email, password, displayName, acceptTerms }),
+    /** `turnstileToken` when the sign-up policy gave a Turnstile site key. */
+    register: (email: string, password: string, displayName: string, acceptTerms: boolean, turnstileToken?: string) =>
+      post<Session>('/auth/register', { email, password, displayName, acceptTerms, turnstileToken }),
+    signupPolicy: () => get<SignupPolicy>('/auth/signup-policy'),
     /** `code` only once the server has refused with `two_factor_required`. */
     login: (email: string, password: string, code?: string) =>
       post<Session>('/auth/login', { email, password, code }),
@@ -997,6 +1000,10 @@ export const staff = {
   addBan: (input: { email: string; displayName?: string; reasonCode: string; reasonText: string }) =>
     post<PermanentBan>('/admin/permanent-bans', input),
   removeBan: (id: string, reason: string) => post<PermanentBan>(`/admin/permanent-bans/${id}/remove`, { reason }),
+  signups: (hours: number) => get<SignupSummary>(`/admin/signups${qs({ hours })}`),
+  /** A dry run unless `dryRun: false`, which needs a reason. */
+  bulkDeactivate: (input: BulkDeactivateRequest) =>
+    post<BulkDeactivateResponse>('/admin/users/bulk-deactivate', input),
   domains: () => get<BlockedDomain[]>('/admin/blocked-domains'),
   addDomain: (domain: string, note: string) => post<BlockedDomain>('/admin/blocked-domains', { domain, note }),
   removeDomain: (domain: string) => del<{ ok: boolean }>(`/admin/blocked-domains/${encodeURIComponent(domain)}`),

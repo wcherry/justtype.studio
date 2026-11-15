@@ -298,6 +298,35 @@ export interface BlockedReader {
   userId: string
 }
 
+export interface BulkDeactivateRequest {
+  // Made at or after this instant (RFC 3339).
+  createdAfter?: string | null
+  // Made before this instant (RFC 3339).
+  createdBefore?: string | null
+  // Only say what would be deactivated. On unless turned off, so that
+  // acting is always a second, deliberate request.
+  dryRun?: boolean
+  // An email domain, `example.com`.
+  emailDomain?: string | null
+  // Accounts that proved their address too. Off unless asked: a script
+  // rarely proves one, and a person caught by a wide filter often has.
+  includeVerified?: boolean
+  // The address sign-ups came from, as the summary shows it.
+  ip?: string | null
+  // Why. Required to act; it goes in the log against every account.
+  reason?: string | null
+}
+
+export interface BulkDeactivateResponse {
+  // Accounts this request deactivated; 0 on a dry run.
+  deactivated: number
+  dryRun: boolean
+  // Accounts the filter matches.
+  matched: number
+  // Up to 100 of the matched accounts, newest first.
+  sample: MatchedAccount[]
+}
+
 export interface BulkDismiss {
   itemIds: string[]
   reason?: string | null
@@ -920,7 +949,8 @@ export interface EpubOptions {
 export interface ErrorBody {
   // `bad_request`, `unauthorized`, `two_factor_required`, `forbidden`,
   // `account_banned`, `account_restricted`, `not_found`, `conflict`,
-  // `too_many_requests`, `internal`.
+  // `too_many_requests`, `captcha_failed`, `signup_rate_limited`,
+  // `signup_captcha_required`, `internal`.
   code: string
   // Present when the client is expected to act on it — see a scene save conflict.
   details?: JsonValue
@@ -1225,6 +1255,15 @@ export interface LoginRequest {
 export interface MakeLinkRequest {
   // How long it works, 1 to 90 days.
   days: number
+}
+
+export interface MatchedAccount {
+  createdAt: string
+  displayName: string
+  email: string
+  emailVerified: boolean
+  id: string
+  signupIp?: string | null
 }
 
 export interface MergeSceneRequest {
@@ -1844,6 +1883,10 @@ export interface RegisterRequest {
   displayName: string
   email: string
   password: string
+  // The Cloudflare Turnstile token, when `GET /api/auth/signup-policy`
+  // gave a site key. Without one the sign-up is held to the much lower
+  // limits for sign-ups nobody has shown a person is behind.
+  turnstileToken?: string | null
 }
 
 export interface RemoveBanRequest {
@@ -2337,6 +2380,33 @@ export interface ShareLink {
   key: string
   // The whole link, to send to someone.
   url: string
+}
+
+export interface SignupGroup {
+  // The address (an IPv6 address as its /64) or the email domain.
+  key: string
+  total: number
+  // How many of them have not proved their email address.
+  unverified: number
+}
+
+// What the sign-up form needs to know before it is filled in.
+export interface SignupPolicy {
+  // Show the Cloudflare Turnstile check with this key, and send its token
+  // as `turnstileToken`. Absent when the check is off.
+  turnstileSiteKey?: string | null
+}
+
+export interface SignupSummary {
+  // The busiest email domains.
+  byDomain: SignupGroup[]
+  // The busiest addresses sign-ups came from. Only accounts made since
+  // the sign-up guard began recording have one.
+  byIp: SignupGroup[]
+  hours: number
+  // Accounts made in the window that are not deactivated.
+  total: number
+  unverified: number
 }
 
 export interface SinceResponse {

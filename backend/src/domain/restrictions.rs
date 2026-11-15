@@ -317,6 +317,7 @@ pub const GATES: &[(&str, &str, Gate)] = &[
     ),
     ("post", "/api/admin/users/{user_id}/deactivate", Open),
     ("post", "/api/admin/users/{user_id}/reactivate", Open),
+    ("post", "/api/admin/users/bulk-deactivate", Open),
     ("post", "/api/admin/users/{user_id}/delete-content", Open),
     ("post", "/api/admin/users/{user_id}/notes", Open),
     ("post", "/api/admin/users/{user_id}/moderator", Open),

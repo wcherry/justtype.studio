@@ -151,6 +151,9 @@ const ROLE_TABLE: &[(&str, &str, bool)] = &[
     ),
     ("post", "/api/admin/users/{user_id}/deactivate", false),
     ("post", "/api/admin/users/{user_id}/reactivate", false),
+    // Sign-up addresses are PII, and bulk deactivation is account management.
+    ("get", "/api/admin/signups", false),
+    ("post", "/api/admin/users/bulk-deactivate", false),
     ("post", "/api/admin/users/{user_id}/delete-content", false),
     ("post", "/api/admin/users/{user_id}/restrictions", true),
     ("patch", "/api/admin/restrictions/{restriction_id}", true),
