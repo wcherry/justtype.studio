@@ -129,6 +129,10 @@ A running server also serves the document at `/api/openapi.json`.
 | `JUSTTYPE_IP_RATE` | `600` | Requests per minute from one address; `0` turns it off |
 | `JUSTTYPE_AUTH_IP_RATE` | `30` | Sign-in, sign-up and reset requests per minute from one address |
 | `JUSTTYPE_TRUST_PROXY` | `false` | Read the client address from the proxy's last `X-Forwarded-For` entry |
+| `JUSTTYPE_SIGNUP_IP_HOURLY`, `JUSTTYPE_SIGNUP_IP_DAILY` | `3`, `10` | Sign-ups from one address an hour, a day; `0` turns one off |
+| `JUSTTYPE_SIGNUP_GLOBAL_HOURLY` | `60` | Sign-ups across the site an hour |
+| `JUSTTYPE_TURNSTILE_SITE_KEY`, `JUSTTYPE_TURNSTILE_SECRET_KEY` | *(none)* | Cloudflare Turnstile on the sign-up form; set both or neither |
+| `JUSTTYPE_SIGNUP_UNVERIFIED_IP_DAILY`, `JUSTTYPE_SIGNUP_UNVERIFIED_GLOBAL_HOURLY` | `2`, `10` | With Turnstile on: sign-ups without it, per address a day and site-wide an hour |
 | `ANTHROPIC_API_KEY` | *(none)* | Turns on summaries; unset, the feature is off and hidden |
 | `JUSTTYPE_SUMMARY_MODEL` | `claude-opus-5-5` | The model that writes them |
 | `JUSTTYPE_ANTHROPIC_URL` | `https://api.anthropic.com` | Where to send them (the smoke points it at a stub) |
@@ -185,4 +189,5 @@ manuscript files and the mail outbox in the `/usr/local/data` volume, logs
 JSON to stderr, and checks its own `/api/health`. It defaults
 `JUSTTYPE_PUBLIC_URL` and `JUSTTYPE_CORS_ORIGINS` to
 `https://www.justtype.studio`; set `JUSTTYPE_TRUST_PROXY=true` behind a
-reverse proxy, and `JUSTTYPE_MAIL=smtp` or `resend` with its settings to send real mail.
+reverse proxy (otherwise every sign-up counts against the proxy's address, and
+the per-address sign-up limit acts as a site-wide one), and `JUSTTYPE_MAIL=smtp` or `resend` with its settings to send real mail.

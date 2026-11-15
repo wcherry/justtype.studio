@@ -24,4 +24,6 @@ pub struct AppState {
     pub login_guard: Arc<crate::limit::LoginGuard>,
     /// The word filter, compiled — see `domain::filter`.
     pub moderation: Arc<crate::domain::filter::FilterCache>,
+    /// The sign-up limits and the CAPTCHA — see `signup_guard`.
+    pub signup_guard: Arc<crate::signup_guard::SignupGuard>,
 }

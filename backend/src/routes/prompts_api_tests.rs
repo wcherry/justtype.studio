@@ -29,6 +29,14 @@ pub(super) struct Writer {
 
 impl Server {
     pub(super) async fn start() -> Self {
+        Self::start_with_signup_guard(crate::signup_guard::SignupGuard::new(
+            crate::signup_guard::SignupConfig::off(),
+        ))
+        .await
+    }
+
+    /// A server whose sign-ups go through `guard`, for the sign-up tests.
+    pub(super) async fn start_with_signup_guard(guard: crate::signup_guard::SignupGuard) -> Self {
         crate::auth::password::configure(crate::auth::password::Cost {
             memory_kib: 8_192,
             iterations: 1,
@@ -48,6 +56,9 @@ impl Server {
         config.public_url = "http://justtype.test".into();
         config.anthropic_api_key = None;
         config.comment_rate = 0;
+        // Every test registers from 127.0.0.1; the sign-up tests turn the
+        // limits back on for themselves.
+        config.signup = crate::signup_guard::SignupConfig::off();
         let state = AppState {
             mailer: crate::mail::Mailer::Outbox(root.join("outbox.jsonl")),
             started_at: std::time::Instant::now(),
@@ -59,6 +70,7 @@ impl Server {
             hub: Arc::new(crate::live::Hub::default()),
             login_guard: Arc::new(crate::limit::LoginGuard::default()),
             moderation: Arc::new(crate::domain::filter::FilterCache::default()),
+            signup_guard: Arc::new(guard),
         };
         state.store.init().unwrap();
         let app = super::router(state.clone());

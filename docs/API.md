@@ -18,7 +18,8 @@ back as `{"error": {"code": "...", "message": "..."}}` with a matching status.
 
 | Method | Path | Body | Returns |
 |---|---|---|---|
-| `POST` | `/auth/register` | `email`, `password` (8+), `displayName` | session |
+| `POST` | `/auth/register` | `email`, `password` (8+), `displayName`, `acceptTerms`, `turnstileToken?` | session |
+| `GET` | `/auth/signup-policy` | — | `{ turnstileSiteKey }`: show the Turnstile check with this key, when there is one |
 | `POST` | `/auth/login` | `email`, `password` | session |
 | `POST` | `/auth/refresh` | `refreshToken` | session (token rotated) |
 | `POST` | `/auth/logout` | `refreshToken` | `{ok}` |
@@ -795,6 +796,22 @@ is a `429` with `retryAfter`. Behind a reverse proxy, set
 `JUSTTYPE_TRUST_PROXY=true` so the address is the proxy's last
 `X-Forwarded-For` entry — never the first, which is whatever the client wrote.
 
+**Sign-up is guarded against scripts** (`signup_guard.rs`). The address must
+look like one, and a throwaway-mail domain (a built-in list, plus the domains
+staff block; subdomains too) gets the `409` a taken address gets. With
+Cloudflare Turnstile configured (`JUSTTYPE_TURNSTILE_SITE_KEY` and
+`JUSTTYPE_TURNSTILE_SECRET_KEY`), a valid `turnstileToken` — or an address a
+writer invited — makes the sign-up human-verified; a bad token is `400
+captcha_failed`; no token is only unverified; Cloudflare unreachable counts as
+no token. Limits, counted from `signup_events` so they survive a restart: 3 an
+hour and 10 a day per address, 60 an hour across the site, and with Turnstile
+on, 2 a day per address and 10 an hour site-wide for unverified sign-ups.
+Over one is `429` `signup_rate_limited` or `signup_captcha_required`, with
+`retryAfter`. IPv6 addresses count by their /64. A sign-up that fails (taken
+address, refused name) does not count. `0` turns a limit off
+(`JUSTTYPE_SIGNUP_IP_HOURLY`, `_IP_DAILY`, `_GLOBAL_HOURLY`,
+`_UNVERIFIED_IP_DAILY`, `_UNVERIFIED_GLOBAL_HOURLY`).
+
 ## Summaries
 
 | Method | Path | Notes |
@@ -972,6 +989,8 @@ session.
 | `GET` / `POST` | `/admin/users` | `GET ?q&status&role&verified&sort&cursor`, 50 a page, keyset-paged; `POST { email, displayName, moderator? }` makes an account and mails a setup link (admins) |
 | `GET` / `PATCH` / `DELETE` | `/admin/users/{id}` | the whole account; `PATCH { displayName?, bio?, aboutAuthor?, email?, markVerified?, resetTwoFactor?, reason }`; `DELETE { confirmName, reason, deleteSharedWorks?, skipExport? }` |
 | `POST` | `/admin/users/{id}/password-reset` `/setup-email` `/sessions/revoke-all` `/deactivate` `/reactivate` `/delete-content` `/notes` `/moderator` | one action each; `DELETE /admin/users/{id}/sessions/{session}` signs one device out |
+| `GET` | `/admin/signups` | `?hours=` (24, at most 720): new accounts, the busiest sign-up addresses and email domains (admins) |
+| `POST` | `/admin/users/bulk-deactivate` | `{ ip?, emailDomain?, createdAfter?, createdBefore?, includeVerified?, dryRun?, reason? }`: at least one of the first three; a dry run unless `dryRun: false`, which needs `reason`. Never matches staff or the caller; verified addresses only with `includeVerified` (admins) |
 | `POST` | `/admin/users/{id}/restrictions` | `{ kind, scope, days?, reasonCode, reasonText, internalNote?, itemIds?, confirmName? }` |
 | `PATCH` / `POST` | `/admin/restrictions/{id}` · `/lift` | change the length or message · lift |
 | `GET` / `POST` | `/admin/appeals` · `/admin/appeals/{id}/decide` | `{ decision: upheld\|overturned, message, restoreContent? }` |

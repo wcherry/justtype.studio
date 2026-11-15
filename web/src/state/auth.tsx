@@ -37,7 +37,9 @@ interface AuthContextValue {
   user: User | null
   loading: boolean
   login: (email: string, password: string, code?: string) => Promise<void>
-  register: (email: string, password: string, displayName: string, acceptTerms: boolean) => Promise<void>
+  register: (
+    email: string, password: string, displayName: string, acceptTerms: boolean, turnstileToken?: string,
+  ) => Promise<void>
   /** Re-reads the account, e.g. after the address has been proved elsewhere. */
   refreshUser: () => Promise<void>
   logout: () => Promise<void>
@@ -96,9 +98,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const register = useCallback(async (
-    email: string, password: string, displayName: string, acceptTerms: boolean,
+    email: string, password: string, displayName: string, acceptTerms: boolean, turnstileToken?: string,
   ) => {
-    const session = await api.auth.register(email, password, displayName, acceptTerms)
+    const session = await api.auth.register(email, password, displayName, acceptTerms, turnstileToken)
     tokens.set(session)
     cacheUser(session.user)
     setUser(session.user)

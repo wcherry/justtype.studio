@@ -1027,6 +1027,85 @@
         ],
         "type": "object"
       },
+      "BulkDeactivateRequest": {
+        "properties": {
+          "createdAfter": {
+            "description": "Made at or after this instant (RFC 3339).",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdBefore": {
+            "description": "Made before this instant (RFC 3339).",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "dryRun": {
+            "description": "Only say what would be deactivated. On unless turned off, so that\nacting is always a second, deliberate request.",
+            "type": "boolean"
+          },
+          "emailDomain": {
+            "description": "An email domain, `example.com`.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "includeVerified": {
+            "description": "Accounts that proved their address too. Off unless asked: a script\nrarely proves one, and a person caught by a wide filter often has.",
+            "type": "boolean"
+          },
+          "ip": {
+            "description": "The address sign-ups came from, as the summary shows it.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reason": {
+            "description": "Why. Required to act; it goes in the log against every account.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "BulkDeactivateResponse": {
+        "properties": {
+          "deactivated": {
+            "description": "Accounts this request deactivated; 0 on a dry run.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "dryRun": {
+            "type": "boolean"
+          },
+          "matched": {
+            "description": "Accounts the filter matches.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "sample": {
+            "description": "Up to 100 of the matched accounts, newest first.",
+            "items": {
+              "$ref": "#/components/schemas/MatchedAccount"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "dryRun",
+          "matched",
+          "deactivated",
+          "sample"
+        ],
+        "type": "object"
+      },
       "BulkDismiss": {
         "properties": {
           "itemIds": {
@@ -2995,7 +3074,7 @@
       "ErrorBody": {
         "properties": {
           "code": {
-            "description": "`bad_request`, `unauthorized`, `two_factor_required`, `forbidden`,\n`account_banned`, `account_restricted`, `not_found`, `conflict`,\n`too_many_requests`, `internal`.",
+            "description": "`bad_request`, `unauthorized`, `two_factor_required`, `forbidden`,\n`account_banned`, `account_restricted`, `not_found`, `conflict`,\n`too_many_requests`, `captcha_failed`, `signup_rate_limited`,\n`signup_captcha_required`, `internal`.",
             "type": "string"
           },
           "details": {
@@ -4050,6 +4129,39 @@
         },
         "required": [
           "days"
+        ],
+        "type": "object"
+      },
+      "MatchedAccount": {
+        "properties": {
+          "createdAt": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "emailVerified": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "signupIp": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "displayName",
+          "createdAt",
+          "emailVerified"
         ],
         "type": "object"
       },
@@ -5909,6 +6021,13 @@
           },
           "password": {
             "type": "string"
+          },
+          "turnstileToken": {
+            "description": "The Cloudflare Turnstile token, when `GET /api/auth/signup-policy`\ngave a site key. Without one the sign-up is held to the much lower\nlimits for sign-ups nobody has shown a person is behind.",
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -7351,6 +7470,81 @@
           "url",
           "key",
           "expiresAt"
+        ],
+        "type": "object"
+      },
+      "SignupGroup": {
+        "properties": {
+          "key": {
+            "description": "The address (an IPv6 address as its /64) or the email domain.",
+            "type": "string"
+          },
+          "total": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "unverified": {
+            "description": "How many of them have not proved their email address.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "key",
+          "total",
+          "unverified"
+        ],
+        "type": "object"
+      },
+      "SignupPolicy": {
+        "description": "What the sign-up form needs to know before it is filled in.",
+        "properties": {
+          "turnstileSiteKey": {
+            "description": "Show the Cloudflare Turnstile check with this key, and send its token\nas `turnstileToken`. Absent when the check is off.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "SignupSummary": {
+        "properties": {
+          "byDomain": {
+            "description": "The busiest email domains.",
+            "items": {
+              "$ref": "#/components/schemas/SignupGroup"
+            },
+            "type": "array"
+          },
+          "byIp": {
+            "description": "The busiest addresses sign-ups came from. Only accounts made since\nthe sign-up guard began recording have one.",
+            "items": {
+              "$ref": "#/components/schemas/SignupGroup"
+            },
+            "type": "array"
+          },
+          "hours": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "total": {
+            "description": "Accounts made in the window that are not deactivated.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "unverified": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "hours",
+          "total",
+          "unverified",
+          "byIp",
+          "byDomain"
         ],
         "type": "object"
       },
@@ -11739,6 +11933,51 @@
         ]
       }
     },
+    "/api/admin/signups": {
+      "get": {
+        "operationId": "summary",
+        "parameters": [
+          {
+            "description": "How far back to look, in hours. 24 unless said; at most 720 (30 days).",
+            "in": "query",
+            "name": "hours",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignupSummary"
+                }
+              }
+            },
+            "description": "Where recent sign-ups came from"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/admin/users": {
       "get": {
         "operationId": "list_users",
@@ -11862,6 +12101,46 @@
               }
             },
             "description": "Created; the person is emailed a link"
+          },
+          "4": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/users/bulk-deactivate": {
+      "post": {
+        "operationId": "bulk_deactivate",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkDeactivateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkDeactivateResponse"
+                }
+              }
+            },
+            "description": "Matched, and unless a dry run, deactivated"
           },
           "4": {
             "content": {
@@ -13249,6 +13528,26 @@
           }
         },
         "summary": "Following the setup link: the person chooses a password, agrees to the\nterms, and is signed in. Choosing it also proves the address, because they\nread the mail.",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/signup-policy": {
+      "get": {
+        "operationId": "signup_policy",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignupPolicy"
+                }
+              }
+            },
+            "description": "Success"
+          }
+        },
         "tags": [
           "auth"
         ]

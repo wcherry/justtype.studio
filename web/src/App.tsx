@@ -18,6 +18,7 @@ import { AdminUserPage } from './pages/admin/AdminUserPage'
 import { AdminQueuePage } from './pages/admin/AdminQueuePage'
 import { AdminAppealsPage } from './pages/admin/AdminAppealsPage'
 import { AdminBansPage } from './pages/admin/AdminBansPage'
+import { AdminSignupsPage } from './pages/admin/AdminSignupsPage'
 import { AdminWordsPage } from './pages/admin/AdminWordsPage'
 import { AdminExternalPage } from './pages/admin/AdminExternalPage'
 import { AdminLogPage } from './pages/admin/AdminLogPage'
@@ -188,6 +189,7 @@ export function App() {
         <Route path="accounts/:userId" element={<Keyed><AdminUserPage /></Keyed>} />
         <Route path="appeals" element={<AdminAppealsPage />} />
         <Route path="bans" element={<AdminBansPage />} />
+        <Route path="signups" element={<AdminSignupsPage />} />
         <Route path="words" element={<AdminWordsPage />} />
         <Route path="external" element={<AdminExternalPage />} />
         <Route path="log" element={<AdminLogPage />} />

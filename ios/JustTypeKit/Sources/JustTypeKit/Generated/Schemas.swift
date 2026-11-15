@@ -817,6 +817,65 @@ public enum API {
         }
     }
 
+    public struct BulkDeactivateRequest: Codable, Hashable, Sendable {
+        /// Made at or after this instant (RFC 3339).
+        public var createdAfter: String?
+        /// Made before this instant (RFC 3339).
+        public var createdBefore: String?
+        /// Only say what would be deactivated. On unless turned off, so that
+        /// acting is always a second, deliberate request.
+        public var dryRun: Bool?
+        /// An email domain, `example.com`.
+        public var emailDomain: String?
+        /// Accounts that proved their address too. Off unless asked: a script
+        /// rarely proves one, and a person caught by a wide filter often has.
+        public var includeVerified: Bool?
+        /// The address sign-ups came from, as the summary shows it.
+        public var ip: String?
+        /// Why. Required to act; it goes in the log against every account.
+        public var reason: String?
+
+        public init(
+            createdAfter: String? = nil,
+            createdBefore: String? = nil,
+            dryRun: Bool? = nil,
+            emailDomain: String? = nil,
+            includeVerified: Bool? = nil,
+            ip: String? = nil,
+            reason: String? = nil
+        ) {
+            self.createdAfter = createdAfter
+            self.createdBefore = createdBefore
+            self.dryRun = dryRun
+            self.emailDomain = emailDomain
+            self.includeVerified = includeVerified
+            self.ip = ip
+            self.reason = reason
+        }
+    }
+
+    public struct BulkDeactivateResponse: Codable, Hashable, Sendable {
+        /// Accounts this request deactivated; 0 on a dry run.
+        public var deactivated: Int
+        public var dryRun: Bool
+        /// Accounts the filter matches.
+        public var matched: Int
+        /// Up to 100 of the matched accounts, newest first.
+        public var sample: [MatchedAccount]
+
+        public init(
+            deactivated: Int,
+            dryRun: Bool,
+            matched: Int,
+            sample: [MatchedAccount]
+        ) {
+            self.deactivated = deactivated
+            self.dryRun = dryRun
+            self.matched = matched
+            self.sample = sample
+        }
+    }
+
     public struct BulkDismiss: Codable, Hashable, Sendable {
         public var itemIds: [String]
         public var reason: String?
@@ -2331,7 +2390,8 @@ public enum API {
     public struct ErrorBody: Codable, Hashable, Sendable {
         /// `bad_request`, `unauthorized`, `two_factor_required`, `forbidden`,
         /// `account_banned`, `account_restricted`, `not_found`, `conflict`,
-        /// `too_many_requests`, `internal`.
+        /// `too_many_requests`, `captcha_failed`, `signup_rate_limited`,
+        /// `signup_captcha_required`, `internal`.
         public var code: String
         /// Present when the client is expected to act on it — see a scene save conflict.
         public var details: JSONValue?
@@ -3080,6 +3140,31 @@ public enum API {
             days: Int
         ) {
             self.days = days
+        }
+    }
+
+    public struct MatchedAccount: Codable, Hashable, Sendable {
+        public var createdAt: String
+        public var displayName: String
+        public var email: String
+        public var emailVerified: Bool
+        public var id: String
+        public var signupIp: String?
+
+        public init(
+            createdAt: String,
+            displayName: String,
+            email: String,
+            emailVerified: Bool,
+            id: String,
+            signupIp: String? = nil
+        ) {
+            self.createdAt = createdAt
+            self.displayName = displayName
+            self.email = email
+            self.emailVerified = emailVerified
+            self.id = id
+            self.signupIp = signupIp
         }
     }
 
@@ -4609,17 +4694,23 @@ public enum API {
         public var displayName: String
         public var email: String
         public var password: String
+        /// The Cloudflare Turnstile token, when `GET /api/auth/signup-policy`
+        /// gave a site key. Without one the sign-up is held to the much lower
+        /// limits for sign-ups nobody has shown a person is behind.
+        public var turnstileToken: String?
 
         public init(
             acceptTerms: Bool? = nil,
             displayName: String,
             email: String,
-            password: String
+            password: String,
+            turnstileToken: String? = nil
         ) {
             self.acceptTerms = acceptTerms
             self.displayName = displayName
             self.email = email
             self.password = password
+            self.turnstileToken = turnstileToken
         }
     }
 
@@ -5832,6 +5923,63 @@ public enum API {
             self.expiresAt = expiresAt
             self.key = key
             self.url = url
+        }
+    }
+
+    public struct SignupGroup: Codable, Hashable, Sendable {
+        /// The address (an IPv6 address as its /64) or the email domain.
+        public var key: String
+        public var total: Int
+        /// How many of them have not proved their email address.
+        public var unverified: Int
+
+        public init(
+            key: String,
+            total: Int,
+            unverified: Int
+        ) {
+            self.key = key
+            self.total = total
+            self.unverified = unverified
+        }
+    }
+
+    /// What the sign-up form needs to know before it is filled in.
+    public struct SignupPolicy: Codable, Hashable, Sendable {
+        /// Show the Cloudflare Turnstile check with this key, and send its token
+        /// as `turnstileToken`. Absent when the check is off.
+        public var turnstileSiteKey: String?
+
+        public init(
+            turnstileSiteKey: String? = nil
+        ) {
+            self.turnstileSiteKey = turnstileSiteKey
+        }
+    }
+
+    public struct SignupSummary: Codable, Hashable, Sendable {
+        /// The busiest email domains.
+        public var byDomain: [SignupGroup]
+        /// The busiest addresses sign-ups came from. Only accounts made since
+        /// the sign-up guard began recording have one.
+        public var byIp: [SignupGroup]
+        public var hours: Int
+        /// Accounts made in the window that are not deactivated.
+        public var total: Int
+        public var unverified: Int
+
+        public init(
+            byDomain: [SignupGroup],
+            byIp: [SignupGroup],
+            hours: Int,
+            total: Int,
+            unverified: Int
+        ) {
+            self.byDomain = byDomain
+            self.byIp = byIp
+            self.hours = hours
+            self.total = total
+            self.unverified = unverified
         }
     }
 

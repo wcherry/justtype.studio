@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { ApiError } from '../api/client'
+import { ApiError, api } from '../api/client'
+import { TurnstileWidget, type TurnstileHandle } from '../components/TurnstileWidget'
 import { useAuth } from '../state/auth'
 
 interface BanDetails {
@@ -54,6 +55,24 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [ban, setBan] = useState<BanDetails | null>(null)
   const [busy, setBusy] = useState(false)
+  /** The Turnstile site key, when sign-up asks for the check. */
+  const [siteKey, setSiteKey] = useState<string | null>(null)
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null)
+  /** The check could not load: sign up without it, under the tighter limits. */
+  const [captchaUnavailable, setCaptchaUnavailable] = useState(false)
+  const captcha = useRef<TurnstileHandle>(null)
+
+  useEffect(() => {
+    if (mode !== 'register') return
+    let gone = false
+    api.auth.signupPolicy()
+      .then((policy) => { if (!gone) setSiteKey(policy.turnstileSiteKey ?? null) })
+      // An older server, or none: sign up without the check.
+      .catch(() => undefined)
+    return () => { gone = true }
+  }, [mode])
+
+  const waitingOnCaptcha = mode === 'register' && !!siteKey && !captchaToken && !captchaUnavailable
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -62,9 +81,11 @@ export function LoginPage() {
     setBan(null)
     try {
       if (mode === 'login') await login(email, password, needsCode ? code : undefined)
-      else await register(email, password, displayName, acceptTerms)
+      else await register(email, password, displayName, acceptTerms, captchaToken ?? undefined)
       navigate(back, { replace: true })
     } catch (e) {
+      // A token is good for one try, whatever the answer was.
+      if (mode === 'register') captcha.current?.reset()
       if (e instanceof ApiError && e.code === 'two_factor_required') {
         setNeedsCode(true)
       } else if (e instanceof ApiError && e.code === 'account_banned') {
@@ -131,9 +152,17 @@ export function LoginPage() {
               </span>
             </label>
           )}
+          {mode === 'register' && siteKey && (
+            <TurnstileWidget
+              ref={captcha}
+              siteKey={siteKey}
+              onToken={setCaptchaToken}
+              onUnavailable={() => setCaptchaUnavailable(true)}
+            />
+          )}
           {ban && <BanNotice ban={ban} />}
           {error && <p className="error">{error}</p>}
-          <button type="submit" disabled={busy || (mode === 'register' && !acceptTerms)}>
+          <button type="submit" disabled={busy || (mode === 'register' && (!acceptTerms || waitingOnCaptcha))}>
             {mode === 'login' ? 'Sign in' : 'Create account'}
           </button>
         </form>

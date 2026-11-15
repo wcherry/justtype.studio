@@ -44,10 +44,52 @@ pub fn banned_address(conn: &mut Conn, email: &str) -> ApiResult<Option<Permanen
         .optional()?)
 }
 
+/// Widely used throwaway-mail providers, refused without anyone having to
+/// list them. Not exhaustive, by design: the point is that the easy option for
+/// a script costs something. Staff block whatever the next attack uses from
+/// the admin area, without a release.
+#[rustfmt::skip]
+const THROWAWAY_DOMAINS: &[&str] = &[
+    "10minutemail.com", "10minutemail.net", "20minutemail.com", "33mail.com",
+    "anonaddy.me", "burnermail.io", "byom.de", "discard.email", "dispostable.com",
+    "dropmail.me", "emailondeck.com", "fakeinbox.com", "fakemail.net", "getairmail.com",
+    "getnada.com", "guerrillamail.biz", "guerrillamail.com", "guerrillamail.de",
+    "guerrillamail.info", "guerrillamail.net", "guerrillamail.org", "guerrillamailblock.com",
+    "grr.la", "harakirimail.com", "inboxbear.com", "incognitomail.org", "jetable.org",
+    "mail-temp.com", "mail.tm", "mailcatch.com", "maildrop.cc", "mailinator.com",
+    "mailinator.net", "mailinator2.com", "mailnesia.com", "mailpoof.com", "mailsac.com",
+    "mintemail.com", "moakt.com", "mohmal.com", "mytemp.email", "nada.email",
+    "sharklasers.com", "spam4.me", "spamgourmet.com", "temp-mail.io", "temp-mail.org",
+    "tempail.com", "tempinbox.com", "tempmail.com", "tempmail.dev", "tempmail.net",
+    "tempmailo.com", "tempr.email", "throwawaymail.com", "tmail.ws", "tmpmail.net",
+    "tmpmail.org", "trashmail.com", "trashmail.de", "trashmail.net", "yopmail.com",
+    "yopmail.fr", "yopmail.net", "emailfake.com", "fakemailgenerator.com", "luxusmail.org",
+    "cyclelove.cc", "1secmail.com", "1secmail.net", "1secmail.org", "esiix.com",
+    "wwjmp.com", "xojxe.com", "yoggm.com", "laafd.com", "txcct.com", "vjuum.com",
+];
+
+/// The domain and each domain above it: `a.b.example` gives `a.b.example`,
+/// `b.example` and `example`.
+fn domain_and_parents(domain: &str) -> impl Iterator<Item = &str> {
+    std::iter::successors(Some(domain), |d| d.split_once('.').map(|(_, rest)| rest))
+        .filter(|d| !d.is_empty())
+}
+
+/// The built-in throwaway provider this domain is, or is under.
+fn throwaway(domain: &str) -> Option<&str> {
+    domain_and_parents(domain).find(|d| THROWAWAY_DOMAINS.contains(d))
+}
+
+/// The blocked domain this address falls under: a built-in throwaway
+/// provider, or one staff listed. Subdomains of either count.
 pub fn blocked_domain(conn: &mut Conn, email: &str) -> ApiResult<Option<String>> {
     let domain = domain_of(email);
+    if let Some(d) = throwaway(&domain) {
+        return Ok(Some(d.to_string()));
+    }
+    let candidates: Vec<&str> = domain_and_parents(&domain).collect();
     Ok(blocked_domains::table
-        .find(&domain)
+        .filter(blocked_domains::domain.eq_any(candidates))
         .select(blocked_domains::domain)
         .first(conn)
         .optional()?)
@@ -71,5 +113,14 @@ mod tests {
         assert_eq!(canonical("J.Ane+x@Example.com"), "j.ane@example.com");
         assert_eq!(canonical("nobody"), "nobody");
         assert_eq!(domain_of("a@Spam.Example"), "spam.example");
+    }
+
+    #[test]
+    fn throwaway_providers_and_their_subdomains_are_known_but_lookalikes_are_not() {
+        assert_eq!(throwaway("mailinator.com"), Some("mailinator.com"));
+        assert_eq!(throwaway("eu.mailinator.com"), Some("mailinator.com"));
+        assert_eq!(throwaway("notmailinator.com"), None);
+        assert_eq!(throwaway("gmail.com"), None);
+        assert_eq!(throwaway(""), None);
     }
 }

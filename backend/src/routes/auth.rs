@@ -24,6 +24,20 @@ pub struct RegisterRequest {
     /// Agreement to the terms in force (`GET /api/terms`). Required.
     #[serde(default)]
     pub accept_terms: bool,
+    /// The Cloudflare Turnstile token, when `GET /api/auth/signup-policy`
+    /// gave a site key. Without one the sign-up is held to the much lower
+    /// limits for sign-ups nobody has shown a person is behind.
+    #[serde(default)]
+    pub turnstile_token: Option<String>,
+}
+
+/// What the sign-up form needs to know before it is filled in.
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SignupPolicy {
+    /// Show the Cloudflare Turnstile check with this key, and send its token
+    /// as `turnstileToken`. Absent when the check is off.
+    pub turnstile_site_key: Option<String>,
 }
 
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
@@ -148,9 +162,12 @@ fn issue_tokens(
 pub async fn register(
     State(state): State<AppState>,
     client: ClientInfo,
+    headers: axum::http::HeaderMap,
     Json(body): Json<RegisterRequest>,
 ) -> ApiResult<Json<SessionResponse>> {
     let email = normalize_email(&body.email)?;
+    let email_domain = crate::signup_guard::email_domain(&email)
+        .ok_or_else(|| ApiError::BadRequest("a valid email address is required".into()))?;
     check_password(&body.password)?;
     let display_name = body.display_name.trim().to_string();
     if display_name.is_empty() {
@@ -161,11 +178,59 @@ pub async fn register(
             "an account needs agreement to the terms — they say your writing stays yours".into(),
         ));
     }
+
+    // The sign-up guard: was a person shown to be behind this, and is it
+    // within the limits? The limit is taken by a row written now and given
+    // back below if no account comes of it.
+    crate::signup_guard::warn_if_proxied(state.config.trust_proxy, client.ip.as_deref(), &headers);
+    let ip = crate::signup_guard::signup_ip(client.ip.as_deref());
+    let invited = blocking(&state.pool, {
+        let email = email.clone();
+        move |conn| crate::signup_guard::was_invited(conn, &email)
+    })
+    .await?;
+    let verified = state
+        .signup_guard
+        .human_verified(invited, body.turnstile_token.as_deref(), &ip)
+        .await?;
+    let reservation = blocking(&state.pool, {
+        let guard = state.signup_guard.clone();
+        move |conn| guard.reserve(conn, &ip, &email_domain, verified)
+    })
+    .await?;
+
+    let made = create_account(&state, client, email, body, display_name, &reservation).await;
+    if made.is_err() {
+        blocking(&state.pool, move |conn| {
+            crate::signup_guard::release(conn, &reservation);
+            Ok(())
+        })
+        .await?;
+    }
+    let session = made?;
+
+    // The first proof-of-address mail goes out with the account. If it fails
+    // the account still stands: the person can ask for another.
+    if let Err(e) = super::account::send_verification(&state, &session.user).await {
+        tracing::warn!(error = %e, "could not send the first verification mail");
+    }
+    Ok(Json(session))
+}
+
+/// The account itself, once the sign-up guard has let the request through.
+async fn create_account(
+    state: &AppState,
+    client: ClientInfo,
+    email: String,
+    body: RegisterRequest,
+    display_name: String,
+    reservation: &str,
+) -> ApiResult<SessionResponse> {
     // A display name is public text: the word filter and the platform see it
     // when it is chosen, as they do when it is changed.
     let new_user_id = new_id();
     let screen = crate::domain::moderation::screen(
-        &state,
+        state,
         crate::domain::filter::Surface::DisplayName,
         &new_user_id,
         &display_name,
@@ -198,7 +263,8 @@ pub async fn register(
     };
 
     let inner_state = state.clone();
-    let session = blocking(&state.pool, move |conn| {
+    let reservation = reservation.to_string();
+    blocking(&state.pool, move |conn| {
         let existing: Option<String> = users::table
             .filter(users::email.eq(&new_user.email))
             .select(users::id)
@@ -218,6 +284,7 @@ pub async fn register(
             .find(&new_user.id)
             .select(User::as_select())
             .first(conn)?;
+        crate::signup_guard::confirm(conn, &reservation, &user.id)?;
         // A held name can't be held back (the account has to exist); it is
         // flagged for a person to look at.
         let mut screen = screen;
@@ -233,14 +300,19 @@ pub async fn register(
         )?;
         start_session(&inner_state, conn, user, &client)
     })
-    .await?;
+    .await
+}
 
-    // The first proof-of-address mail goes out with the account. If it fails
-    // the account still stands: the person can ask for another.
-    if let Err(e) = super::account::send_verification(&state, &session.user).await {
-        tracing::warn!(error = %e, "could not send the first verification mail");
-    }
-    Ok(Json(session))
+#[utoipa::path(
+    get,
+    path = "/api/auth/signup-policy",
+    tag = "auth",
+    responses((status = 200, description = "Success", body = SignupPolicy))
+)]
+pub async fn signup_policy(State(state): State<AppState>) -> Json<SignupPolicy> {
+    Json(SignupPolicy {
+        turnstile_site_key: state.signup_guard.site_key().map(str::to_string),
+    })
 }
 
 #[utoipa::path(

@@ -39,6 +39,16 @@ pub enum ApiError {
         message: String,
         details: serde_json::Value,
     },
+    /// A refusal with a code of its own at a status other than 403:
+    /// `captcha_failed` (400), `signup_rate_limited` and
+    /// `signup_captcha_required` (429, with the wait when there is one).
+    #[error("{message}")]
+    WithCode {
+        status: StatusCode,
+        code: &'static str,
+        message: String,
+        retry_after: Option<i64>,
+    },
     #[error("{0}")]
     Internal(String),
 }
@@ -61,6 +71,7 @@ impl ApiError {
             }
             ApiError::TwoFactorRequired(_) => (StatusCode::UNAUTHORIZED, "two_factor_required"),
             ApiError::Coded { code, .. } => (StatusCode::FORBIDDEN, code),
+            ApiError::WithCode { status, code, .. } => (*status, code),
             ApiError::Internal(_) => (StatusCode::INTERNAL_SERVER_ERROR, "internal"),
         }
     }
@@ -81,7 +92,12 @@ impl IntoResponse for ApiError {
         if let ApiError::ConflictWith { details, .. } | ApiError::Coded { details, .. } = &self {
             error["details"] = details.clone();
         }
-        if let ApiError::TooManyRequests { retry_after, .. } = &self {
+        if let ApiError::TooManyRequests { retry_after, .. }
+        | ApiError::WithCode {
+            retry_after: Some(retry_after),
+            ..
+        } = &self
+        {
             error["details"] = json!({ "retryAfter": retry_after });
         }
         (status, Json(json!({ "error": error }))).into_response()
@@ -133,7 +149,8 @@ pub struct ErrorEnvelope {
 pub struct ErrorBody {
     /// `bad_request`, `unauthorized`, `two_factor_required`, `forbidden`,
     /// `account_banned`, `account_restricted`, `not_found`, `conflict`,
-    /// `too_many_requests`, `internal`.
+    /// `too_many_requests`, `captcha_failed`, `signup_rate_limited`,
+    /// `signup_captcha_required`, `internal`.
     pub code: String,
     pub message: String,
     /// Present when the client is expected to act on it — see a scene save conflict.

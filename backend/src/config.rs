@@ -45,6 +45,8 @@ pub struct Config {
     /// A built web app (`web/dist`) to serve beside the API, as the Docker
     /// image does. Unset in development, where Vite serves it.
     pub web_dir: Option<PathBuf>,
+    /// The sign-up limits and the CAPTCHA — see `signup_guard`.
+    pub signup: crate::signup_guard::SignupConfig,
 }
 
 /// The old name for every setting, before the product was renamed.
@@ -141,6 +143,7 @@ impl Config {
             metrics_token: std::env::var("JUSTTYPE_METRICS_TOKEN")
                 .ok()
                 .filter(|s| s.len() >= 16),
+            signup: crate::signup_guard::SignupConfig::from_env()?,
         })
     }
 }
