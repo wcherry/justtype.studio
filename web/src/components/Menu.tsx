@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 
 export interface MenuItem {
   key: string
@@ -293,15 +293,20 @@ export function ContextMenu({
   const rootRef = useRef<HTMLDivElement>(null)
   const id = useId()
   const [at, setAt] = useState({ x, y })
+  const [maxHeight, setMaxHeight] = useState<number | undefined>(undefined)
   const returnTo = useRef<Element | null>(typeof document === 'undefined' ? null : document.activeElement)
 
-  // Kept inside the window once its size is known.
-  useEffect(() => {
-    const box = rootRef.current?.firstElementChild?.getBoundingClientRect()
+  // Kept inside the window once its size is known, before it is painted. The
+  // list is measured, not the root's first child, which is the hidden label.
+  // Taller than the window, it fits the window and scrolls.
+  useLayoutEffect(() => {
+    const box = rootRef.current?.querySelector('.context-menu__list')?.getBoundingClientRect()
     if (!box) return
+    const room = window.innerHeight - 16
+    setMaxHeight(box.height > room ? room : undefined)
     setAt({
       x: Math.max(8, Math.min(x, window.innerWidth - box.width - 8)),
-      y: Math.max(8, Math.min(y, window.innerHeight - box.height - 8)),
+      y: Math.max(8, Math.min(y, window.innerHeight - Math.min(box.height, room) - 8)),
     })
   }, [x, y])
 
@@ -321,7 +326,11 @@ export function ContextMenu({
   }, [onClose])
 
   return (
-    <div ref={rootRef} className="context-menu" style={{ left: at.x, top: at.y }}>
+    <div
+      ref={rootRef}
+      className={maxHeight ? 'context-menu is-scrolling' : 'context-menu'}
+      style={{ left: at.x, top: at.y, ['--context-menu-max' as string]: maxHeight ? `${maxHeight}px` : undefined }}
+    >
       <span id={`${id}-label`} hidden>{label}</span>
       <MenuList
         id={`${id}-list`}
