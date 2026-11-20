@@ -818,7 +818,7 @@ address, refused name) does not count. `0` turns a limit off
 |---|---|---|
 | `GET` | `/features` | `{ summaries, summaryProvider, assistant }` — whether this server can write them |
 | `POST` / `DELETE` | `/me/summaries` | turn summaries on or off for this account |
-| `POST` | `/scenes/{id}/summary` | one to three sentences |
+| `POST` | `/scenes/{id}/summary` | one to three short sentences, at most a 25th of the scene's length in words (never under 12) |
 | `POST` | `/chapters/{id}/summary` | three to five sentences |
 | `POST` | `/works/{id}/summary` | a synopsis of the whole book, three to five paragraphs |
 
