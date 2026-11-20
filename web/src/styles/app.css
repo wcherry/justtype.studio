@@ -674,6 +674,19 @@ button.outline__review { cursor: pointer; }
 /* The main menu, as a hamburger to the left of the title. */
 .editor__heading { display: flex; align-items: flex-start; gap: 10px; }
 .editor__title { min-width: 0; }
+.editor__title-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.editor__title-row h1 { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.editor__rename.has-tip {
+  flex: none; display: inline-flex; padding: 4px; border: 1px solid transparent; background: none;
+  color: var(--ink-faint);
+}
+.editor__rename.has-tip:hover, .editor__rename.has-tip:focus-visible { border-color: var(--line); color: var(--ink); }
+.editor__rename .icon { display: block; width: 15px; height: 15px; }
+.editor__title-input {
+  font-family: var(--serif); font-weight: 500; font-size: 22px; line-height: 1.2;
+  width: min(480px, 100%); padding: 0 6px; margin: 0 0 0 -7px;
+  border: 1px solid var(--accent); border-radius: var(--radius); background: var(--surface); color: var(--ink);
+}
 .editor__menu.menu__button { padding: 6px; margin-top: 1px; border-color: transparent; background: none; color: var(--ink-soft); }
 .editor__menu.menu__button:hover, .editor__menu.menu__button[aria-expanded='true'] { border-color: var(--line); color: var(--ink); }
 .editor__menu.menu__button.is-active { border-color: var(--accent); color: var(--accent); }
@@ -694,6 +707,9 @@ button.outline__review { cursor: pointer; }
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
 }
 .context-menu .context-menu__list { position: static; }
+/* Taller than the window: it scrolls, and a submenu opens in place under its item. */
+.context-menu.is-scrolling .context-menu__list { max-height: var(--context-menu-max); overflow-y: auto; }
+.context-menu.is-scrolling .menu__sub { position: static; box-shadow: none; border: none; padding: 0 0 0 12px; min-width: 0; }
 .context-menu .menu__sub { top: -5px; left: calc(100% + 4px); right: auto; }
 .menu__button { display: inline-flex; align-items: center; gap: 6px; }
 .menu__button.is-active { border-color: var(--accent); color: var(--accent); }

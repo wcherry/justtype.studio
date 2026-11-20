@@ -163,6 +163,9 @@ export function EditorPage() {
   const [outline, setOutline] = useState<OutlineType | null>(null)
   const [versions, setVersions] = useState<VersionSummary[]>([])
   const [scene, setScene] = useState<Scene | null>(null)
+  /** The scene's name being edited in the header, or null. */
+  const [titleDraft, setTitleDraft] = useState<string | null>(null)
+  useEffect(() => setTitleDraft(null), [scene?.id])
   /** What the outline's scene menu has open: a dialog, or an export of one scene. */
   const [sceneDialog, setSceneDialog] = useState<
     { kind: 'delete' | 'version'; scene: Scene; name: string } | null
@@ -1321,6 +1324,21 @@ export function EditorPage() {
     setNotice(`Deleted “${nameOf(target.id) || 'the scene'}”.`)
   }
 
+  /** Commits on Enter or leaving; a name left as it was shown stays unchanged. */
+  const saveTitle = async () => {
+    if (!scene || titleDraft === null) return
+    const shown = nameOf(scene.id)
+    const typed = titleDraft.trim()
+    setTitleDraft(null)
+    // Left as the default it was shown as, or emptied: still untitled.
+    const next = typed === shown ? scene.title.trim() : typed
+    if (next === scene.title.trim()) return
+    const sceneId = scene.id
+    await api.scenes.update(sceneId, { title: next })
+    setScene((s) => (s && s.id === sceneId ? { ...s, title: next } : s))
+    void loadOutline()
+  }
+
   /** A scene's title, or "Scene 2" for where it sits when it has none. */
   const nameOf = (sceneId: string) =>
     (named ?? outline).chapters.flatMap((c) => c.scenes).find((s) => s.id === sceneId)?.title ?? ''
@@ -1431,9 +1449,38 @@ export function EditorPage() {
               items={mainMenu}
             />
             <div className="editor__title">
-            <h1 className={scene && isUntitled(scene.title) ? 'is-placeholder' : undefined}>
-              {scene ? nameOf(scene.id) : outline.title}
-            </h1>
+            {scene && titleDraft !== null ? (
+              <input
+                className="editor__title-input"
+                autoFocus
+                value={titleDraft}
+                aria-label="Scene name"
+                onFocus={(e) => e.currentTarget.select()}
+                onChange={(e) => setTitleDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') setTitleDraft(null)
+                  else if (e.key === 'Enter') e.currentTarget.blur()
+                }}
+                onBlur={() => void saveTitle()}
+              />
+            ) : (
+              <div className="editor__title-row">
+                <h1 className={scene && isUntitled(scene.title) ? 'is-placeholder' : undefined}>
+                  {scene ? nameOf(scene.id) : outline.title}
+                </h1>
+                {scene && writable && (
+                  <button
+                    type="button"
+                    className="editor__rename has-tip"
+                    aria-label="Rename scene"
+                    data-tip="Rename scene"
+                    onClick={() => setTitleDraft(nameOf(scene.id))}
+                  >
+                    <Icon name="pencil" />
+                  </button>
+                )}
+              </div>
+            )}
             <p className="editor__meta">
               {scene && `${statusOf(statuses, scene.status).label} · `}
               {wordCount.toLocaleString()} words in this scene · {outline.wordCount.toLocaleString()} in the work
