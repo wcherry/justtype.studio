@@ -39,12 +39,14 @@ struct Config {
     web_dir: PathBuf,
     ios_dir: PathBuf,
     ios_package_dir: PathBuf,
+    android_dir: PathBuf,
     xcode_project: String,
     default_bind_addr: String,
     health_path: String,
     openapi_path: PathBuf,
     ts_types_path: PathBuf,
     swift_types_path: PathBuf,
+    kotlin_types_path: PathBuf,
 }
 
 const USAGE: &str = "\
@@ -59,6 +61,9 @@ Tasks:
   ios                Generate the Xcode project and open it
   sim [args...]      Build and run the iOS app (scripts/run_simulator.sh)
   testflight [args]  Build, sign and upload to TestFlight
+  android [args]     Build the Android app and install it on the running emulator or phone
+                       --api <url>  talk to this server (default: production)
+                       --local      the backend on this computer, from the emulator
   test               Rust, Swift and web test suites
   check              fmt, clippy, and the web type-check
   smoke              End-to-end API walkthrough on a throwaway database
@@ -96,6 +101,7 @@ fn main() {
         // shell than as Rust building argv vectors. The xtask just forwards.
         "sim" => run_script(&cfg.workspace_root, "scripts/run_simulator.sh", &extra),
         "testflight" => run_script(&cfg.workspace_root, "scripts/deploy_testflight.sh", &extra),
+        "android" => run_android(&cfg, &extra),
         "test" => run_tests(&cfg),
         "check" => run_checks(&cfg),
         "smoke" => run_smoke(&cfg.workspace_root, &extra),
@@ -688,7 +694,7 @@ fn write_openapi(cfg: &Config) -> serde_json::Value {
     document
 }
 
-/// Regenerates both clients' model types from the document.
+/// Regenerates every client's model types from the document.
 ///
 /// `--check` is what CI runs: it regenerates into memory and fails if anything
 /// on disk differs, so a schema change that was not regenerated cannot merge.
@@ -702,6 +708,7 @@ fn run_codegen(cfg: &Config, check_only: bool) {
     let outputs = [
         (cfg.ts_types_path.clone(), codegen::typescript(&schemas)),
         (cfg.swift_types_path.clone(), codegen::swift(&schemas)),
+        (cfg.kotlin_types_path.clone(), codegen::kotlin(&schemas)),
     ];
 
     let mut stale = Vec::new();
@@ -765,9 +772,87 @@ fn run_tests(cfg: &Config) {
         println!("swift not found — skipping the iOS package tests");
     }
 
+    section("Android");
+    if have_tool("java") {
+        run(
+            "./gradlew",
+            &["--console=plain", ":core:test"],
+            &cfg.android_dir,
+        );
+    } else {
+        println!("java not found — skipping the Android core tests");
+    }
+
     section("Web");
     run("pnpm", &["install", "--prefer-offline"], &cfg.web_dir);
     run("pnpm", &["typecheck"], &cfg.web_dir);
+}
+
+/// Builds the debug app and installs it on whatever `adb` sees. Production by
+/// default, as the iOS app is; `--local` is the backend on this computer as
+/// the emulator reaches it (10.0.2.2), `--api` anything else.
+fn run_android(cfg: &Config, extra: &[String]) {
+    let mut api = None;
+    let mut args = extra.iter();
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--local" => {
+                api = Some(format!(
+                    "http://10.0.2.2:{}/api",
+                    port_of(&cfg.default_bind_addr)
+                ))
+            }
+            "--api" => api = args.next().cloned(),
+            other => {
+                eprintln!("Unknown option for android: {other}");
+                process::exit(1);
+            }
+        }
+    }
+    let property = api.map(|url| format!("-PapiBaseUrl={url}"));
+    let mut args = vec!["--console=plain", ":app:installDebug"];
+    if let Some(property) = &property {
+        args.push(property);
+    }
+    gradle(&cfg.android_dir, &args);
+    run(
+        "adb",
+        &[
+            "shell",
+            "am",
+            "start",
+            "-n",
+            "studio.justtype.app/.MainActivity",
+        ],
+        &cfg.android_dir,
+    );
+}
+
+/// Gradle 8 runs on JDK 17 to 24, and the `java` on a Mac's PATH is often newer
+/// (Homebrew's). Without a JAVA_HOME of the caller's own, macOS is asked for a 17.
+fn gradle(dir: &Path, args: &[&str]) {
+    let mut command = Command::new("./gradlew");
+    command.args(args).current_dir(dir);
+    if env::var_os("JAVA_HOME").is_none() {
+        if let Ok(out) = Command::new("/usr/libexec/java_home")
+            .args(["-v", "17"])
+            .output()
+        {
+            if out.status.success() {
+                command.env("JAVA_HOME", String::from_utf8_lossy(&out.stdout).trim());
+            }
+        }
+    }
+    let status = command
+        .status()
+        .unwrap_or_else(|e| panic!("failed to spawn gradlew: {e}"));
+    if !status.success() {
+        process::exit(status.code().unwrap_or(1));
+    }
+}
+
+fn port_of(addr: &str) -> &str {
+    addr.rsplit(':').next().unwrap_or("8088")
 }
 
 /// What CI enforces, runnable before pushing.
@@ -836,12 +921,14 @@ fn config_from_metadata() -> Config {
         web_dir: root.join(get("web_dir")),
         ios_dir: root.join(get("ios_dir")),
         ios_package_dir: root.join(get("ios_package_dir")),
+        android_dir: root.join(get("android_dir")),
         xcode_project: get("xcode_project"),
         default_bind_addr: get("default_bind_addr"),
         health_path: get("health_path"),
         openapi_path: root.join(get("openapi_path")),
         ts_types_path: root.join(get("ts_types_path")),
         swift_types_path: root.join(get("swift_types_path")),
+        kotlin_types_path: root.join(get("kotlin_types_path")),
         workspace_root: root,
     }
 }

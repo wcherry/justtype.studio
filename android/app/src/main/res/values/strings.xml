@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Just Type Studio</string>
+    <string name="widget_name">Today\'s words</string>
+    <string name="widget_description">How far you have got against your daily goal.</string>
+    <string name="shortcut_write_short">Start writing</string>
+    <string name="shortcut_write_long">Carry on with your last scene</string>
+</resources>
