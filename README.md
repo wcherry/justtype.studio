@@ -7,6 +7,7 @@ votable feedback from other writers and readers.
 - **Backend** — Rust: Axum + Diesel + SQLite, with manuscript content on disk
 - **Web** — React + TypeScript + Vite, TipTap (ProseMirror) editor
 - **iOS** — SwiftUI, sharing a Swift package with the app target
+- **Android** — Kotlin and Jetpack Compose, the same editor page as iOS
 
 See [ROADMAP.md](ROADMAP.md) for what is built and what comes next, and
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for why it is shaped this way.
@@ -17,25 +18,33 @@ See [ROADMAP.md](ROADMAP.md) for what is built and what comes next, and
 backend/    Rust API server, migrations, domain logic
 web/        React client
 ios/        Swift package (JustTypeKit + JustTypeUI) and the app target
+android/    Gradle project: core (JVM, tested without an emulator) and the app
 docs/       Architecture, data model, API reference
 data/       Local SQLite database and manuscript tree (git-ignored)
 ```
 
 ## Running it
 
-Prerequisites: Rust 1.75+, Node 20+ with pnpm, Xcode 15+ for iOS.
+Prerequisites: Rust 1.75+, Node 20+ with pnpm, Xcode 15+ for iOS, JDK 17 and
+the Android SDK (API 36) for Android.
 
 ```bash
 cp .env.example .env          # then set JUSTTYPE_JWT_SECRET
 make backend                  # http://127.0.0.1:8088
 make web                      # http://localhost:5183, proxies /api to the backend
 make ios                      # generates the Xcode project and opens it
+cargo android --local         # builds the Android app and installs it on the emulator
 ```
 
-`make test` runs the Rust unit tests, the Swift package tests, and the web
-type-check. `make smoke` exercises the whole API end to end against a throwaway
+`make test` runs the Rust unit tests, the Swift package tests, the Android
+core tests, and the web type-check. `make smoke` exercises the whole API end to end against a throwaway
 database. Every target is a thin wrapper over `cargo xtask` — run `cargo xtask`
 with no arguments for the full list.
+
+### The Android app
+
+See [android/README.md](android/README.md): `cargo android` builds and installs
+it against production, `--local` against `make backend` on this computer.
 
 ### The iOS app
 
@@ -93,8 +102,9 @@ cargo xtask codegen          # regenerate after any change to a handler or DTO
 cargo xtask codegen --check  # what CI runs; fails if anything is stale
 ```
 
-Generated files — `web/src/api/schema.ts` and
-`ios/JustTypeKit/Sources/JustTypeKit/Generated/Schemas.swift` — are
+Generated files — `web/src/api/schema.ts`,
+`ios/JustTypeKit/Sources/JustTypeKit/Generated/Schemas.swift` and
+`android/core/src/main/kotlin/studio/justtype/core/api/Schemas.kt` — are
 checked in and must not be hand-edited. Behaviour that hangs off those types
 lives beside them, in `web/src/api/types.ts` and
 `ios/.../Model+Helpers.swift`, so regenerating never clobbers hand-written code.

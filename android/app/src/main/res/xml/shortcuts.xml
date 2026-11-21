@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- "Start writing" from the launcher, as the iOS Shortcut: back to the last scene, in front. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="start_writing"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_write"
+        android:shortcutShortLabel="@string/shortcut_write_short"
+        android:shortcutLongLabel="@string/shortcut_write_long">
+        <intent
+            android:action="studio.justtype.app.START_WRITING"
+            android:targetPackage="studio.justtype.app"
+            android:targetClass="studio.justtype.app.MainActivity" />
+    </shortcut>
+</shortcuts>
